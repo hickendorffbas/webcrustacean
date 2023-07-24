@@ -2,8 +2,7 @@ use std::collections::LinkedList;
 use std::rc::Rc;
 
 use crate::dom::{Document, DomNode, DocumentDomNode, TextDomNode, ElementDomNode};
-
-
+use crate::debug::debug_print_html_node;
 
 //TODO: we now have these custom nodes, which are good for partially filling them while parsing the document. I think we should call them
 //      "partial"-something, and not HTML specifically, because the html nodes are really just the DOM nodes, but they have less Optional's
@@ -32,6 +31,7 @@ pub struct HtmlNode<'document> {
 pub fn parse_document(document: &str) -> Document {
     let tokens = tokenize(document);
     let html_root_node = build_html_nodes(tokens);
+    debug_print_html_node(&html_root_node, "HTML_NODES_AFTER_PARSING");
     return convert_html_nodes_to_dom(html_root_node);
 }
 
@@ -181,7 +181,7 @@ fn build_html_nodes<'document>(tokens: Vec<Token<'document>>) -> HtmlNode<'docum
         panic!("Did not get exactly 1 root node after parsing HTML");
     }
 
-    return nodes.remove(0);  //removing to take owner ship (as opposed to using get())
+    return nodes.remove(0); //removing to take ownership (as opposed to using get())
 }
 
 fn convert_html_nodes_to_dom(html_node: HtmlNode) -> Document {
@@ -189,13 +189,15 @@ fn convert_html_nodes_to_dom(html_node: HtmlNode) -> Document {
     let mut next_node_internal_id: u32 = 0;
 
     let new_node = convert_html_node_to_dom_node(html_node, &mut document_dom_nodes, &mut next_node_internal_id);
+    let rc_for_document_node = Rc::clone(&new_node);
     document_dom_nodes.push(new_node);
 
     let document_node = DomNode::Document(DocumentDomNode{
         internal_id: next_node_internal_id,
-        children: Some(document_dom_nodes.clone()) //TODO: instead of a clone I need a shallow copy here (because the nodes still should be the same, just new RC's to the same nodes, or does the clone of Rc do that actually already? Probably!)
+        children: Some(vec![rc_for_document_node]),
     });
     next_node_internal_id += 1;
+
     let rc_document_node = Rc::new(document_node);
     let rc_clone_document_node = Rc::clone(&rc_document_node);
     document_dom_nodes.push(rc_document_node);
@@ -212,11 +214,15 @@ fn convert_html_nodes_to_dom(html_node: HtmlNode) -> Document {
     };
 }
 
-fn convert_html_node_to_dom_node(html_node: HtmlNode, document_dom_nodes: &mut Vec<Rc<DomNode>>, next_node_internal_id: &mut u32) -> Rc<DomNode> { //TODO: test that passing next_node_interal_id around like this works
+//TODO: test that passing next_node_interal_id around in the function below works
+fn convert_html_node_to_dom_node(html_node: HtmlNode, document_dom_nodes: &mut Vec<Rc<DomNode>>, next_node_internal_id: &mut u32) -> Rc<DomNode> {
     let new_node = match html_node.node_type {
-        HtmlNodeType::Text => DomNode::Text(TextDomNode {internal_id: *next_node_internal_id, text_content: html_node.text_content.map(|s| s.concat())}),
+        HtmlNodeType::Text => {
+            let new_node = DomNode::Text(TextDomNode {internal_id: *next_node_internal_id, text_content: html_node.text_content.map(|s| s.join(" "))});
+            *next_node_internal_id += 1;
+            new_node
+        },
         HtmlNodeType::Tag => {
-
             let dom_children = if html_node.children.is_some() {
                 let mut children = Vec::new();
                 for child in html_node.children.unwrap() {
@@ -230,11 +236,12 @@ fn convert_html_node_to_dom_node(html_node: HtmlNode, document_dom_nodes: &mut V
                 None
             };
 
-            DomNode::Element(ElementDomNode {internal_id: *next_node_internal_id, name: html_node.tag_name, children: dom_children})
+            let new_node = DomNode::Element(ElementDomNode {internal_id: *next_node_internal_id, name: html_node.tag_name, children: dom_children});
+            *next_node_internal_id += 1;
+            new_node
         },
     };
 
-    *next_node_internal_id += 1;
     return Rc::new(new_node);
 }
 

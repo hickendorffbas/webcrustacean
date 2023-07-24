@@ -1,4 +1,12 @@
 use std::collections::LinkedList;
+use std::rc::Rc;
+
+use crate::dom::{Document, DomNode, DocumentDomNode, TextDomNode, ElementDomNode};
+
+
+
+//TODO: we now have these custom nodes, which are good for partially filling them while parsing the document. I think we should call them
+//      "partial"-something, and not HTML specifically, because the html nodes are really just the DOM nodes, but they have less Optional's
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub enum HtmlNodeType {
@@ -20,32 +28,16 @@ pub struct HtmlNode<'document> {
     pub attributes: Option<Vec<Attribute<'document>>>,
     pub children: Option<Vec<HtmlNode<'document>>>
 }
-impl<'document> HtmlNode<'document> { //TODO: why do I need 2 lifetimes here?
-    pub fn find_attribute_value(&self, key_to_find: &str) -> Option<Vec<&'document str>> {
 
-        match &self.attributes {
-            Some(attrs) => {
-                for att in attrs {
-                    if att.key == key_to_find {
-                        return Some(att.value.clone()); //TODO: can I avoid the clone here? All should be live for the lifetime of the document
-                    }
-                }
-                return None
-            },
-            None => return None
-        }
-    }
-
-}
-
-
-pub fn parse_document(document: &str) -> Vec<HtmlNode> {
+pub fn parse_document(document: &str) -> Document {
     let tokens = tokenize(document);
-    return build_html_nodes(&tokens);
+    let html_root_node = build_html_nodes(tokens);
+    return convert_html_nodes_to_dom(html_root_node);
 }
 
-fn build_html_nodes<'document>(tokens: &Vec<Token<'document>>) -> Vec<HtmlNode<'document>> {
+fn build_html_nodes<'document>(tokens: Vec<Token<'document>>) -> HtmlNode<'document> {
     let mut nodes: Vec<HtmlNode> = Vec::new();
+
     let mut open_nodes: LinkedList<HtmlNode> = LinkedList::new();
 
     let mut parsing_inside_tag = false;
@@ -59,7 +51,6 @@ fn build_html_nodes<'document>(tokens: &Vec<Token<'document>>) -> Vec<HtmlNode<'
 
     let mut parsed_attribute_key: Option<&str> = None;
     let mut in_quotes = false;
-
 
     for (_idx, token) in tokens.iter().enumerate() {
 
@@ -169,7 +160,6 @@ fn build_html_nodes<'document>(tokens: &Vec<Token<'document>>) -> Vec<HtmlNode<'
                         key: parsed_attribute_key.unwrap(),
                         value: unparsed_text_nodes
                     });
-                    println!("parsed_attributes {:?}", parsed_attributes);
 
                     parsed_attribute_key = None;
                     unparsed_text_nodes = Vec::new();
@@ -185,11 +175,68 @@ fn build_html_nodes<'document>(tokens: &Vec<Token<'document>>) -> Vec<HtmlNode<'
         opt_last_token = Some(&token);
     }
 
+    //TODO: this is a bit bad. We assume there is only one top node (i.e. <html>), this might not be true, we probably need to wrap it in some html document node
+    //TODO: make this a proper debug-only, off-switchable assert
+    if nodes.len() != 1 {
+        panic!("Did not get exactly 1 root node after parsing HTML");
+    }
 
-    return nodes;
+    return nodes.remove(0);  //removing to take owner ship (as opposed to using get())
 }
 
+fn convert_html_nodes_to_dom(html_node: HtmlNode) -> Document {
+    let mut document_dom_nodes: Vec<Rc<DomNode>> = Vec::new();
+    let mut next_node_internal_id: u32 = 0;
 
+    let new_node = convert_html_node_to_dom_node(html_node, &mut document_dom_nodes, &mut next_node_internal_id);
+    document_dom_nodes.push(new_node);
+
+    let document_node = DomNode::Document(DocumentDomNode{
+        internal_id: next_node_internal_id,
+        children: Some(document_dom_nodes.clone()) //TODO: instead of a clone I need a shallow copy here (because the nodes still should be the same, just new RC's to the same nodes, or does the clone of Rc do that actually already? Probably!)
+    });
+    next_node_internal_id += 1;
+    let rc_document_node = Rc::new(document_node);
+    let rc_clone_document_node = Rc::clone(&rc_document_node);
+    document_dom_nodes.push(rc_document_node);
+
+    //TODO: figure out a good way to assert things, with no runtime (release) costs, and possible to disable in debug mode as well... for now its always there
+    //      we see to have something already in debug.rs
+    if document_dom_nodes.len() != next_node_internal_id as usize {
+        panic!("Id seting of DOM nodes went wrong");
+    }
+
+    return Document {
+        document_node: rc_clone_document_node,
+        all_nodes: document_dom_nodes,
+    };
+}
+
+fn convert_html_node_to_dom_node(html_node: HtmlNode, document_dom_nodes: &mut Vec<Rc<DomNode>>, next_node_internal_id: &mut u32) -> Rc<DomNode> { //TODO: test that passing next_node_interal_id around like this works
+    let new_node = match html_node.node_type {
+        HtmlNodeType::Text => DomNode::Text(TextDomNode {internal_id: *next_node_internal_id, text_content: html_node.text_content.map(|s| s.concat())}),
+        HtmlNodeType::Tag => {
+
+            let dom_children = if html_node.children.is_some() {
+                let mut children = Vec::new();
+                for child in html_node.children.unwrap() {
+                    let new_node = convert_html_node_to_dom_node(child, document_dom_nodes, next_node_internal_id);
+                    children.push(Rc::clone(&new_node));
+                    document_dom_nodes.push(new_node);
+                }
+
+                Some(children)
+            } else {
+                None
+            };
+
+            DomNode::Element(ElementDomNode {internal_id: *next_node_internal_id, name: html_node.tag_name, children: dom_children})
+        },
+    };
+
+    *next_node_internal_id += 1;
+    return Rc::new(new_node);
+}
 
 fn close_node<'document>(open_nodes: &mut LinkedList<HtmlNode<'document>>, nodes: &mut Vec<HtmlNode<'document>>) {
     let node_being_closed = open_nodes.pop_back().expect("popping from empty stack!");

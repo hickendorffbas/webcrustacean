@@ -1,6 +1,7 @@
 #![allow(unused_parens)]
 
 mod debug;
+mod dom;
 mod fonts;
 mod html_parser;
 mod layout;
@@ -145,8 +146,8 @@ fn main() -> Result<(), String> {
 
     let file_contents: String;
     if (loading_local_file) {
-        let mut file_path = url[7..] //remove the "file://" prefix
-                            .to_owned();
+        let file_path = url[7..] //remove the "file://" prefix
+                        .to_owned();
         println!("file_path: {:?}", file_path);
         file_contents = fs::read_to_string(file_path)
                                 .expect("Something went wrong reading the file");
@@ -155,8 +156,8 @@ fn main() -> Result<(), String> {
     }
 
 
-    let root_nodes = html_parser::parse_document(&file_contents);
-    let layout_nodes = layout::build_layout_list(&root_nodes, &mut font_cache);
+    let document_node = html_parser::parse_document(&file_contents);
+    let layout_nodes = layout::build_layout_list(&document_node, &mut font_cache);
 
     let click_boxes = layout::compute_click_boxes(&layout_nodes);
 

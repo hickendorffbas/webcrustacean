@@ -188,15 +188,16 @@ fn convert_html_nodes_to_dom(html_node: HtmlNode) -> Document {
     let mut document_dom_nodes: Vec<Rc<DomNode>> = Vec::new();
     let mut next_node_internal_id: u32 = 0;
 
-    let new_node = convert_html_node_to_dom_node(html_node, &mut document_dom_nodes, &mut next_node_internal_id);
+    let id_of_node_being_built = next_node_internal_id;
+    next_node_internal_id += 1;
+    let new_node = convert_html_node_to_dom_node(html_node, &mut document_dom_nodes, &mut next_node_internal_id, id_of_node_being_built);
     let rc_for_document_node = Rc::clone(&new_node);
     document_dom_nodes.push(new_node);
 
     let document_node = DomNode::Document(DocumentDomNode{
-        internal_id: next_node_internal_id,
+        internal_id: id_of_node_being_built,
         children: Some(vec![rc_for_document_node]),
     });
-    next_node_internal_id += 1;
 
     let rc_document_node = Rc::new(document_node);
     let rc_clone_document_node = Rc::clone(&rc_document_node);
@@ -215,18 +216,25 @@ fn convert_html_nodes_to_dom(html_node: HtmlNode) -> Document {
 }
 
 //TODO: test that passing next_node_interal_id around in the function below works
-fn convert_html_node_to_dom_node(html_node: HtmlNode, document_dom_nodes: &mut Vec<Rc<DomNode>>, next_node_internal_id: &mut u32) -> Rc<DomNode> {
+fn convert_html_node_to_dom_node(html_node: HtmlNode, document_dom_nodes: &mut Vec<Rc<DomNode>>, next_node_internal_id: &mut u32, parent_id: u32) -> Rc<DomNode> {
     let new_node = match html_node.node_type {
         HtmlNodeType::Text => {
-            let new_node = DomNode::Text(TextDomNode {internal_id: *next_node_internal_id, text_content: html_node.text_content.map(|s| s.join(" "))});
+            let new_node = DomNode::Text(TextDomNode {
+                internal_id: *next_node_internal_id,
+                text_content: html_node.text_content.map(|s| s.join(" ")),
+                parent_id: parent_id,
+            });
             *next_node_internal_id += 1;
             new_node
         },
         HtmlNodeType::Tag => {
+            let id_of_node_being_built = *next_node_internal_id;
+            *next_node_internal_id += 1;
+
             let dom_children = if html_node.children.is_some() {
                 let mut children = Vec::new();
                 for child in html_node.children.unwrap() {
-                    let new_node = convert_html_node_to_dom_node(child, document_dom_nodes, next_node_internal_id);
+                    let new_node = convert_html_node_to_dom_node(child, document_dom_nodes, next_node_internal_id, id_of_node_being_built);
                     children.push(Rc::clone(&new_node));
                     document_dom_nodes.push(new_node);
                 }
@@ -236,8 +244,13 @@ fn convert_html_node_to_dom_node(html_node: HtmlNode, document_dom_nodes: &mut V
                 None
             };
 
-            let new_node = DomNode::Element(ElementDomNode {internal_id: *next_node_internal_id, name: html_node.tag_name, children: dom_children});
-            *next_node_internal_id += 1;
+            let new_node = DomNode::Element(ElementDomNode {
+                internal_id: id_of_node_being_built,
+                name: html_node.tag_name,
+                children: dom_children,
+                parent_id: parent_id,
+            });
+
             new_node
         },
     };
@@ -257,7 +270,6 @@ fn close_node<'document>(open_nodes: &mut LinkedList<HtmlNode<'document>>, nodes
         None => nodes.push(node_being_closed)
     }
 }
-
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]

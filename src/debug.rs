@@ -35,7 +35,7 @@ fn debug_print_dom_node_tree_with_indent(dom_node: &Rc<DomNode>, indent_cnt: u32
             }
         }
         DomNode::Element(node) => {
-            println!("{}{} ({})", indent, node.name.clone().unwrap_or("".to_owned()), node.internal_id);
+            println!("{}{} ({}) (parent: {})", indent, node.name.clone().unwrap_or("".to_owned()), node.internal_id, node.parent_id);
 
             if node.children.is_some() {
                 for child in node.children.clone().unwrap() {
@@ -48,7 +48,7 @@ fn debug_print_dom_node_tree_with_indent(dom_node: &Rc<DomNode>, indent_cnt: u32
             panic!("TODO: implement debug printing of attribute DOM nodes")
         }
         DomNode::Text(node) => {
-            println!("{}{} ({})", indent, node.text_content.clone().unwrap_or("".to_owned()), node.internal_id);
+            println!("{}{} ({}) (parent: {})", indent, node.text_content.clone().unwrap_or("".to_owned()), node.internal_id, node.parent_id);
         }
     }
 }
@@ -78,7 +78,7 @@ fn debug_print_html_node_tree_with_indent(html_node: &HtmlNode, indent_cnt: u32)
     match html_node.node_type {
         HtmlNodeType::Text => {
             if html_node.text_content.is_some() {
-                println!("{}{}", indent, html_node.text_content.clone().map(|s| s.concat()).unwrap());
+                println!("{}{}", indent, html_node.text_content.clone().map(|s| s.join(" ")).unwrap());
             } else {
                 println!("{}{}", indent, "[EMPTY]");
             }

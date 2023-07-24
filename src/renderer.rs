@@ -1,7 +1,7 @@
 use sdl2::rect::{Point as SdlPoint, Rect};
 use sdl2::render::{TextureQuery, WindowCanvas};
 use sdl2::pixels::Color as SdlColor;
-use sdl2::ttf::{Font as SdlFont};
+use sdl2::ttf::Font as SdlFont;
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]

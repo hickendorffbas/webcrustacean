@@ -20,7 +20,23 @@ pub struct HtmlNode<'document> {
     pub attributes: Option<Vec<Attribute<'document>>>,
     pub children: Option<Vec<HtmlNode<'document>>>
 }
+impl<'document> HtmlNode<'document> { //TODO: why do I need 2 lifetimes here?
+    pub fn find_attribute_value(&self, key_to_find: &str) -> Option<Vec<&'document str>> {
 
+        match &self.attributes {
+            Some(attrs) => {
+                for att in attrs {
+                    if att.key == key_to_find {
+                        return Some(att.value.clone()); //TODO: can I avoid the clone here? All should be live for the lifetime of the document
+                    }
+                }
+                return None
+            },
+            None => return None
+        }
+    }
+
+}
 
 
 pub fn parse_document(document: &str) -> Vec<HtmlNode> {

@@ -101,7 +101,21 @@ fn render(canvas: &mut WindowCanvas, layout_nodes: &Vec<LayoutNode>, font_cache:
 }
 
 
-fn handle_left_click(x : i32, y: i32, click_boxes: &Vec<ClickBox>) {
+fn handle_left_click(x : u32, y: u32, click_boxes: &Vec<ClickBox>) {
+
+    println!("number of clickboxes: {}", click_boxes.len());
+
+    for click_box in click_boxes {
+
+        if x > click_box.x && x < click_box.x + click_box.width &&
+           y > click_box.y && y < click_box.y + click_box.width {
+
+            println!("WE ARE IN THE CLICKBOX YEEH");
+
+        }
+
+    }
+
     //TODO: check clickboxes!
     println!("Mouse clicked: {} {}", x, y);
 }
@@ -157,7 +171,7 @@ fn main() -> Result<(), String> {
                     break 'main_loop;
                 },
                 SdlEvent::MouseButtonUp { mouse_btn: MouseButton::Left, x: mouse_x, y: mouse_y, .. } => {
-                    //handle_left_click(mouse_x, mouse_y, &click_boxes); //TODO: disabled because something is wrong with types?
+                    handle_left_click(mouse_x as u32, mouse_y as u32, &click_boxes);
                 }
                 _ => {}
             }

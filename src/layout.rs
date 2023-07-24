@@ -17,7 +17,9 @@ pub struct LayoutNode {
     pub text: Option<String>, //eventually we need different kinds of layout nodes, text is just one type
     pub position: Position,
     pub bold: bool,
-    pub font_size: u16
+    pub font_size: u16,
+    pub optional_link_url: Option<String>, //TODO: this is a stupid hack because layout nodes don't remember what DOM node they are built from,
+                                           //      we should store that on them somehow, but can't get it working ownershipwise currently
 }
 
 pub struct LayoutState {
@@ -42,7 +44,7 @@ pub struct ClickBox {
 
 
 pub fn build_layout_list(html_nodes: &Vec<HtmlNode>, font_cache: &mut FontCache) -> Vec<LayoutNode> {
-    //TODO: I really don't want to accept the different front here of course, in any case these should be my own Font objects, but also looked up differently
+    //TODO: I really don't want to accept the different font here of course, in any case these should be my own Font objects, but also looked up differently
     let mut layout_nodes: Vec<LayoutNode> = Vec::new();
     let mut next_position = Position {x: 10, y: 10};
 
@@ -59,18 +61,28 @@ pub fn build_layout_list(html_nodes: &Vec<HtmlNode>, font_cache: &mut FontCache)
 }
 
 
-pub fn compute_click_boxes(layout_nodes: &Vec<LayoutNode>) {
-    let mut layout_nodes: Vec<LayoutNode> = Vec::new();
+pub fn compute_click_boxes(layout_nodes: &Vec<LayoutNode>) -> Vec<ClickBox> {
+    let mut click_boxes: Vec<ClickBox> = Vec::new();
 
     for layout_node in layout_nodes {
 
-        //TODO: do something smart with the positions of the layout nodes (how do I know which ones are clickboxes?)
-            //TODO: maybe I should just create the clickboxes when I also build the layout tree?
+        if layout_node.optional_link_url.is_some() {
+            click_boxes.push(
+                ClickBox {
+                    x: layout_node.position.x,
+                    y: layout_node.position.y,
+                    width: 100,  //TODO: I'm hardcoding width and height here, because the layout node does not know how large it is. That should change somehow.
+                    height: 20,
+                    target_url: layout_node.optional_link_url.as_ref().unwrap().to_string()
+                }
+            )
+        }
+        //TODO: maybe I should just create the clickboxes when I also build the layout tree? -> yes
 
     }
 
+    return click_boxes;
 }
-
 
 
 fn layout_children(main_node: &HtmlNode, next_position: &mut Position, layout_state: &LayoutState, font_cache: &mut FontCache) -> Vec<LayoutNode> {
@@ -100,12 +112,22 @@ fn layout_children(main_node: &HtmlNode, next_position: &mut Position, layout_st
                         if next_position.x + dimension.width > SCREEN_WIDTH - LAYOUT_MARGIN_HORIZONTAL {
                             move_to_next_line(next_position);
                         }
-            
+
+                        //TODO: the code below is very broken, because the text node is a child of the "a" node, not the a node itself. We need to
+                        //      be able to traverse the tree....
+                        //let optional_link_url = if main_node.tag_name.is_some() && main_node.tag_name.as_ref().unwrap() == "a" {
+                            //TODO: the direct unwrap after looking for href below is of course not good
+                        //    Some(main_node.find_attribute_value("href").unwrap().concat())
+                        //} else {
+                        //    None
+                        //};
+
                         let new_node = LayoutNode {
                             text: Option::Some(text.to_string()),
                             position: next_position.clone(),
                             bold: layout_state.bold,
-                            font_size: layout_state.font_size
+                            font_size: layout_state.font_size,
+                            optional_link_url: optional_link_url,
                         };
             
                         layout_nodes.push(new_node);
@@ -192,7 +214,8 @@ fn build_header_nodes(position: &mut Position) -> Vec<LayoutNode> {
         text: Option::from(String::from("BBrowser")),
         position: position.clone(),
         bold: true,
-        font_size: FONT_SIZE
+        font_size: FONT_SIZE,
+        optional_link_url: None
     });
     position.y += 50;
 

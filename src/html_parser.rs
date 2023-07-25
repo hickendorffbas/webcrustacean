@@ -220,8 +220,8 @@ fn convert_html_node_to_dom_node(html_node: HtmlNode, document_dom_nodes: &mut V
         HtmlNodeType::Text => {
             let new_node = DomNode::Text(TextDomNode {
                 internal_id: *next_node_internal_id,
-                text_content: html_node.text_content.map(|s| s.join(" ")),
-                parent_id: parent_id,
+                text_content: html_node.text_content.map(|s| s.join(" ")).unwrap_or("".to_owned()),
+                parent_id,
             });
             *next_node_internal_id += 1;
             new_node
@@ -263,7 +263,7 @@ fn convert_html_node_to_dom_node(html_node: HtmlNode, document_dom_nodes: &mut V
                 internal_id: id_of_node_being_built,
                 name: html_node.tag_name,
                 children: dom_children,
-                parent_id: parent_id,
+                parent_id,
             });
 
             new_node

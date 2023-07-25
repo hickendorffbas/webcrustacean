@@ -47,7 +47,7 @@ fn debug_print_dom_node_tree_with_indent(dom_node: &Rc<DomNode>, indent_cnt: u32
             println!("{}ATTR: {} ({} = {}) (parent: {})", indent, node.name, node.value, node.internal_id, node.parent_id);
         }
         DomNode::Text(node) => {
-            println!("{}{} ({}) (parent: {})", indent, node.text_content.clone().unwrap_or("".to_owned()), node.internal_id, node.parent_id);
+            println!("{}{} ({}) (parent: {})", indent, node.text_content, node.internal_id, node.parent_id);
         }
     }
 }

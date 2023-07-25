@@ -67,6 +67,6 @@ pub struct AttributeDomNode {
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct TextDomNode {
     pub internal_id: usize,
-    pub text_content: Option<String>, //TODO: remove the option here, there should always be text in a text node (can be the empty string)
+    pub text_content: String,
     pub parent_id: usize,
 }

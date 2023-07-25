@@ -14,7 +14,14 @@ use crate::dom::{Document, DomNode};
 use crate::renderer::{get_text_dimension, Position};
 
 
+pub struct FullLayout { //TODO: build this one on the highest level, instead of returning the top LayoutNode directly
+    pub root_node: Rc<LayoutNode>,
+    pub all_nodes: Vec<Rc<LayoutNode>>,
+}
+
+
 pub struct LayoutNode {
+    pub internal_id: usize,
     pub text: Option<String>, //eventually we need different kinds of layout nodes, text is just one type
     pub position: Position,
     pub visible: bool,
@@ -22,23 +29,31 @@ pub struct LayoutNode {
     pub font_size: u16,
     pub optional_link_url: Option<String>, //TODO: this is a stupid hack because layout nodes don't remember what DOM node they are built from,
                                            //      we should store that on them somehow, but can't get it working ownershipwise currently
-    pub children: Option<Vec<LayoutNode>>
+    pub children: Option<Vec<Rc<LayoutNode>>>,
+    pub parent_id: usize,
 }
 
 
-pub fn build_layout_tree(document_node: &Document, font_cache: &mut FontCache) -> LayoutNode {
-    let mut top_level_layout_nodes: Vec<LayoutNode> = Vec::new();
+pub fn build_full_layout(document_node: &Document, font_cache: &mut FontCache) -> FullLayout {
+    let mut top_level_layout_nodes: Vec<Rc<LayoutNode>> = Vec::new();
     let mut next_position = Position {x: 10, y: 10};
+    let mut all_nodes: Vec<Rc<LayoutNode>> = Vec::new();
+    let mut next_node_internal_id: usize = 0;
 
     debug_print_dom_tree(&document_node, "START_OF_BUILD_LAYOUT_TREE");
 
+    let id_of_node_being_built = next_node_internal_id;
+    next_node_internal_id += 1;
+
     //TODO: understand why I need to pass in a mutable reference in the append method
-    top_level_layout_nodes.append(&mut build_header_nodes(&mut next_position));
+    top_level_layout_nodes.append(&mut build_header_nodes(&mut next_position, &mut all_nodes, &mut next_node_internal_id, id_of_node_being_built));
 
-    //let layout_state = LayoutState {bold : false, font_size: FONT_SIZE, visible: true};
-    top_level_layout_nodes.push(layout_dom_tree(&document_node.document_node, document_node, &mut next_position, font_cache));
+    let document_layout_node = layout_dom_tree(&document_node.document_node, document_node, &mut next_position, font_cache,
+                                               &mut all_nodes, &mut next_node_internal_id, id_of_node_being_built);
+    top_level_layout_nodes.push(document_layout_node);
 
-    return LayoutNode {  //this is the root layout node
+    let root_node = LayoutNode {
+        internal_id: id_of_node_being_built,
         text: None,
         position: Position { x: 0, y: 0 }, //TODO: we need width and hight eventually on this as well (probably as big as the viewport?)
         visible: true,
@@ -46,12 +61,26 @@ pub fn build_layout_tree(document_node: &Document, font_cache: &mut FontCache) -
         font_size: FONT_SIZE, //TODO: this should probably not be a top-level attribute of the layout node, but in text properties or something
         optional_link_url: None,
         children: Some(top_level_layout_nodes),
+        parent_id: id_of_node_being_built,  //this is the top node, so it does not really have a parent, we set it to ourselves
+    };
+
+
+    let rc_root_node = Rc::new(root_node);
+    all_nodes.push(Rc::clone(&rc_root_node));
+
+
+    //TODO: figure out a good way to assert things, with no runtime (release) costs, and possible to disable in debug mode as well... for now its always there
+    //      we see to have something already in debug.rs
+    if all_nodes.len() != next_node_internal_id  {
+        panic!("Id seting of Layout nodes went wrong");
     }
 
+    return FullLayout { root_node: rc_root_node, all_nodes }
 }
 
 
-fn layout_dom_tree(main_node: &DomNode, document: &Document, next_position: &mut Position, font_cache: &mut FontCache) -> LayoutNode {
+fn layout_dom_tree(main_node: &DomNode, document: &Document, next_position: &mut Position, font_cache: &mut FontCache,
+                   all_nodes: &mut Vec<Rc<LayoutNode>>, next_node_internal_id: &mut usize, parent_id: usize) -> Rc<LayoutNode> {
     let mut move_to_next_line_after = false;
 
     let mut partial_node_text = None;
@@ -156,11 +185,14 @@ fn layout_dom_tree(main_node: &DomNode, document: &Document, next_position: &mut
 
     }
 
+    let id_of_node_being_built = *next_node_internal_id;
+    *next_node_internal_id += 1;
+
     let new_childeren = if let Some(ref children) = childs_to_recurse_on {
         let mut temp_childeren = Vec::new();
 
         for child in children {
-            temp_childeren.push(layout_dom_tree(child, document, next_position, font_cache));
+            temp_childeren.push(layout_dom_tree(child, document, next_position, font_cache, all_nodes, next_node_internal_id, id_of_node_being_built));
         }
 
         Some(temp_childeren)
@@ -168,31 +200,36 @@ fn layout_dom_tree(main_node: &DomNode, document: &Document, next_position: &mut
         None
     };
 
-
     let new_node = LayoutNode {
+        internal_id: id_of_node_being_built,
         text: partial_node_text,
         position: partial_node_position, //TODO: this is not correct, it should be dependent on children as well
         visible: partial_node_visible,
         bold: partial_node_bold,
         font_size: partial_node_font_size,
         optional_link_url: None,  //TODO: this a temporay placeholder
-        children: new_childeren
+        children: new_childeren,
+        parent_id,
     };
 
+    let rc_new_node = Rc::new(new_node);
+    all_nodes.push(Rc::clone(&rc_new_node));
 
     if (move_to_next_line_after) {
         move_to_next_line(next_position);
     }
 
-    return new_node;
+    return rc_new_node;
 }
 
 
-fn build_header_nodes(position: &mut Position) -> Vec<LayoutNode> {
+fn build_header_nodes(position: &mut Position, all_nodes: &mut Vec<Rc<LayoutNode>>,
+                      next_node_internal_id: &mut usize, parent_id: usize) -> Vec<Rc<LayoutNode>> {
     //TODO: eventually we want to not have this in the same node list I think (maybe not even as layout nodes?)
-    let mut layout_nodes: Vec<LayoutNode> = Vec::new();
+    let mut layout_nodes: Vec<Rc<LayoutNode>> = Vec::new();
 
-    layout_nodes.push(LayoutNode {
+    let rc_node = Rc::new(LayoutNode {
+        internal_id: *next_node_internal_id,
         text: Option::from(String::from("BBrowser")),
         position: position.clone(),
         bold: true,
@@ -200,8 +237,14 @@ fn build_header_nodes(position: &mut Position) -> Vec<LayoutNode> {
         optional_link_url: None,
         children: None,
         visible: true,
+        parent_id: parent_id,
     });
     position.y += 50;
+
+    all_nodes.push(Rc::clone(&rc_node));
+    *next_node_internal_id += 1;
+
+    layout_nodes.push(rc_node);
 
     return layout_nodes;
 }

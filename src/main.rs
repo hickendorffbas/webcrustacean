@@ -18,6 +18,7 @@ use crate::layout::LayoutNode;
 use crate::network::http_get;
 use crate::renderer::{clear as renderer_clear, draw_line, Color, Position, render_text};
 
+use layout::FullLayout;
 use sdl2::{
     event::Event as SdlEvent,
     keyboard::Keycode,
@@ -70,19 +71,19 @@ fn frame_time_check(start_instant: &Instant) {
         ::std::thread::sleep(Duration::from_millis(sleep_time_millis as u64));
     } else {
         //TODO: make this conditional on whether we were loading a document in this frame, in which case we should not warn
-        println!("Warning: we did not reach the target FPS, frametime: {}", millis_elapsed);
+        println!("WARN: we did not reach the target FPS, frametime: {}", millis_elapsed);
     }
 }
 
 
-fn render(canvas: &mut WindowCanvas, layout_tree: &LayoutNode, font_cache: &mut FontCache) {
+fn render(canvas: &mut WindowCanvas, full_layout: &FullLayout, font_cache: &mut FontCache) {
     //TODO: I'm not sure if I want the renderer to be the thing that takes the layoutnodes,
     //      I think so? In that case this method should move there -> well, in the renderer, but currently the renderer contains all kinds of
     //      SDL specific stuff, that should move one layer further (platform or something)
 
     renderer_clear(canvas, Color::WHITE);
 
-    render_layout_node(canvas, layout_tree, font_cache);
+    render_layout_node(canvas, &full_layout.root_node, font_cache);
 
     //temp test:
     draw_line(canvas, Position::new(100, 100), Position::new(200, 200), Color::RED);
@@ -110,7 +111,7 @@ fn render_layout_node(canvas: &mut WindowCanvas, layout_node: &LayoutNode, font_
 }
 
 
-fn handle_left_click(x : u32, y: u32, _layout_tree: &LayoutNode) { //TODO: remove underscore prefix for _layout_tree when implemented
+fn handle_left_click(x : u32, y: u32, _layout_tree: &FullLayout) { //TODO: remove underscore prefix for _layout_tree when implemented
 
     //TODO: go though the layout tree, and find all boxes with position below the mouse pointer, and check for effects
 
@@ -153,7 +154,7 @@ fn main() -> Result<(), String> {
 
 
     let document_node = html_parser::parse_document(&file_contents);
-    let layout_tree = layout::build_layout_tree(&document_node, &mut font_cache);
+    let full_layout_tree = layout::build_full_layout(&document_node, &mut font_cache);
 
     let mut event_pump = sdl_context.event_pump()?;
     'main_loop: loop {
@@ -166,13 +167,13 @@ fn main() -> Result<(), String> {
                     break 'main_loop;
                 },
                 SdlEvent::MouseButtonUp { mouse_btn: MouseButton::Left, x: mouse_x, y: mouse_y, .. } => {
-                    handle_left_click(mouse_x as u32, mouse_y as u32, &layout_tree);
+                    handle_left_click(mouse_x as u32, mouse_y as u32, &full_layout_tree);
                 }
                 _ => {}
             }
         }
 
-        render(&mut canvas, &layout_tree, &mut font_cache);
+        render(&mut canvas, &full_layout_tree, &mut font_cache);
         frame_time_check(&start_instant);
     }
 

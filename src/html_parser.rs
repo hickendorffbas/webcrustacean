@@ -1,7 +1,7 @@
 use std::collections::LinkedList;
 use std::rc::Rc;
 
-use crate::dom::{Document, DomNode, DocumentDomNode, TextDomNode, ElementDomNode};
+use crate::dom::{AttributeDomNode, Document, DocumentDomNode, DomNode, ElementDomNode, TextDomNode};
 use crate::debug::debug_print_html_node;
 
 //TODO: we now have these custom nodes, which are good for partially filling them while parsing the document. I think we should call them
@@ -186,7 +186,7 @@ fn build_html_nodes<'document>(tokens: Vec<Token<'document>>) -> HtmlNode<'docum
 
 fn convert_html_nodes_to_dom(html_node: HtmlNode) -> Document {
     let mut document_dom_nodes: Vec<Rc<DomNode>> = Vec::new();
-    let mut next_node_internal_id: u32 = 0;
+    let mut next_node_internal_id: usize = 0;
 
     let id_of_node_being_built = next_node_internal_id;
     next_node_internal_id += 1;
@@ -215,8 +215,7 @@ fn convert_html_nodes_to_dom(html_node: HtmlNode) -> Document {
     };
 }
 
-//TODO: test that passing next_node_interal_id around in the function below works
-fn convert_html_node_to_dom_node(html_node: HtmlNode, document_dom_nodes: &mut Vec<Rc<DomNode>>, next_node_internal_id: &mut u32, parent_id: u32) -> Rc<DomNode> {
+fn convert_html_node_to_dom_node(html_node: HtmlNode, document_dom_nodes: &mut Vec<Rc<DomNode>>, next_node_internal_id: &mut usize, parent_id: usize) -> Rc<DomNode> {
     let new_node = match html_node.node_type {
         HtmlNodeType::Text => {
             let new_node = DomNode::Text(TextDomNode {
@@ -231,18 +230,34 @@ fn convert_html_node_to_dom_node(html_node: HtmlNode, document_dom_nodes: &mut V
             let id_of_node_being_built = *next_node_internal_id;
             *next_node_internal_id += 1;
 
-            let dom_children = if html_node.children.is_some() {
-                let mut children = Vec::new();
-                for child in html_node.children.unwrap() {
-                    let new_node = convert_html_node_to_dom_node(child, document_dom_nodes, next_node_internal_id, id_of_node_being_built);
-                    children.push(Rc::clone(&new_node));
-                    document_dom_nodes.push(new_node);
-                }
-
-                Some(children)
+            let mut dom_children: Option<Vec<Rc<DomNode>>> = if html_node.attributes.is_some() || html_node.children.is_some() {
+                Some(Vec::new())
             } else {
                 None
             };
+
+            if html_node.attributes.is_some() {
+                for attr in html_node.attributes.unwrap() {
+                    let new_node = Rc::new(DomNode::Attribute(AttributeDomNode {
+                        internal_id: *next_node_internal_id,
+                        name: attr.key.to_owned(),
+                        value: attr.value.join(" "),
+                        parent_id: id_of_node_being_built,
+                    }));
+                    *next_node_internal_id += 1;
+
+                    dom_children.as_mut().unwrap().push(Rc::clone(&new_node));
+                    document_dom_nodes.push(new_node);
+                }
+            }
+
+            if html_node.children.is_some() {
+                for child in html_node.children.unwrap() {
+                    let new_node = convert_html_node_to_dom_node(child, document_dom_nodes, next_node_internal_id, id_of_node_being_built);
+                    dom_children.as_mut().unwrap().push(Rc::clone(&new_node));
+                    document_dom_nodes.push(new_node);
+                }
+            }
 
             let new_node = DomNode::Element(ElementDomNode {
                 internal_id: id_of_node_being_built,

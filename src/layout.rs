@@ -54,7 +54,7 @@ pub fn build_layout_list(document_node: &Document, font_cache: &mut FontCache) -
     layout_nodes.append(&mut build_header_nodes(&mut next_position));
 
     let layout_state = LayoutState {bold : false, font_size: FONT_SIZE, visible: true};
-    layout_nodes.append(&mut layout_children(&document_node.document_node, &mut next_position, &layout_state, font_cache)); //TODO: understand the &mut in the argument better!
+    layout_nodes.append(&mut layout_children(&document_node.document_node, document_node, &mut next_position, &layout_state, font_cache)); //TODO: understand the &mut in the argument better!
 
     return layout_nodes;
 }
@@ -84,7 +84,7 @@ pub fn compute_click_boxes(layout_nodes: &Vec<LayoutNode>) -> Vec<ClickBox> {
 }
 
 
-fn layout_children(main_node: &DomNode, next_position: &mut Position, layout_state: &LayoutState, font_cache: &mut FontCache) -> Vec<LayoutNode> {
+fn layout_children(main_node: &DomNode, document: &Document, next_position: &mut Position, layout_state: &LayoutState, font_cache: &mut FontCache) -> Vec<LayoutNode> {
     let mut layout_nodes: Vec<LayoutNode> = Vec::new();
 
     let new_layout_state : LayoutState;
@@ -157,11 +157,15 @@ fn layout_children(main_node: &DomNode, next_position: &mut Position, layout_sta
                             move_to_next_line(next_position);
                         }
 
-                        //TODO: the code below is very broken, because the text node is a child of the "a" node, not the a node itself. We need to
-                        //      be able to traverse the tree.... -> I'm currently solving this by keeping id's and having a lookup list
-                        //let optional_link_url = if main_node.tag_name.is_some() && main_node.tag_name.as_ref().unwrap() == "a" {
+                        //let optional_link_url = if document.has_parent_with_tag_name(main_node, "a") {
+
+                            //TODO: this still doesn't work, because I need to find the href on that parent a node, not on this node
+                            //      the proper way to solve this is to do also layout to higher nodes, but wrapping is a challenge (should probably
+                            //      be a list of rects then for higher noes....) and to add the clickBoxes when processing the "a" node....
+
+
                             //TODO: the direct unwrap after looking for href below is of course not good
-                        //    Some(main_node.find_attribute_value("href").unwrap().concat())
+                            //Some(main_node.find_attribute_value("href").unwrap().concat())
                         //} else {
                         //    None
                         //};
@@ -186,7 +190,7 @@ fn layout_children(main_node: &DomNode, next_position: &mut Position, layout_sta
 
     if let Some(ref children) = childs_to_recurse_on {
         for child in children.iter() {
-            layout_nodes.append(&mut layout_children(child, next_position, &new_layout_state, font_cache));
+            layout_nodes.append(&mut layout_children(child, document, next_position, &new_layout_state, font_cache));
         }
     }
 

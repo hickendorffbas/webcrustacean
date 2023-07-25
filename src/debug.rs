@@ -43,9 +43,8 @@ fn debug_print_dom_node_tree_with_indent(dom_node: &Rc<DomNode>, indent_cnt: u32
                 }
             }
         }
-        DomNode::Attribute(_) => {
-            //TODO: eventually I should print these too
-            panic!("TODO: implement debug printing of attribute DOM nodes")
+        DomNode::Attribute(node) => {
+            println!("{}ATTR: {} ({} = {}) (parent: {})", indent, node.name, node.value, node.internal_id, node.parent_id);
         }
         DomNode::Text(node) => {
             println!("{}{} ({}) (parent: {})", indent, node.text_content.clone().unwrap_or("".to_owned()), node.internal_id, node.parent_id);

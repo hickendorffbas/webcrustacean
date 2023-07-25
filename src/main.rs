@@ -14,7 +14,7 @@ use std::fs;
 use std::time::{Duration, Instant};
 
 use crate::fonts::{Font, FontCache};
-use crate::layout::{ClickBox, LayoutNode};
+use crate::layout::LayoutNode;
 use crate::network::http_get;
 use crate::renderer::{clear as renderer_clear, draw_line, Color, Position, render_text};
 
@@ -67,32 +67,22 @@ fn frame_time_check(start_instant: &Instant) {
     let sleep_time_millis = (TARGET_MS_PER_FRAME as i64 - millis_elapsed as i64);
     if (sleep_time_millis > 1) {
         //If we are more than a millisecond faster than what we need to reach the target FPS, we sleep
-        ::std::thread::sleep(Duration::from_millis(sleep_time_millis as u64))
+        ::std::thread::sleep(Duration::from_millis(sleep_time_millis as u64));
     } else {
-        //println!("Warning: we did not reach the target FPS, frametime: {}", millis_elapsed); //TODO: temporarily disabled, re-enable later
+        //TODO: make this conditional on whether we were loading a document in this frame, in which case we should not warn
+        println!("Warning: we did not reach the target FPS, frametime: {}", millis_elapsed);
     }
 }
 
 
-fn render(canvas: &mut WindowCanvas, layout_nodes: &Vec<LayoutNode>, font_cache: &mut FontCache) {
-    //TODO: I'm not sure if I want the renderer to be the thing that takes the layoutnodes, I think so? In that case this method should move there.
+fn render(canvas: &mut WindowCanvas, layout_tree: &LayoutNode, font_cache: &mut FontCache) {
+    //TODO: I'm not sure if I want the renderer to be the thing that takes the layoutnodes,
+    //      I think so? In that case this method should move there -> well, in the renderer, but currently the renderer contains all kinds of
+    //      SDL specific stuff, that should move one layer further (platform or something)
 
     renderer_clear(canvas, Color::WHITE);
 
-    for layout_node in layout_nodes {
-        if (layout_node.text.is_none()) {
-            continue;
-        }
-
-        let x = layout_node.position.x;
-        let y = layout_node.position.y;
-
-        let own_font = Font::new(layout_node.bold, layout_node.font_size); //TODO: we should just have a (reference to) the font on the layout node
-
-        let font = font_cache.get_font(&own_font);
-
-        render_text(canvas, layout_node.text.as_ref().unwrap(), x, y, &font);
-    }
+    render_layout_node(canvas, layout_tree, font_cache);
 
     //temp test:
     draw_line(canvas, Position::new(100, 100), Position::new(200, 200), Color::RED);
@@ -102,22 +92,28 @@ fn render(canvas: &mut WindowCanvas, layout_nodes: &Vec<LayoutNode>, font_cache:
 }
 
 
-fn handle_left_click(x : u32, y: u32, click_boxes: &Vec<ClickBox>) {
+fn render_layout_node(canvas: &mut WindowCanvas, layout_node: &LayoutNode, font_cache: &mut FontCache) {
+    if (layout_node.text.is_some()) {
+        let own_font = Font::new(layout_node.bold, layout_node.font_size); //TODO: we should just have a (reference to) the font on the layout node
+        let font = font_cache.get_font(&own_font);
 
-    println!("number of clickboxes: {}", click_boxes.len());
-
-    for click_box in click_boxes {
-
-        if x > click_box.x && x < click_box.x + click_box.width &&
-           y > click_box.y && y < click_box.y + click_box.width {
-
-            println!("WE ARE IN THE CLICKBOX YEEH");
-
-        }
-
+        let x = layout_node.position.x;
+        let y = layout_node.position.y;
+        render_text(canvas, layout_node.text.as_ref().unwrap(), x, y, &font);
     }
 
-    //TODO: check clickboxes!
+    if layout_node.children.is_some() {
+        for child in layout_node.children.as_ref().unwrap() {
+            render_layout_node(canvas, &child, font_cache);
+        }
+    }
+}
+
+
+fn handle_left_click(x : u32, y: u32, _layout_tree: &LayoutNode) { //TODO: remove underscore prefix for _layout_tree when implemented
+
+    //TODO: go though the layout tree, and find all boxes with position below the mouse pointer, and check for effects
+
     println!("Mouse clicked: {} {}", x, y);
 }
 
@@ -157,9 +153,7 @@ fn main() -> Result<(), String> {
 
 
     let document_node = html_parser::parse_document(&file_contents);
-    let layout_nodes = layout::build_layout_list(&document_node, &mut font_cache);
-
-    let click_boxes = layout::compute_click_boxes(&layout_nodes);
+    let layout_tree = layout::build_layout_tree(&document_node, &mut font_cache);
 
     let mut event_pump = sdl_context.event_pump()?;
     'main_loop: loop {
@@ -172,13 +166,13 @@ fn main() -> Result<(), String> {
                     break 'main_loop;
                 },
                 SdlEvent::MouseButtonUp { mouse_btn: MouseButton::Left, x: mouse_x, y: mouse_y, .. } => {
-                    handle_left_click(mouse_x as u32, mouse_y as u32, &click_boxes);
+                    handle_left_click(mouse_x as u32, mouse_y as u32, &layout_tree);
                 }
                 _ => {}
             }
         }
 
-        render(&mut canvas, &layout_nodes, &mut font_cache);
+        render(&mut canvas, &layout_tree, &mut font_cache);
         frame_time_check(&start_instant);
     }
 

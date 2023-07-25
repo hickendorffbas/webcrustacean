@@ -21,6 +21,7 @@ pub struct LayoutNode {
     pub font_size: u16,
     pub optional_link_url: Option<String>, //TODO: this is a stupid hack because layout nodes don't remember what DOM node they are built from,
                                            //      we should store that on them somehow, but can't get it working ownershipwise currently
+    pub children: Option<Vec<LayoutNode>>
 }
 
 pub struct LayoutState {
@@ -35,16 +36,7 @@ pub struct LayoutState {
     pub visible: bool
 }
 
-pub struct ClickBox {
-    pub x: u32,
-    pub y: u32,
-    pub width: u32,
-    pub height: u32,
-    pub target_url: String //TODO: this should become more general, not everything you click on is a url!
-}
-
-
-pub fn build_layout_list(document_node: &Document, font_cache: &mut FontCache) -> Vec<LayoutNode> {
+pub fn build_layout_tree(document_node: &Document, font_cache: &mut FontCache) -> LayoutNode {
     //TODO: I really don't want to accept the different font here of course, in any case these should be my own Font objects, but also looked up differently
     let mut layout_nodes: Vec<LayoutNode> = Vec::new();
     let mut next_position = Position {x: 10, y: 10};
@@ -56,33 +48,16 @@ pub fn build_layout_list(document_node: &Document, font_cache: &mut FontCache) -
     let layout_state = LayoutState {bold : false, font_size: FONT_SIZE, visible: true};
     layout_nodes.append(&mut layout_children(&document_node.document_node, document_node, &mut next_position, &layout_state, font_cache)); //TODO: understand the &mut in the argument better!
 
-    return layout_nodes;
-}
-
-
-pub fn compute_click_boxes(layout_nodes: &Vec<LayoutNode>) -> Vec<ClickBox> {
-    let mut click_boxes: Vec<ClickBox> = Vec::new();
-
-    for layout_node in layout_nodes {
-
-        if layout_node.optional_link_url.is_some() {
-            click_boxes.push(
-                ClickBox {
-                    x: layout_node.position.x,
-                    y: layout_node.position.y,
-                    width: 100,  //TODO: I'm hardcoding width and height here, because the layout node does not know how large it is. That should change somehow.
-                    height: 20,
-                    target_url: layout_node.optional_link_url.as_ref().unwrap().to_string()
-                }
-            )
-        }
-        //TODO: maybe I should just create the clickboxes when I also build the layout tree? -> yes
-
+    return LayoutNode {  //this is the root layout node
+        text: None,
+        position: Position { x: 0, y: 0 }, //TODO: we need width and hight eventually on this as
+        bold: false, //TODO: this should probably not be a top-level attribute of the layout node, but in text properties or something
+        font_size: FONT_SIZE, //TODO: this should probably not be a top-level attribute of the layout node, but in text properties or something
+        optional_link_url: None,
+        children: Some(layout_nodes),
     }
 
-    return click_boxes;
 }
-
 
 fn layout_children(main_node: &DomNode, document: &Document, next_position: &mut Position, layout_state: &LayoutState, font_cache: &mut FontCache) -> Vec<LayoutNode> {
     let mut layout_nodes: Vec<LayoutNode> = Vec::new();
@@ -175,7 +150,8 @@ fn layout_children(main_node: &DomNode, document: &Document, next_position: &mut
                             position: next_position.clone(),
                             bold: layout_state.bold,
                             font_size: layout_state.font_size,
-                            optional_link_url: None //optional_link_url,
+                            optional_link_url: None, //optional_link_url,
+                            children: None
                         };
                         layout_nodes.push(new_node);
 
@@ -211,7 +187,8 @@ fn build_header_nodes(position: &mut Position) -> Vec<LayoutNode> {
         position: position.clone(),
         bold: true,
         font_size: FONT_SIZE,
-        optional_link_url: None
+        optional_link_url: None,
+        children: None,
     });
     position.y += 50;
 

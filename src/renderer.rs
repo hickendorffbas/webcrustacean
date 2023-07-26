@@ -33,14 +33,12 @@ pub struct Color {
     pub b: u8
 }
 impl Color {
-    fn to_sdl_color(&self) -> SdlColor {
+    pub fn to_sdl_color(&self) -> SdlColor {
         return SdlColor::RGB(self.r, self.g, self.b)
     }
     pub const fn new(p_r: u8, p_g: u8, p_b: u8) -> Color { Color { r: p_r, g: p_g, b: p_b } }
 
-    #[allow(dead_code)] //TODO: remove when used
     pub const BLACK: Color = Color::new(0, 0, 0);
-    #[allow(dead_code)] //TODO: remove when used
     pub const BLUE: Color = Color::new(0, 0, 255);
     #[allow(dead_code)] //TODO: remove when used
     pub const GREEN: Color = Color::new(0, 255, 0);
@@ -63,10 +61,10 @@ pub fn draw_line(canvas: &mut WindowCanvas, start: Position, end: Position, colo
 }
 
 
-pub fn render_text(canvas: &mut WindowCanvas, text: &String, x: u32, y: u32, font: &SdlFont) {
+pub fn render_text(canvas: &mut WindowCanvas, text: &String, x: u32, y: u32, font: &SdlFont, color: SdlColor) {
     let sdl_surface = font
         .render(text)
-        .blended(SdlColor::RGBA(0, 0, 0, 255))
+        .blended(color)
         .expect("error while rendering text");
 
     let texture_creator = canvas.texture_creator();

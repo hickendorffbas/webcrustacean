@@ -11,7 +11,7 @@ use crate::{
 };
 use crate::debug::{debug_log_warn, debug_print_dom_tree};
 use crate::dom::{Document, DomNode};
-use crate::renderer::{get_text_dimension, Position};
+use crate::renderer::{Color, Position, get_text_dimension};  //TODO: color should probably not come from the renderer, position probably also not
 
 
 pub struct FullLayout { //TODO: build this one on the highest level, instead of returning the top LayoutNode directly
@@ -25,10 +25,10 @@ pub struct LayoutNode {
     pub text: Option<String>, //eventually we need different kinds of layout nodes, text is just one type
     pub position: Position,
     pub visible: bool,
-    pub bold: bool,
+    pub font_bold: bool,
+    pub font_color: Color,
     pub font_size: u16,
-    pub optional_link_url: Option<String>, //TODO: this is a stupid hack because layout nodes don't remember what DOM node they are built from,
-                                           //      we should store that on them somehow, but can't get it working ownershipwise currently
+    pub optional_link_url: Option<String>,
     pub children: Option<Vec<Rc<LayoutNode>>>,
     pub parent_id: usize,
 }
@@ -57,7 +57,8 @@ pub fn build_full_layout(document_node: &Document, font_cache: &mut FontCache) -
         text: None,
         position: Position { x: 0, y: 0 }, //TODO: we need width and hight eventually on this as well (probably as big as the viewport?)
         visible: true,
-        bold: false, //TODO: this should probably not be a top-level attribute of the layout node, but in text properties or something
+        font_bold: false, //TODO: this should probably not be a top-level attribute of the layout node, but in text properties or something
+        font_color: Color::BLACK, //TODO: this should probably not be a top-level attribute of the layout node, but in text properties or something
         font_size: FONT_SIZE, //TODO: this should probably not be a top-level attribute of the layout node, but in text properties or something
         optional_link_url: None,
         children: Some(top_level_layout_nodes),
@@ -79,9 +80,11 @@ fn layout_dom_tree(main_node: &DomNode, document: &Document, next_position: &mut
 
     let mut partial_node_text = None;
     let mut partial_node_position = next_position.clone();
-    let mut partial_node_bold = false;
+    let mut partial_node_font_bold = false;
+    let mut partial_node_font_color = Color::BLACK;
     let mut partial_node_font_size = FONT_SIZE;
     let mut partial_node_visible = true;
+    let mut partial_node_optional_link_url = None;
 
 
     let mut childs_to_recurse_on: &Option<Vec<Rc<DomNode>>> = &None;
@@ -92,42 +95,45 @@ fn layout_dom_tree(main_node: &DomNode, document: &Document, next_position: &mut
         DomNode::Element(node) => {
 
             match &node.name.clone().unwrap()[..] { //TODO: understand why I need to clone here
-                "b" => { partial_node_bold = true; }
+
+                "a" => { partial_node_optional_link_url = node.get_attribute_value("href"); }
+
+                "b" => { partial_node_font_bold = true; }
 
                 "br" => { move_to_next_line(next_position); }
 
                 "h1" => {
-                    partial_node_bold = true;
+                    partial_node_font_bold = true;
                     partial_node_font_size = FONT_SIZE + 12;
                     move_to_next_line(next_position);
                     move_to_next_line_after = true;
                 }
                 "h2" => {
-                    partial_node_bold = true;
+                    partial_node_font_bold = true;
                     partial_node_font_size = FONT_SIZE + 10;
                     move_to_next_line(next_position);
                     move_to_next_line_after = true;
                 }
                 "h3" => {
-                    partial_node_bold = true;
+                    partial_node_font_bold = true;
                     partial_node_font_size = FONT_SIZE + 8;
                     move_to_next_line(next_position);
                     move_to_next_line_after = true;
                 }
                 "h4" => {
-                    partial_node_bold = true;
+                    partial_node_font_bold = true;
                     partial_node_font_size = FONT_SIZE + 6;
                     move_to_next_line(next_position);
                     move_to_next_line_after = true;
                 }
                 "h5" => {
-                    partial_node_bold = true;
+                    partial_node_font_bold = true;
                     partial_node_font_size = FONT_SIZE + 4;
                     move_to_next_line(next_position);
                     move_to_next_line_after = true;
                 }
                 "h6" => {
-                    partial_node_bold = true;
+                    partial_node_font_bold = true;
                     partial_node_font_size = FONT_SIZE + 2;
                     move_to_next_line(next_position);
                     move_to_next_line_after = true;
@@ -166,6 +172,10 @@ fn layout_dom_tree(main_node: &DomNode, document: &Document, next_position: &mut
             let font = font_cache.get_font(&own_font);
             let dimension = get_text_dimension(&text, &font);
 
+            if document.has_element_parent_with_name(main_node, "a") {
+                partial_node_font_color = Color::BLUE;
+            }
+
             if next_position.x + dimension.width > SCREEN_WIDTH - LAYOUT_MARGIN_HORIZONTAL {
                 move_to_next_line(next_position);
             }
@@ -199,9 +209,10 @@ fn layout_dom_tree(main_node: &DomNode, document: &Document, next_position: &mut
         text: partial_node_text,
         position: partial_node_position, //TODO: this is not correct, it should be dependent on children as well
         visible: partial_node_visible,
-        bold: partial_node_bold,
+        font_bold: partial_node_font_bold,
+        font_color: partial_node_font_color,
         font_size: partial_node_font_size,
-        optional_link_url: None,  //TODO: this a temporay placeholder
+        optional_link_url: partial_node_optional_link_url,
         children: new_childeren,
         parent_id,
     };
@@ -226,7 +237,8 @@ fn build_header_nodes(position: &mut Position, all_nodes: &mut Vec<Rc<LayoutNode
         internal_id: *next_node_internal_id,
         text: Option::from(String::from("BBrowser")),
         position: position.clone(),
-        bold: true,
+        font_bold: true,
+        font_color: Color::BLACK,
         font_size: FONT_SIZE,
         optional_link_url: None,
         children: None,

@@ -9,13 +9,14 @@ mod renderer;
 use std::collections::HashMap;
 use std::env;
 use std::fs;
+use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use crate::debug::debug_log_warn;
 use crate::fonts::{Font, FontCache};
 use crate::layout::LayoutNode;
 use crate::network::http_get;
-use crate::renderer::{clear as renderer_clear, Color, render_text};
+use crate::renderer::{Color, clear as renderer_clear, render_text};
 
 use layout::FullLayout;
 use sdl2::{
@@ -89,12 +90,12 @@ fn render(canvas: &mut WindowCanvas, full_layout: &FullLayout, font_cache: &mut 
 
 fn render_layout_node(canvas: &mut WindowCanvas, layout_node: &LayoutNode, font_cache: &mut FontCache) {
     if layout_node.text.is_some() {
-        let own_font = Font::new(layout_node.bold, layout_node.font_size); //TODO: we should just have a (reference to) the font on the layout node
+        let own_font = Font::new(layout_node.font_bold, layout_node.font_size); //TODO: we should just have a (reference to) the font on the layout node
         let font = font_cache.get_font(&own_font);
 
         let x = layout_node.position.x;
         let y = layout_node.position.y;
-        render_text(canvas, layout_node.text.as_ref().unwrap(), x, y, &font);
+        render_text(canvas, layout_node.text.as_ref().unwrap(), x, y, &font, layout_node.font_color.to_sdl_color());
     }
 
     if layout_node.children.is_some() {
@@ -105,11 +106,27 @@ fn render_layout_node(canvas: &mut WindowCanvas, layout_node: &LayoutNode, font_
 }
 
 
-fn handle_left_click(x : u32, y: u32, _layout_tree: &FullLayout) { //TODO: remove underscore prefix for _layout_tree when implemented
+fn handle_left_click(x: u32, y: u32, layout_tree: &FullLayout) {
 
-    //TODO: go though the layout tree, and find all boxes with position below the mouse pointer, and check for effects
+    fn check_left_click_for_layout_node(x: u32, y: u32, layout_node: &Rc<LayoutNode>) {
+        if layout_node.position.x > x || layout_node.position.y > y { //TODO: this check should take the width and height into account, but we don't have that on the layout node yet
+            return;
+        }
 
-    println!("Mouse clicked: {} {}", x, y);
+        if layout_node.optional_link_url.is_some() {
+            println!("Link found: {}", layout_node.optional_link_url.as_ref().unwrap());
+            return;
+        }
+
+        if layout_node.children.is_some() {
+            for child in layout_node.children.as_ref().unwrap() {
+                check_left_click_for_layout_node(x, y, &child);
+            }
+        }
+
+    }
+
+    check_left_click_for_layout_node(x, y, &layout_tree.root_node);
 }
 
 

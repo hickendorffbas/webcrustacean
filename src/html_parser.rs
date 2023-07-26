@@ -1,7 +1,7 @@
-use std::collections::LinkedList;
+use std::collections::{LinkedList, HashMap};
 use std::rc::Rc;
 
-use crate::dom::{AttributeDomNode, Document, DocumentDomNode, DomNode, ElementDomNode, TextDomNode};
+use crate::dom::{AttributeDomNode, Document, DocumentDomNode, DomNode, ElementDomNode, TextDomNode, get_next_dom_node_interal_id};
 use crate::debug::debug_print_html_node;
 
 //TODO: we now have these custom nodes, which are good for partially filling them while parsing the document. I think we should call them
@@ -16,7 +16,7 @@ pub enum HtmlNodeType {
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Attribute<'document> {
     pub key: &'document str,
-    pub value: Vec<&'document str>
+    pub value: String
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -158,7 +158,7 @@ fn build_html_nodes<'document>(tokens: Vec<Token<'document>>) -> HtmlNode<'docum
                 if !in_quotes && parsed_attribute_key.is_some() {
                     parsed_attributes.push(Attribute {
                         key: parsed_attribute_key.unwrap(),
-                        value: unparsed_text_nodes
+                        value: unparsed_text_nodes.concat()
                     });
 
                     parsed_attribute_key = None;
@@ -176,34 +176,25 @@ fn build_html_nodes<'document>(tokens: Vec<Token<'document>>) -> HtmlNode<'docum
     }
 
     //TODO: this is a bit bad. We assume there is only one top node (i.e. <html>), this might not be true, we probably need to wrap it in some html document node
-    //TODO: make this a proper debug-only, off-switchable assert
-    if nodes.len() != 1 {
-        panic!("Did not get exactly 1 root node after parsing HTML");
-    }
+    debug_assert!(nodes.len() == 1, "Did not get exactly 1 root node after parsing HTML");
 
     return nodes.remove(0); //removing to take ownership (as opposed to using get())
 }
 
 fn convert_html_nodes_to_dom(html_node: HtmlNode) -> Document {
-    let mut document_dom_nodes: Vec<Rc<DomNode>> = Vec::new();
-    let mut next_node_internal_id: usize = 0;
+    let mut document_dom_nodes: HashMap<usize, Rc<DomNode>> = HashMap::new();
 
-    let id_of_node_being_built = next_node_internal_id;
-    next_node_internal_id += 1;
-    let new_node = convert_html_node_to_dom_node(html_node, &mut document_dom_nodes, &mut next_node_internal_id, id_of_node_being_built);
-    let rc_for_document_node = Rc::clone(&new_node);
-    document_dom_nodes.push(new_node);
+    let document_node_internal_id = get_next_dom_node_interal_id();
+    let child_node = convert_html_node_to_dom_node(html_node, &mut document_dom_nodes, document_node_internal_id);
 
     let document_node = DomNode::Document(DocumentDomNode{
-        internal_id: id_of_node_being_built,
-        children: Some(vec![rc_for_document_node]),
+        internal_id: document_node_internal_id,
+        children: Some(vec![child_node]),
     });
 
     let rc_document_node = Rc::new(document_node);
     let rc_clone_document_node = Rc::clone(&rc_document_node);
-    document_dom_nodes.push(rc_document_node);
-
-    debug_assert!(document_dom_nodes.len() == next_node_internal_id, "Id seting of DOM nodes went wrong");
+    document_dom_nodes.insert(document_node_internal_id, rc_document_node);
 
     return Document {
         document_node: rc_clone_document_node,
@@ -211,62 +202,59 @@ fn convert_html_nodes_to_dom(html_node: HtmlNode) -> Document {
     };
 }
 
-fn convert_html_node_to_dom_node(html_node: HtmlNode, document_dom_nodes: &mut Vec<Rc<DomNode>>, next_node_internal_id: &mut usize, parent_id: usize) -> Rc<DomNode> {
-    let new_node = match html_node.node_type {
+
+fn convert_html_node_to_dom_node(html_node: HtmlNode, document_dom_nodes: &mut HashMap<usize, Rc<DomNode>>, parent_id: usize) -> Rc<DomNode> {
+
+    match html_node.node_type {
         HtmlNodeType::Text => {
+            let id_of_new_node = get_next_dom_node_interal_id();
             let new_node = DomNode::Text(TextDomNode {
-                internal_id: *next_node_internal_id,
+                internal_id: id_of_new_node,
                 text_content: html_node.text_content.map(|s| s.join(" ")).unwrap_or("".to_owned()),
                 parent_id,
             });
-            *next_node_internal_id += 1;
-            new_node
+            let rc_new_node = Rc::new(new_node);
+            document_dom_nodes.insert(id_of_new_node, Rc::clone(&rc_new_node));
+            return rc_new_node;
         },
         HtmlNodeType::Tag => {
-            let id_of_node_being_built = *next_node_internal_id;
-            *next_node_internal_id += 1;
-
-            let mut dom_children: Option<Vec<Rc<DomNode>>> = if html_node.attributes.is_some() || html_node.children.is_some() {
-                Some(Vec::new())
-            } else {
-                None
-            };
+            let id_of_new_node = get_next_dom_node_interal_id();
+            let mut all_children_for_node: Option<Vec<Rc<DomNode>>> =
+                    if html_node.attributes.is_some() || html_node.children.is_some() { Some(Vec::new()) } else { None };
 
             if html_node.attributes.is_some() {
                 for attr in html_node.attributes.unwrap() {
+                    let id_for_attribute_node = get_next_dom_node_interal_id();
                     let new_node = Rc::new(DomNode::Attribute(AttributeDomNode {
-                        internal_id: *next_node_internal_id,
+                        internal_id: id_for_attribute_node,
                         name: attr.key.to_owned(),
-                        value: attr.value.join(" "),
-                        parent_id: id_of_node_being_built,
+                        value: attr.value,
+                        parent_id: id_of_new_node,
                     }));
-                    *next_node_internal_id += 1;
 
-                    dom_children.as_mut().unwrap().push(Rc::clone(&new_node));
-                    document_dom_nodes.push(new_node);
+                    all_children_for_node.as_mut().unwrap().push(Rc::clone(&new_node)); //TODO: I'm not convinced this as_mut().unwrap().push() makes sense...
+                    document_dom_nodes.insert(id_for_attribute_node, new_node);
                 }
             }
 
             if html_node.children.is_some() {
                 for child in html_node.children.unwrap() {
-                    let new_node = convert_html_node_to_dom_node(child, document_dom_nodes, next_node_internal_id, id_of_node_being_built);
-                    dom_children.as_mut().unwrap().push(Rc::clone(&new_node));
-                    document_dom_nodes.push(new_node);
+                    let new_node = convert_html_node_to_dom_node(child, document_dom_nodes, id_of_new_node);
+                    all_children_for_node.as_mut().unwrap().push(new_node);
                 }
             }
 
             let new_node = DomNode::Element(ElementDomNode {
-                internal_id: id_of_node_being_built,
+                internal_id: id_of_new_node,
                 name: html_node.tag_name,
-                children: dom_children,
+                children: all_children_for_node,
                 parent_id,
             });
-
-            new_node
+            let rc_new_node = Rc::new(new_node);
+            document_dom_nodes.insert(id_of_new_node, Rc::clone(&rc_new_node));
+            return rc_new_node;
         },
     };
-
-    return Rc::new(new_node);
 }
 
 fn close_node<'document>(open_nodes: &mut LinkedList<HtmlNode<'document>>, nodes: &mut Vec<HtmlNode<'document>>) {

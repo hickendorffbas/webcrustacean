@@ -1,36 +1,38 @@
+use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+//TODO: I need to understand orderings with atomics a bit better
+static NEXT_DOM_NODE_INTERNAL: AtomicUsize = AtomicUsize::new(1);
+pub fn get_next_dom_node_interal_id() -> usize { NEXT_DOM_NODE_INTERNAL.fetch_add(1, Ordering::Relaxed) }
+
 
 //TODO: would probably be nice to have a trait or something to get parent and interal id etc. from all nodes regardless of type
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Document {
     pub document_node: Rc<DomNode>,
-    pub all_nodes: Vec<Rc<DomNode>>
+    pub all_nodes: HashMap<usize, Rc<DomNode>>,
 }
-
 impl Document {
-    #[allow(dead_code)] //TODO: not currently used because we are still working out problems with adding clickboxes to the right level in the layout tree
-    pub fn has_parent_with_tag_name(&self, dom_node: &DomNode, tag_name: &str) -> bool {
+    pub fn has_element_parent_with_name(&self, node: &DomNode, element_name: &str) -> bool {
+        match node {
+            DomNode::Element(node) => {
+                if node.name.is_some() && node.name.as_ref().unwrap() == element_name {
+                    return true;
+                }
+            },
+            _ => {},
+        };
 
-        fn node_has_tag_name(dom_node: &DomNode, tag_name: &str) -> bool {
-            match dom_node {
-                DomNode::Element(node) => return node.name.is_some() && node.name.as_ref().unwrap() == tag_name,
-                _ => return false,
-            }
-        }
+        let parent_id = match node {
+            DomNode::Document(_) => None,
+            DomNode::Element(node) => Some(node.parent_id),
+            DomNode::Attribute(node) => Some(node.parent_id),
+            DomNode::Text(node) => Some(node.parent_id),
+        };
 
-        fn inner_has_parent_with_tag_name(document: &Document, parent_id: usize, tag_name: &str, dom_node: &DomNode) -> bool {
-            return node_has_tag_name(document.all_nodes.get(parent_id).unwrap().as_ref(), tag_name)
-                   || document.has_parent_with_tag_name(dom_node, tag_name);
-        }
-
-        match dom_node {
-            DomNode::Document(_) => return false,
-            DomNode::Element(node) => return inner_has_parent_with_tag_name(self, node.parent_id, tag_name, dom_node),
-            DomNode::Attribute(node) => return inner_has_parent_with_tag_name(self, node.parent_id, tag_name, dom_node),
-            DomNode::Text(node) => return inner_has_parent_with_tag_name(self, node.parent_id, tag_name, dom_node),
-        }
-
+        return parent_id.is_some() && self.has_element_parent_with_name(self.all_nodes.get(&parent_id.unwrap()).unwrap(), element_name);
     }
 }
 
@@ -54,6 +56,23 @@ pub struct ElementDomNode {
     pub name: Option<String>, //TODO: remove the option here, an element should always have a name
     pub children: Option<Vec<Rc<DomNode>>>,
     pub parent_id: usize
+}
+impl ElementDomNode {
+    pub fn get_attribute_value(&self, attribute_name: &str) -> Option<String> {
+        if self.children.is_some() {
+            for child in self.children.as_ref().unwrap() {
+                match child.as_ref() {
+                    DomNode::Attribute(attr_node) => {
+                        if attr_node.name == attribute_name {
+                            return Some(attr_node.value.clone());
+                        }
+                    },
+                    _ => {},
+                }
+            }
+        }
+        return None;
+    }
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]

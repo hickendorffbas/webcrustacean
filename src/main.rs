@@ -13,6 +13,7 @@ use std::env;
 use std::fs;
 use std::time::{Duration, Instant};
 
+use crate::debug::debug_log_warn;
 use crate::fonts::{Font, FontCache};
 use crate::layout::LayoutNode;
 use crate::network::http_get;
@@ -71,7 +72,7 @@ fn frame_time_check(start_instant: &Instant) {
         ::std::thread::sleep(Duration::from_millis(sleep_time_millis as u64));
     } else {
         //TODO: make this conditional on whether we were loading a document in this frame, in which case we should not warn
-        println!("WARN: we did not reach the target FPS, frametime: {}", millis_elapsed);
+        debug_log_warn(format!("we did not reach the target FPS, frametime: {}", millis_elapsed));
     }
 }
 
@@ -145,7 +146,6 @@ fn main() -> Result<(), String> {
     if (loading_local_file) {
         let file_path = url[7..] //remove the "file://" prefix
                         .to_owned();
-        println!("file_path: {:?}", file_path);
         file_contents = fs::read_to_string(file_path)
                                 .expect("Something went wrong reading the file");
     } else {

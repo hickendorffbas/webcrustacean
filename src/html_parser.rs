@@ -203,11 +203,7 @@ fn convert_html_nodes_to_dom(html_node: HtmlNode) -> Document {
     let rc_clone_document_node = Rc::clone(&rc_document_node);
     document_dom_nodes.push(rc_document_node);
 
-    //TODO: figure out a good way to assert things, with no runtime (release) costs, and possible to disable in debug mode as well... for now its always there
-    //      we see to have something already in debug.rs
-    if document_dom_nodes.len() != next_node_internal_id {
-        panic!("Id seting of DOM nodes went wrong");
-    }
+    debug_assert!(document_dom_nodes.len() == next_node_internal_id, "Id seting of DOM nodes went wrong");
 
     return Document {
         document_node: rc_clone_document_node,

@@ -1,22 +1,25 @@
-use std::rc::Rc;
+#[cfg(debug_assertions)] use std::rc::Rc;
 
-use crate::{dom::{Document, DomNode}, html_parser::HtmlNode};
-use crate::html_parser::HtmlNodeType;
+#[cfg(debug_assertions)] use crate::{dom::{Document, DomNode}, html_parser::HtmlNode};
+#[cfg(debug_assertions)] use crate::html_parser::HtmlNodeType;
 
-const INDENT_AMOUNT: u32 = 2;
+#[cfg(debug_assertions)] const INDENT_AMOUNT: u32 = 2;
 
-#[allow(dead_code)]
-pub fn debug_print_dom_tree(document: &Document, dump_name: &str) {
-    if cfg!(debug_assertions) {
-        println!("== dumping DOM node tree for {}", dump_name);
-        debug_print_dom_node_tree_with_indent(&document.document_node, 0);
-        println!("== done dumping DOM node tree for {}", dump_name);
-    }
-}
+
+#[cfg(not(debug_assertions))] use crate::{dom::Document, html_parser::HtmlNode};
+
 
 #[cfg(not(debug_assertions))]
-fn debug_print_dom_node_tree_with_indent(dom_node: &Rc<DomNode>, indent_cnt: u32) {}
+pub fn debug_print_dom_tree(_: &Document, _: &str) {}
 #[allow(dead_code)]
+#[cfg(debug_assertions)]
+pub fn debug_print_dom_tree(document: &Document, dump_name: &str) {
+    println!("== dumping DOM node tree for {}", dump_name);
+    debug_print_dom_node_tree_with_indent(&document.document_node, 0);
+    println!("== done dumping DOM node tree for {}", dump_name);
+}
+
+
 #[cfg(debug_assertions)]
 fn debug_print_dom_node_tree_with_indent(dom_node: &Rc<DomNode>, indent_cnt: u32) {
     let mut indent = String::new();
@@ -53,20 +56,17 @@ fn debug_print_dom_node_tree_with_indent(dom_node: &Rc<DomNode>, indent_cnt: u32
 }
 
 
-//TODO: I'm not sure why we have both the if cfg, and the #[cfg...], seems duplicate?
-
+#[cfg(not(debug_assertions))]
+pub fn debug_print_html_node(_: &HtmlNode, _: &str) {}
 #[allow(dead_code)]
+#[cfg(debug_assertions)]
 pub fn debug_print_html_node(root_node: &HtmlNode, dump_name: &str) {
-    if cfg!(debug_assertions) {
-        println!("== dumping html node tree for {}", dump_name);
-        debug_print_html_node_tree_with_indent(root_node, 0);
-        println!("== done dumping html node tree for {}", dump_name);
-    }
+    println!("== dumping html node tree for {}", dump_name);
+    debug_print_html_node_tree_with_indent(root_node, 0);
+    println!("== done dumping html node tree for {}", dump_name);
 }
 
-#[cfg(not(debug_assertions))]
-fn debug_print_html_node_tree_with_indent(html_node: &HtmlNode, indent_cnt: u32) {}
-#[allow(dead_code)]
+
 #[cfg(debug_assertions)]
 fn debug_print_html_node_tree_with_indent(html_node: &HtmlNode, indent_cnt: u32) {
     let mut indent = String::new();
@@ -93,4 +93,13 @@ fn debug_print_html_node_tree_with_indent(html_node: &HtmlNode, indent_cnt: u32)
         }
     }
 
+}
+
+
+#[cfg(not(debug_assertions))]
+pub fn debug_log_warn(_: String) {}
+#[allow(dead_code)]
+#[cfg(debug_assertions)]
+pub fn debug_log_warn(warning_text: String) {
+    println!("WARN: {}", warning_text);
 }

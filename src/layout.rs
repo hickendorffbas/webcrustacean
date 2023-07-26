@@ -9,7 +9,7 @@ use crate::{
     SCREEN_WIDTH,
     VERTICAL_ELEMENT_SPACING
 };
-use crate::debug::debug_print_dom_tree;
+use crate::debug::{debug_log_warn, debug_print_dom_tree};
 use crate::dom::{Document, DomNode};
 use crate::renderer::{get_text_dimension, Position};
 
@@ -64,16 +64,10 @@ pub fn build_full_layout(document_node: &Document, font_cache: &mut FontCache) -
         parent_id: id_of_node_being_built,  //this is the top node, so it does not really have a parent, we set it to ourselves
     };
 
-
     let rc_root_node = Rc::new(root_node);
     all_nodes.push(Rc::clone(&rc_root_node));
 
-
-    //TODO: figure out a good way to assert things, with no runtime (release) costs, and possible to disable in debug mode as well... for now its always there
-    //      we see to have something already in debug.rs
-    if all_nodes.len() != next_node_internal_id  {
-        panic!("Id seting of Layout nodes went wrong");
-    }
+    debug_assert!(all_nodes.len() == next_node_internal_id, "Id seting of Layout nodes went wrong");
 
     return FullLayout { root_node: rc_root_node, all_nodes }
 }
@@ -147,7 +141,7 @@ fn layout_dom_tree(main_node: &DomNode, document: &Document, next_position: &mut
                 "title" => { partial_node_visible = false; }
 
                 default => {
-                    println!("WARN: unknown tag: {}", default);
+                    debug_log_warn(format!("unknown tag: {}", default));
                 }
             }
 

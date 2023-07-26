@@ -85,7 +85,7 @@ fn debug_print_html_node_tree_with_indent(html_node: &HtmlNode, indent_cnt: u32)
         HtmlNodeType::Tag => {
             println!("{}{}", indent, html_node.tag_name.clone().unwrap());
 
-            if (html_node.children.is_some()) {
+            if html_node.children.is_some() {
                 for child in html_node.children.as_ref().unwrap() {
                     debug_print_html_node_tree_with_indent(&child, indent_cnt + INDENT_AMOUNT);
                 }
@@ -98,7 +98,6 @@ fn debug_print_html_node_tree_with_indent(html_node: &HtmlNode, indent_cnt: u32)
 
 #[cfg(not(debug_assertions))]
 pub fn debug_log_warn(_: String) {}
-#[allow(dead_code)]
 #[cfg(debug_assertions)]
 pub fn debug_log_warn(warning_text: String) {
     println!("WARN: {}", warning_text);

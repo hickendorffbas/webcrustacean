@@ -131,7 +131,7 @@ fn build_html_nodes<'document>(tokens: Vec<Token<'document>>) -> HtmlNode<'docum
                     }
                 }
 
-                if (!recorded_tag_name) {
+                if !recorded_tag_name {
                     unparsed_text_nodes.push(token.value);
                 }
             }
@@ -143,7 +143,7 @@ fn build_html_nodes<'document>(tokens: Vec<Token<'document>>) -> HtmlNode<'docum
                     }
                 }
 
-                if (in_quotes || !parsing_inside_tag) {
+                if in_quotes || !parsing_inside_tag {
                     unparsed_text_nodes.push("/");
                 }
             }

@@ -1,5 +1,3 @@
-#![allow(unused_parens)]
-
 mod debug;
 mod dom;
 mod fonts;
@@ -17,7 +15,7 @@ use crate::debug::debug_log_warn;
 use crate::fonts::{Font, FontCache};
 use crate::layout::LayoutNode;
 use crate::network::http_get;
-use crate::renderer::{clear as renderer_clear, draw_line, Color, Position, render_text};
+use crate::renderer::{clear as renderer_clear, Color, render_text};
 
 use layout::FullLayout;
 use sdl2::{
@@ -66,8 +64,8 @@ fn build_canvas(sdl_context: &Sdl) -> WindowCanvas {
 
 fn frame_time_check(start_instant: &Instant) {
     let millis_elapsed = start_instant.elapsed().as_millis();
-    let sleep_time_millis = (TARGET_MS_PER_FRAME as i64 - millis_elapsed as i64);
-    if (sleep_time_millis > 1) {
+    let sleep_time_millis = TARGET_MS_PER_FRAME as i64 - millis_elapsed as i64;
+    if sleep_time_millis > 1 {
         //If we are more than a millisecond faster than what we need to reach the target FPS, we sleep
         ::std::thread::sleep(Duration::from_millis(sleep_time_millis as u64));
     } else {
@@ -83,19 +81,14 @@ fn render(canvas: &mut WindowCanvas, full_layout: &FullLayout, font_cache: &mut 
     //      SDL specific stuff, that should move one layer further (platform or something)
 
     renderer_clear(canvas, Color::WHITE);
-
     render_layout_node(canvas, &full_layout.root_node, font_cache);
-
-    //temp test:
-    draw_line(canvas, Position::new(100, 100), Position::new(200, 200), Color::RED);
-    draw_line(canvas, Position::new(100, 200), Position::new(200, 100), Color::BLUE);
 
     canvas.present();
 }
 
 
 fn render_layout_node(canvas: &mut WindowCanvas, layout_node: &LayoutNode, font_cache: &mut FontCache) {
-    if (layout_node.text.is_some()) {
+    if layout_node.text.is_some() {
         let own_font = Font::new(layout_node.bold, layout_node.font_size); //TODO: we should just have a (reference to) the font on the layout node
         let font = font_cache.get_font(&own_font);
 
@@ -143,7 +136,7 @@ fn main() -> Result<(), String> {
 
 
     let file_contents: String;
-    if (loading_local_file) {
+    if loading_local_file {
         let file_path = url[7..] //remove the "file://" prefix
                         .to_owned();
         file_contents = fs::read_to_string(file_path)

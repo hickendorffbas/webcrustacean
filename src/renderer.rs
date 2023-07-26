@@ -10,6 +10,7 @@ pub struct Position {
     pub x: u32,
     pub y: u32,
 }
+#[allow(dead_code)] //TODO: eventually use, or remove
 impl Position {
     fn to_sdl_point(&self) -> SdlPoint { //TODO: maybe want to put all SDL stuff in a separate place, and therefore not in this impl?
         return SdlPoint::new(self.x as i32, self.y as i32);
@@ -39,9 +40,11 @@ impl Color {
 
     #[allow(dead_code)] //TODO: remove when used
     pub const BLACK: Color = Color::new(0, 0, 0);
+    #[allow(dead_code)] //TODO: remove when used
     pub const BLUE: Color = Color::new(0, 0, 255);
     #[allow(dead_code)] //TODO: remove when used
     pub const GREEN: Color = Color::new(0, 255, 0);
+    #[allow(dead_code)] //TODO: remove when used
     pub const RED: Color = Color::new(255, 0, 0);
     pub const WHITE: Color = Color::new(255, 255, 255);
 }
@@ -53,6 +56,7 @@ pub fn clear(canvas: &mut WindowCanvas, color: Color) {
 }
 
 
+#[allow(dead_code)] //TODO: eventually use, or remove
 pub fn draw_line(canvas: &mut WindowCanvas, start: Position, end: Position, color: Color) {
     canvas.set_draw_color(color.to_sdl_color());
     canvas.draw_line(start.to_sdl_point(), end.to_sdl_point()).expect("error drawing line");

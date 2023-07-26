@@ -209,7 +209,7 @@ fn layout_dom_tree(main_node: &DomNode, document: &Document, next_position: &mut
     let rc_new_node = Rc::new(new_node);
     all_nodes.push(Rc::clone(&rc_new_node));
 
-    if (move_to_next_line_after) {
+    if move_to_next_line_after {
         move_to_next_line(next_position);
     }
 

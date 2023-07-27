@@ -5,6 +5,7 @@ mod html_parser;
 mod layout;
 mod lexer;
 mod network;
+mod next_gen_html_parser;
 mod renderer;
 
 use std::collections::HashMap;
@@ -167,8 +168,10 @@ fn main() -> Result<(), String> {
     let mut currently_loading_new_page = true;
 
 
-    //TODO: temporary call to lexer below, for testing, output is not used yet:
-    let _lex_result = lexer::lex_html(&file_contents);
+    //TODO: temporary call to lexer and next gen parser below, for testing, output is not used yet:
+    let lex_result = lexer::lex_html(&file_contents);
+    let _next_gen_parse_result = next_gen_html_parser::parse(lex_result);
+
 
     let document_node = html_parser::parse_document(&file_contents);
     let full_layout_tree = layout::build_full_layout(&document_node, &mut font_cache);

@@ -202,7 +202,6 @@ fn convert_html_nodes_to_dom(html_node: HtmlNode) -> Document {
     };
 }
 
-
 fn convert_html_node_to_dom_node(html_node: HtmlNode, document_dom_nodes: &mut HashMap<usize, Rc<DomNode>>, parent_id: usize) -> Rc<DomNode> {
 
     match html_node.node_type {

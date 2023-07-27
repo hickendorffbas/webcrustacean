@@ -4,34 +4,21 @@ use std::str::Chars;
 use crate::debug::debug_print_html_tokens;
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-pub enum HtmlTokenType {
-    OpenTag,
+pub enum HtmlToken {
+    OpenTag{name: String},
     OpenTagEnd,
-    Attribute,
-    CloseTag,
-    Text,
-    Whitespace,
+    Attribute(AttributeContent),
+    CloseTag{name: String},
+    Text(String),
+    Whitespace(String),
     #[allow(dead_code)] //TODO: implement
-    Comment,
+    Comment(String),
     #[allow(dead_code)] //TODO: implement
-    Doctype,
+    Doctype(String),
     #[allow(dead_code)] //TODO: implement
-    EmpData, //Any &... entity
+    EmpData(String), //Any &... entity
 }
 
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[allow(dead_code)] //TODO: unused until output of the new lexer is used
-pub struct HtmlToken {
-    pub token_type: HtmlTokenType,
-    pub token_content: TokenContentValue
-}
-
-#[cfg_attr(debug_assertions, derive(Debug))]
-pub enum TokenContentValue {
-    NoContent(()),
-    TextContent(String),
-    AttributeContent(AttributeContent),
-}
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[allow(dead_code)] //TODO: unused until output of the new lexer is used
@@ -67,7 +54,7 @@ pub fn lex_html(document: &str) -> Vec<HtmlToken> {
                         panic!("This case is not valid html, but we should still handle it in some way");
                     }
 
-                    tokens.push(HtmlToken{ token_type: HtmlTokenType::CloseTag, token_content: TokenContentValue::TextContent(tag_name) });
+                    tokens.push(HtmlToken::CloseTag {name: tag_name} );
 
                 } else { //we are reading an opening tag
                     eat_whitespace(&mut doc_iterator);
@@ -75,14 +62,14 @@ pub fn lex_html(document: &str) -> Vec<HtmlToken> {
                     let tag_name = consume_full_name(&mut doc_iterator);
                     eat_whitespace(&mut doc_iterator);
 
-                    tokens.push(HtmlToken{ token_type: HtmlTokenType::OpenTag, token_content: TokenContentValue::TextContent(tag_name) });
+                    tokens.push(HtmlToken::OpenTag {name: tag_name} );
 
                     while doc_iterator.peek().is_some() && doc_iterator.peek().unwrap() != &'>' {
                         tokens.push(consume_tag_attribute(&mut doc_iterator));
                         eat_whitespace(&mut doc_iterator);
                     }
                     doc_iterator.next(); //read the '>'
-                    tokens.push(HtmlToken{ token_type: HtmlTokenType::OpenTagEnd, token_content: TokenContentValue::NoContent(()) });
+                    tokens.push(HtmlToken::OpenTagEnd);
                 }
             },
             '&' => {
@@ -90,7 +77,7 @@ pub fn lex_html(document: &str) -> Vec<HtmlToken> {
                 panic!("implement");
             },
             ' ' | '\n' | '\t' | '\r' => {
-                tokens.push(HtmlToken{ token_type: HtmlTokenType::Whitespace, token_content: TokenContentValue::TextContent(next_char.to_string()) });
+                tokens.push(HtmlToken::Whitespace(next_char.to_string()));
             }
             _ => {
                 let mut str_buffer = next_char.to_string();
@@ -103,7 +90,7 @@ pub fn lex_html(document: &str) -> Vec<HtmlToken> {
                     }
                     str_buffer.push(doc_iterator.next().unwrap());
                 }
-                tokens.push(HtmlToken{ token_type: HtmlTokenType::Text, token_content: TokenContentValue::TextContent(str_buffer) });
+                tokens.push(HtmlToken::Text(str_buffer));
             },
         }
 
@@ -141,8 +128,7 @@ fn consume_tag_attribute(doc_iterator: &mut Peekable<Chars<'_>>) -> HtmlToken {
         attribute_value = attribute_name.clone();
     }
 
-    let attribute_data = TokenContentValue::AttributeContent(AttributeContent{name: attribute_name, value: attribute_value});
-    return HtmlToken{ token_type: HtmlTokenType::Attribute, token_content: attribute_data };
+    return HtmlToken::Attribute(AttributeContent{name: attribute_name, value: attribute_value});
 }
 
 

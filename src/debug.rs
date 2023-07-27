@@ -115,7 +115,7 @@ pub fn debug_print_html_tokens(tokens: &Vec<HtmlToken>) {
     //TODO: this is a quick and dirty way, punt it prints a lot of overhead (like HtmlToken all the time), could be a lot nicer
 
     for token in tokens {
-        buffer = format!("{} {:?} {:?}", buffer, token.token_type, token.token_content);
+        buffer = format!("{} {:?}", buffer, token);
     }
 
     println!("tokenlist: {:?}", tokens);

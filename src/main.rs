@@ -63,15 +63,16 @@ fn build_canvas(sdl_context: &Sdl) -> WindowCanvas {
 }
 
 
-fn frame_time_check(start_instant: &Instant) {
+fn frame_time_check(start_instant: &Instant, currently_loading_new_page: bool) {
     let millis_elapsed = start_instant.elapsed().as_millis();
     let sleep_time_millis = TARGET_MS_PER_FRAME as i64 - millis_elapsed as i64;
     if sleep_time_millis > 1 {
         //If we are more than a millisecond faster than what we need to reach the target FPS, we sleep
         ::std::thread::sleep(Duration::from_millis(sleep_time_millis as u64));
     } else {
-        //TODO: make this conditional on whether we were loading a document in this frame, in which case we should not warn
-        debug_log_warn(format!("we did not reach the target FPS, frametime: {}", millis_elapsed));
+        if !currently_loading_new_page {
+            debug_log_warn(format!("we did not reach the target FPS, frametime: {}", millis_elapsed));
+        }
     }
 }
 
@@ -163,6 +164,8 @@ fn main() -> Result<(), String> {
     }
 
 
+    let mut currently_loading_new_page = true;
+
     let document_node = html_parser::parse_document(&file_contents);
     let full_layout_tree = layout::build_full_layout(&document_node, &mut font_cache);
 
@@ -184,7 +187,8 @@ fn main() -> Result<(), String> {
         }
 
         render(&mut canvas, &full_layout_tree, &mut font_cache);
-        frame_time_check(&start_instant);
+        frame_time_check(&start_instant, currently_loading_new_page);
+        currently_loading_new_page = false;
     }
 
     Ok(())

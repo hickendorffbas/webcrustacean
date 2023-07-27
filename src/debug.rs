@@ -1,3 +1,5 @@
+use crate::lexer::HtmlToken;
+
 #[cfg(debug_assertions)] use std::rc::Rc;
 
 #[cfg(debug_assertions)] use crate::{dom::{Document, DomNode}, html_parser::HtmlNode};
@@ -101,4 +103,21 @@ pub fn debug_log_warn(_: String) {}
 #[cfg(debug_assertions)]
 pub fn debug_log_warn(warning_text: String) {
     println!("WARN: {}", warning_text);
+}
+
+
+#[cfg(not(debug_assertions))]
+pub fn debug_print_html_tokens(_: &Vec<HtmlToken>) {}
+#[cfg(debug_assertions)]
+pub fn debug_print_html_tokens(tokens: &Vec<HtmlToken>) {
+    let mut buffer = String::new();
+
+    //TODO: this is a quick and dirty way, punt it prints a lot of overhead (like HtmlToken all the time), could be a lot nicer
+
+    for token in tokens {
+        buffer = format!("{} {:?} {:?}", buffer, token.token_type, token.token_content);
+    }
+
+    println!("tokenlist: {:?}", tokens);
+
 }

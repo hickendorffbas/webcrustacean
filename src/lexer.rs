@@ -1,7 +1,9 @@
 use std::iter::Peekable;
 use std::str::Chars;
 
+use crate::debug::debug_print_html_tokens;
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum HtmlTokenType {
     OpenTag,
     OpenTagEnd,
@@ -17,25 +19,25 @@ pub enum HtmlTokenType {
     EmpData, //Any &... entity
 }
 
-
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[allow(dead_code)] //TODO: unused until output of the new lexer is used
 pub struct HtmlToken {
-    token_type: HtmlTokenType,
-    token_content: TokenContentValue
+    pub token_type: HtmlTokenType,
+    pub token_content: TokenContentValue
 }
 
-
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum TokenContentValue {
     NoContent(()),
     TextContent(String),
     AttributeContent(AttributeContent),
 }
 
-
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[allow(dead_code)] //TODO: unused until output of the new lexer is used
 pub struct AttributeContent {
-    name: String,
-    value: String,
+    pub name: String,
+    pub value: String,
 }
 
 
@@ -107,6 +109,7 @@ pub fn lex_html(document: &str) -> Vec<HtmlToken> {
 
     }
 
+    debug_print_html_tokens(&tokens);
     return tokens;
 }
 

@@ -1,4 +1,6 @@
+use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::{
     Font,
@@ -14,9 +16,14 @@ use crate::dom::{Document, DomNode};
 use crate::renderer::{Color, Position, get_text_dimension};  //TODO: color should probably not come from the renderer, position probably also not
 
 
-pub struct FullLayout { //TODO: build this one on the highest level, instead of returning the top LayoutNode directly
+//TODO: I need to understand orderings with atomics a bit better
+static NEXT_LAYOUT_NODE_INTERNAL: AtomicUsize = AtomicUsize::new(1);
+pub fn get_next_layout_node_interal_id() -> usize { NEXT_LAYOUT_NODE_INTERNAL.fetch_add(1, Ordering::Relaxed) }
+
+
+pub struct FullLayout {
     pub root_node: Rc<LayoutNode>,
-    pub all_nodes: Vec<Rc<LayoutNode>>,
+    pub all_nodes: HashMap<usize, Rc<LayoutNode>>,
 }
 
 
@@ -37,19 +44,17 @@ pub struct LayoutNode {
 pub fn build_full_layout(document_node: &Document, font_cache: &mut FontCache) -> FullLayout {
     let mut top_level_layout_nodes: Vec<Rc<LayoutNode>> = Vec::new();
     let mut next_position = Position {x: 10, y: 10};
-    let mut all_nodes: Vec<Rc<LayoutNode>> = Vec::new();
-    let mut next_node_internal_id: usize = 0;
+    let mut all_nodes: HashMap<usize, Rc<LayoutNode>> = HashMap::new();
 
     debug_print_dom_tree(&document_node, "START_OF_BUILD_LAYOUT_TREE");
 
-    let id_of_node_being_built = next_node_internal_id;
-    next_node_internal_id += 1;
+    let id_of_node_being_built = get_next_layout_node_interal_id();
 
     //TODO: understand why I need to pass in a mutable reference in the append method
-    top_level_layout_nodes.append(&mut build_header_nodes(&mut next_position, &mut all_nodes, &mut next_node_internal_id, id_of_node_being_built));
+    top_level_layout_nodes.append(&mut build_header_nodes(&mut next_position, &mut all_nodes, id_of_node_being_built));
 
     let document_layout_node = layout_dom_tree(&document_node.document_node, document_node, &mut next_position, font_cache,
-                                               &mut all_nodes, &mut next_node_internal_id, id_of_node_being_built);
+                                               &mut all_nodes, id_of_node_being_built);
     top_level_layout_nodes.push(document_layout_node);
 
     let root_node = LayoutNode {
@@ -66,16 +71,14 @@ pub fn build_full_layout(document_node: &Document, font_cache: &mut FontCache) -
     };
 
     let rc_root_node = Rc::new(root_node);
-    all_nodes.push(Rc::clone(&rc_root_node));
-
-    debug_assert!(all_nodes.len() == next_node_internal_id, "Id seting of Layout nodes went wrong");
+    all_nodes.insert(id_of_node_being_built, Rc::clone(&rc_root_node));
 
     return FullLayout { root_node: rc_root_node, all_nodes }
 }
 
 
 fn layout_dom_tree(main_node: &DomNode, document: &Document, next_position: &mut Position, font_cache: &mut FontCache,
-                   all_nodes: &mut Vec<Rc<LayoutNode>>, next_node_internal_id: &mut usize, parent_id: usize) -> Rc<LayoutNode> {
+                   all_nodes: &mut HashMap<usize, Rc<LayoutNode>>, parent_id: usize) -> Rc<LayoutNode> {
     let mut move_to_next_line_after = false;
 
     let mut partial_node_text = None;
@@ -189,14 +192,13 @@ fn layout_dom_tree(main_node: &DomNode, document: &Document, next_position: &mut
 
     }
 
-    let id_of_node_being_built = *next_node_internal_id;
-    *next_node_internal_id += 1;
+    let id_of_node_being_built = get_next_layout_node_interal_id();
 
     let new_childeren = if let Some(ref children) = childs_to_recurse_on {
         let mut temp_childeren = Vec::new();
 
         for child in children {
-            temp_childeren.push(layout_dom_tree(child, document, next_position, font_cache, all_nodes, next_node_internal_id, id_of_node_being_built));
+            temp_childeren.push(layout_dom_tree(child, document, next_position, font_cache, all_nodes, id_of_node_being_built));
         }
 
         Some(temp_childeren)
@@ -218,7 +220,7 @@ fn layout_dom_tree(main_node: &DomNode, document: &Document, next_position: &mut
     };
 
     let rc_new_node = Rc::new(new_node);
-    all_nodes.push(Rc::clone(&rc_new_node));
+    all_nodes.insert(id_of_node_being_built, Rc::clone(&rc_new_node));
 
     if move_to_next_line_after {
         move_to_next_line(next_position);
@@ -228,13 +230,14 @@ fn layout_dom_tree(main_node: &DomNode, document: &Document, next_position: &mut
 }
 
 
-fn build_header_nodes(position: &mut Position, all_nodes: &mut Vec<Rc<LayoutNode>>,
-                      next_node_internal_id: &mut usize, parent_id: usize) -> Vec<Rc<LayoutNode>> {
+fn build_header_nodes(position: &mut Position, all_nodes: &mut HashMap<usize, Rc<LayoutNode>>, parent_id: usize) -> Vec<Rc<LayoutNode>> {
     //TODO: eventually we want to not have this in the same node list I think (maybe not even as layout nodes?)
     let mut layout_nodes: Vec<Rc<LayoutNode>> = Vec::new();
 
+    let node_id = get_next_layout_node_interal_id();
+
     let rc_node = Rc::new(LayoutNode {
-        internal_id: *next_node_internal_id,
+        internal_id: node_id,
         text: Option::from(String::from("BBrowser")),
         position: position.clone(),
         font_bold: true,
@@ -243,12 +246,11 @@ fn build_header_nodes(position: &mut Position, all_nodes: &mut Vec<Rc<LayoutNode
         optional_link_url: None,
         children: None,
         visible: true,
-        parent_id: parent_id,
+        parent_id,
     });
     position.y += 50;
 
-    all_nodes.push(Rc::clone(&rc_node));
-    *next_node_internal_id += 1;
+    all_nodes.insert(node_id, Rc::clone(&rc_node));
 
     layout_nodes.push(rc_node);
 

@@ -2,12 +2,11 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+
 //TODO: I need to understand orderings with atomics a bit better
 static NEXT_DOM_NODE_INTERNAL: AtomicUsize = AtomicUsize::new(1);
 pub fn get_next_dom_node_interal_id() -> usize { NEXT_DOM_NODE_INTERNAL.fetch_add(1, Ordering::Relaxed) }
 
-
-//TODO: would probably be nice to have a trait or something to get parent and interal id etc. from all nodes regardless of type
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Document {
@@ -25,16 +24,11 @@ impl Document {
             _ => {},
         };
 
-        let parent_id = match node {
-            DomNode::Document(_) => None,
-            DomNode::Element(node) => Some(node.parent_id),
-            DomNode::Attribute(node) => Some(node.parent_id),
-            DomNode::Text(node) => Some(node.parent_id),
-        };
-
+        let parent_id = node.get_parent_id();
         return parent_id.is_some() && self.has_element_parent_with_name(self.all_nodes.get(&parent_id.unwrap()).unwrap(), element_name);
     }
 }
+
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub enum DomNode {
@@ -43,12 +37,24 @@ pub enum DomNode {
     Attribute(AttributeDomNode),
     Text(TextDomNode),
 }
+impl DomNode {
+    fn get_parent_id(&self) -> Option<usize> {
+        match self {
+            DomNode::Document(_) => None,
+            DomNode::Element(node) => Some(node.parent_id),
+            DomNode::Attribute(node) => Some(node.parent_id),
+            DomNode::Text(node) => Some(node.parent_id),
+        }
+    }
+}
+
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct DocumentDomNode {
     pub internal_id: usize,
     pub children: Option<Vec<Rc<DomNode>>>
 }
+
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct ElementDomNode {
@@ -75,6 +81,7 @@ impl ElementDomNode {
     }
 }
 
+
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct AttributeDomNode {
     pub internal_id: usize,
@@ -82,6 +89,7 @@ pub struct AttributeDomNode {
     pub value: String,
     pub parent_id: usize,
 }
+
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct TextDomNode {

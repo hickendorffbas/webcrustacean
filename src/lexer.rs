@@ -28,7 +28,6 @@ pub struct AttributeContent {
 }
 
 
-//TODO: I can't seem to handle self closing tags yet, like <br />
 pub fn lex_html(document: &str) -> Vec<HtmlToken> {
     let mut tokens = Vec::new();
     let mut doc_iterator = document.chars().peekable();
@@ -62,14 +61,34 @@ pub fn lex_html(document: &str) -> Vec<HtmlToken> {
                     let tag_name = consume_full_name(&mut doc_iterator);
                     eat_whitespace(&mut doc_iterator);
 
-                    tokens.push(HtmlToken::OpenTag {name: tag_name} );
+                    tokens.push(HtmlToken::OpenTag {name: tag_name.clone()} );
 
-                    while doc_iterator.peek().is_some() && doc_iterator.peek().unwrap() != &'>' {
+                    while doc_iterator.peek().is_some() &&
+                          doc_iterator.peek().unwrap() != &'>' && doc_iterator.peek().unwrap() != &'/' {
+                        println!("processing {:?}", doc_iterator.peek());
                         tokens.push(consume_tag_attribute(&mut doc_iterator));
                         eat_whitespace(&mut doc_iterator);
                     }
-                    doc_iterator.next(); //read the '>'
-                    tokens.push(HtmlToken::OpenTagEnd);
+
+                    let next_char = doc_iterator.peek().unwrap();
+                    if next_char == &'/' {
+                        // We are in a self-closing tag
+                        doc_iterator.next(); //read the '/'
+
+                        eat_whitespace(&mut doc_iterator);
+
+                        doc_iterator.next(); //read the '>'
+                        tokens.push(HtmlToken::OpenTagEnd);
+                        tokens.push(HtmlToken::CloseTag { name: tag_name });
+
+                    } else if next_char == &'>' {
+                        doc_iterator.next(); //read the '>'
+                        tokens.push(HtmlToken::OpenTagEnd);
+                    } else {
+                        //Given the while loop above, this should not be reachable
+                        panic!("Illegal state");
+                    }
+
                 }
             },
             '&' => {

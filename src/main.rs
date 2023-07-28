@@ -19,6 +19,7 @@ use crate::layout::{FullLayout, LayoutNode};
 use crate::network::http_get;
 use crate::renderer::{Color, clear as renderer_clear, render_text};
 
+use debug::debug_print_html_tokens;
 use sdl2::{
     event::Event as SdlEvent,
     keyboard::Keycode,
@@ -166,6 +167,7 @@ fn main() -> Result<(), String> {
     let mut currently_loading_new_page = true;
 
     let lex_result = lexer::lex_html(&file_contents);
+    debug_print_html_tokens(&lex_result);
     let next_gen_parse_result = html_parser::parse(lex_result);
     let full_layout_tree = layout::build_full_layout(&next_gen_parse_result, &mut font_cache);
 

@@ -1,11 +1,10 @@
 mod debug;
 mod dom;
 mod fonts;
-mod html_parser;
 mod layout;
 mod lexer;
 mod network;
-mod next_gen_html_parser;
+mod html_parser;
 mod renderer;
 
 use std::collections::HashMap;
@@ -164,14 +163,10 @@ fn main() -> Result<(), String> {
         file_contents = http_get(String::from(url));
     }
 
-
     let mut currently_loading_new_page = true;
 
     let lex_result = lexer::lex_html(&file_contents);
-    let next_gen_parse_result = next_gen_html_parser::parse(lex_result);
-
-    //TODO: remove old parser, and rename next gen stuff, when things work well
-    let _document_node = html_parser::parse_document(&file_contents);
+    let next_gen_parse_result = html_parser::parse(lex_result);
     let full_layout_tree = layout::build_full_layout(&next_gen_parse_result, &mut font_cache);
 
     let mut event_pump = sdl_context.event_pump()?;

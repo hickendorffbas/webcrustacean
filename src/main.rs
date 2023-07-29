@@ -1,10 +1,10 @@
 mod debug;
 mod dom;
 mod fonts;
-mod layout;
-mod lexer;
-mod network;
+mod html_lexer;
 mod html_parser;
+mod layout;
+mod network;
 mod renderer;
 
 use std::collections::HashMap;
@@ -166,7 +166,7 @@ fn main() -> Result<(), String> {
 
     let mut currently_loading_new_page = true;
 
-    let lex_result = lexer::lex_html(&file_contents);
+    let lex_result = html_lexer::lex_html(&file_contents);
     debug_print_html_tokens(&lex_result);
     let next_gen_parse_result = html_parser::parse(lex_result);
     let full_layout_tree = layout::build_full_layout(&next_gen_parse_result, &mut font_cache);

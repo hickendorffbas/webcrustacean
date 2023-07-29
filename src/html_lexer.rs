@@ -3,7 +3,11 @@ use std::str::Chars;
 
 use crate::debug::debug_print_html_tokens;
 
+#[cfg(test)]
+mod tests;
+
 #[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(PartialEq)]
 pub enum HtmlToken {
     OpenTag{name: String},
     OpenTagEnd,
@@ -21,7 +25,7 @@ pub enum HtmlToken {
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[allow(dead_code)] //TODO: unused until output of the new lexer is used
+#[derive(PartialEq)]
 pub struct AttributeContent {
     pub name: String,
     pub value: String,
@@ -96,7 +100,15 @@ pub fn lex_html(document: &str) -> Vec<HtmlToken> {
                 panic!("implement");
             },
             ' ' | '\n' | '\t' | '\r' => {
-                tokens.push(HtmlToken::Whitespace(next_char.to_string()));
+                let mut str_buffer = String::new();
+                str_buffer.push(next_char);
+
+                while doc_iterator.peek().is_some() && is_whitespace(*doc_iterator.peek().unwrap()) {
+                    let whitespace_char = doc_iterator.next().unwrap();
+                    str_buffer.push(whitespace_char);
+                }
+
+                tokens.push(HtmlToken::Whitespace(str_buffer));
             }
             _ => {
                 let mut str_buffer = next_char.to_string();

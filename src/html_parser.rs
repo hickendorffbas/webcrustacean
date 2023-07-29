@@ -12,7 +12,7 @@ use crate::dom::{
     TextDomNode,
     get_next_dom_node_interal_id, AttributeDomNode,
 };
-use crate::lexer::HtmlToken;
+use crate::html_lexer::HtmlToken;
 
 
 pub fn parse(html_tokens: Vec<HtmlToken>) -> Document {

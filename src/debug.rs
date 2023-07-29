@@ -1,5 +1,5 @@
 use crate::dom::Document;
-use crate::lexer::HtmlToken;
+use crate::html_lexer::HtmlToken;
 
 
 #[cfg(debug_assertions)] use std::rc::Rc;

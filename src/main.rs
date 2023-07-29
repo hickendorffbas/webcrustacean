@@ -6,6 +6,7 @@ mod html_parser;
 mod layout;
 mod network;
 mod renderer;
+#[cfg(test)] mod test_util; //TODO: is there a better (test-specific) place to define this?
 
 use std::collections::HashMap;
 use std::env;

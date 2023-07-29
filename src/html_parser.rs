@@ -15,6 +15,10 @@ use crate::dom::{
 use crate::html_lexer::HtmlToken;
 
 
+#[cfg(test)]
+mod tests;
+
+
 pub fn parse(html_tokens: Vec<HtmlToken>) -> Document {
     let mut all_nodes = HashMap::new();
 

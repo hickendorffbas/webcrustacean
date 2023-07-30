@@ -1,7 +1,7 @@
 use std::iter::Peekable;
 use std::str::Chars;
 
-use crate::debug::debug_print_html_tokens;
+use crate::debug::{debug_print_html_tokens, debug_log_warn};
 
 #[cfg(test)]
 mod tests;
@@ -15,9 +15,7 @@ pub enum HtmlToken {
     CloseTag{name: String},
     Text(String),
     Whitespace(String),
-    #[allow(dead_code)] //TODO: implement
     Comment(String),
-    #[allow(dead_code)] //TODO: implement
     Doctype(String),
     #[allow(dead_code)] //TODO: implement
     EmpData(String), //Any &... entity
@@ -59,6 +57,47 @@ pub fn lex_html(document: &str) -> Vec<HtmlToken> {
 
                     tokens.push(HtmlToken::CloseTag {name: tag_name} );
 
+
+                } else if let Some('!') = doc_iterator.peek() {  //we are reading a comment or doctype
+                    doc_iterator.next(); //eat the !
+
+                    if let Some('-') = doc_iterator.peek() {
+                        doc_iterator.next(); //eat the -
+                        if let Some('-') = doc_iterator.peek() { //we are reading a comment
+                            doc_iterator.next(); //eat the -
+
+                            //TODO: this will potentially add the closing -- to the comment string, but they might not be present
+                            //      remove them when present?
+                            let rest_of_tag_content = consume_rest_of_tag_content(&mut doc_iterator);
+                            tokens.push(HtmlToken::Comment(rest_of_tag_content));
+                        } else {
+                            debug_log_warn("Unexpected chars after <!".to_owned());
+                        }
+                    } else {
+                        //This might be a doctype tag or something
+                        let doctype_chars: [char; 7] = ['D', 'O', 'C', 'T', 'Y', 'P', 'E'];
+
+                        let mut is_doctype = true;
+                        for current_char in doctype_chars {
+                            if doc_iterator.peek().is_some() && *doc_iterator.peek().unwrap() == current_char {
+                                doc_iterator.next(); //TODO: ideally we don't consume from the iterator until we are sure all the chars match
+                            } else {
+                                is_doctype = false;
+                                break;
+                            }
+                        }
+
+                        if is_doctype {
+                            let rest_of_tag_content = consume_rest_of_tag_content(&mut doc_iterator);
+                            tokens.push(HtmlToken::Doctype(rest_of_tag_content));
+                        }
+
+
+                    //TODO: implement
+
+                    }
+
+
                 } else { //we are reading an opening tag
                     eat_whitespace(&mut doc_iterator);
 
@@ -69,7 +108,6 @@ pub fn lex_html(document: &str) -> Vec<HtmlToken> {
 
                     while doc_iterator.peek().is_some() &&
                           doc_iterator.peek().unwrap() != &'>' && doc_iterator.peek().unwrap() != &'/' {
-                        println!("processing {:?}", doc_iterator.peek());
                         tokens.push(consume_tag_attribute(&mut doc_iterator));
                         eat_whitespace(&mut doc_iterator);
                     }
@@ -131,7 +169,6 @@ pub fn lex_html(document: &str) -> Vec<HtmlToken> {
     return tokens;
 }
 
-
 fn consume_tag_attribute(doc_iterator: &mut Peekable<Chars<'_>>) -> HtmlToken {
     let attribute_name = consume_full_name(doc_iterator);
 
@@ -160,6 +197,17 @@ fn consume_tag_attribute(doc_iterator: &mut Peekable<Chars<'_>>) -> HtmlToken {
     }
 
     return HtmlToken::Attribute(AttributeContent{name: attribute_name, value: attribute_value});
+}
+
+
+fn consume_rest_of_tag_content(doc_iterator: &mut Peekable<Chars<'_>>) -> String {
+    let mut str_buffer = String::new();
+    while doc_iterator.peek().is_some() && *doc_iterator.peek().unwrap() != '>' {
+        let whitespace_char = doc_iterator.next().unwrap();
+        str_buffer.push(whitespace_char);
+    }
+    doc_iterator.next(); //eat the '>'
+    return str_buffer;
 }
 
 

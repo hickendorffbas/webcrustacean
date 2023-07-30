@@ -17,8 +17,7 @@ pub enum HtmlToken {
     Whitespace(String),
     Comment(String),
     Doctype(String),
-    #[allow(dead_code)] //TODO: implement
-    EmpData(String), //Any &... entity
+    Entity(String),
 }
 
 
@@ -68,7 +67,7 @@ pub fn lex_html(document: &str) -> Vec<HtmlToken> {
 
                             //TODO: this will potentially add the closing -- to the comment string, but they might not be present
                             //      remove them when present?
-                            let rest_of_tag_content = consume_rest_of_tag_content(&mut doc_iterator);
+                            let rest_of_tag_content = consume_until_char(&mut doc_iterator, '>');
                             tokens.push(HtmlToken::Comment(rest_of_tag_content));
                         } else {
                             debug_log_warn("Unexpected chars after <!".to_owned());
@@ -88,12 +87,11 @@ pub fn lex_html(document: &str) -> Vec<HtmlToken> {
                         }
 
                         if is_doctype {
-                            let rest_of_tag_content = consume_rest_of_tag_content(&mut doc_iterator);
+                            let rest_of_tag_content = consume_until_char(&mut doc_iterator, '>');
                             tokens.push(HtmlToken::Doctype(rest_of_tag_content));
+                        } else {
+                            todo!(); //TODO: implement
                         }
-
-
-                    //TODO: implement
 
                     }
 
@@ -134,8 +132,8 @@ pub fn lex_html(document: &str) -> Vec<HtmlToken> {
                 }
             },
             '&' => {
-                //TODO: implement
-                panic!("implement");
+                let entity_data = consume_until_char(&mut doc_iterator, ';');
+                tokens.push(HtmlToken::Entity(entity_data));
             },
             ' ' | '\n' | '\t' | '\r' => {
                 let mut str_buffer = String::new();
@@ -200,13 +198,12 @@ fn consume_tag_attribute(doc_iterator: &mut Peekable<Chars<'_>>) -> HtmlToken {
 }
 
 
-fn consume_rest_of_tag_content(doc_iterator: &mut Peekable<Chars<'_>>) -> String {
+fn consume_until_char(doc_iterator: &mut Peekable<Chars<'_>>, limit: char) -> String {
     let mut str_buffer = String::new();
-    while doc_iterator.peek().is_some() && *doc_iterator.peek().unwrap() != '>' {
-        let whitespace_char = doc_iterator.next().unwrap();
-        str_buffer.push(whitespace_char);
+    while doc_iterator.peek().is_some() && *doc_iterator.peek().unwrap() != limit {
+        str_buffer.push(doc_iterator.next().unwrap());
     }
-    doc_iterator.next(); //eat the '>'
+    doc_iterator.next(); //eat the limit char
     return str_buffer;
 }
 

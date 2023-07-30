@@ -151,7 +151,9 @@ fn parse_node(html_tokens: &Vec<HtmlToken>, current_token_idx: &mut usize, paren
             HtmlToken::Doctype(_) => {
                 //for now we ignore, eventually we should probably distinguish html5 and other html variants here
             }
-            HtmlToken::EmpData(_) => todo!(), //TODO: implement
+            HtmlToken::Entity(_) => {
+                //TODO: implement this
+            }
         }
 
         *current_token_idx += 1;

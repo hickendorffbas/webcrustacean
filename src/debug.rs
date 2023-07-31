@@ -1,5 +1,5 @@
 use crate::dom::Document;
-use crate::html_lexer::HtmlToken;
+use crate::html_lexer::HtmlTokenWithLocation;
 
 
 #[cfg(debug_assertions)] use std::rc::Rc;
@@ -64,15 +64,15 @@ pub fn debug_log_warn(warning_text: String) {
 
 
 #[cfg(not(debug_assertions))]
-pub fn debug_print_html_tokens(_: &Vec<HtmlToken>) {}
+pub fn debug_print_html_tokens(_: &Vec<HtmlTokenWithLocation>) {}
 #[cfg(debug_assertions)]
-pub fn debug_print_html_tokens(tokens: &Vec<HtmlToken>) {
+pub fn debug_print_html_tokens(tokens: &Vec<HtmlTokenWithLocation>) {
     let mut buffer = String::new();
 
     //TODO: this is a quick and dirty way, punt it prints a lot of overhead (like HtmlToken all the time), could be a lot nicer
 
     for token in tokens {
-        buffer = format!("{} {:?}", buffer, token);
+        buffer = format!("{} {:?} {}:{}", buffer, token.html_token, token.line, token.character);
     }
 
     println!("tokenlist: {:?}", tokens);

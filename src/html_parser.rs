@@ -12,14 +12,14 @@ use crate::dom::{
     TextDomNode,
     get_next_dom_node_interal_id, AttributeDomNode,
 };
-use crate::html_lexer::HtmlToken;
+use crate::html_lexer::{HtmlToken, HtmlTokenWithLocation};
 
 
 #[cfg(test)]
 mod tests;
 
 
-pub fn parse(html_tokens: Vec<HtmlToken>) -> Document {
+pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>) -> Document {
     let mut all_nodes = HashMap::new();
 
     let mut children = Vec::new();
@@ -41,7 +41,7 @@ pub fn parse(html_tokens: Vec<HtmlToken>) -> Document {
 }
 
 
-fn parse_node(html_tokens: &Vec<HtmlToken>, current_token_idx: &mut usize, parent_id: usize,
+fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut usize, parent_id: usize,
               all_nodes: &mut HashMap<usize, Rc<DomNode>>) -> Rc<DomNode> {
     let node_being_build_internal_id = get_next_dom_node_interal_id();
 
@@ -52,7 +52,7 @@ fn parse_node(html_tokens: &Vec<HtmlToken>, current_token_idx: &mut usize, paren
     'token_loop: while *current_token_idx < html_tokens.len() {  //TODO: we are going to have to break from this loop when we have parsed 1 node exactly
         let current_token = html_tokens.get(*current_token_idx).unwrap();
 
-        match current_token {
+        match &current_token.html_token {
             HtmlToken::OpenTag { name } => {
                 if tag_being_parsed.is_none() {
                     tag_being_parsed = Some(name.clone());
@@ -85,7 +85,8 @@ fn parse_node(html_tokens: &Vec<HtmlToken>, current_token_idx: &mut usize, paren
             HtmlToken::CloseTag { name } => {
                 if tag_being_parsed.is_none() || name != tag_being_parsed.as_ref().unwrap() {
                     //TODO: this is a case that can happen in the real world of course, figure out how to handle this...
-                    debug_log_warn("We are not closing the tag we opened, something is wrong!".to_owned());
+                    debug_log_warn(format!("We are not closing the tag we opened, something is wrong! ({}) ({}:{})", 
+                                           name, current_token.line, current_token.character));
                 }
 
                 let new_node = DomNode::Element(ElementDomNode {

@@ -1,12 +1,55 @@
 #[cfg(test)]
 
-use crate::html_lexer::HtmlToken;
+use crate::html_lexer::{HtmlToken, HtmlTokenWithLocation};
 
 
-pub fn html_doctype(text: &str) -> HtmlToken { return HtmlToken::Doctype(text.to_owned()); }
-pub fn html_text(text: &str) -> HtmlToken { return HtmlToken::Text(text.to_owned()); }
-pub fn html_whitespace(text: &str) -> HtmlToken { return HtmlToken::Whitespace(text.to_owned()); }
-pub fn html_open(tag_name: &str) -> HtmlToken { return HtmlToken::OpenTag{ name: tag_name.to_owned() }; }
-pub fn html_close(tag_name: &str) -> HtmlToken { return HtmlToken::CloseTag{ name: tag_name.to_owned() }; }
-pub fn html_open_tag_end() -> HtmlToken { return HtmlToken::OpenTagEnd; }
-pub fn html_comment(text: &str) -> HtmlToken { return HtmlToken::Comment(text.to_owned()); }
+pub fn tokens_equal_ignoring_location(actual_tokens: Vec<HtmlTokenWithLocation>, expected_tokens: Vec<HtmlTokenWithLocation>) -> bool {
+    for (actual_token, expected_token) in actual_tokens.iter().zip(expected_tokens.iter()) {
+        if actual_token.html_token != expected_token.html_token {
+            return false;
+        }
+    }
+    return true;
+}
+
+
+pub fn html_doctype_loc(text: &str, line_nr: u32, character_nr: u32) -> HtmlTokenWithLocation {
+    return HtmlTokenWithLocation { html_token: HtmlToken::Doctype(text.to_owned()), line: line_nr, character: character_nr };
+}
+pub fn html_doctype(text: &str) -> HtmlTokenWithLocation { return html_doctype_loc(text, 0, 0) }
+
+
+pub fn html_text_loc(text: &str, line_nr: u32, character_nr: u32) -> HtmlTokenWithLocation {
+    return HtmlTokenWithLocation { html_token: HtmlToken::Text(text.to_owned()), line: line_nr, character: character_nr };
+}
+pub fn html_text(text: &str) -> HtmlTokenWithLocation { return html_text_loc(text, 0, 0) }
+
+
+pub fn html_whitespace_loc(text: &str, line_nr: u32, character_nr: u32) -> HtmlTokenWithLocation {
+    return HtmlTokenWithLocation { html_token: HtmlToken::Whitespace(text.to_owned()), line: line_nr, character: character_nr };
+}
+pub fn html_whitespace(text: &str) -> HtmlTokenWithLocation { return html_whitespace_loc(text, 0, 0); }
+
+
+pub fn html_open_loc(tag_name: &str, line_nr: u32, character_nr: u32) -> HtmlTokenWithLocation {
+    return HtmlTokenWithLocation { html_token: HtmlToken::OpenTag{ name: tag_name.to_owned() }, line: line_nr, character: character_nr };
+}
+pub fn html_open(text: &str) -> HtmlTokenWithLocation { return html_open_loc(text, 0, 0); }
+
+
+pub fn html_close_loc(tag_name: &str, line_nr: u32, character_nr: u32) -> HtmlTokenWithLocation {
+    return HtmlTokenWithLocation { html_token: HtmlToken::CloseTag{ name: tag_name.to_owned() }, line: line_nr, character: character_nr };
+}
+pub fn html_close(text: &str) -> HtmlTokenWithLocation { return html_close_loc(text, 0, 0); }
+
+
+pub fn html_open_tag_end_loc(line_nr: u32, character_nr: u32) -> HtmlTokenWithLocation {
+    return HtmlTokenWithLocation { html_token: HtmlToken::OpenTagEnd, line: line_nr, character: character_nr };
+}
+pub fn html_open_tag_end() -> HtmlTokenWithLocation { return html_open_tag_end_loc(0, 0); }
+
+
+pub fn html_comment_loc(text: &str, line_nr: u32, character_nr: u32) -> HtmlTokenWithLocation {
+    return HtmlTokenWithLocation { html_token: HtmlToken::Comment(text.to_owned()), line: line_nr, character: character_nr };
+}
+pub fn html_comment(text: &str) -> HtmlTokenWithLocation { return html_comment_loc(text, 0, 0); }

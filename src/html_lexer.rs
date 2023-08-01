@@ -1,7 +1,7 @@
 use std::iter::Peekable;
 use std::str::Chars;
 
-use crate::debug::{debug_print_html_tokens, debug_log_warn};
+use crate::debug::{debug_log_warn, debug_print_html_tokens};
 
 #[cfg(test)]
 mod tests;
@@ -94,7 +94,7 @@ pub fn lex_html(document: &str) -> Vec<HtmlTokenWithLocation> {
                         html_iterator.next();
                     } else {
                         //TODO: we should probably handle extra stuff after the tagname differently (check what actual browsers do)
-                        panic!("This case is not valid html, but we should still handle it in some way");
+                        todo!("This case is not valid html, but we should still handle it in some way");
                     }
 
                     tokens.push(HtmlTokenWithLocation { html_token: HtmlToken::CloseTag {name: tag_name}, line: line_nr, character: char_nr } );

@@ -50,7 +50,6 @@ pub fn build_full_layout(document_node: &Document, font_cache: &mut FontCache) -
 
     let id_of_node_being_built = get_next_layout_node_interal_id();
 
-    //TODO: understand why I need to pass in a mutable reference in the append method
     top_level_layout_nodes.append(&mut build_header_nodes(&mut next_position, &mut all_nodes, id_of_node_being_built));
 
     let document_layout_node = layout_dom_tree(&document_node.document_node, document_node, &mut next_position, font_cache,
@@ -97,7 +96,7 @@ fn layout_dom_tree(main_node: &DomNode, document: &Document, next_position: &mut
         },
         DomNode::Element(node) => {
 
-            match &node.name.clone().unwrap()[..] { //TODO: understand why I need to clone here
+            match &node.name.as_ref().unwrap()[..] {
 
                 "a" => { partial_node_optional_link_url = node.get_attribute_value("href"); }
 

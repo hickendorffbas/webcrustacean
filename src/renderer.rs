@@ -4,18 +4,19 @@ use sdl2::pixels::Color as SdlColor;
 use sdl2::ttf::Font as SdlFont;
 
 
+//TODO: eventually I would to like to seperate platform (SDL) and the renderer
+
+
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone, Copy)]
 pub struct Position {
     pub x: u32,
     pub y: u32,
 }
-#[allow(dead_code)] //TODO: eventually use, or remove
 impl Position {
     fn to_sdl_point(&self) -> SdlPoint { //TODO: maybe want to put all SDL stuff in a separate place, and therefore not in this impl?
         return SdlPoint::new(self.x as i32, self.y as i32);
     }
-    pub const fn new(p_x: u32, p_y: u32) -> Position { Position { x: p_x, y: p_y} }
 }
 
 

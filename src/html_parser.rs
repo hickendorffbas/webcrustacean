@@ -49,7 +49,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
     let mut children = Vec::new();
     let mut last_child_was_whitespace = false;
 
-    'token_loop: while *current_token_idx < html_tokens.len() {  //TODO: we are going to have to break from this loop when we have parsed 1 node exactly
+    'token_loop: while *current_token_idx < html_tokens.len() {
         let current_token = html_tokens.get(*current_token_idx).unwrap();
 
         match &current_token.html_token {
@@ -105,7 +105,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                 let id_for_text_node = get_next_dom_node_interal_id();
                 let new_node = DomNode::Text(TextDomNode {
                     internal_id: id_for_text_node,
-                    text_content: text.to_string(), //TODO: using to_string here feels wrong...
+                    text_content: text.clone(),
                     parent_id: node_being_build_internal_id
                 });
 

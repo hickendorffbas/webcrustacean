@@ -82,12 +82,13 @@ pub fn render_text(canvas: &mut WindowCanvas, text: &String, x: u32, y: u32, fon
         .expect("copying texture in canvas failed!");
 }
 
-pub fn get_text_dimension(text: &str, font: &SdlFont) -> Dimension {
-    //TODO: we are making a lot of surfaces now just to measure the dimension. Can we build them once, and use them for the render? Or cache them?
-    let sdl_surface = font
-        .render(text)
-        .blended(SdlColor::RGBA(0, 0, 0, 255))
-        .expect("error while rendering text");
 
-    return Dimension {width: sdl_surface.size().0, height: sdl_surface.size().1};
+pub fn get_text_dimension(text: &str, font: &SdlFont) -> Dimension {
+    let result = font.size_of(text);
+    if result.is_ok() {
+        let (width, height) = result.ok().unwrap();
+        return Dimension { width, height };
+    } else {
+        panic!("{:?}", result.err().unwrap()); //TODO: don't think this is a good way of reporting the error
+    }
 }

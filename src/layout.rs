@@ -11,7 +11,7 @@ use crate::{
     SCREEN_WIDTH,
     VERTICAL_ELEMENT_SPACING
 };
-use crate::debug::{debug_log_warn, debug_print_dom_tree};
+use crate::debug::debug_log_warn;
 use crate::dom::{Document, DomNode};
 use crate::renderer::{Color, Position, get_text_dimension};  //TODO: color should probably not come from the renderer, position probably also not
 
@@ -45,8 +45,6 @@ pub fn build_full_layout(document_node: &Document, font_cache: &mut FontCache) -
     let mut top_level_layout_nodes: Vec<Rc<LayoutNode>> = Vec::new();
     let mut next_position = Position {x: 10, y: 10};
     let mut all_nodes: HashMap<usize, Rc<LayoutNode>> = HashMap::new();
-
-    debug_print_dom_tree(&document_node, "START_OF_BUILD_LAYOUT_TREE");
 
     let id_of_node_being_built = get_next_layout_node_interal_id();
 

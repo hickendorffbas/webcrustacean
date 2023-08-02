@@ -1,7 +1,7 @@
 use std::iter::Peekable;
 use std::str::Chars;
 
-use crate::debug::{debug_log_warn, debug_print_html_tokens};
+use crate::debug::debug_log_warn;
 
 #[cfg(test)]
 mod tests;
@@ -212,7 +212,6 @@ pub fn lex_html(document: &str) -> Vec<HtmlTokenWithLocation> {
 
     }
 
-    debug_print_html_tokens(&tokens);
     return tokens;
 }
 

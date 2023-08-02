@@ -8,6 +8,7 @@ use crate::html_lexer::HtmlTokenWithLocation;
 #[cfg(debug_assertions)] const INDENT_AMOUNT: u32 = 2;
 
 
+#[allow(dead_code)]
 #[cfg(not(debug_assertions))]
 pub fn debug_print_dom_tree(_: &Document, _: &str) {}
 #[allow(dead_code)]
@@ -63,8 +64,10 @@ pub fn debug_log_warn(warning_text: String) {
 }
 
 
+#[allow(dead_code)]
 #[cfg(not(debug_assertions))]
 pub fn debug_print_html_tokens(_: &Vec<HtmlTokenWithLocation>) {}
+#[allow(dead_code)]
 #[cfg(debug_assertions)]
 pub fn debug_print_html_tokens(tokens: &Vec<HtmlTokenWithLocation>) {
     let mut buffer = String::new();
@@ -76,5 +79,4 @@ pub fn debug_print_html_tokens(tokens: &Vec<HtmlTokenWithLocation>) {
     }
 
     println!("tokenlist: {:?}", tokens);
-
 }

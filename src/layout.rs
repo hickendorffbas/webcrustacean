@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -6,14 +8,15 @@ use crate::{
     Font,
     FontCache,
     FONT_SIZE,
-    HORIZONTAL_ELEMENT_SPACING,
-    LAYOUT_MARGIN_HORIZONTAL,
     SCREEN_WIDTH,
-    VERTICAL_ELEMENT_SPACING
 };
 use crate::debug::debug_log_warn;
 use crate::dom::{Document, DomNode};
-use crate::renderer::{Color, Position, get_text_dimension};  //TODO: color should probably not come from the renderer, position probably also not
+use crate::renderer::{Color, get_text_dimension};  //TODO: color should probably not come from the renderer, position probably also not
+
+
+//The hight of the header of bbrowser, so below this point the actual page is rendered:
+static HEADER_HIGHT: f32 = 50.0;
 
 
 //TODO: I need to understand orderings with atomics a bit better
@@ -27,10 +30,11 @@ pub struct FullLayout {
 }
 
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct LayoutNode {
     pub internal_id: usize,
     pub text: Option<String>, //eventually we need different kinds of layout nodes, text is just one type
-    pub position: Position,
+    pub location: RefCell<ComputedLocation>,
     pub visible: bool,
     pub font_bold: bool,
     pub font_color: Color,
@@ -41,23 +45,46 @@ pub struct LayoutNode {
 }
 
 
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub enum ComputedLocation {
+    NotYetComputed,
+    Computed(Rect)
+}
+impl ComputedLocation {
+    pub fn x_y_as_int(&self) -> (u32, u32) {
+        //TODO: for now we use this to get pixel values, but we actually should convert units properly somewhere (before the rederer, I guess)
+        return match self {
+            ComputedLocation::NotYetComputed => panic!("Node has not yet been computed"),
+            ComputedLocation::Computed(node) => { (node.x as u32, node.y as u32) },
+        }
+    }
+}
+
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub struct Rect {
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
+
 pub fn build_full_layout(document_node: &Document, font_cache: &mut FontCache) -> FullLayout {
     let mut top_level_layout_nodes: Vec<Rc<LayoutNode>> = Vec::new();
-    let mut next_position = Position {x: 10, y: 10};
     let mut all_nodes: HashMap<usize, Rc<LayoutNode>> = HashMap::new();
 
     let id_of_node_being_built = get_next_layout_node_interal_id();
 
-    top_level_layout_nodes.append(&mut build_header_nodes(&mut next_position, &mut all_nodes, id_of_node_being_built));
+    top_level_layout_nodes.append(&mut build_header_nodes(&mut all_nodes, id_of_node_being_built));
 
-    let document_layout_node = layout_dom_tree(&document_node.document_node, document_node, &mut next_position, font_cache,
-                                               &mut all_nodes, id_of_node_being_built);
+    let document_layout_node = build_layout_tree(&document_node.document_node, document_node, font_cache, &mut all_nodes, id_of_node_being_built);
     top_level_layout_nodes.push(document_layout_node);
 
     let root_node = LayoutNode {
         internal_id: id_of_node_being_built,
         text: None,
-        position: Position { x: 0, y: 0 }, //TODO: we need width and hight eventually on this as well (probably as big as the viewport?)
+        location: RefCell::new(ComputedLocation::NotYetComputed),
         visible: true,
         font_bold: false, //TODO: this should probably not be a top-level attribute of the layout node, but in text properties or something
         font_color: Color::BLACK, //TODO: this should probably not be a top-level attribute of the layout node, but in text properties or something
@@ -67,6 +94,13 @@ pub fn build_full_layout(document_node: &Document, font_cache: &mut FontCache) -
         parent_id: id_of_node_being_built,  //this is the top node, so it does not really have a parent, we set it to ourselves
     };
 
+    let (root_width, root_height) = compute_layout(&root_node, font_cache); //TODO: this now no longer takes the HEADER into account, should be moved down
+    let root_location = ComputedLocation::Computed(
+        Rect { x: 0.0, y: 0.0, width: root_width, height: root_height }  //TODO: the 0.0 here is not correct, because of the header
+    );
+    root_node.location.replace(root_location);
+
+
     let rc_root_node = Rc::new(root_node);
     all_nodes.insert(id_of_node_being_built, Rc::clone(&rc_root_node));
 
@@ -74,12 +108,128 @@ pub fn build_full_layout(document_node: &Document, font_cache: &mut FontCache) -
 }
 
 
-fn layout_dom_tree(main_node: &DomNode, document: &Document, next_position: &mut Position, font_cache: &mut FontCache,
-                   all_nodes: &mut HashMap<usize, Rc<LayoutNode>>, parent_id: usize) -> Rc<LayoutNode> {
-    let mut move_to_next_line_after = false;
+fn move_node(node: &LayoutNode, x_offset: f32, y_offset: f32) {
+    if !node.visible {
+        return; //TODO: ideally I would not need this, I guess an invisible node can still have a position....
+    }
 
+    let (computed_x, computed_y, computed_width, computed_height) = {
+        // we start a new scope so the borrow of the node location goes out of scope before we update it
+
+        let borrowed_node = node.location.borrow();
+        let node_loc = &*borrowed_node.deref();  //TODO: why why why why why why why why do I need &* here?
+
+        let computed_location = match node_loc {  //TODO: waarom werkt mijn enum_as_variant marco hier niet?
+            ComputedLocation::NotYetComputed => { panic!("Node should have been computed by now"); },
+            ComputedLocation::Computed(node) => { node },
+        };
+
+        (computed_location.x, computed_location.y, computed_location.width, computed_location.height)
+    };
+
+    let new_node_location = ComputedLocation::Computed(
+        Rect {
+            x: computed_x + x_offset,
+            y: computed_y + y_offset,
+            width: computed_width,
+            height: computed_height
+        }
+    );
+    node.location.replace(new_node_location);
+
+    move_children(node, x_offset, y_offset);
+}
+
+
+fn move_children(node: &LayoutNode, x_offset: f32, y_offset: f32) {
+    if !node.visible {
+        return; //TODO: ideally I would not need this, I guess an invisible node can still have a position....
+    }
+
+    if node.children.is_some() {
+        for child in node.children.as_ref().unwrap() {
+            move_node(child, x_offset, y_offset);
+        }
+    }
+}
+
+
+// This function does the layout for everything within the node, and sets the location of everything within to the correct position assuming
+// that the node itself is at 0,0 , in other words positions relative to node.
+//TODO: need to find a way to make good tests for this
+fn compute_layout(node: &LayoutNode, font_cache: &mut FontCache) -> (f32, f32) {
+    if !node.visible {
+        return (0.0, 0.0);
+    }
+
+    if node.children.is_some() {
+        let mut cursor_x = 0.0;
+        let mut cursor_y = 0.0;
+
+        let mut max_row_height_so_far = 0.0;
+
+        let mut max_x_seen = 0.0;
+        let mut max_y_seen = 0.0;
+
+        for child in node.children.as_ref().unwrap() {
+
+            let (child_width, child_height) = compute_layout((*child).as_ref(), font_cache);
+
+            //TODO: this currenty does not work because this node might be moved later, and then cross the SCREEN_WIDTH boundary
+            if child_width + cursor_x > SCREEN_WIDTH as f32 {
+                if cursor_x != 0.0 {
+                    cursor_x = 0.0;
+                    cursor_y += max_row_height_so_far;
+                    max_row_height_so_far = 0.0;
+                } else {
+                    // it does not fit, but we are all the way to the left already, so going to a new row does not help
+                }
+            }
+
+            if child_height > max_row_height_so_far {
+                max_row_height_so_far = child_height;
+            }
+
+            let child_location = ComputedLocation::Computed(
+                Rect { x: cursor_x, y: cursor_y, width: child_width, height: child_height }
+            );
+            child.location.replace(child_location);
+            cursor_x += child_width;
+            move_children(child, cursor_x, cursor_y);
+
+            if max_x_seen < cursor_x {
+                //note: child width is already included in cursor_x
+                max_x_seen = cursor_x;
+            }
+            if max_y_seen < cursor_y + child_height {
+                max_y_seen = cursor_y;
+            }
+        }
+
+        return (max_x_seen, max_y_seen);
+    } else {
+
+        if node.text.is_some() {
+
+            //TODO: ideally I just store the font (a reference!) on the node, so I can compute it in the first pass...
+            let own_font = Font::new(node.font_bold, node.font_size);
+            let font = font_cache.get_font(&own_font);
+            let dimension = get_text_dimension(node.text.as_ref().unwrap(), &font);
+
+
+            return (dimension.width as f32, dimension.height as f32)
+
+        } else {
+            panic!("A node that has no text and no children should not exist"); //TODO: does not exist _yet_, but something like an image would fit here..
+        }
+    }
+
+}
+
+
+fn build_layout_tree(main_node: &DomNode, document: &Document, font_cache: &mut FontCache,
+                     all_nodes: &mut HashMap<usize, Rc<LayoutNode>>, parent_id: usize) -> Rc<LayoutNode> {
     let mut partial_node_text = None;
-    let mut partial_node_position = next_position.clone();
     let mut partial_node_font_bold = false;
     let mut partial_node_font_color = Color::BLACK;
     let mut partial_node_font_size = FONT_SIZE;
@@ -100,43 +250,33 @@ fn layout_dom_tree(main_node: &DomNode, document: &Document, next_position: &mut
 
                 "b" => { partial_node_font_bold = true; }
 
-                "br" => { move_to_next_line(next_position); }
+                "br" => {
+                    //TODO: I'm moving the actual positioning to a seperate pass after this one, does anything need to be happening here then?
+                }
 
                 "h1" => {
                     partial_node_font_bold = true;
                     partial_node_font_size = FONT_SIZE + 12;
-                    move_to_next_line(next_position);
-                    move_to_next_line_after = true;
                 }
                 "h2" => {
                     partial_node_font_bold = true;
                     partial_node_font_size = FONT_SIZE + 10;
-                    move_to_next_line(next_position);
-                    move_to_next_line_after = true;
                 }
                 "h3" => {
                     partial_node_font_bold = true;
                     partial_node_font_size = FONT_SIZE + 8;
-                    move_to_next_line(next_position);
-                    move_to_next_line_after = true;
                 }
                 "h4" => {
                     partial_node_font_bold = true;
                     partial_node_font_size = FONT_SIZE + 6;
-                    move_to_next_line(next_position);
-                    move_to_next_line_after = true;
                 }
                 "h5" => {
                     partial_node_font_bold = true;
                     partial_node_font_size = FONT_SIZE + 4;
-                    move_to_next_line(next_position);
-                    move_to_next_line_after = true;
                 }
                 "h6" => {
                     partial_node_font_bold = true;
                     partial_node_font_size = FONT_SIZE + 2;
-                    move_to_next_line(next_position);
-                    move_to_next_line_after = true;
                 }
 
 
@@ -170,21 +310,13 @@ fn layout_dom_tree(main_node: &DomNode, document: &Document, next_position: &mut
 
             let own_font = Font::new(parent_bold, parent_font_size); //TODO: the font should just live on the layout_node
             let font = font_cache.get_font(&own_font);
-            let dimension = get_text_dimension(&text, &font);
+            let _dimension = get_text_dimension(&text, &font); //TODO: unused, should move to the pass where we compute the actual sizes of things
 
             if document.has_element_parent_with_name(main_node, "a") {
                 partial_node_font_color = Color::BLUE;
             }
 
-            if next_position.x + dimension.width > SCREEN_WIDTH - LAYOUT_MARGIN_HORIZONTAL {
-                move_to_next_line(next_position);
-            }
-
             partial_node_text = Option::Some(text.to_string());
-            partial_node_position = next_position.clone();
-
-            //TODO: this does not account for the height. We should track the max height, and add that when we move to the next line
-            move_next_position_by_x(next_position, dimension.width);
         }
 
     }
@@ -195,7 +327,7 @@ fn layout_dom_tree(main_node: &DomNode, document: &Document, next_position: &mut
         let mut temp_childeren = Vec::new();
 
         for child in children {
-            temp_childeren.push(layout_dom_tree(child, document, next_position, font_cache, all_nodes, id_of_node_being_built));
+            temp_childeren.push(build_layout_tree(child, document, font_cache, all_nodes, id_of_node_being_built));
         }
 
         Some(temp_childeren)
@@ -206,7 +338,7 @@ fn layout_dom_tree(main_node: &DomNode, document: &Document, next_position: &mut
     let new_node = LayoutNode {
         internal_id: id_of_node_being_built,
         text: partial_node_text,
-        position: partial_node_position, //TODO: this is not correct, it should be dependent on children as well
+        location: RefCell::new(ComputedLocation::NotYetComputed),
         visible: partial_node_visible,
         font_bold: partial_node_font_bold,
         font_color: partial_node_font_color,
@@ -219,15 +351,11 @@ fn layout_dom_tree(main_node: &DomNode, document: &Document, next_position: &mut
     let rc_new_node = Rc::new(new_node);
     all_nodes.insert(id_of_node_being_built, Rc::clone(&rc_new_node));
 
-    if move_to_next_line_after {
-        move_to_next_line(next_position);
-    }
-
     return rc_new_node;
 }
 
 
-fn build_header_nodes(position: &mut Position, all_nodes: &mut HashMap<usize, Rc<LayoutNode>>, parent_id: usize) -> Vec<Rc<LayoutNode>> {
+fn build_header_nodes(all_nodes: &mut HashMap<usize, Rc<LayoutNode>>, parent_id: usize) -> Vec<Rc<LayoutNode>> {
     //TODO: eventually we want to not have this in the same node list I think (maybe not even as layout nodes?)
     let mut layout_nodes: Vec<Rc<LayoutNode>> = Vec::new();
 
@@ -236,7 +364,9 @@ fn build_header_nodes(position: &mut Position, all_nodes: &mut HashMap<usize, Rc
     let rc_node = Rc::new(LayoutNode {
         internal_id: node_id,
         text: Option::from(String::from("BBrowser")),
-        position: position.clone(),
+        location: RefCell::new(ComputedLocation::Computed(
+            Rect { x: 10.0, y: 10.0, width: 500.0, height: HEADER_HIGHT }, //TODO: width is bogus, but we don't have the font to compute it
+        )),
         font_bold: true,
         font_color: Color::BLACK,
         font_size: FONT_SIZE,
@@ -245,26 +375,10 @@ fn build_header_nodes(position: &mut Position, all_nodes: &mut HashMap<usize, Rc
         visible: true,
         parent_id,
     });
-    position.y += 50;
 
     all_nodes.insert(node_id, Rc::clone(&rc_node));
 
     layout_nodes.push(rc_node);
 
     return layout_nodes;
-}
-
-
-fn move_next_position_by_x(next_position: &mut Position, move_amount : u32) {
-    if next_position.x + move_amount < SCREEN_WIDTH {
-        next_position.x += move_amount + HORIZONTAL_ELEMENT_SPACING;
-    } else {
-        move_to_next_line(next_position);
-    }
-}
-
-
-fn move_to_next_line(next_position: &mut Position) {
-    next_position.x = LAYOUT_MARGIN_HORIZONTAL;
-    next_position.y += VERTICAL_ELEMENT_SPACING + 30; //TODO: the +30 here is just because we don't track the max height of previous line here
 }

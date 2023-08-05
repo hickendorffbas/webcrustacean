@@ -9,7 +9,7 @@ use sdl2::ttf::Font as SdlFont;
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone, Copy)]
-pub struct Position {
+pub struct Position {  //TODO: this is more general than just the renderer, but maybe also not needed if we start using LayoutBox
     pub x: u32,
     pub y: u32,
 }
@@ -84,7 +84,7 @@ pub fn render_text(canvas: &mut WindowCanvas, text: &String, x: u32, y: u32, fon
 }
 
 
-pub fn get_text_dimension(text: &str, font: &SdlFont) -> Dimension {
+pub fn get_text_dimension(text: &String, font: &SdlFont) -> Dimension {
     let result = font.size_of(text);
     if result.is_ok() {
         let (width, height) = result.ok().unwrap();

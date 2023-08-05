@@ -4,6 +4,7 @@ mod fonts;
 mod html_lexer;
 mod html_parser;
 mod layout;
+mod macros;
 mod network;
 mod renderer;
 #[cfg(test)] mod test_util; //TODO: is there a better (test-specific) place to define this?
@@ -14,7 +15,7 @@ use std::fs;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use crate::debug::debug_log_warn;
+use crate::debug::{debug_log_warn, debug_print_layout_tree};
 use crate::fonts::{Font, FontCache};
 use crate::layout::{FullLayout, LayoutNode};
 use crate::network::http_get;
@@ -36,9 +37,6 @@ const FONT_SIZE: u16 = 20;
 const TARGET_FPS: u32 = 60;
 const SCREEN_WIDTH: u32 = 1000;
 const SCREEN_HEIGHT: u32 = 700;
-const LAYOUT_MARGIN_HORIZONTAL : u32 = 10;
-const VERTICAL_ELEMENT_SPACING : u32 = 10;
-const HORIZONTAL_ELEMENT_SPACING: u32 = 10;
 const DEFAULT_LOCATION_TO_LOAD: &str = "file://testinput/doc.html";
  
 
@@ -94,15 +92,16 @@ fn render_layout_node(canvas: &mut WindowCanvas, layout_node: &LayoutNode, font_
     if layout_node.text.is_some() {
         let own_font = Font::new(layout_node.font_bold, layout_node.font_size); //TODO: we should just have a (reference to) the font on the layout node
         let font = font_cache.get_font(&own_font);
+        let (x, y) = layout_node.location.borrow().x_y_as_int();
 
-        let x = layout_node.position.x;
-        let y = layout_node.position.y;
         render_text(canvas, layout_node.text.as_ref().unwrap(), x, y, &font, layout_node.font_color.to_sdl_color());
     }
 
     if layout_node.children.is_some() {
         for child in layout_node.children.as_ref().unwrap() {
-            render_layout_node(canvas, &child, font_cache);
+            if child.visible {
+                render_layout_node(canvas, &child, font_cache);
+            }
         }
     }
 }
@@ -111,7 +110,8 @@ fn render_layout_node(canvas: &mut WindowCanvas, layout_node: &LayoutNode, font_
 fn handle_left_click(x: u32, y: u32, layout_tree: &FullLayout) {
 
     fn check_left_click_for_layout_node(x: u32, y: u32, layout_node: &Rc<LayoutNode>) {
-        if layout_node.position.x > x || layout_node.position.y > y { //TODO: this check should take the width and height into account, but we don't have that on the layout node yet
+        let (node_x, node_y) = layout_node.location.borrow().x_y_as_int();
+        if node_x > x || node_y > y { //TODO: this check should take the width and height into account, but we don't have that on the layout node yet
             return;
         }
 
@@ -169,6 +169,8 @@ fn main() -> Result<(), String> {
     let lex_result = html_lexer::lex_html(&file_contents);
     let next_gen_parse_result = html_parser::parse(lex_result);
     let full_layout_tree = layout::build_full_layout(&next_gen_parse_result, &mut font_cache);
+
+    debug_print_layout_tree(&full_layout_tree.root_node);
 
     let mut event_pump = sdl_context.event_pump()?;
     'main_loop: loop {

@@ -1,5 +1,6 @@
 use crate::dom::Document;
 use crate::html_lexer::HtmlTokenWithLocation;
+use crate::layout::LayoutNode;
 
 
 #[cfg(debug_assertions)] use std::rc::Rc;
@@ -79,4 +80,34 @@ pub fn debug_print_html_tokens(tokens: &Vec<HtmlTokenWithLocation>) {
     }
 
     println!("tokenlist: {:?}", tokens);
+}
+
+
+#[allow(dead_code)]
+#[cfg(not(debug_assertions))]
+pub fn debug_print_layout_tree(_: &LayoutNode) {}
+#[allow(dead_code)]
+#[cfg(debug_assertions)]
+pub fn debug_print_layout_tree(node: &Rc<LayoutNode>) {
+    println!("== dumping layout tree");
+    debug_print_layout_tree_with_indent(node, 0);
+    println!("== done dumping layout tree");
+}
+
+
+
+#[cfg(debug_assertions)]
+fn debug_print_layout_tree_with_indent(node: &Rc<LayoutNode>, indent_cnt: u32) {
+    let mut indent = String::new();
+    for _ in 0..indent_cnt {
+        indent.push(' ');
+    }
+
+    println!("{}{:?} ({}) (parent: {})", indent, node.location.borrow(), node.internal_id, node.parent_id);
+
+    if node.children.is_some() {
+        for child in node.children.clone().unwrap() {
+            debug_print_layout_tree_with_indent(&child, indent_cnt + INDENT_AMOUNT)
+        }
+    }
 }

@@ -1,12 +1,8 @@
 use crate::dom::DomNode;
+use crate::enum_as_variant;
 use crate::html_parser;
 use crate::test_util::*;
 
-
-//TODO: this makes sense to have in a generic place (probably not just test specific)
-macro_rules! enum_as_variant {
-    ($a:expr, $b:ident::$c:ident) => { match $a { $b::$c(variant) => variant, _ => panic!("object was not the specified variant") } }
-}
 
 
 #[test]

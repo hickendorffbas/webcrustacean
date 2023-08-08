@@ -35,6 +35,7 @@ pub struct LayoutNode {
     pub internal_id: usize,
     pub text: Option<String>, //eventually we need different kinds of layout nodes, text is just one type
     pub location: RefCell<ComputedLocation>,
+    pub display: Display, //TODO: eventually we don't want every css construct as a member on this struct ofcourse
     pub visible: bool,
     pub font_bold: bool,
     pub font_color: Color,
@@ -62,6 +63,13 @@ impl ComputedLocation {
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]
+pub enum Display { //TODO: this is a CSS property, of which we will have many, we should probably define those somewhere else
+    Block,
+    Inline
+}
+
+
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Rect {
     pub x: f32,
     pub y: f32,
@@ -85,6 +93,7 @@ pub fn build_full_layout(document_node: &Document, font_cache: &mut FontCache) -
         internal_id: id_of_node_being_built,
         text: None,
         location: RefCell::new(ComputedLocation::NotYetComputed),
+        display: Display::Block,
         visible: true,
         font_bold: false, //TODO: this should probably not be a top-level attribute of the layout node, but in text properties or something
         font_color: Color::BLACK, //TODO: this should probably not be a top-level attribute of the layout node, but in text properties or something
@@ -235,6 +244,7 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, font_cache: &mut 
     let mut partial_node_font_size = FONT_SIZE;
     let mut partial_node_visible = true;
     let mut partial_node_optional_link_url = None;
+    let mut partial_node_display = Display::Block;
 
 
     let mut childs_to_recurse_on: &Option<Vec<Rc<DomNode>>> = &None;
@@ -246,39 +256,66 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, font_cache: &mut 
 
             match &node.name.as_ref().unwrap()[..] {
 
-                "a" => { partial_node_optional_link_url = node.get_attribute_value("href"); }
+                "a" => {
+                    partial_node_optional_link_url = node.get_attribute_value("href");
+                    partial_node_display = Display::Inline;
+                }
 
-                "b" => { partial_node_font_bold = true; }
+                "b" => {
+                    partial_node_font_bold = true;
+                    partial_node_display = Display::Inline;
+                }
 
                 "br" => {
-                    //TODO: I'm moving the actual positioning to a seperate pass after this one, does anything need to be happening here then?
+                    partial_node_display = Display::Inline;
+                }
+
+                "body" => {
+                    //for now this needs the default for all fields
+                }
+
+                "div" =>  {
+                    //for now this needs the default for all fields
                 }
 
                 "h1" => {
                     partial_node_font_bold = true;
                     partial_node_font_size = FONT_SIZE + 12;
+                    partial_node_display = Display::Inline;
                 }
                 "h2" => {
                     partial_node_font_bold = true;
                     partial_node_font_size = FONT_SIZE + 10;
+                    partial_node_display = Display::Inline;
                 }
                 "h3" => {
                     partial_node_font_bold = true;
                     partial_node_font_size = FONT_SIZE + 8;
+                    partial_node_display = Display::Inline;
                 }
                 "h4" => {
                     partial_node_font_bold = true;
                     partial_node_font_size = FONT_SIZE + 6;
+                    partial_node_display = Display::Inline;
                 }
                 "h5" => {
                     partial_node_font_bold = true;
                     partial_node_font_size = FONT_SIZE + 4;
+                    partial_node_display = Display::Inline;
                 }
                 "h6" => {
                     partial_node_font_bold = true;
                     partial_node_font_size = FONT_SIZE + 2;
+                    partial_node_display = Display::Inline;
                 }
 
+                "head" => {
+                    //for now this needs the default for all fields
+                }
+
+                "html" => {
+                    //for now this needs the default for all fields
+                }
 
                 //TODO: this one might not be neccesary any more after we fix our html parser to not try to parse the javascript
                 "script" => { partial_node_visible = false; }
@@ -339,6 +376,7 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, font_cache: &mut 
         internal_id: id_of_node_being_built,
         text: partial_node_text,
         location: RefCell::new(ComputedLocation::NotYetComputed),
+        display: partial_node_display,
         visible: partial_node_visible,
         font_bold: partial_node_font_bold,
         font_color: partial_node_font_color,
@@ -367,6 +405,7 @@ fn build_header_nodes(all_nodes: &mut HashMap<usize, Rc<LayoutNode>>, parent_id:
         location: RefCell::new(ComputedLocation::Computed(
             Rect { x: 10.0, y: 10.0, width: 500.0, height: HEADER_HIGHT }, //TODO: width is bogus, but we don't have the font to compute it
         )),
+        display: Display::Inline,
         font_bold: true,
         font_color: Color::BLACK,
         font_size: FONT_SIZE,

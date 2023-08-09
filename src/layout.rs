@@ -349,13 +349,46 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, font_cache: &mut 
     let id_of_node_being_built = get_next_layout_node_interal_id();
 
     let new_childeren = if let Some(ref children) = childs_to_recurse_on {
-        let mut temp_childeren = Vec::new();
+        let mut temp_children = Vec::new();
 
         for child in children {
-            temp_childeren.push(build_layout_tree(child, document, font_cache, all_nodes, id_of_node_being_built));
+            temp_children.push(build_layout_tree(child, document, font_cache, all_nodes, id_of_node_being_built));
         }
 
-        Some(temp_childeren)
+        let all_display_types = temp_children.iter().map(|child| &child.display).collect::<Vec<&Display>>();
+
+        //TODO: the double && below seems suspect...
+        if all_display_types.contains(&&Display::Inline) && all_display_types.contains(&&Display::Block) {
+            let mut temp_children_with_anonymous_blocks = Vec::new();
+            let mut temp_buffer_for_inline_children = Vec::new();
+
+            for child in temp_children {
+                match child.display {
+                    Display::Block => {
+                        if (temp_buffer_for_inline_children.len() > 0) {
+                            let anonymous_block_node = build_anonymous_block_layout_node(partial_node_visible, id_of_node_being_built, temp_buffer_for_inline_children);
+                            all_nodes.insert(anonymous_block_node.internal_id, Rc::clone(&anonymous_block_node)); //TODO: cleaner to do this in the build method next to the create of the struct
+                            temp_children_with_anonymous_blocks.push(anonymous_block_node);
+
+                            temp_buffer_for_inline_children = Vec::new();
+                        }
+
+                        temp_children_with_anonymous_blocks.push(child);
+                    },
+                    Display::Inline => { temp_buffer_for_inline_children.push(child); },
+                }
+            }
+
+            if (temp_buffer_for_inline_children.len() > 0) {
+                let anonymous_block_node = build_anonymous_block_layout_node(partial_node_visible, id_of_node_being_built, temp_buffer_for_inline_children);
+                all_nodes.insert(anonymous_block_node.internal_id, Rc::clone(&anonymous_block_node)); //TODO: cleaner to do this in the build method next to the create of the struct
+                temp_children_with_anonymous_blocks.push(anonymous_block_node);
+            }
+
+            Some(temp_children_with_anonymous_blocks)
+        } else {
+            Some(temp_children)
+        }
     } else {
         None
     };
@@ -379,6 +412,29 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, font_cache: &mut 
 
     return rc_new_node;
 }
+
+
+fn build_anonymous_block_layout_node(visible: bool, parent_id: usize, inline_children: Vec<Rc<LayoutNode>>) -> Rc<LayoutNode> {
+    let id_of_node_being_built = get_next_layout_node_interal_id();
+
+    let anonymous_node = LayoutNode {
+        internal_id: id_of_node_being_built,
+        text: None,
+        location: RefCell::new(ComputedLocation::NotYetComputed),
+        display: Display::Block,
+        visible: visible,
+        font_bold: false,
+        font_color: Color::BLACK, //TODO: these fields belong in some optional font struct.... they make no sense in this case
+                                  //TODO: also, this might be wrong if we have children that inhertit the text styling from their parent?
+        font_size: FONT_SIZE,
+        optional_link_url: None,
+        children: Some(inline_children),
+        parent_id,
+    };
+
+    return Rc::new(anonymous_node);
+}
+
 
 
 fn build_header_nodes(all_nodes: &mut HashMap<usize, Rc<LayoutNode>>, parent_id: usize) -> Vec<Rc<LayoutNode>> {

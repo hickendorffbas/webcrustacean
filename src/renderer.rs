@@ -55,7 +55,6 @@ pub fn clear(canvas: &mut WindowCanvas, color: Color) {
 }
 
 
-#[allow(dead_code)] //TODO: eventually use, or remove
 pub fn draw_line(canvas: &mut WindowCanvas, start: Position, end: Position, color: Color) {
     canvas.set_draw_color(color.to_sdl_color());
     canvas.draw_line(start.to_sdl_point(), end.to_sdl_point()).expect("error drawing line");

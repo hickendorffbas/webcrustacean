@@ -7,15 +7,12 @@ use crate::{
     Font,
     FontCache,
     FONT_SIZE,
+    HEADER_HIGHT,
     SCREEN_WIDTH,
 };
 use crate::debug::debug_log_warn;
 use crate::dom::{Document, DomNode};
 use crate::renderer::{Color, get_text_dimension};  //TODO: color should probably not come from the renderer, position probably also not
-
-
-//The hight of the header of bbrowser, so below this point the actual page is rendered:
-static HEADER_HIGHT: f32 = 50.0;
 
 
 //TODO: I need to understand orderings with atomics a bit better
@@ -92,8 +89,6 @@ pub fn build_full_layout(document_node: &Document, font_cache: &mut FontCache) -
 
     let id_of_node_being_built = get_next_layout_node_interal_id();
 
-    top_level_layout_nodes.append(&mut build_header_nodes(&mut all_nodes, id_of_node_being_built));
-
     let document_layout_node = build_layout_tree(&document_node.document_node, document_node, font_cache, &mut all_nodes, id_of_node_being_built);
     top_level_layout_nodes.push(document_layout_node);
 
@@ -117,7 +112,6 @@ pub fn build_full_layout(document_node: &Document, font_cache: &mut FontCache) -
     );
     root_node.location.replace(root_location);
 
-
     let rc_root_node = Rc::new(root_node);
     all_nodes.insert(id_of_node_being_built, Rc::clone(&rc_root_node));
 
@@ -128,6 +122,10 @@ pub fn build_full_layout(document_node: &Document, font_cache: &mut FontCache) -
 //TODO: need to find a way to make good tests for this
 fn compute_layout(node: &LayoutNode, font_cache: &mut FontCache, top_left_x: f32, top_left_y: f32) -> (f32, f32) {
     if !node.visible {
+        let node_location = ComputedLocation::Computed(
+            Rect { x: top_left_x, y: top_left_y, width: 0.0, height: 0.0 }
+        );
+        node.location.replace(node_location);
         return (0.0, 0.0);
     }
 
@@ -152,15 +150,20 @@ fn compute_layout(node: &LayoutNode, font_cache: &mut FontCache, top_left_x: f32
         let own_font = Font::new(node.font_bold, node.font_size);
         let font = font_cache.get_font(&own_font);
         let dimension = get_text_dimension(node.text.as_ref().unwrap(), &font);
+        let node_width = dimension.width as f32;
+        let node_height = dimension.height as f32;
 
+        let node_location = ComputedLocation::Computed(
+            Rect { x: top_left_x, y: top_left_y, width: node_width, height: node_height }
+        );
+        node.location.replace(node_location);
 
-        return (dimension.width as f32, dimension.height as f32);
+        return (node_width, node_height);
 
     }
 
     panic!("A node that has no text and no children should not exist"); //TODO: does not exist _yet_, but something like an image would fit here..
 }
-
 
 
 fn apply_block_layout(node: &LayoutNode, font_cache: &mut FontCache, top_left_x: f32, top_left_y: f32) -> (f32, f32) {
@@ -173,12 +176,13 @@ fn apply_block_layout(node: &LayoutNode, font_cache: &mut FontCache, top_left_x:
         max_width = max_width.max(child_width);
     }
 
-    let child_location = ComputedLocation::Computed(
-        Rect { x: top_left_x, y: top_left_y, width: max_width, height: cursor_y }
+    let our_height = cursor_y - top_left_y;
+    let node_location = ComputedLocation::Computed(
+        Rect { x: top_left_x, y: top_left_y, width: max_width, height: our_height }
     );
-    node.location.replace(child_location);
+    node.location.replace(node_location);
 
-    return (max_width, cursor_y);
+    return (max_width, our_height);
 }
 
 
@@ -213,12 +217,12 @@ fn apply_inline_layout(node: &LayoutNode, font_cache: &mut FontCache, top_left_x
         }
 
     }
-    let our_height = cursor_y + max_height_of_line;
+    let our_height = (cursor_y - top_left_y) + max_height_of_line;
 
-    let child_location = ComputedLocation::Computed(
+    let node_location = ComputedLocation::Computed(
         Rect { x: top_left_x, y: top_left_y, width: max_width, height: our_height }
     );
-    node.location.replace(child_location);
+    node.location.replace(node_location);
 
     return (max_width, our_height);
 }
@@ -365,7 +369,7 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, font_cache: &mut 
             for child in temp_children {
                 match child.display {
                     Display::Block => {
-                        if (temp_buffer_for_inline_children.len() > 0) {
+                        if temp_buffer_for_inline_children.len() > 0 {
                             let anonymous_block_node = build_anonymous_block_layout_node(partial_node_visible, id_of_node_being_built, temp_buffer_for_inline_children);
                             all_nodes.insert(anonymous_block_node.internal_id, Rc::clone(&anonymous_block_node)); //TODO: cleaner to do this in the build method next to the create of the struct
                             temp_children_with_anonymous_blocks.push(anonymous_block_node);
@@ -379,7 +383,7 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, font_cache: &mut 
                 }
             }
 
-            if (temp_buffer_for_inline_children.len() > 0) {
+            if temp_buffer_for_inline_children.len() > 0 {
                 let anonymous_block_node = build_anonymous_block_layout_node(partial_node_visible, id_of_node_being_built, temp_buffer_for_inline_children);
                 all_nodes.insert(anonymous_block_node.internal_id, Rc::clone(&anonymous_block_node)); //TODO: cleaner to do this in the build method next to the create of the struct
                 temp_children_with_anonymous_blocks.push(anonymous_block_node);
@@ -433,35 +437,4 @@ fn build_anonymous_block_layout_node(visible: bool, parent_id: usize, inline_chi
     };
 
     return Rc::new(anonymous_node);
-}
-
-
-
-fn build_header_nodes(all_nodes: &mut HashMap<usize, Rc<LayoutNode>>, parent_id: usize) -> Vec<Rc<LayoutNode>> {
-    //TODO: eventually we want to not have this in the same node list I think (maybe not even as layout nodes?)
-    let mut layout_nodes: Vec<Rc<LayoutNode>> = Vec::new();
-
-    let node_id = get_next_layout_node_interal_id();
-
-    let rc_node = Rc::new(LayoutNode {
-        internal_id: node_id,
-        text: Option::from(String::from("BBrowser")),
-        location: RefCell::new(ComputedLocation::Computed(
-            Rect { x: 10.0, y: 10.0, width: 500.0, height: HEADER_HIGHT }, //TODO: width is bogus, but we don't have the font to compute it
-        )),
-        display: Display::Inline,
-        font_bold: true,
-        font_color: Color::BLACK,
-        font_size: FONT_SIZE,
-        optional_link_url: None,
-        children: None,
-        visible: true,
-        parent_id,
-    });
-
-    all_nodes.insert(node_id, Rc::clone(&rc_node));
-
-    layout_nodes.push(rc_node);
-
-    return layout_nodes;
 }

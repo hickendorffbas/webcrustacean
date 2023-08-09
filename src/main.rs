@@ -21,6 +21,9 @@ use crate::layout::{FullLayout, LayoutNode};
 use crate::network::http_get;
 use crate::renderer::{Color, clear as renderer_clear, render_text};
 
+use debug::debug_print_dom_tree;
+use renderer::Position;
+use renderer::draw_line;
 use sdl2::{
     event::Event as SdlEvent,
     keyboard::Keycode,
@@ -38,10 +41,11 @@ const TARGET_FPS: u32 = 60;
 const SCREEN_WIDTH: u32 = 1000;
 const SCREEN_HEIGHT: u32 = 700;
 const DEFAULT_LOCATION_TO_LOAD: &str = "file://testinput/doc.html";
- 
+const HEADER_HIGHT: f32 = 50.0; //The hight of the header of bbrowser, so below this point the actual page is rendered:
 
 //Non-config constants:
 const TARGET_MS_PER_FRAME: u128 = 1000 / TARGET_FPS as u128;
+
 
 
 
@@ -82,9 +86,20 @@ fn render(canvas: &mut WindowCanvas, full_layout: &FullLayout, font_cache: &mut 
     //      SDL specific stuff, that should move one layer further (platform or something)
 
     renderer_clear(canvas, Color::WHITE);
+
+    render_header(canvas, font_cache);
+
     render_layout_node(canvas, &full_layout.root_node, font_cache);
 
     canvas.present();
+}
+
+
+fn render_header(canvas: &mut WindowCanvas, font_cache: &mut FontCache) {
+    let own_font = Font::new(true, 14);
+    let font = font_cache.get_font(&own_font);
+    render_text(canvas, &"Bbrowser".to_owned(), 10, 10, font, Color::BLACK.to_sdl_color());
+    draw_line(canvas, Position { x: 0, y: HEADER_HIGHT as u32 - 5 }, Position { x: SCREEN_WIDTH, y: HEADER_HIGHT as u32 - 5 }, Color::BLACK);
 }
 
 
@@ -122,7 +137,9 @@ fn handle_left_click(x: u32, y: u32, layout_tree: &FullLayout) {
 
         if layout_node.children.is_some() {
             for child in layout_node.children.as_ref().unwrap() {
-                check_left_click_for_layout_node(x, y, &child);
+                if child.visible {
+                    check_left_click_for_layout_node(x, y, &child);
+                }
             }
         }
 
@@ -167,9 +184,9 @@ fn main() -> Result<(), String> {
     let mut currently_loading_new_page = true;
 
     let lex_result = html_lexer::lex_html(&file_contents);
-    let next_gen_parse_result = html_parser::parse(lex_result);
-    let full_layout_tree = layout::build_full_layout(&next_gen_parse_result, &mut font_cache);
-
+    let dom_tree = html_parser::parse(lex_result);
+    let full_layout_tree = layout::build_full_layout(&dom_tree, &mut font_cache);
+    debug_print_dom_tree(&dom_tree, "DOM TREE");
     debug_print_layout_tree(&full_layout_tree.root_node);
 
     let mut event_pump = sdl_context.event_pump()?;

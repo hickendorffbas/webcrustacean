@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -44,6 +43,14 @@ pub struct LayoutNode {
     pub children: Option<Vec<Rc<LayoutNode>>>,
     pub parent_id: usize,
 }
+impl LayoutNode {
+    pub fn all_childnodes_have_given_display(&self, display: Display) -> bool {
+        if self.children.is_none() {
+            return true;
+        }
+        return self.children.as_ref().unwrap().iter().all(|node| node.display == display);
+    }
+}
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -63,6 +70,7 @@ impl ComputedLocation {
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(PartialEq)]
 pub enum Display { //TODO: this is a CSS property, of which we will have many, we should probably define those somewhere else
     Block,
     Inline
@@ -103,7 +111,7 @@ pub fn build_full_layout(document_node: &Document, font_cache: &mut FontCache) -
         parent_id: id_of_node_being_built,  //this is the top node, so it does not really have a parent, we set it to ourselves
     };
 
-    let (root_width, root_height) = compute_layout(&root_node, font_cache); //TODO: this now no longer takes the HEADER into account, should be moved down
+    let (root_width, root_height) = compute_layout(&root_node, font_cache, 0.0, HEADER_HIGHT);
     let root_location = ComputedLocation::Computed(
         Rect { x: 0.0, y: 0.0, width: root_width, height: root_height }  //TODO: the 0.0 here is not correct, because of the header
     );
@@ -117,122 +125,102 @@ pub fn build_full_layout(document_node: &Document, font_cache: &mut FontCache) -
 }
 
 
-fn move_node(node: &LayoutNode, x_offset: f32, y_offset: f32) {
-    if !node.visible {
-        return; //TODO: ideally I would not need this, I guess an invisible node can still have a position....
-    }
-
-    let (computed_x, computed_y, computed_width, computed_height) = {
-        // we start a new scope so the borrow of the node location goes out of scope before we update it
-
-        let borrowed_node = node.location.borrow();
-        let node_loc = &*borrowed_node.deref();  //TODO: why why why why why why why why do I need &* here?
-
-        let computed_location = match node_loc {  //TODO: waarom werkt mijn enum_as_variant marco hier niet?
-            ComputedLocation::NotYetComputed => { panic!("Node should have been computed by now"); },
-            ComputedLocation::Computed(node) => { node },
-        };
-
-        (computed_location.x, computed_location.y, computed_location.width, computed_location.height)
-    };
-
-    let new_node_location = ComputedLocation::Computed(
-        Rect {
-            x: computed_x + x_offset,
-            y: computed_y + y_offset,
-            width: computed_width,
-            height: computed_height
-        }
-    );
-    node.location.replace(new_node_location);
-
-    move_children(node, x_offset, y_offset);
-}
-
-
-fn move_children(node: &LayoutNode, x_offset: f32, y_offset: f32) {
-    if !node.visible {
-        return; //TODO: ideally I would not need this, I guess an invisible node can still have a position....
-    }
-
-    if node.children.is_some() {
-        for child in node.children.as_ref().unwrap() {
-            move_node(child, x_offset, y_offset);
-        }
-    }
-}
-
-
-// This function does the layout for everything within the node, and sets the location of everything within to the correct position assuming
-// that the node itself is at 0,0 , in other words positions relative to node.
 //TODO: need to find a way to make good tests for this
-fn compute_layout(node: &LayoutNode, font_cache: &mut FontCache) -> (f32, f32) {
+fn compute_layout(node: &LayoutNode, font_cache: &mut FontCache, top_left_x: f32, top_left_y: f32) -> (f32, f32) {
     if !node.visible {
         return (0.0, 0.0);
     }
 
     if node.children.is_some() {
-        let mut cursor_x = 0.0;
-        let mut cursor_y = 0.0;
+        let all_block = node.all_childnodes_have_given_display(Display::Block);
+        let all_inline = node.all_childnodes_have_given_display(Display::Inline);
 
-        let mut max_row_height_so_far = 0.0;
-
-        let mut max_x_seen = 0.0;
-        let mut max_y_seen = 0.0;
-
-        for child in node.children.as_ref().unwrap() {
-
-            let (child_width, child_height) = compute_layout((*child).as_ref(), font_cache);
-
-            //TODO: this currenty does not work because this node might be moved later, and then cross the SCREEN_WIDTH boundary
-            if child_width + cursor_x > SCREEN_WIDTH as f32 {
-                if cursor_x != 0.0 {
-                    cursor_x = 0.0;
-                    cursor_y += max_row_height_so_far;
-                    max_row_height_so_far = 0.0;
-                } else {
-                    // it does not fit, but we are all the way to the left already, so going to a new row does not help
-                }
-            }
-
-            if child_height > max_row_height_so_far {
-                max_row_height_so_far = child_height;
-            }
-
-            let child_location = ComputedLocation::Computed(
-                Rect { x: cursor_x, y: cursor_y, width: child_width, height: child_height }
-            );
-            child.location.replace(child_location);
-            cursor_x += child_width;
-            move_children(child, cursor_x, cursor_y);
-
-            if max_x_seen < cursor_x {
-                //note: child width is already included in cursor_x
-                max_x_seen = cursor_x;
-            }
-            if max_y_seen < cursor_y + child_height {
-                max_y_seen = cursor_y;
-            }
+        if all_block {
+            return apply_block_layout(node, font_cache, top_left_x, top_left_y);
+        }
+        if all_inline {
+            return apply_inline_layout(node, font_cache, top_left_x, top_left_y);
         }
 
-        return (max_x_seen, max_y_seen);
-    } else {
-
-        if node.text.is_some() {
-
-            //TODO: ideally I just store the font (a reference!) on the node, so I can compute it in the first pass...
-            let own_font = Font::new(node.font_bold, node.font_size);
-            let font = font_cache.get_font(&own_font);
-            let dimension = get_text_dimension(node.text.as_ref().unwrap(), &font);
-
-
-            return (dimension.width as f32, dimension.height as f32)
-
-        } else {
-            panic!("A node that has no text and no children should not exist"); //TODO: does not exist _yet_, but something like an image would fit here..
-        }
+        //TODO: we still need to implement this somewhere earlier in the process (when building the layout tree)
+        panic!("Not all children are either inline or block, earlier in the process this should already have been fixed with anonymous blocks");
     }
 
+    if node.text.is_some() {
+
+        //TODO: ideally I just store the font (a reference!) on the node, so I can compute it in the first pass...
+        let own_font = Font::new(node.font_bold, node.font_size);
+        let font = font_cache.get_font(&own_font);
+        let dimension = get_text_dimension(node.text.as_ref().unwrap(), &font);
+
+
+        return (dimension.width as f32, dimension.height as f32);
+
+    }
+
+    panic!("A node that has no text and no children should not exist"); //TODO: does not exist _yet_, but something like an image would fit here..
+}
+
+
+
+fn apply_block_layout(node: &LayoutNode, font_cache: &mut FontCache, top_left_x: f32, top_left_y: f32) -> (f32, f32) {
+    let mut cursor_y = top_left_y;
+    let mut max_width: f32 = 0.0;
+
+    for child in node.children.as_ref().unwrap() {
+        let (child_width, child_height) = compute_layout(child, font_cache, top_left_x, cursor_y);
+        cursor_y += child_height;
+        max_width = max_width.max(child_width);
+    }
+
+    let child_location = ComputedLocation::Computed(
+        Rect { x: top_left_x, y: top_left_y, width: max_width, height: cursor_y }
+    );
+    node.location.replace(child_location);
+
+    return (max_width, cursor_y);
+}
+
+
+fn apply_inline_layout(node: &LayoutNode, font_cache: &mut FontCache, top_left_x: f32, top_left_y: f32) -> (f32, f32) {
+    let mut cursor_x = top_left_x;
+    let mut cursor_y = top_left_y;
+    let mut max_width: f32 = 0.0;
+    let mut max_height_of_line: f32 = 0.0;
+
+    for child in node.children.as_ref().unwrap() {
+        let (child_width, child_height) = compute_layout(child, font_cache, cursor_x, cursor_y);
+
+        if cursor_x != top_left_x && (cursor_x + child_width) > SCREEN_WIDTH as f32 {
+            // we need to wrap the element to the next line
+            //TODO: we need to support splitting in the element in two (or more?) rects, for text-wrapping
+
+            cursor_x = top_left_x;
+            cursor_y += max_height_of_line;
+
+            let (new_child_width, new_child_height) = compute_layout(child, font_cache, cursor_x, cursor_y);
+            cursor_x += new_child_width;
+
+            max_width = max_width.max(cursor_x);
+            max_height_of_line = new_child_height;
+
+        } else {
+            // we append the items to the current line
+
+            cursor_x += child_width;
+            max_width = max_width.max(cursor_x);
+            max_height_of_line = max_height_of_line.max(child_height);
+        }
+
+    }
+    let our_height = cursor_y + max_height_of_line;
+
+    let child_location = ComputedLocation::Computed(
+        Rect { x: top_left_x, y: top_left_y, width: max_width, height: our_height }
+    );
+    node.location.replace(child_location);
+
+    return (max_width, our_height);
 }
 
 

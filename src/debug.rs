@@ -73,7 +73,7 @@ pub fn debug_print_html_tokens(_: &Vec<HtmlTokenWithLocation>) {}
 pub fn debug_print_html_tokens(tokens: &Vec<HtmlTokenWithLocation>) {
     let mut buffer = String::new();
 
-    //TODO: this is a quick and dirty way, punt it prints a lot of overhead (like HtmlToken all the time), could be a lot nicer
+    //TODO: this is a quick and dirty way, it prints a lot of overhead (like HtmlToken all the time), could be a lot nicer
 
     for token in tokens {
         buffer = format!("{} {:?} {}:{}", buffer, token.html_token, token.line, token.character);
@@ -93,7 +93,6 @@ pub fn debug_print_layout_tree(node: &Rc<LayoutNode>) {
     debug_print_layout_tree_with_indent(node, 0);
     println!("== done dumping layout tree");
 }
-
 
 
 #[cfg(debug_assertions)]

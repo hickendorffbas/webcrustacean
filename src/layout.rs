@@ -273,32 +273,32 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, font_cache: &mut 
                 "h1" => {
                     partial_node_font_bold = true;
                     partial_node_font_size = FONT_SIZE + 12;
-                    partial_node_display = Display::Inline;
+                    partial_node_display = Display::Block;
                 }
                 "h2" => {
                     partial_node_font_bold = true;
                     partial_node_font_size = FONT_SIZE + 10;
-                    partial_node_display = Display::Inline;
+                    partial_node_display = Display::Block;
                 }
                 "h3" => {
                     partial_node_font_bold = true;
                     partial_node_font_size = FONT_SIZE + 8;
-                    partial_node_display = Display::Inline;
+                    partial_node_display = Display::Block;
                 }
                 "h4" => {
                     partial_node_font_bold = true;
                     partial_node_font_size = FONT_SIZE + 6;
-                    partial_node_display = Display::Inline;
+                    partial_node_display = Display::Block;
                 }
                 "h5" => {
                     partial_node_font_bold = true;
                     partial_node_font_size = FONT_SIZE + 4;
-                    partial_node_display = Display::Inline;
+                    partial_node_display = Display::Block;
                 }
                 "h6" => {
                     partial_node_font_bold = true;
                     partial_node_font_size = FONT_SIZE + 2;
-                    partial_node_display = Display::Inline;
+                    partial_node_display = Display::Block;
                 }
 
                 "head" => {
@@ -346,6 +346,7 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, font_cache: &mut 
             }
 
             partial_node_text = Option::Some(text.to_string());
+            partial_node_display = Display::Inline;
         }
 
     }
@@ -370,10 +371,10 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, font_cache: &mut 
                 match child.display {
                     Display::Block => {
                         if temp_buffer_for_inline_children.len() > 0 {
-                            let anonymous_block_node = build_anonymous_block_layout_node(partial_node_visible, id_of_node_being_built, temp_buffer_for_inline_children);
-                            all_nodes.insert(anonymous_block_node.internal_id, Rc::clone(&anonymous_block_node)); //TODO: cleaner to do this in the build method next to the create of the struct
-                            temp_children_with_anonymous_blocks.push(anonymous_block_node);
+                            let anonymous_block_node = build_anonymous_block_layout_node(partial_node_visible, id_of_node_being_built,
+                                                                                         temp_buffer_for_inline_children, all_nodes);
 
+                            temp_children_with_anonymous_blocks.push(anonymous_block_node);
                             temp_buffer_for_inline_children = Vec::new();
                         }
 
@@ -384,8 +385,8 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, font_cache: &mut 
             }
 
             if temp_buffer_for_inline_children.len() > 0 {
-                let anonymous_block_node = build_anonymous_block_layout_node(partial_node_visible, id_of_node_being_built, temp_buffer_for_inline_children);
-                all_nodes.insert(anonymous_block_node.internal_id, Rc::clone(&anonymous_block_node)); //TODO: cleaner to do this in the build method next to the create of the struct
+                let anonymous_block_node = build_anonymous_block_layout_node(partial_node_visible, id_of_node_being_built,
+                                                                             temp_buffer_for_inline_children, all_nodes);
                 temp_children_with_anonymous_blocks.push(anonymous_block_node);
             }
 
@@ -418,7 +419,8 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, font_cache: &mut 
 }
 
 
-fn build_anonymous_block_layout_node(visible: bool, parent_id: usize, inline_children: Vec<Rc<LayoutNode>>) -> Rc<LayoutNode> {
+fn build_anonymous_block_layout_node(visible: bool, parent_id: usize, inline_children: Vec<Rc<LayoutNode>>,
+                                     all_nodes: &mut HashMap<usize, Rc<LayoutNode>>) -> Rc<LayoutNode> {
     let id_of_node_being_built = get_next_layout_node_interal_id();
 
     let anonymous_node = LayoutNode {
@@ -436,5 +438,7 @@ fn build_anonymous_block_layout_node(visible: bool, parent_id: usize, inline_chi
         parent_id,
     };
 
-    return Rc::new(anonymous_node);
+    let anon_rc = Rc::new(anonymous_node);
+    all_nodes.insert(anon_rc.internal_id, Rc::clone(&anon_rc));
+    return anon_rc;
 }

@@ -38,12 +38,20 @@ pub enum DomNode {
     Text(TextDomNode),
 }
 impl DomNode {
-    fn get_parent_id(&self) -> Option<usize> {
+    pub fn get_parent_id(&self) -> Option<usize> {
         match self {
             DomNode::Document(_) => None,
             DomNode::Element(node) => Some(node.parent_id),
             DomNode::Attribute(node) => Some(node.parent_id),
             DomNode::Text(node) => Some(node.parent_id),
+        }
+    }
+    pub fn get_internal_id(&self) -> usize {
+        match self {
+            DomNode::Document(node) => { node.internal_id },
+            DomNode::Element(node) => { node.internal_id },
+            DomNode::Attribute(node) => { node.internal_id },
+            DomNode::Text(node) => { node.internal_id },
         }
     }
 }

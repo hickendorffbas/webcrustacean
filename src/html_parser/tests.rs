@@ -1,8 +1,9 @@
-use crate::dom::DomNode;
+use std::rc::Rc;
+
+use crate::dom::{Document, DomNode};
 use crate::enum_as_variant;
 use crate::html_parser;
 use crate::test_util::*;
-
 
 
 #[test]
@@ -18,15 +19,55 @@ fn test_basic_parsing_1() {
 
     let document = html_parser::parse(tokens);
 
-    //TODO: the code below could use some cleanups
-    let doc_children = enum_as_variant!(document.document_node.as_ref(), DomNode::Document).children.as_ref();
-    assert_eq!(doc_children.unwrap().len(), 2);
-    let generic_a_node = doc_children.unwrap().get(0).unwrap().as_ref();
-    let a_node = enum_as_variant!(generic_a_node, DomNode::Element);
-    assert_eq!(a_node.name.clone().unwrap(), "a");
+    let document_elements = get_ref_to_document_children(&document);
+    assert_eq!(document_elements.len(), 2);
 
-    assert_eq!(a_node.children.as_ref().unwrap().len(), 1);
-    let generic_text_node = a_node.children.as_ref().unwrap().get(0).unwrap().as_ref();
-    let text_node = enum_as_variant!(generic_text_node, DomNode::Text);
-    assert_eq!(text_node.text_content, "text");
+    let generic_a_node = document_elements[0].as_ref();
+    assert_element_name_is(generic_a_node, "a");
+
+    let a_children = get_children(generic_a_node);
+    assert_eq!(a_children.len(), 1);
+
+    assert_text_on_node_is(a_children[0].as_ref(), "text");
+}
+
+
+#[test]
+fn test_text_concatenation() {
+
+    let tokens = vec![
+        html_open("div"),
+        html_open_tag_end(),
+        html_text("two"),
+        html_whitespace(" "),
+        html_text("words"),
+        html_close("div"),
+    ];
+
+    let document = html_parser::parse(tokens);
+
+    let document_elements = get_ref_to_document_children(&document);
+    assert_eq!(document_elements.len(), 1);
+
+    let div_node = get_children(document_elements[0].as_ref());
+    assert_text_on_node_is(div_node[0].as_ref(), "two words");
+}
+
+
+fn get_ref_to_document_children(document: &Document) -> &Vec<Rc<DomNode>> {
+    return enum_as_variant!(document.document_node.as_ref(), DomNode::Document).children.as_ref().unwrap();
+}
+
+fn get_children(node: &DomNode) -> &Vec<Rc<DomNode>> {
+    enum_as_variant!(node, DomNode::Element).children.as_ref().unwrap()
+}
+
+fn assert_element_name_is(node: &DomNode, name: &str) {
+    let element_node = enum_as_variant!(node, DomNode::Element);
+    assert_eq!(element_node.name.as_ref().unwrap(), name);
+}
+
+fn assert_text_on_node_is(node: &DomNode, text: &str) {
+    let text_node = enum_as_variant!(node, DomNode::Text);
+    assert_eq!(text_node.text_content, text);
 }

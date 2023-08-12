@@ -47,9 +47,8 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
 
     let mut tag_being_parsed = None;
     let mut children = Vec::new();
-    let mut last_child_was_whitespace = false;
 
-    'token_loop: while *current_token_idx < html_tokens.len() {
+    while *current_token_idx < html_tokens.len() {
         let current_token = html_tokens.get(*current_token_idx).unwrap();
 
         match &current_token.html_token {
@@ -59,7 +58,6 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                 } else {
                     let new_node = parse_node(html_tokens, current_token_idx, node_being_build_internal_id, all_nodes);
                     children.push(new_node);
-                    last_child_was_whitespace = false;
                 }
             },
             HtmlToken::OpenTagEnd => {
@@ -78,7 +76,6 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                 let rc_node = Rc::new(new_node);
                 let rc_clone_node = Rc::clone(&rc_node);
                 children.push(rc_node);
-                last_child_was_whitespace = false;
                 all_nodes.insert(id_of_attr_node, rc_clone_node);
 
             },
@@ -100,51 +97,17 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                 all_nodes.insert(node_being_build_internal_id, Rc::clone(&rc_node));
                 return rc_node;
             },
-            HtmlToken::Text(text) => {
-                //TODO: check how this is done in actual DOM's, but I think we should include whitespace in here, instead of seperate nodes
-                let id_for_text_node = get_next_dom_node_interal_id();
-                let new_node = DomNode::Text(TextDomNode {
-                    internal_id: id_for_text_node,
-                    text_content: text.clone(),
-                    parent_id: node_being_build_internal_id
-                });
+            HtmlToken::Text(_) | HtmlToken::Whitespace(_) => {
+                let parent_for_node = if tag_being_parsed.is_some() { node_being_build_internal_id } else { parent_id };
+                let new_node = read_all_text_for_text_node(html_tokens, current_token_idx, parent_for_node);
+                let id_for_text_node = new_node.get_internal_id();
 
                 let rc_node = Rc::new(new_node);
-                let rc_clone_node = Rc::clone(&rc_node);
+                all_nodes.insert(id_for_text_node, Rc::clone(&rc_node));
 
                 if tag_being_parsed.is_some() {
                     children.push(rc_node);
-                    last_child_was_whitespace = false;
-                    all_nodes.insert(id_for_text_node, rc_clone_node);
                 } else {
-                    all_nodes.insert(id_for_text_node, rc_clone_node);
-                    return rc_node;
-                }
-            },
-            HtmlToken::Whitespace(_) => {
-                if last_child_was_whitespace {
-                    *current_token_idx += 1;
-                    continue 'token_loop;
-                }
-
-                let id_for_whitespace_node = get_next_dom_node_interal_id();
-                let new_node = DomNode::Text(TextDomNode {
-                    internal_id: id_for_whitespace_node,
-                    //Since html does not care about what the whitespace is, but we can't
-                    //have no whitespace at all (between words for example), we emit a space
-                    text_content: " ".to_owned(),
-                    parent_id: if tag_being_parsed.is_some() { node_being_build_internal_id } else { parent_id },
-                });
-                let rc_node = Rc::new(new_node);
-                let rc_clone_node = Rc::clone(&rc_node);
-
-                if tag_being_parsed.is_some() {
-                    children.push(rc_node);
-                    last_child_was_whitespace = true;
-
-                    all_nodes.insert(id_for_whitespace_node, rc_clone_node);
-                } else {
-                    all_nodes.insert(id_for_whitespace_node, rc_clone_node);
                     return rc_node;
                 }
             },
@@ -154,6 +117,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
             }
             HtmlToken::Entity(_) => {
                 //TODO: implement this
+                //TODO: this might have to somehow need to become part of the text DOM node, instead of making new nodes
             }
         }
 
@@ -161,4 +125,37 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
     }
 
     panic!("this should not happen");
+}
+
+
+fn read_all_text_for_text_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut usize, parent_id: usize) -> DomNode {
+    let mut text_for_node = String::new();
+
+    'text_token_loop: while *current_token_idx < html_tokens.len() {
+        let current_token = html_tokens.get(*current_token_idx).unwrap();
+
+        //TODO: probably entities need to be handled this way too, so they end up inside a DOM text node....
+
+        match &current_token.html_token {
+            HtmlToken::Text(text) => {
+                text_for_node.push_str(text);
+            },
+            HtmlToken::Whitespace(_) => {
+                text_for_node.push_str(" ");
+            },
+            _ => break 'text_token_loop
+        }
+
+        *current_token_idx += 1;
+    }
+
+    //we now subtract one from the idx, because we break from the above loop because we should not handle that char yet and the main loop will increment it:
+    *current_token_idx -= 1;
+
+
+    return DomNode::Text(TextDomNode {
+        internal_id: get_next_dom_node_interal_id(),
+        text_content: text_for_node,
+        parent_id: parent_id
+    });
 }

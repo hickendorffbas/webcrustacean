@@ -62,10 +62,23 @@ pub enum ComputedLocation {
 }
 impl ComputedLocation {
     pub fn x_y_as_int(&self) -> (u32, u32) {
-        //TODO: for now we use this to get pixel values, but we actually should convert units properly somewhere (before the rederer, I guess)
+        //TODO: for now we use this to get pixel values, but we actually should convert units properly somewhere (before the renderer, I guess)
+        //      in general we need to do a pass on using correct units everywhere
         return match self {
             ComputedLocation::NotYetComputed => panic!("Node has not yet been computed"),
             ComputedLocation::Computed(node) => { (node.x as u32, node.y as u32) },
+        }
+    }
+    pub fn is_inside(&self, x: u32, y: u32) -> bool {
+        //TODO: for now we use this to check pixel values, but we actually should convert units properly somewhere (before the renderer, I guess)
+        //      in general we need to do a pass on using correct units everywhere
+        return match self {
+            ComputedLocation::NotYetComputed => panic!("Node has not yet been computed"),
+            ComputedLocation::Computed(node) => {
+                x as f32 >= node.x && x as f32 <= node.x + node.width
+                &&
+                y as f32 >= node.y && y as f32 <= node.y + node.height
+            },
         }
     }
 }
@@ -343,7 +356,7 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, font_cache: &mut 
         },
         DomNode::Text(node) => {
             if document.has_element_parent_with_name(main_node, "a") {
-                partial_node_styles.push(Style { name: "color".to_owned(), value: "blue".to_owned() });
+                partial_node_styles.push(Style { name: "font-color".to_owned(), value: "blue".to_owned() });
             }
 
             partial_node_text = Option::Some(node.text_content.to_string());

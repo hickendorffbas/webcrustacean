@@ -54,11 +54,8 @@ impl Color {
     }
 
     pub const BLACK: Color = Color::new(0, 0, 0);
-    #[allow(dead_code)] //TODO: remove when used
     pub const BLUE: Color = Color::new(0, 0, 255);
-    #[allow(dead_code)] //TODO: remove when used
     pub const GREEN: Color = Color::new(0, 255, 0);
-    #[allow(dead_code)] //TODO: remove when used
     pub const RED: Color = Color::new(255, 0, 0);
     pub const WHITE: Color = Color::new(255, 255, 255);
 }

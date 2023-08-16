@@ -135,8 +135,8 @@ fn render_layout_node(canvas: &mut WindowCanvas, layout_node: &LayoutNode, all_n
 fn handle_left_click(x: u32, y: u32, layout_tree: &FullLayout) {
 
     fn check_left_click_for_layout_node(x: u32, y: u32, layout_node: &Rc<LayoutNode>) {
-        let (node_x, node_y) = layout_node.location.borrow().x_y_as_int();
-        if node_x > x || node_y > y { //TODO: this check should take the width and height into account, but we don't have that on the layout node yet
+
+        if !layout_node.location.borrow().is_inside(x, y) {
             return;
         }
 

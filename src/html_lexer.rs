@@ -7,6 +7,9 @@ use crate::debug::debug_log_warn;
 mod tests;
 
 
+const DOCTYPE_CHARS: [char; 7] = ['d', 'o', 'c', 't', 'y', 'p', 'e'];
+
+
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(PartialEq)]
 pub struct HtmlTokenWithLocation {
@@ -115,13 +118,16 @@ pub fn lex_html(document: &str) -> Vec<HtmlTokenWithLocation> {
                             debug_log_warn(format!("Unexpected chars after <! ({}:{})", line_nr, char_nr));
                         }
                     } else {
-                        //This might be a doctype tag or something
-                        let doctype_chars: [char; 7] = ['D', 'O', 'C', 'T', 'Y', 'P', 'E'];
-
                         let mut is_doctype = true;
-                        for current_char in doctype_chars {
-                            if html_iterator.has_next() && *html_iterator.peek().unwrap() == current_char {
-                                html_iterator.next(); //TODO: ideally we don't consume from the iterator until we are sure all the chars match
+
+                        for current_char in DOCTYPE_CHARS {
+                            if html_iterator.has_next() {
+                                if (*html_iterator.peek().unwrap()).to_ascii_lowercase() == current_char {
+                                    html_iterator.next(); //TODO: ideally we don't consume from the iterator until we are sure all the chars match
+                                } else {
+                                    is_doctype = false;
+                                    break;
+                                }
                             } else {
                                 is_doctype = false;
                                 break;

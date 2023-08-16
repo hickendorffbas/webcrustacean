@@ -49,11 +49,20 @@ fn test_self_closing_tag() {
 
 
 #[test]
-fn test_doctype() {
-    let html = "<!DOCTYPE html>
+fn test_doctype_uppercase() {
+    test_doctype("<!DOCTYPE html>
     <html>
-    </html>";
+    </html>");
+}
 
+#[test]
+fn test_doctype_lowercase() {
+    test_doctype("<!doctype html>
+    <html>
+    </html>");
+}
+
+fn test_doctype(html: &str) {
     let expected_tokens = vec![
         html_doctype(" html"), //TODO: would be good to not have the leading space here (strip the string or something?)
         html_whitespace("\n    "),

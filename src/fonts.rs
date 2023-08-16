@@ -30,7 +30,6 @@ impl<'ttf_module, 'rwops> FontCache<'ttf_module, 'rwops> {
     
         return self.mapping.get(font).unwrap();
     }
-
 }
 
 fn build_font<'ttf_module, 'rwops>(ttf_context: &'ttf_module Sdl2TtfContext, font: &Font) -> SdlFont<'ttf_module, 'rwops> {

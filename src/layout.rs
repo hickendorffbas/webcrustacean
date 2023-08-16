@@ -6,13 +6,20 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use crate::{
     Font,
     FontCache,
-    FONT_SIZE,
     HEADER_HIGHT,
     SCREEN_WIDTH,
 };
 use crate::debug::debug_log_warn;
 use crate::dom::{Document, DomNode};
-use crate::renderer::{Color, get_text_dimension};  //TODO: color should probably not come from the renderer, position probably also not
+use crate::renderer::{Color, get_text_dimension}; //TODO: color should probably not come from the renderer
+use crate::style::{
+    Style,
+    get_color_style_value,
+    get_default_styles,
+    get_numeric_style_value,
+    has_style_value,
+    resolve_full_styles_for_layout_node,
+};
 
 
 //TODO: I need to understand orderings with atomics a bit better
@@ -29,16 +36,14 @@ pub struct FullLayout {
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct LayoutNode {
     pub internal_id: usize,
-    pub text: Option<String>, //eventually we need different kinds of layout nodes, text is just one type
+    pub text: Option<String>, //eventually we need different kinds of layout nodes, text is just one type (or do we just have text/no text maybe?)
     pub location: RefCell<ComputedLocation>,
     pub display: Display, //TODO: eventually we don't want every css construct as a member on this struct ofcourse
     pub visible: bool,
-    pub font_bold: bool,
-    pub font_color: Color,
-    pub font_size: u16,
     pub optional_link_url: Option<String>,
     pub children: Option<Vec<Rc<LayoutNode>>>,
     pub parent_id: usize,
+    pub styles: Vec<Style>, //these are the non-interited styles
 }
 impl LayoutNode {
     pub fn all_childnodes_have_given_display(&self, display: Display) -> bool {
@@ -98,29 +103,28 @@ pub fn build_full_layout(document_node: &Document, font_cache: &mut FontCache) -
         location: RefCell::new(ComputedLocation::NotYetComputed),
         display: Display::Block,
         visible: true,
-        font_bold: false, //TODO: this should probably not be a top-level attribute of the layout node, but in text properties or something
-        font_color: Color::BLACK, //TODO: this should probably not be a top-level attribute of the layout node, but in text properties or something
-        font_size: FONT_SIZE, //TODO: this should probably not be a top-level attribute of the layout node, but in text properties or something
         optional_link_url: None,
         children: Some(top_level_layout_nodes),
-        parent_id: id_of_node_being_built,  //this is the top node, so it does not really have a parent, we set it to ourselves
+        parent_id: id_of_node_being_built,  //this is the top node, so it does not really have a parent, we set it to ourselves,
+        styles: get_default_styles(),
     };
-
-    let (root_width, root_height) = compute_layout(&root_node, font_cache, 0.0, HEADER_HIGHT);
-    let root_location = ComputedLocation::Computed(
-        Rect { x: 0.0, y: 0.0, width: root_width, height: root_height }  //TODO: the 0.0 here is not correct, because of the header
-    );
-    root_node.location.replace(root_location);
 
     let rc_root_node = Rc::new(root_node);
     all_nodes.insert(id_of_node_being_built, Rc::clone(&rc_root_node));
+
+    let (root_width, root_height) = compute_layout(&rc_root_node, &all_nodes, font_cache, 0.0, HEADER_HIGHT);
+    let root_location = ComputedLocation::Computed(
+        Rect { x: 0.0, y: 0.0, width: root_width, height: root_height }  //TODO: the 0.0 here is not correct, because of the header
+    );
+    rc_root_node.location.replace(root_location);
 
     return FullLayout { root_node: rc_root_node, all_nodes }
 }
 
 
 //TODO: need to find a way to make good tests for this
-fn compute_layout(node: &LayoutNode, font_cache: &mut FontCache, top_left_x: f32, top_left_y: f32) -> (f32, f32) {
+fn compute_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>, font_cache: &mut FontCache,
+                  top_left_x: f32, top_left_y: f32) -> (f32, f32) {
     if !node.visible {
         let node_location = ComputedLocation::Computed(
             Rect { x: top_left_x, y: top_left_y, width: 0.0, height: 0.0 }
@@ -134,10 +138,10 @@ fn compute_layout(node: &LayoutNode, font_cache: &mut FontCache, top_left_x: f32
         let all_inline = node.all_childnodes_have_given_display(Display::Inline);
 
         if all_block {
-            return apply_block_layout(node, font_cache, top_left_x, top_left_y);
+            return apply_block_layout(node, all_nodes, font_cache, top_left_x, top_left_y);
         }
         if all_inline {
-            return apply_inline_layout(node, font_cache, top_left_x, top_left_y);
+            return apply_inline_layout(node, all_nodes, font_cache, top_left_x, top_left_y);
         }
 
         //TODO: we still need to implement this somewhere earlier in the process (when building the layout tree)
@@ -145,9 +149,9 @@ fn compute_layout(node: &LayoutNode, font_cache: &mut FontCache, top_left_x: f32
     }
 
     if node.text.is_some() {
+        let resolved_styles = &resolve_full_styles_for_layout_node(&node, &all_nodes);
 
-        //TODO: ideally I just store the font (a reference!) on the node, so I can compute it in the first pass...
-        let own_font = Font::new(node.font_bold, node.font_size);
+        let (own_font, _) = get_font_given_styles(resolved_styles);
         let font = font_cache.get_font(&own_font);
         let dimension = get_text_dimension(node.text.as_ref().unwrap(), &font);
         let node_width = dimension.width as f32;
@@ -159,19 +163,29 @@ fn compute_layout(node: &LayoutNode, font_cache: &mut FontCache, top_left_x: f32
         node.location.replace(node_location);
 
         return (node_width, node_height);
-
     }
 
     panic!("A node that has no text and no children should not exist"); //TODO: does not exist _yet_, but something like an image would fit here..
 }
 
 
-fn apply_block_layout(node: &LayoutNode, font_cache: &mut FontCache, top_left_x: f32, top_left_y: f32) -> (f32, f32) {
+pub fn get_font_given_styles(resolved_styles: &Vec<&Style>) -> (Font, Color) {
+    let font_bold = has_style_value(&resolved_styles, "font-weight", &"bold".to_owned());
+    let font_size = get_numeric_style_value(&resolved_styles, "font-size");
+    let font_color = get_color_style_value(&resolved_styles, "font-color")
+                        .expect(format!("Unkown color").as_str()); //TODO: we need to handle this in a graceful way, instead of crashing
+
+    return (Font::new(font_bold, font_size), font_color);
+}
+
+
+fn apply_block_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>,
+                      font_cache: &mut FontCache, top_left_x: f32, top_left_y: f32) -> (f32, f32) {
     let mut cursor_y = top_left_y;
     let mut max_width: f32 = 0.0;
 
     for child in node.children.as_ref().unwrap() {
-        let (child_width, child_height) = compute_layout(child, font_cache, top_left_x, cursor_y);
+        let (child_width, child_height) = compute_layout(child, all_nodes, font_cache, top_left_x, cursor_y);
         cursor_y += child_height;
         max_width = max_width.max(child_width);
     }
@@ -186,14 +200,15 @@ fn apply_block_layout(node: &LayoutNode, font_cache: &mut FontCache, top_left_x:
 }
 
 
-fn apply_inline_layout(node: &LayoutNode, font_cache: &mut FontCache, top_left_x: f32, top_left_y: f32) -> (f32, f32) {
+fn apply_inline_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>,
+                       font_cache: &mut FontCache, top_left_x: f32, top_left_y: f32) -> (f32, f32) {
     let mut cursor_x = top_left_x;
     let mut cursor_y = top_left_y;
     let mut max_width: f32 = 0.0;
     let mut max_height_of_line: f32 = 0.0;
 
     for child in node.children.as_ref().unwrap() {
-        let (child_width, child_height) = compute_layout(child, font_cache, cursor_x, cursor_y);
+        let (child_width, child_height) = compute_layout(child, all_nodes, font_cache, cursor_x, cursor_y);
 
         if cursor_x != top_left_x && (cursor_x + child_width) > SCREEN_WIDTH as f32 {
             // we need to wrap the element to the next line
@@ -202,7 +217,7 @@ fn apply_inline_layout(node: &LayoutNode, font_cache: &mut FontCache, top_left_x
             cursor_x = top_left_x;
             cursor_y += max_height_of_line;
 
-            let (new_child_width, new_child_height) = compute_layout(child, font_cache, cursor_x, cursor_y);
+            let (new_child_width, new_child_height) = compute_layout(child, all_nodes, font_cache, cursor_x, cursor_y);
             cursor_x += new_child_width;
 
             max_width = max_width.max(cursor_x);
@@ -231,12 +246,10 @@ fn apply_inline_layout(node: &LayoutNode, font_cache: &mut FontCache, top_left_x
 fn build_layout_tree(main_node: &DomNode, document: &Document, font_cache: &mut FontCache,
                      all_nodes: &mut HashMap<usize, Rc<LayoutNode>>, parent_id: usize) -> Rc<LayoutNode> {
     let mut partial_node_text = None;
-    let mut partial_node_font_bold = false;
-    let mut partial_node_font_color = Color::BLACK;
-    let mut partial_node_font_size = FONT_SIZE;
     let mut partial_node_visible = true;
     let mut partial_node_optional_link_url = None;
     let mut partial_node_display = Display::Block;
+    let mut partial_node_styles = Vec::new();
 
 
     let mut childs_to_recurse_on: &Option<Vec<Rc<DomNode>>> = &None;
@@ -254,7 +267,7 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, font_cache: &mut 
                 }
 
                 "b" => {
-                    partial_node_font_bold = true;
+                    partial_node_styles.push(Style { name: "font-weight".to_owned(), value: "bold".to_owned() });
                     partial_node_display = Display::Inline;
                 }
 
@@ -271,33 +284,33 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, font_cache: &mut 
                 }
 
                 "h1" => {
-                    partial_node_font_bold = true;
-                    partial_node_font_size = FONT_SIZE + 12;
+                    partial_node_styles.push(Style { name: "font-weight".to_owned(), value: "bold".to_owned() });
+                    partial_node_styles.push(Style { name: "font-size".to_owned(), value: "32".to_owned() });
                     partial_node_display = Display::Block;
                 }
                 "h2" => {
-                    partial_node_font_bold = true;
-                    partial_node_font_size = FONT_SIZE + 10;
+                    partial_node_styles.push(Style { name: "font-weight".to_owned(), value: "bold".to_owned() });
+                    partial_node_styles.push(Style { name: "font-size".to_owned(), value: "30".to_owned() });
                     partial_node_display = Display::Block;
                 }
                 "h3" => {
-                    partial_node_font_bold = true;
-                    partial_node_font_size = FONT_SIZE + 8;
+                    partial_node_styles.push(Style { name: "font-weight".to_owned(), value: "bold".to_owned() });
+                    partial_node_styles.push(Style { name: "font-size".to_owned(), value: "28".to_owned() });
                     partial_node_display = Display::Block;
                 }
                 "h4" => {
-                    partial_node_font_bold = true;
-                    partial_node_font_size = FONT_SIZE + 6;
+                    partial_node_styles.push(Style { name: "font-weight".to_owned(), value: "bold".to_owned() });
+                    partial_node_styles.push(Style { name: "font-size".to_owned(), value: "26".to_owned() });
                     partial_node_display = Display::Block;
                 }
                 "h5" => {
-                    partial_node_font_bold = true;
-                    partial_node_font_size = FONT_SIZE + 4;
+                    partial_node_styles.push(Style { name: "font-weight".to_owned(), value: "bold".to_owned() });
+                    partial_node_styles.push(Style { name: "font-size".to_owned(), value: "24".to_owned() });
                     partial_node_display = Display::Block;
                 }
                 "h6" => {
-                    partial_node_font_bold = true;
-                    partial_node_font_size = FONT_SIZE + 2;
+                    partial_node_styles.push(Style { name: "font-weight".to_owned(), value: "bold".to_owned() });
+                    partial_node_styles.push(Style { name: "font-size".to_owned(), value:  "22".to_owned() });
                     partial_node_display = Display::Block;
                 }
 
@@ -329,23 +342,11 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, font_cache: &mut 
             //      but then we need to make sure we handle them in their parents node
         },
         DomNode::Text(node) => {
-            let text = &node.text_content;
-
-            //TODO: I need a font here, which is annoying.
-                //TODO: I now also need font sizes, making it even more annoying
-
-            let parent_bold = false;  //TODO: get this from the actual parent node, instead of hardcoding
-            let parent_font_size = FONT_SIZE;  //TODO: get this from the actual parent node, instead of hardcoding
-
-            let own_font = Font::new(parent_bold, parent_font_size); //TODO: the font should just live on the layout_node
-            let font = font_cache.get_font(&own_font);
-            let _dimension = get_text_dimension(&text, &font); //TODO: unused, should move to the pass where we compute the actual sizes of things
-
             if document.has_element_parent_with_name(main_node, "a") {
-                partial_node_font_color = Color::BLUE;
+                partial_node_styles.push(Style { name: "color".to_owned(), value: "blue".to_owned() });
             }
 
-            partial_node_text = Option::Some(text.to_string());
+            partial_node_text = Option::Some(node.text_content.to_string());
             partial_node_display = Display::Inline;
         }
 
@@ -362,7 +363,6 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, font_cache: &mut 
 
         let all_display_types = temp_children.iter().map(|child| &child.display).collect::<Vec<&Display>>();
 
-        //TODO: the double && below seems suspect...
         if all_display_types.contains(&&Display::Inline) && all_display_types.contains(&&Display::Block) {
             let mut temp_children_with_anonymous_blocks = Vec::new();
             let mut temp_buffer_for_inline_children = Vec::new();
@@ -404,12 +404,10 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, font_cache: &mut 
         location: RefCell::new(ComputedLocation::NotYetComputed),
         display: partial_node_display,
         visible: partial_node_visible,
-        font_bold: partial_node_font_bold,
-        font_color: partial_node_font_color,
-        font_size: partial_node_font_size,
         optional_link_url: partial_node_optional_link_url,
         children: new_childeren,
-        parent_id,
+        parent_id: parent_id,
+        styles: partial_node_styles,
     };
 
     let rc_new_node = Rc::new(new_node);
@@ -429,13 +427,10 @@ fn build_anonymous_block_layout_node(visible: bool, parent_id: usize, inline_chi
         location: RefCell::new(ComputedLocation::NotYetComputed),
         display: Display::Block,
         visible: visible,
-        font_bold: false,
-        font_color: Color::BLACK, //TODO: these fields belong in some optional font struct.... they make no sense in this case
-                                  //TODO: also, this might be wrong if we have children that inhertit the text styling from their parent?
-        font_size: FONT_SIZE,
         optional_link_url: None,
         children: Some(inline_children),
-        parent_id,
+        parent_id: parent_id,
+        styles: Vec::new(),
     };
 
     let anon_rc = Rc::new(anonymous_node);

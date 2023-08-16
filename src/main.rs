@@ -7,6 +7,8 @@ mod layout;
 mod macros;
 mod network;
 mod renderer;
+mod rendering_context;
+mod style;
 #[cfg(test)] mod test_util; //TODO: is there a better (test-specific) place to define this?
 
 use std::collections::HashMap;
@@ -20,10 +22,13 @@ use crate::fonts::{Font, FontCache};
 use crate::layout::{FullLayout, LayoutNode};
 use crate::network::http_get;
 use crate::renderer::{Color, clear as renderer_clear, render_text};
+use crate::style::resolve_full_styles_for_layout_node;
 
 use debug::debug_print_dom_tree;
+use layout::get_font_given_styles;
 use renderer::Position;
 use renderer::draw_line;
+use rendering_context::RenderingContext;
 use sdl2::{
     event::Event as SdlEvent,
     keyboard::Keycode,
@@ -36,7 +41,6 @@ use sdl2::{
 
 //Config:
 const FONT_PATH: &str = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf";
-const FONT_SIZE: u16 = 20;
 const TARGET_FPS: u32 = 60;
 const SCREEN_WIDTH: u32 = 1000;
 const SCREEN_HEIGHT: u32 = 700;
@@ -45,7 +49,6 @@ const HEADER_HIGHT: f32 = 50.0; //The hight of the header of bbrowser, so below 
 
 //Non-config constants:
 const TARGET_MS_PER_FRAME: u128 = 1000 / TARGET_FPS as u128;
-
 
 
 
@@ -80,42 +83,49 @@ fn frame_time_check(start_instant: &Instant, currently_loading_new_page: bool) {
 }
 
 
-fn render(canvas: &mut WindowCanvas, full_layout: &FullLayout, font_cache: &mut FontCache) {
+fn render(canvas: &mut WindowCanvas, full_layout: &FullLayout, rendering_context: &mut RenderingContext) {
     //TODO: I'm not sure if I want the renderer to be the thing that takes the layoutnodes,
     //      I think so? In that case this method should move there -> well, in the renderer, but currently the renderer contains all kinds of
     //      SDL specific stuff, that should move one layer further (platform or something)
 
     renderer_clear(canvas, Color::WHITE);
 
-    render_header(canvas, font_cache);
+    render_header(canvas, rendering_context);
 
-    render_layout_node(canvas, &full_layout.root_node, font_cache);
+    render_layout_node(canvas, &full_layout.root_node, &full_layout.all_nodes, rendering_context);
 
     canvas.present();
 }
 
 
-fn render_header(canvas: &mut WindowCanvas, font_cache: &mut FontCache) {
+fn render_header(canvas: &mut WindowCanvas, rendering_context: &mut RenderingContext) {
     let own_font = Font::new(true, 14);
-    let font = font_cache.get_font(&own_font);
+    let font = rendering_context.font_cache.get_font(&own_font);
     render_text(canvas, &"Bbrowser".to_owned(), 10, 10, font, Color::BLACK.to_sdl_color());
     draw_line(canvas, Position { x: 0, y: HEADER_HIGHT as u32 - 5 }, Position { x: SCREEN_WIDTH, y: HEADER_HIGHT as u32 - 5 }, Color::BLACK);
 }
 
 
-fn render_layout_node(canvas: &mut WindowCanvas, layout_node: &LayoutNode, font_cache: &mut FontCache) {
+fn render_layout_node(canvas: &mut WindowCanvas, layout_node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>,
+                      rendering_context: &mut RenderingContext) {
+    //TODO: this will probably contain a lot of logic converting styles to their SDL/draw equivalent. Should probably live in the renderer (and then the
+    //      SDL stuff in platform)
+
+    let resolved_styles = resolve_full_styles_for_layout_node(&layout_node, all_nodes);
+
     if layout_node.text.is_some() {
-        let own_font = Font::new(layout_node.font_bold, layout_node.font_size); //TODO: we should just have a (reference to) the font on the layout node
-        let font = font_cache.get_font(&own_font);
+
+        let (own_font, font_color) = get_font_given_styles(&resolved_styles);
+        let font = rendering_context.font_cache.get_font(&own_font);
         let (x, y) = layout_node.location.borrow().x_y_as_int();
 
-        render_text(canvas, layout_node.text.as_ref().unwrap(), x, y, &font, layout_node.font_color.to_sdl_color());
+        render_text(canvas, layout_node.text.as_ref().unwrap(), x, y, &font, font_color.to_sdl_color());
     }
 
     if layout_node.children.is_some() {
         for child in layout_node.children.as_ref().unwrap() {
             if child.visible {
-                render_layout_node(canvas, &child, font_cache);
+                render_layout_node(canvas, &child, all_nodes, rendering_context);
             }
         }
     }
@@ -189,6 +199,9 @@ fn main() -> Result<(), String> {
     debug_print_dom_tree(&dom_tree, "DOM TREE");
     debug_print_layout_tree(&full_layout_tree.root_node);
 
+    let mut rendering_context = RenderingContext { font_cache };
+
+
     let mut event_pump = sdl_context.event_pump()?;
     'main_loop: loop {
         let start_instant = Instant::now();
@@ -206,7 +219,7 @@ fn main() -> Result<(), String> {
             }
         }
 
-        render(&mut canvas, &full_layout_tree, &mut font_cache);
+        render(&mut canvas, &full_layout_tree, &mut rendering_context);
         frame_time_check(&start_instant, currently_loading_new_page);
         currently_loading_new_page = false;
     }

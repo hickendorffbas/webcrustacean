@@ -41,6 +41,7 @@ pub struct LayoutNode {
     pub display: Display, //TODO: eventually we don't want every css construct as a member on this struct ofcourse
     pub visible: bool,
     pub optional_link_url: Option<String>,
+    pub line_break: bool,
     pub children: Option<Vec<Rc<LayoutNode>>>,
     pub parent_id: usize,
     pub styles: Vec<Style>, //these are the non-interited styles
@@ -117,6 +118,7 @@ pub fn build_full_layout(document_node: &Document, font_cache: &mut FontCache) -
         display: Display::Block,
         visible: true,
         optional_link_url: None,
+        line_break: false,
         children: Some(top_level_layout_nodes),
         parent_id: id_of_node_being_built,  //this is the top node, so it does not really have a parent, we set it to ourselves,
         styles: get_default_styles(),
@@ -221,6 +223,27 @@ fn apply_inline_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNo
     let mut max_height_of_line: f32 = 0.0;
 
     for child in node.children.as_ref().unwrap() {
+        if child.line_break {
+            //TODO: assert that this child does not have children
+
+            if cursor_x != top_left_x {
+                cursor_x = top_left_x;
+                cursor_y += max_height_of_line;
+            } else {
+                let resolved_styles = &resolve_full_styles_for_layout_node(&child, &all_nodes);
+
+                let (own_font, _) = get_font_given_styles(resolved_styles);
+                let font = font_cache.get_font(&own_font);
+                //we get the hight of a random character in the font for the height of the newline:
+                let dimension_for_random_character = get_text_dimension(&String::from("x"), &font);
+
+                cursor_x = top_left_x;
+                cursor_y += dimension_for_random_character.height as f32;
+            }
+
+            continue;
+        }
+
         let (child_width, child_height) = compute_layout(child, all_nodes, font_cache, cursor_x, cursor_y);
 
         if cursor_x != top_left_x && (cursor_x + child_width) > SCREEN_WIDTH as f32 {
@@ -261,6 +284,7 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, font_cache: &mut 
     let mut partial_node_text = None;
     let mut partial_node_visible = true;
     let mut partial_node_optional_link_url = None;
+    let mut partial_node_line_break = false;
     let mut partial_node_display = Display::Block;
     let mut partial_node_styles = Vec::new();
 
@@ -285,6 +309,7 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, font_cache: &mut 
                 }
 
                 "br" => {
+                    partial_node_line_break = true;
                     partial_node_display = Display::Inline;
                 }
 
@@ -418,6 +443,7 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, font_cache: &mut 
         display: partial_node_display,
         visible: partial_node_visible,
         optional_link_url: partial_node_optional_link_url,
+        line_break: partial_node_line_break,
         children: new_childeren,
         parent_id: parent_id,
         styles: partial_node_styles,
@@ -441,6 +467,7 @@ fn build_anonymous_block_layout_node(visible: bool, parent_id: usize, inline_chi
         display: Display::Block,
         visible: visible,
         optional_link_url: None,
+        line_break: false,
         children: Some(inline_children),
         parent_id: parent_id,
         styles: Vec::new(),

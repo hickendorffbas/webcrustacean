@@ -41,7 +41,7 @@ use sdl2::{
 
 //Config:
 const FONT_PATH: &str = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf";
-const TARGET_FPS: u32 = 60;
+const TARGET_FPS: u32 = if cfg!(debug_assertions) { 30 } else { 60 };
 const SCREEN_WIDTH: u32 = 1000;
 const SCREEN_HEIGHT: u32 = 700;
 const DEFAULT_LOCATION_TO_LOAD: &str = "file://testinput/doc.html";

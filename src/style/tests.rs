@@ -53,6 +53,7 @@ fn build_new_layout_node(id: usize, parent_id: usize, children: Option<Vec<Rc<La
         display: Display::Block,
         visible: true,
         optional_link_url: None,
+        line_break: false,
         children: children,
         parent_id: parent_id,
         styles: styles,

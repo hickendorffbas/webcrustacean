@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -37,6 +37,7 @@ pub struct FullLayout {
 pub struct LayoutNode {
     pub internal_id: usize,
     pub text: Option<String>, //eventually we need different kinds of layout nodes, text is just one type (or do we just have text/no text maybe?)
+    pub non_breaking_space_positions: Option<HashSet<usize>>, //TODO: might be nice to combine this with text_content in a text struct
     pub location: RefCell<ComputedLocation>,
     pub display: Display, //TODO: eventually we don't want every css construct as a member on this struct ofcourse
     pub visible: bool,
@@ -114,6 +115,7 @@ pub fn build_full_layout(document_node: &Document, font_cache: &mut FontCache) -
     let root_node = LayoutNode {
         internal_id: id_of_node_being_built,
         text: None,
+        non_breaking_space_positions: None,
         location: RefCell::new(ComputedLocation::NotYetComputed),
         display: Display::Block,
         visible: true,
@@ -282,6 +284,7 @@ fn apply_inline_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNo
 fn build_layout_tree(main_node: &DomNode, document: &Document, font_cache: &mut FontCache,
                      all_nodes: &mut HashMap<usize, Rc<LayoutNode>>, parent_id: usize) -> Rc<LayoutNode> {
     let mut partial_node_text = None;
+    let mut partial_node_non_breaking_space_positions = None;
     let mut partial_node_visible = true;
     let mut partial_node_optional_link_url = None;
     let mut partial_node_line_break = false;
@@ -385,6 +388,7 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, font_cache: &mut 
             }
 
             partial_node_text = Option::Some(node.text_content.to_string());
+            partial_node_non_breaking_space_positions = node.non_breaking_space_positions.clone();
             partial_node_display = Display::Inline;
         }
 
@@ -439,6 +443,7 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, font_cache: &mut 
     let new_node = LayoutNode {
         internal_id: id_of_node_being_built,
         text: partial_node_text,
+        non_breaking_space_positions: partial_node_non_breaking_space_positions,
         location: RefCell::new(ComputedLocation::NotYetComputed),
         display: partial_node_display,
         visible: partial_node_visible,
@@ -463,6 +468,7 @@ fn build_anonymous_block_layout_node(visible: bool, parent_id: usize, inline_chi
     let anonymous_node = LayoutNode {
         internal_id: id_of_node_being_built,
         text: None,
+        non_breaking_space_positions: None,
         location: RefCell::new(ComputedLocation::NotYetComputed),
         display: Display::Block,
         visible: visible,

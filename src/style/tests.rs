@@ -49,6 +49,7 @@ fn build_new_layout_node(id: usize, parent_id: usize, children: Option<Vec<Rc<La
     return LayoutNode {
         internal_id: id,
         text: None,
+        non_breaking_space_positions: None,
         location: RefCell::new(ComputedLocation::NotYetComputed),
         display: Display::Block,
         visible: true,

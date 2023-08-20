@@ -1,6 +1,4 @@
-//TODO: eventually this should become the actual parser, and be renamed to remove "next gen" from it
-
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use crate::debug::debug_log_warn;
@@ -97,7 +95,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                 all_nodes.insert(node_being_build_internal_id, Rc::clone(&rc_node));
                 return rc_node;
             },
-            HtmlToken::Text(_) | HtmlToken::Whitespace(_) => {
+            HtmlToken::Text(_) | HtmlToken::Whitespace(_) | HtmlToken::Entity(_) => {
                 let parent_for_node = if tag_being_parsed.is_some() { node_being_build_internal_id } else { parent_id };
                 let new_node = read_all_text_for_text_node(html_tokens, current_token_idx, parent_for_node);
                 let id_for_text_node = new_node.get_internal_id();
@@ -115,10 +113,6 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
             HtmlToken::Doctype(_) => {
                 //for now we ignore, eventually we should probably distinguish html5 and other html variants here
             }
-            HtmlToken::Entity(_) => {
-                //TODO: implement this
-                //TODO: this might have to somehow need to become part of the text DOM node, instead of making new nodes
-            }
         }
 
         *current_token_idx += 1;
@@ -130,11 +124,10 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
 
 fn read_all_text_for_text_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut usize, parent_id: usize) -> DomNode {
     let mut text_for_node = String::new();
+    let mut non_breaking_space_positions: Option<HashSet<usize>> = None;
 
     'text_token_loop: while *current_token_idx < html_tokens.len() {
         let current_token = html_tokens.get(*current_token_idx).unwrap();
-
-        //TODO: probably entities need to be handled this way too, so they end up inside a DOM text node....
 
         match &current_token.html_token {
             HtmlToken::Text(text) => {
@@ -143,6 +136,35 @@ fn read_all_text_for_text_node(html_tokens: &Vec<HtmlTokenWithLocation>, current
             HtmlToken::Whitespace(_) => {
                 text_for_node.push_str(" ");
             },
+            HtmlToken::Entity(entity) => {
+                match entity.as_str() {
+                    "amp" => { text_for_node.push('&'); }
+                    "apos" => { text_for_node.push('\'') }
+                    "gt" => { text_for_node.push('>'); }
+                    "lt" => { text_for_node.push('<'); }
+                    "quot" => { text_for_node.push('"') }
+
+                    "nbsp" => {
+                        let position = text_for_node.len();
+                        non_breaking_space_positions = match non_breaking_space_positions {
+                            Some(mut set) => {
+                                set.insert(position);
+                                Some(set)
+                            },
+                            None => {
+                                let mut set = HashSet::new();
+                                set.insert(position);
+                                Some(set)
+                            },
+                        }
+                    }
+
+                    _ => {
+                        //unknown entity, just use as text
+                        text_for_node.push_str(entity);
+                    }
+                }
+            }
             _ => break 'text_token_loop
         }
 
@@ -156,6 +178,7 @@ fn read_all_text_for_text_node(html_tokens: &Vec<HtmlTokenWithLocation>, current
     return DomNode::Text(TextDomNode {
         internal_id: get_next_dom_node_interal_id(),
         text_content: text_for_node,
-        parent_id: parent_id
+        parent_id: parent_id,
+        non_breaking_space_positions: non_breaking_space_positions
     });
 }

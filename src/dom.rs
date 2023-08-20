@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -104,4 +104,5 @@ pub struct TextDomNode {
     pub internal_id: usize,
     pub text_content: String,
     pub parent_id: usize,
+    pub non_breaking_space_positions: Option<HashSet<usize>>, //TODO: might be nice to combine this with text_content in a text struct
 }

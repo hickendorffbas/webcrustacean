@@ -1,0 +1,8 @@
+- wrap text correctly (possibly make multiple rects out of 1 text node)
+
+
+
+bigger items:
+
+- add scrolling
+

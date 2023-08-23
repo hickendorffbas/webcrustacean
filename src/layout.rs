@@ -55,7 +55,7 @@ impl LayoutNode {
         return self.children.as_ref().unwrap().iter().all(|node| node.display == display);
     }
     pub fn update_single_rect_location(&self, new_location: ComputedLocation) {
-        //TODO: debug assert that we only have 1 rect
+        debug_assert!(self.rects.borrow().len() == 1);
         self.rects.borrow()[0].location.replace(new_location);
     }
 }
@@ -185,10 +185,7 @@ fn compute_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>,
         panic!("Not all children are either inline or block, earlier in the process this should already have been fixed with anonymous blocks");
     }
 
-    if node.rects.borrow().len() != 1 {
-        //TODO: convert this to a proper assert
-        panic!("Got node with not exactly 1 rect")
-    }
+    debug_assert!(node.rects.borrow().len() == 1);
 
     if node.rects.borrow()[0].text.is_some() {
 
@@ -206,7 +203,6 @@ fn compute_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>,
         node.update_single_rect_location(node_location);
         return (text_dimension.width, text_dimension.height);
     }
-
 
     panic!("This has no children and no text, but this node was not handled inside a block or inline layout function of its parent...");
 }

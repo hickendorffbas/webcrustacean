@@ -113,13 +113,15 @@ fn render_layout_node(canvas: &mut WindowCanvas, layout_node: &LayoutNode, all_n
 
     let resolved_styles = resolve_full_styles_for_layout_node(&layout_node, all_nodes);
 
-    if layout_node.text.is_some() {
+    for layout_rect in layout_node.rects.borrow().iter() {
+        if layout_rect.text.is_some() {
 
-        let (own_font, font_color) = get_font_given_styles(&resolved_styles);
-        let font = rendering_context.font_cache.get_font(&own_font);
-        let (x, y) = layout_node.location.borrow().x_y_as_int();
+            let (own_font, font_color) = get_font_given_styles(&resolved_styles);
+            let font = rendering_context.font_cache.get_font(&own_font);
+            let (x, y) = layout_rect.location.borrow().x_y_as_int();
 
-        render_text(canvas, layout_node.text.as_ref().unwrap(), x, y, &font, font_color.to_sdl_color());
+            render_text(canvas, layout_rect.text.as_ref().unwrap(), x, y, &font, font_color.to_sdl_color());
+        }
     }
 
     if layout_node.children.is_some() {
@@ -136,7 +138,9 @@ fn handle_left_click(x: u32, y: u32, layout_tree: &FullLayout) {
 
     fn check_left_click_for_layout_node(x: u32, y: u32, layout_node: &Rc<LayoutNode>) {
 
-        if !layout_node.location.borrow().is_inside(x, y) {
+        let any_inside = layout_node.rects.borrow().iter().any(|rect| -> bool {rect.location.borrow().is_inside(x, y)});
+
+        if !any_inside {
             return;
         }
 

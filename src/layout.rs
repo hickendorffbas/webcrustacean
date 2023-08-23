@@ -3,6 +3,8 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use sdl2::ttf::Font as SdlFont;
+
 use crate::{
     Font,
     FontCache,
@@ -36,16 +38,14 @@ pub struct FullLayout {
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct LayoutNode {
     pub internal_id: usize,
-    pub text: Option<String>, //eventually we need different kinds of layout nodes, text is just one type (or do we just have text/no text maybe?)
-    pub non_breaking_space_positions: Option<HashSet<usize>>, //TODO: might be nice to combine this with text_content in a text struct
-    pub location: RefCell<ComputedLocation>,
     pub display: Display, //TODO: eventually we don't want every css construct as a member on this struct ofcourse
     pub visible: bool,
-    pub optional_link_url: Option<String>,
     pub line_break: bool,
     pub children: Option<Vec<Rc<LayoutNode>>>,
     pub parent_id: usize,
     pub styles: Vec<Style>, //these are the non-interited styles
+    pub optional_link_url: Option<String>,
+    pub rects: RefCell<Vec<LayoutRect>>
 }
 impl LayoutNode {
     pub fn all_childnodes_have_given_display(&self, display: Display) -> bool {
@@ -54,8 +54,28 @@ impl LayoutNode {
         }
         return self.children.as_ref().unwrap().iter().all(|node| node.display == display);
     }
+    pub fn update_single_rect_location(&self, new_location: ComputedLocation) {
+        //TODO: debug assert that we only have 1 rect
+        self.rects.borrow()[0].location.replace(new_location);
+    }
 }
 
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub struct LayoutRect {
+    pub text: Option<String>, //eventually we need different kinds of layout nodes, text is just one type (or do we just have text/no text maybe?)
+    pub non_breaking_space_positions: Option<HashSet<usize>>, //TODO: might be nice to combine this with text_content in a text struct
+    pub location: RefCell<ComputedLocation>,
+}
+impl LayoutRect {
+    pub fn get_default_non_computed_rect() -> LayoutRect {
+        return LayoutRect {
+            text: None,
+            non_breaking_space_positions: None,
+            location: RefCell::new(ComputedLocation::NotYetComputed),
+        };
+    }
+}
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub enum ComputedLocation {
@@ -114,16 +134,14 @@ pub fn build_full_layout(document_node: &Document, font_cache: &mut FontCache) -
 
     let root_node = LayoutNode {
         internal_id: id_of_node_being_built,
-        text: None,
-        non_breaking_space_positions: None,
-        location: RefCell::new(ComputedLocation::NotYetComputed),
         display: Display::Block,
         visible: true,
-        optional_link_url: None,
         line_break: false,
         children: Some(top_level_layout_nodes),
         parent_id: id_of_node_being_built,  //this is the top node, so it does not really have a parent, we set it to ourselves,
         styles: get_default_styles(),
+        optional_link_url: None,
+        rects: RefCell::new(vec![LayoutRect::get_default_non_computed_rect()]),
     };
 
     let rc_root_node = Rc::new(root_node);
@@ -131,14 +149,17 @@ pub fn build_full_layout(document_node: &Document, font_cache: &mut FontCache) -
 
     let (root_width, root_height) = compute_layout(&rc_root_node, &all_nodes, font_cache, 0.0, HEADER_HIGHT);
     let root_location = ComputedLocation::Computed(
-        Rect { x: 0.0, y: 0.0, width: root_width, height: root_height }  //TODO: the 0.0 here is not correct, because of the header
+        Rect { x: 0.0, y: HEADER_HIGHT, width: root_width, height: root_height }
     );
-    rc_root_node.location.replace(root_location);
+    rc_root_node.update_single_rect_location(root_location);
 
     return FullLayout { root_node: rc_root_node, all_nodes }
 }
 
 
+//This function is responsible for setting the location rects on the node, and all its children. It does so recursively,
+//   but some nodes are directly handled as children (especially when we expect they will wrap and have no children themselves),
+//   instead of making the recursive call for them, so this function is not called for all nodes!
 //TODO: need to find a way to make good tests for this
 fn compute_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>, font_cache: &mut FontCache,
                   top_left_x: f32, top_left_y: f32) -> (f32, f32) {
@@ -146,7 +167,7 @@ fn compute_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>,
         let node_location = ComputedLocation::Computed(
             Rect { x: top_left_x, y: top_left_y, width: 0.0, height: 0.0 }
         );
-        node.location.replace(node_location);
+        node.update_single_rect_location(node_location);
         return (0.0, 0.0);
     }
 
@@ -158,31 +179,36 @@ fn compute_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>,
             return apply_block_layout(node, all_nodes, font_cache, top_left_x, top_left_y);
         }
         if all_inline {
-            return apply_inline_layout(node, all_nodes, font_cache, top_left_x, top_left_y);
+            return apply_inline_layout(node, all_nodes, font_cache, top_left_x, top_left_y, SCREEN_WIDTH as f32 - top_left_x);
         }
 
-        //TODO: we still need to implement this somewhere earlier in the process (when building the layout tree)
         panic!("Not all children are either inline or block, earlier in the process this should already have been fixed with anonymous blocks");
     }
 
-    if node.text.is_some() {
-        let resolved_styles = &resolve_full_styles_for_layout_node(&node, &all_nodes);
-
-        let (own_font, _) = get_font_given_styles(resolved_styles);
-        let font = font_cache.get_font(&own_font);
-        let dimension = get_text_dimension(node.text.as_ref().unwrap(), &font);
-        let node_width = dimension.width as f32;
-        let node_height = dimension.height as f32;
-
-        let node_location = ComputedLocation::Computed(
-            Rect { x: top_left_x, y: top_left_y, width: node_width, height: node_height }
-        );
-        node.location.replace(node_location);
-
-        return (node_width, node_height);
+    if node.rects.borrow().len() != 1 {
+        //TODO: convert this to a proper assert
+        panic!("Got node with not exactly 1 rect")
     }
 
-    panic!("A node that has no text and no children should not exist"); //TODO: does not exist _yet_, but something like an image would fit here..
+    if node.rects.borrow()[0].text.is_some() {
+
+        //TODO: this is not correct, we need al the wrapping logic here as well. I think we should never have this here.
+        //      the fact that we get there means we did not wrap this node in a Display::Block
+
+        let resolved_styles = resolve_full_styles_for_layout_node(node, all_nodes);
+        let (own_font, _) = get_font_given_styles(&resolved_styles);
+        let font = font_cache.get_font(&own_font);
+        let text_dimension = get_text_dimension(&node.rects.borrow()[0].text.as_ref().unwrap(), &font);
+
+        let node_location = ComputedLocation::Computed(
+            Rect { x: top_left_x, y: top_left_y, width: text_dimension.width, height: text_dimension.height}
+        );
+        node.update_single_rect_location(node_location);
+        return (text_dimension.width, text_dimension.height);
+    }
+
+
+    panic!("This has no children and no text, but this node was not handled inside a block or inline layout function of its parent...");
 }
 
 
@@ -211,26 +237,27 @@ fn apply_block_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNod
     let node_location = ComputedLocation::Computed(
         Rect { x: top_left_x, y: top_left_y, width: max_width, height: our_height }
     );
-    node.location.replace(node_location);
+    node.update_single_rect_location(node_location);
 
     return (max_width, our_height);
 }
 
 
 fn apply_inline_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>,
-                       font_cache: &mut FontCache, top_left_x: f32, top_left_y: f32) -> (f32, f32) {
+                       font_cache: &mut FontCache, top_left_x: f32, top_left_y: f32, max_allowed_width: f32) -> (f32, f32) {
     let mut cursor_x = top_left_x;
     let mut cursor_y = top_left_y;
     let mut max_width: f32 = 0.0;
     let mut max_height_of_line: f32 = 0.0;
 
     for child in node.children.as_ref().unwrap() {
-        if child.line_break {
-            //TODO: assert that this child does not have children
 
+        if child.line_break {
+            let child_height;
             if cursor_x != top_left_x {
                 cursor_x = top_left_x;
                 cursor_y += max_height_of_line;
+                child_height = max_height_of_line;
             } else {
                 let resolved_styles = &resolve_full_styles_for_layout_node(&child, &all_nodes);
 
@@ -241,28 +268,81 @@ fn apply_inline_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNo
 
                 cursor_x = top_left_x;
                 cursor_y += dimension_for_random_character.height as f32;
+                child_height = dimension_for_random_character.height as f32
             }
+
+            let child_location = ComputedLocation::Computed(
+                Rect { x: top_left_x, y: top_left_y, width: max_width, height: child_height }
+            );
+            child.update_single_rect_location(child_location);
 
             continue;
         }
 
         let (child_width, child_height) = compute_layout(child, all_nodes, font_cache, cursor_x, cursor_y);
 
-        if cursor_x != top_left_x && (cursor_x + child_width) > SCREEN_WIDTH as f32 {
-            // we need to wrap the element to the next line
-            //TODO: we need to support splitting in the element in two (or more?) rects, for text-wrapping
 
-            cursor_x = top_left_x;
-            cursor_y += max_height_of_line;
+        if (cursor_x - top_left_x + child_width) > max_allowed_width as f32 {
 
-            let (new_child_width, new_child_height) = compute_layout(child, all_nodes, font_cache, cursor_x, cursor_y);
-            cursor_x += new_child_width;
+            if child.children.is_none() && child.rects.borrow().iter().all(|rect| -> bool { rect.text.is_some()} ) {
+                // we might be able to split rects, and put part of the node on this line
 
-            max_width = max_width.max(cursor_x);
-            max_height_of_line = new_child_height;
+                let font = get_font_given_styles(&resolve_full_styles_for_layout_node(child, all_nodes));
+                let sdl_font = font_cache.get_font(&font.0);
+                let amount_of_space_left = max_allowed_width - (cursor_x - top_left_x);
+                let wrapped_text = wrap_text(child.rects.borrow().last().unwrap(), amount_of_space_left, sdl_font);
+
+                let mut rects_for_child = Vec::new();
+                for text in wrapped_text {
+                    let text_dimension = get_text_dimension(&text, sdl_font);
+
+                    if cursor_x - top_left_x + text_dimension.width > max_allowed_width {
+                        if cursor_x != top_left_x {
+                            cursor_x = top_left_x;
+                            cursor_y += max_height_of_line;
+                            max_height_of_line = 0.0;
+                        }
+                    }
+
+                    rects_for_child.push(LayoutRect {
+                        text: Some(text),
+                        non_breaking_space_positions: None, //For now not computing these, although it would be more correct to update them after wrapping
+                        location: RefCell::new(ComputedLocation::Computed(
+                            Rect { x: cursor_x, y: cursor_y, width: text_dimension.width, height: text_dimension.height }
+                        )),
+                    });
+
+                    cursor_x += text_dimension.width;
+                    max_width = max_width.max(cursor_x);
+                    max_height_of_line = max_height_of_line.max(text_dimension.height);
+
+                }
+                child.rects.replace(rects_for_child);
+
+            } else {
+                if cursor_x != top_left_x {
+                    //we can move to a new line, it might fit there
+
+                    cursor_x = top_left_x;
+                    cursor_y += max_height_of_line;
+
+                    let (child_width, child_height) = compute_layout(child, all_nodes, font_cache, cursor_x, cursor_y);
+
+                    cursor_x += child_width;
+                    max_width = max_width.max(cursor_x);
+                    max_height_of_line = child_height;
+
+                } else {
+                    //we already are on a new line, we just put it here
+                    cursor_x += child_width;
+                    max_width = max_width.max(cursor_x);
+                    max_height_of_line = max_height_of_line.max(child_height);
+                }
+
+            }
 
         } else {
-            // we append the items to the current line
+            // we append the items to the current line because it fits
 
             cursor_x += child_width;
             max_width = max_width.max(cursor_x);
@@ -275,9 +355,43 @@ fn apply_inline_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNo
     let node_location = ComputedLocation::Computed(
         Rect { x: top_left_x, y: top_left_y, width: max_width, height: our_height }
     );
-    node.location.replace(node_location);
+    node.update_single_rect_location(node_location);
 
     return (max_width, our_height);
+}
+
+
+fn wrap_text(layout_rect: &LayoutRect, max_width: f32, font: &SdlFont) -> Vec<String> {
+    let text = layout_rect.text.as_ref();
+    let no_wrap_positions = &layout_rect.non_breaking_space_positions;
+    let mut str_buffers = Vec::new();
+    let mut str_buffer_undecided = String::new();
+    let mut pos = 0;
+    let mut current_line = 0;
+
+    str_buffers.push(String::new());
+
+    for c in text.unwrap().chars() {
+        if c == ' ' && !(no_wrap_positions.is_some() && no_wrap_positions.as_ref().unwrap().contains(&pos)) {
+            let mut combined = String::new();
+            combined.push_str(&str_buffers[current_line]);
+            combined.push_str(&str_buffer_undecided);
+
+            if get_text_dimension(&combined, font).width < max_width {
+                str_buffers[current_line] = combined;
+            } else {
+                current_line += 1;
+                str_buffers.push(String::new());
+                str_buffers[current_line] = str_buffer_undecided;
+            }
+            str_buffer_undecided = String::new();
+        }
+
+        str_buffers[current_line].push(c);
+        pos += 1;
+    }
+
+    return str_buffers;
 }
 
 
@@ -363,6 +477,10 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, font_cache: &mut 
                     //for now this needs the default for all fields
                 }
 
+                "p" =>  {
+                    partial_node_display = Display::Block;
+                }
+
                 //TODO: this one might not be neccesary any more after we fix our html parser to not try to parse the javascript
                 "script" => { partial_node_visible = false; }
 
@@ -440,18 +558,22 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, font_cache: &mut 
         None
     };
 
-    let new_node = LayoutNode {
-        internal_id: id_of_node_being_built,
+    let layout_rect = LayoutRect {
         text: partial_node_text,
         non_breaking_space_positions: partial_node_non_breaking_space_positions,
         location: RefCell::new(ComputedLocation::NotYetComputed),
+    };
+
+    let new_node = LayoutNode {
+        internal_id: id_of_node_being_built,
         display: partial_node_display,
         visible: partial_node_visible,
-        optional_link_url: partial_node_optional_link_url,
         line_break: partial_node_line_break,
         children: new_childeren,
         parent_id: parent_id,
         styles: partial_node_styles,
+        optional_link_url: partial_node_optional_link_url,
+        rects: RefCell::new(vec![layout_rect]),
     };
 
     let rc_new_node = Rc::new(new_node);
@@ -467,16 +589,14 @@ fn build_anonymous_block_layout_node(visible: bool, parent_id: usize, inline_chi
 
     let anonymous_node = LayoutNode {
         internal_id: id_of_node_being_built,
-        text: None,
-        non_breaking_space_positions: None,
-        location: RefCell::new(ComputedLocation::NotYetComputed),
         display: Display::Block,
         visible: visible,
-        optional_link_url: None,
         line_break: false,
         children: Some(inline_children),
         parent_id: parent_id,
         styles: Vec::new(),
+        optional_link_url: None,
+        rects: RefCell::new(vec![LayoutRect::get_default_non_computed_rect()])
     };
 
     let anon_rc = Rc::new(anonymous_node);

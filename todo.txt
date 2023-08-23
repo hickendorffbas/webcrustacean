@@ -1,4 +1,5 @@
-- wrap text correctly (possibly make multiple rects out of 1 text node)
+- fix the text rendering we still have outside of the inline layout method. Probably by inserting block nodes in the DOM ?
+- figure out why the text wraps, but slightly to late (a bit further than our screen is wide)
 
 
 

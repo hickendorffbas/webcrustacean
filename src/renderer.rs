@@ -22,8 +22,8 @@ impl Position {
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Dimension {
-    pub width: u32,
-    pub height: u32,
+    pub width: f32,
+    pub height: f32,
 }
 
 
@@ -99,7 +99,7 @@ pub fn get_text_dimension(text: &String, font: &SdlFont) -> Dimension {
     let result = font.size_of(text);
     if result.is_ok() {
         let (width, height) = result.ok().unwrap();
-        return Dimension { width, height };
+        return Dimension { width: width as f32, height: height as f32 };
     } else {
         panic!("{:?}", result.err().unwrap()); //TODO: don't think this is a good way of reporting the error
     }

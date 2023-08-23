@@ -3,13 +3,10 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::layout::{
-    ComputedLocation,
     Display,
-    LayoutNode
+    LayoutNode, LayoutRect
 };
 use crate::style;
-
-use super::Style;
 
 
 #[test]
@@ -17,8 +14,8 @@ fn test_basic_style_resolving() {
     //TODO: this test feels more verbose than neeeded
 
     let child_styles = vec![
-        Style { name: "font-weight".to_owned(), value: "bold".to_owned() },
-        Style { name: "not-present-in-parent".to_owned(), value: "value".to_owned() }
+        style::Style { name: "font-weight".to_owned(), value: "bold".to_owned() },
+        style::Style { name: "not-present-in-parent".to_owned(), value: "value".to_owned() }
     ];
     let child_node = build_new_layout_node(2, 1, None, child_styles);
     let rc_child_node = Rc::new(child_node);
@@ -26,8 +23,8 @@ fn test_basic_style_resolving() {
     let rc_child_2nd_clone = Rc::clone(&rc_child_node);  //TODO: yikes :(
 
     let styles = vec![
-        Style { name: "font-weight".to_owned(), value: "2em".to_owned() },
-        Style { name: "not-overridden".to_owned(), value: "yes".to_owned() },
+        style::Style { name: "font-weight".to_owned(), value: "2em".to_owned() },
+        style::Style { name: "not-overridden".to_owned(), value: "yes".to_owned() },
     ];
     let children = Some(vec![rc_child_node]);
     let layout_node = build_new_layout_node(1, 1, children, styles);
@@ -45,18 +42,16 @@ fn test_basic_style_resolving() {
     assert!(resolved_styles.iter().any(|el| { el.name == "not-overridden".to_owned() && el.value == "yes".to_owned() }));
 }
 
-fn build_new_layout_node(id: usize, parent_id: usize, children: Option<Vec<Rc<LayoutNode>>>, styles: Vec<Style>) -> LayoutNode {
+fn build_new_layout_node(id: usize, parent_id: usize, children: Option<Vec<Rc<LayoutNode>>>, styles: Vec<style::Style>) -> LayoutNode {
     return LayoutNode {
         internal_id: id,
-        text: None,
-        non_breaking_space_positions: None,
-        location: RefCell::new(ComputedLocation::NotYetComputed),
         display: Display::Block,
         visible: true,
-        optional_link_url: None,
         line_break: false,
         children: children,
         parent_id: parent_id,
         styles: styles,
+        optional_link_url: None,
+        rects: RefCell::new(vec![LayoutRect::get_default_non_computed_rect()])
     };
 }

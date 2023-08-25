@@ -179,7 +179,7 @@ fn compute_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>,
             return apply_block_layout(node, all_nodes, font_cache, top_left_x, top_left_y);
         }
         if all_inline {
-            return apply_inline_layout(node, all_nodes, font_cache, top_left_x, top_left_y, SCREEN_WIDTH as f32 - top_left_x);
+            return apply_inline_layout(node, all_nodes, font_cache, top_left_x, top_left_y, (SCREEN_WIDTH - 1) as f32 - top_left_x);
         }
 
         panic!("Not all children are either inline or block, earlier in the process this should already have been fixed with anonymous blocks");
@@ -264,7 +264,7 @@ fn apply_inline_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNo
 
                 cursor_x = top_left_x;
                 cursor_y += dimension_for_random_character.height as f32;
-                child_height = dimension_for_random_character.height as f32
+                child_height = dimension_for_random_character.height as f32;
             }
 
             let child_location = ComputedLocation::Computed(
@@ -276,7 +276,6 @@ fn apply_inline_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNo
         }
 
         let (child_width, child_height) = compute_layout(child, all_nodes, font_cache, cursor_x, cursor_y);
-
 
         if (cursor_x - top_left_x + child_width) > max_allowed_width as f32 {
 
@@ -378,12 +377,19 @@ fn wrap_text(layout_rect: &LayoutRect, max_width: f32, font: &SdlFont) -> Vec<St
             } else {
                 current_line += 1;
                 str_buffers.push(String::new());
+
+                //TODO: this is ugly and slow, but for now we need to not have all new lines start with a space:
+                if str_buffer_undecided.chars().next().unwrap() == ' ' {
+                    str_buffer_undecided.remove(0);
+                }
+
                 str_buffers[current_line] = str_buffer_undecided;
             }
             str_buffer_undecided = String::new();
         }
 
-        str_buffers[current_line].push(c);
+        str_buffer_undecided.push(c);
+
         pos += 1;
     }
 

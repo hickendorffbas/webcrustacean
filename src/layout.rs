@@ -273,8 +273,9 @@ fn apply_inline_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNo
                 let resolved_styles = resolve_full_styles_for_layout_node(child, all_nodes);
                 let font = get_font_given_styles(&resolved_styles);
                 let sdl_font = font_cache.get_font(&font.0);
-                let amount_of_space_left = max_allowed_width - (cursor_x - top_left_x);
-                let wrapped_text = wrap_text(child.rects.borrow().last().unwrap(), amount_of_space_left, sdl_font);
+                let relative_cursor_x = cursor_x - top_left_x;
+                let amount_of_space_left_on_line = max_allowed_width - relative_cursor_x;
+                let wrapped_text = wrap_text(child.rects.borrow().last().unwrap(), max_allowed_width, amount_of_space_left_on_line, sdl_font);
 
                 let mut rects_for_child = Vec::new();
                 for text in wrapped_text {
@@ -364,9 +365,7 @@ fn compute_size_for_rect(layout_rect: &LayoutRect, resolved_styles: &Vec<&Style>
 }
 
 
-fn wrap_text(layout_rect: &LayoutRect, max_width: f32, font: &SdlFont) -> Vec<String> {
-    //TODO: this is not correct, max_width is currently how far we have left before the first wrap, but after wrapping we might have more width left,
-    //      because there might be other stuff before us on the first line. we need to pass max_width for the general box we are in, and a width_left for the first line....
+fn wrap_text(layout_rect: &LayoutRect, max_width: f32, width_remaining_on_current_line: f32, font: &SdlFont) -> Vec<String> {
     let text = layout_rect.text.as_ref();
     let no_wrap_positions = &layout_rect.non_breaking_space_positions;
     let mut str_buffers = Vec::new();
@@ -382,7 +381,9 @@ fn wrap_text(layout_rect: &LayoutRect, max_width: f32, font: &SdlFont) -> Vec<St
             combined.push_str(&str_buffers[current_line]);
             combined.push_str(&str_buffer_undecided);
 
-            if get_text_dimension(&combined, font).width < max_width {
+            let width_to_check = if str_buffers.len() == 1 { width_remaining_on_current_line } else { max_width };
+
+            if get_text_dimension(&combined, font).width < width_to_check {
                 str_buffers[current_line] = combined;
             } else {
                 current_line += 1;

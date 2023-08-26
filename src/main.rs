@@ -1,3 +1,4 @@
+mod color;
 mod debug;
 mod dom;
 mod fonts;
@@ -6,35 +7,26 @@ mod html_parser;
 mod layout;
 mod macros;
 mod network;
+mod platform;
 mod renderer;
-mod rendering_context;
 mod style;
 #[cfg(test)] mod test_util; //TODO: is there a better (test-specific) place to define this?
 
-use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use crate::debug::{debug_log_warn, debug_print_layout_tree};
-use crate::fonts::{Font, FontCache};
+use crate::debug::{debug_log_warn, debug_print_dom_tree, debug_print_layout_tree};
+use crate::fonts::Font;
 use crate::layout::{FullLayout, LayoutNode};
 use crate::network::http_get;
-use crate::renderer::{Color, clear as renderer_clear, render_text};
-use crate::style::resolve_full_styles_for_layout_node;
 
-use debug::debug_print_dom_tree;
-use layout::get_font_given_styles;
-use renderer::Position;
-use renderer::draw_line;
-use rendering_context::RenderingContext;
+use renderer::render;
 use sdl2::{
     event::Event as SdlEvent,
     keyboard::Keycode,
     mouse::MouseButton,
-    render::WindowCanvas,
-    Sdl
 };
 
 
@@ -52,23 +44,6 @@ const TARGET_MS_PER_FRAME: u128 = 1000 / TARGET_FPS as u128;
 
 
 
-
-fn build_canvas(sdl_context: &Sdl) -> WindowCanvas {
-    let video_subsystem = sdl_context.video()
-        .expect("Could not get the video subsystem");
-
-    let window = video_subsystem.window("BBrowser", SCREEN_WIDTH, SCREEN_HEIGHT)
-        .position_centered()
-        .build()
-        .expect("could not initialize video subsystem");
-
-    let canvas = window.into_canvas().build()
-        .expect("could not make a canvas");
-
-    return canvas;
-}
-
-
 fn frame_time_check(start_instant: &Instant, currently_loading_new_page: bool) {
     let millis_elapsed = start_instant.elapsed().as_millis();
     let sleep_time_millis = TARGET_MS_PER_FRAME as i64 - millis_elapsed as i64;
@@ -82,56 +57,6 @@ fn frame_time_check(start_instant: &Instant, currently_loading_new_page: bool) {
     }
 }
 
-
-fn render(canvas: &mut WindowCanvas, full_layout: &FullLayout, rendering_context: &mut RenderingContext) {
-    //TODO: I'm not sure if I want the renderer to be the thing that takes the layoutnodes,
-    //      I think so? In that case this method should move there -> well, in the renderer, but currently the renderer contains all kinds of
-    //      SDL specific stuff, that should move one layer further (platform or something)
-
-    renderer_clear(canvas, Color::WHITE);
-
-    render_header(canvas, rendering_context);
-
-    render_layout_node(canvas, &full_layout.root_node, &full_layout.all_nodes, rendering_context);
-
-    canvas.present();
-}
-
-
-fn render_header(canvas: &mut WindowCanvas, rendering_context: &mut RenderingContext) {
-    let own_font = Font::new(true, 14);
-    let font = rendering_context.font_cache.get_font(&own_font);
-    render_text(canvas, &"Bbrowser".to_owned(), 10, 10, font, Color::BLACK.to_sdl_color());
-    draw_line(canvas, Position { x: 0, y: HEADER_HIGHT as u32 - 5 }, Position { x: SCREEN_WIDTH, y: HEADER_HIGHT as u32 - 5 }, Color::BLACK);
-}
-
-
-fn render_layout_node(canvas: &mut WindowCanvas, layout_node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>,
-                      rendering_context: &mut RenderingContext) {
-    //TODO: this will probably contain a lot of logic converting styles to their SDL/draw equivalent. Should probably live in the renderer (and then the
-    //      SDL stuff in platform)
-
-    let resolved_styles = resolve_full_styles_for_layout_node(&layout_node, all_nodes);
-
-    for layout_rect in layout_node.rects.borrow().iter() {
-        if layout_rect.text.is_some() {
-
-            let (own_font, font_color) = get_font_given_styles(&resolved_styles);
-            let font = rendering_context.font_cache.get_font(&own_font);
-            let (x, y) = layout_rect.location.borrow().x_y_as_int();
-
-            render_text(canvas, layout_rect.text.as_ref().unwrap(), x, y, &font, font_color.to_sdl_color());
-        }
-    }
-
-    if layout_node.children.is_some() {
-        for child in layout_node.children.as_ref().unwrap() {
-            if child.visible {
-                render_layout_node(canvas, &child, all_nodes, rendering_context);
-            }
-        }
-    }
-}
 
 
 fn handle_left_click(x: u32, y: u32, layout_tree: &FullLayout) {
@@ -164,6 +89,10 @@ fn handle_left_click(x: u32, y: u32, layout_tree: &FullLayout) {
 
 
 fn main() -> Result<(), String> {
+    let sdl_context = sdl2::init()?;
+    let ttf_context = sdl2::ttf::init()
+                                .expect("could not initialize the font system");
+    let mut platform = platform::init_platform(sdl_context, &ttf_context).unwrap();
 
     let args: Vec<String> = env::args().collect();
 
@@ -174,16 +103,6 @@ fn main() -> Result<(), String> {
         url = args[1].clone();
     }
     let loading_local_file = url.starts_with("file://");
-
-
-    let sdl_context = sdl2::init()?;
-    let mut canvas = build_canvas(&sdl_context);
-
-
-    let ttf_context = sdl2::ttf::init()
-                                .expect("could not initialize the font system");
-    let mut font_cache = FontCache {ttf_context: &ttf_context, mapping: HashMap::new()};
-
 
     let file_contents: String;
     if loading_local_file {
@@ -201,13 +120,11 @@ fn main() -> Result<(), String> {
     let dom_tree = html_parser::parse(lex_result);
     debug_print_dom_tree(&dom_tree, "DOM TREE");
 
-    let full_layout_tree = layout::build_full_layout(&dom_tree, &mut font_cache);
+    let full_layout_tree = layout::build_full_layout(&dom_tree, &mut platform);
     debug_print_layout_tree(&full_layout_tree.root_node);
 
-    let mut rendering_context = RenderingContext { font_cache };
 
-
-    let mut event_pump = sdl_context.event_pump()?;
+    let mut event_pump = platform.sdl_context.event_pump()?;
     'main_loop: loop {
         let start_instant = Instant::now();
 
@@ -224,7 +141,7 @@ fn main() -> Result<(), String> {
             }
         }
 
-        render(&mut canvas, &full_layout_tree, &mut rendering_context);
+        render(&mut platform, &full_layout_tree);
         frame_time_check(&start_instant, currently_loading_new_page);
         currently_loading_new_page = false;
     }

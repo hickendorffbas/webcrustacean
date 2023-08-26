@@ -1,7 +1,7 @@
 use std::{collections::HashMap, rc::Rc};
 
+use crate::color::Color;
 use crate::layout::LayoutNode;
-use crate::renderer::Color;  //TODO: color does not belong in the renderer
 
 
 #[cfg(test)]

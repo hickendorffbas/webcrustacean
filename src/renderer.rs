@@ -1,106 +1,55 @@
-use sdl2::rect::{Point as SdlPoint, Rect};
-use sdl2::render::{TextureQuery, WindowCanvas};
-use sdl2::pixels::Color as SdlColor;
-use sdl2::ttf::Font as SdlFont;
+use std::collections::HashMap;
+use std::rc::Rc;
+
+use crate::{
+    HEADER_HIGHT,
+    SCREEN_WIDTH
+};
+
+use crate::color::Color;
+use crate::fonts::Font;
+use crate::layout::{FullLayout, LayoutNode, get_font_given_styles};
+use crate::platform::{Platform, Position};
+use crate::style::resolve_full_styles_for_layout_node;
 
 
-//TODO: eventually I would to like to seperate platform (SDL) and the renderer
+pub fn render(platform: &mut Platform, full_layout: &FullLayout) {
+    platform.render_clear(Color::WHITE);
 
+    render_header(platform);
 
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Clone, Copy)]
-pub struct Position {  //TODO: this is more general than just the renderer, but maybe also not needed if we start using LayoutBox
-    pub x: u32,
-    pub y: u32,
-}
-impl Position {
-    fn to_sdl_point(&self) -> SdlPoint { //TODO: maybe want to put all SDL stuff in a separate place, and therefore not in this impl?
-        return SdlPoint::new(self.x as i32, self.y as i32);
-    }
-}
+    render_layout_node(platform, &full_layout.root_node, &full_layout.all_nodes);
 
-
-#[cfg_attr(debug_assertions, derive(Debug))]
-pub struct Dimension {
-    pub width: f32,
-    pub height: f32,
+    platform.present();
 }
 
 
-#[cfg_attr(debug_assertions, derive(Debug))]
-pub struct Color {
-    pub r: u8,
-    pub g: u8,
-    pub b: u8
+fn render_header(platform: &mut Platform) {
+    let font = Font::new(true, 14);
+    platform.render_text(&"Bbrowser".to_owned(), 10, 10, &font, Color::BLACK);
+    platform.draw_line(Position { x: 0, y: HEADER_HIGHT as u32 - 5 },
+                       Position { x: SCREEN_WIDTH, y: HEADER_HIGHT as u32 - 5 },
+                       Color::BLACK);
 }
-impl Color {
-    pub fn to_sdl_color(&self) -> SdlColor {
-        return SdlColor::RGB(self.r, self.g, self.b)
-    }
-    pub const fn new(p_r: u8, p_g: u8, p_b: u8) -> Color { Color { r: p_r, g: p_g, b: p_b } }
 
-    pub fn from_string(color_name: &String) -> Option<Color> {  //TODO: maby use result here, instead of option?
 
-        //TODO: check here if we have a #00ff00 like color spec, and parse that...
+fn render_layout_node(platform: &mut Platform, layout_node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>) {
+    let resolved_styles = resolve_full_styles_for_layout_node(&layout_node, all_nodes);
 
-        match color_name.as_str() {
-            "black" => Some(Color::BLACK),
-            "blue" => Some(Color::BLUE),
-            "red" => Some(Color::RED),
-            "green" => Some(Color::GREEN),
-            "white" => Some(Color::WHITE),
-            _ => None
+    for layout_rect in layout_node.rects.borrow().iter() {
+        if layout_rect.text.is_some() {
+            let (font, font_color) = get_font_given_styles(&resolved_styles);
+            let (x, y) = layout_rect.location.borrow().x_y_as_int();
+
+            platform.render_text(layout_rect.text.as_ref().unwrap(), x, y, &font, font_color);
         }
     }
 
-    pub const BLACK: Color = Color::new(0, 0, 0);
-    pub const BLUE: Color = Color::new(0, 0, 255);
-    pub const GREEN: Color = Color::new(0, 255, 0);
-    pub const RED: Color = Color::new(255, 0, 0);
-    pub const WHITE: Color = Color::new(255, 255, 255);
-}
-
-
-pub fn clear(canvas: &mut WindowCanvas, color: Color) {
-    canvas.set_draw_color(color.to_sdl_color());
-    canvas.clear();
-}
-
-
-pub fn draw_line(canvas: &mut WindowCanvas, start: Position, end: Position, color: Color) {
-    canvas.set_draw_color(color.to_sdl_color());
-    canvas.draw_line(start.to_sdl_point(), end.to_sdl_point()).expect("error drawing line");
-}
-
-
-pub fn render_text(canvas: &mut WindowCanvas, text: &String, x: u32, y: u32, font: &SdlFont, color: SdlColor) {
-    let sdl_surface = font
-        .render(text)
-        .blended(color)
-        .expect("error while rendering text");
-
-    let texture_creator = canvas.texture_creator();
-
-    let texture = texture_creator
-        .create_texture_from_surface(&sdl_surface)
-        .expect("error while building surface");
-
-
-    let TextureQuery { width, height, .. } = texture.query();
-
-    let target = Rect::new(x as i32, y as i32, width, height);
-
-    canvas.copy(&texture, None, Some(target))
-        .expect("copying texture in canvas failed!");
-}
-
-
-pub fn get_text_dimension(text: &String, font: &SdlFont) -> Dimension {
-    let result = font.size_of(text);
-    if result.is_ok() {
-        let (width, height) = result.ok().unwrap();
-        return Dimension { width: width as f32, height: height as f32 };
-    } else {
-        panic!("{:?}", result.err().unwrap()); //TODO: don't think this is a good way of reporting the error
+    if layout_node.children.is_some() {
+        for child in layout_node.children.as_ref().unwrap() {
+            if child.visible {
+                render_layout_node(platform, &child, all_nodes);
+            }
+        }
     }
 }

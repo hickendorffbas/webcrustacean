@@ -1,11 +1,11 @@
-- see todo in layout::wrap_text(), we need to pass in 2 width's , not 1
-    -> first make a failing testcase
+- setup a better place to draw things (like just above platform, but below renderer)
 
+    - Then I need a ui.rs that will know about scrollbars, addresbar, popups, etc
+    - I will render the webpage just from main, but it knows how much space it can't use due to header and scollbar etc.
 
-
-
-
-bigger items:
-
-- add scrolling
-
+    TODO:
+        - seperate header drawing from webpage drawing (put header in ui.rs)
+        - make space for a scrollbar, and render one without scrolling
+        - make the webcontent renderable from a certain x position
+        - make the scrollwheel change the rendering position
+        - implement the scrolbar controlling that position

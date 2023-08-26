@@ -199,8 +199,9 @@ fn main() -> Result<(), String> {
 
     let lex_result = html_lexer::lex_html(&file_contents);
     let dom_tree = html_parser::parse(lex_result);
-    let full_layout_tree = layout::build_full_layout(&dom_tree, &mut font_cache);
     debug_print_dom_tree(&dom_tree, "DOM TREE");
+
+    let full_layout_tree = layout::build_full_layout(&dom_tree, &mut font_cache);
     debug_print_layout_tree(&full_layout_tree.root_node);
 
     let mut rendering_context = RenderingContext { font_cache };

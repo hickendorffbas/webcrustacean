@@ -157,9 +157,7 @@ pub fn build_full_layout(document_node: &Document, font_cache: &mut FontCache) -
 }
 
 
-//This function is responsible for setting the location rects on the node, and all its children. It does so recursively,
-//   but some nodes are directly handled as children (especially when we expect they will wrap and have no children themselves),
-//   instead of making the recursive call for them, so this function is not called for all nodes!
+//This function is responsible for setting the location rects on the node, and all its children.
 //TODO: need to find a way to make good tests for this
 fn compute_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>, font_cache: &mut FontCache,
                   top_left_x: f32, top_left_y: f32) -> (f32, f32) {
@@ -187,26 +185,16 @@ fn compute_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>,
 
     debug_assert!(node.rects.borrow().len() == 1);
 
-    if node.rects.borrow()[0].text.is_some() {
+    let resolved_styles = &resolve_full_styles_for_layout_node(&node, &all_nodes);
+    let (node_width, node_height) = compute_size_for_rect(node.rects.borrow().iter().next().unwrap(), resolved_styles, font_cache);
 
-        //TODO: this is not correct, we need al the wrapping logic here as well. I think we should never have this here.
-        //      the fact that we get there means we did not wrap this node in a Display::Block
+    let node_location = ComputedLocation::Computed(
+        Rect { x: top_left_x, y: top_left_y, width: node_width, height: node_height }
+    );
+    node.update_single_rect_location(node_location);
 
-        let resolved_styles = resolve_full_styles_for_layout_node(node, all_nodes);
-        let (own_font, _) = get_font_given_styles(&resolved_styles);
-        let font = font_cache.get_font(&own_font);
-        let text_dimension = get_text_dimension(&node.rects.borrow()[0].text.as_ref().unwrap(), &font);
-
-        let node_location = ComputedLocation::Computed(
-            Rect { x: top_left_x, y: top_left_y, width: text_dimension.width, height: text_dimension.height}
-        );
-        node.update_single_rect_location(node_location);
-        return (text_dimension.width, text_dimension.height);
-    }
-
-    panic!("This has no children and no text, but this node was not handled inside a block or inline layout function of its parent...");
+    return (node_width, node_height);
 }
-
 
 pub fn get_font_given_styles(resolved_styles: &Vec<&Style>) -> (Font, Color) {
     let font_bold = has_style_value(&resolved_styles, "font-weight", &"bold".to_owned());
@@ -248,6 +236,8 @@ fn apply_inline_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNo
 
     for child in node.children.as_ref().unwrap() {
 
+        let (child_width, child_height) = compute_layout(child, all_nodes, font_cache, cursor_x, cursor_y);
+
         if child.line_break {
             let child_height;
             if cursor_x != top_left_x {
@@ -275,23 +265,29 @@ fn apply_inline_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNo
             continue;
         }
 
-        let (child_width, child_height) = compute_layout(child, all_nodes, font_cache, cursor_x, cursor_y);
-
         if (cursor_x - top_left_x + child_width) > max_allowed_width as f32 {
 
             if child.children.is_none() && child.rects.borrow().iter().all(|rect| -> bool { rect.text.is_some()} ) {
-                // we might be able to split rects, and put part of the node on this line
+                // in this case, we might be able to split rects, and put part of the node on this line
 
-                let font = get_font_given_styles(&resolve_full_styles_for_layout_node(child, all_nodes));
+                let resolved_styles = resolve_full_styles_for_layout_node(child, all_nodes);
+                let font = get_font_given_styles(&resolved_styles);
                 let sdl_font = font_cache.get_font(&font.0);
                 let amount_of_space_left = max_allowed_width - (cursor_x - top_left_x);
                 let wrapped_text = wrap_text(child.rects.borrow().last().unwrap(), amount_of_space_left, sdl_font);
 
                 let mut rects_for_child = Vec::new();
                 for text in wrapped_text {
-                    let text_dimension = get_text_dimension(&text, sdl_font);
 
-                    if cursor_x - top_left_x + text_dimension.width > max_allowed_width {
+                    let new_rect = LayoutRect {
+                        text: Some(text),
+                        non_breaking_space_positions: None, //For now not computing these, although it would be more correct to update them after wrapping
+                        location: RefCell::new(ComputedLocation::NotYetComputed),
+                    };
+
+                    let (rect_width, rect_height) = compute_size_for_rect(&new_rect, &resolved_styles, font_cache);
+
+                    if cursor_x - top_left_x + rect_width > max_allowed_width {
                         if cursor_x != top_left_x {
                             cursor_x = top_left_x;
                             cursor_y += max_height_of_line;
@@ -299,17 +295,14 @@ fn apply_inline_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNo
                         }
                     }
 
-                    rects_for_child.push(LayoutRect {
-                        text: Some(text),
-                        non_breaking_space_positions: None, //For now not computing these, although it would be more correct to update them after wrapping
-                        location: RefCell::new(ComputedLocation::Computed(
-                            Rect { x: cursor_x, y: cursor_y, width: text_dimension.width, height: text_dimension.height }
-                        )),
-                    });
+                    new_rect.location.replace(ComputedLocation::Computed(
+                        Rect { x: cursor_x, y: cursor_y, width: rect_width, height: rect_height }
+                    ));
+                    rects_for_child.push(new_rect);
 
-                    cursor_x += text_dimension.width;
+                    cursor_x += rect_width;
                     max_width = max_width.max(cursor_x);
-                    max_height_of_line = max_height_of_line.max(text_dimension.height);
+                    max_height_of_line = max_height_of_line.max(rect_height);
 
                 }
                 child.rects.replace(rects_for_child);
@@ -356,7 +349,24 @@ fn apply_inline_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNo
 }
 
 
+//Note that this function returns the size, but does not update the rect with that size (because we also need to position for the computed location object)
+fn compute_size_for_rect(layout_rect: &LayoutRect, resolved_styles: &Vec<&Style>, font_cache: &mut FontCache) -> (f32, f32) {
+
+    if layout_rect.text.is_some() {
+        let font = get_font_given_styles(resolved_styles);
+        let sdl_font = font_cache.get_font(&font.0);
+        let text_dimension = get_text_dimension(layout_rect.text.as_ref().unwrap(), sdl_font);
+        return (text_dimension.width, text_dimension.height);
+    }
+
+    //we panic here, because we only expect to be this this method for rects of layoutnodes that don't have children, otherwise we should compute via the sizes of the children:
+    panic!("We don't know how to compute the size of rects without content, they should be computed via their children")
+}
+
+
 fn wrap_text(layout_rect: &LayoutRect, max_width: f32, font: &SdlFont) -> Vec<String> {
+    //TODO: this is not correct, max_width is currently how far we have left before the first wrap, but after wrapping we might have more width left,
+    //      because there might be other stuff before us on the first line. we need to pass max_width for the general box we are in, and a width_left for the first line....
     let text = layout_rect.text.as_ref();
     let no_wrap_positions = &layout_rect.non_breaking_space_positions;
     let mut str_buffers = Vec::new();

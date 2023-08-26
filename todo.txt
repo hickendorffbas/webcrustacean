@@ -1,5 +1,7 @@
-- fix the text rendering we still have outside of the inline layout method. Probably by inserting block nodes in the DOM ?
-- figure out why the text wraps, but slightly to late (a bit further than our screen is wide)
+- see todo in layout::wrap_text(), we need to pass in 2 width's , not 1
+    -> first make a failing testcase
+
+
 
 
 

@@ -7,9 +7,15 @@ use crate::fonts::Font;
 use crate::platform::{Platform, Position};
 
 
-pub const HEADER_HEIGHT: u32 = 50; //The height of the header of bbrowser, so below this point the actual page is rendered
+pub const HEADER_HEIGHT: u32 = 50;
 pub const SIDE_SCROLLBAR_WIDTH: u32 = 20;
 const UI_BASIC_COLOR: Color = Color::new(212, 208, 200); 
+
+
+pub const CONTENT_HEIGHT: f32 = (SCREEN_HEIGHT - HEADER_HEIGHT) as f32;
+pub const CONTENT_WIDTH: f32 = (SCREEN_WIDTH - SIDE_SCROLLBAR_WIDTH) as f32;
+pub const CONTENT_TOP_LEFT_X: f32 = 0.0;
+pub const CONTENT_TOP_LEFT_Y: f32 = HEADER_HEIGHT as f32;
 
 
 pub fn render_ui(platform: &mut Platform) {

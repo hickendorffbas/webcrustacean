@@ -1,24 +1,18 @@
 use std::cell::RefCell;
-use std::collections::{
-    HashMap,
-    HashSet
-};
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
-use std::sync::atomic::{
-    AtomicUsize,
-    Ordering
-};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
-use crate::{
-    Font,
-    SCREEN_WIDTH,
+use crate::ui::{
+    CONTENT_HEIGHT,
+    CONTENT_TOP_LEFT_X,
+    CONTENT_TOP_LEFT_Y,
+    CONTENT_WIDTH
 };
+use crate::Font;
 use crate::color::Color;
 use crate::debug::debug_log_warn;
-use crate::dom::{
-    Document,
-    DomNode
-};
+use crate::dom::{Document, DomNode};
 use crate::platform::Platform;
 use crate::style::{
     Style,
@@ -28,18 +22,8 @@ use crate::style::{
     has_style_value,
     resolve_full_styles_for_layout_node,
 };
-use crate::ui::{
-    HEADER_HEIGHT,
-    SIDE_SCROLLBAR_WIDTH
-};
 
 
-const CONTENT_WIDTH: f32 = (SCREEN_WIDTH - SIDE_SCROLLBAR_WIDTH) as f32;
-const CONTENT_TOP_LEFT_X: f32 = 0.0;
-const CONTENT_TOP_LEFT_Y: f32 = HEADER_HEIGHT as f32;
-
-
-//TODO: I need to understand orderings with atomics a bit better
 static NEXT_LAYOUT_NODE_INTERNAL: AtomicUsize = AtomicUsize::new(1);
 pub fn get_next_layout_node_interal_id() -> usize { NEXT_LAYOUT_NODE_INTERNAL.fetch_add(1, Ordering::Relaxed) }
 
@@ -103,7 +87,7 @@ impl ComputedLocation {
         //      in general we need to do a pass on using correct units everywhere
         return match self {
             ComputedLocation::NotYetComputed => panic!("Node has not yet been computed"),
-            ComputedLocation::Computed(node) => { (node.x as u32, node.y as u32) },
+            ComputedLocation::Computed(loc) => { (loc.x as u32, loc.y as u32) },
         }
     }
     pub fn is_inside(&self, x: u32, y: u32) -> bool {
@@ -111,11 +95,24 @@ impl ComputedLocation {
         //      in general we need to do a pass on using correct units everywhere
         return match self {
             ComputedLocation::NotYetComputed => panic!("Node has not yet been computed"),
-            ComputedLocation::Computed(node) => {
-                x as f32 >= node.x && x as f32 <= node.x + node.width
+            ComputedLocation::Computed(loc) => {
+                x as f32 >= loc.x && x as f32 <= loc.x + loc.width
                 &&
-                y as f32 >= node.y && y as f32 <= node.y + node.height
+                y as f32 >= loc.y && y as f32 <= loc.y + loc.height
             },
+        }
+    }
+    pub fn is_visible_on_y_location(&self, y: f32) -> bool {
+        return match self {
+            ComputedLocation::NotYetComputed => panic!("Node has not yet been computed"),
+            ComputedLocation::Computed(loc) => {
+                let top_of_node = loc.y;
+                let top_of_view = y;
+                let bottom_of_node = top_of_node + loc.height;
+                let bottom_of_view = top_of_view + CONTENT_HEIGHT;
+
+                !(top_of_node > bottom_of_view || bottom_of_node < top_of_view)
+            }
         }
     }
 }

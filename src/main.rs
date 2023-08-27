@@ -121,6 +121,7 @@ fn main() -> Result<(), String> {
     let dom_tree = html_parser::parse(lex_result);
     let full_layout_tree = layout::build_full_layout(&dom_tree, &mut platform);
 
+    let current_scroll_y = 0.0;
 
     let mut event_pump = platform.sdl_context.event_pump()?;
     'main_loop: loop {
@@ -139,7 +140,7 @@ fn main() -> Result<(), String> {
             }
         }
 
-        render(&mut platform, &full_layout_tree);
+        render(&mut platform, &full_layout_tree, current_scroll_y);
         frame_time_check(&start_instant, currently_loading_new_page);
         currently_loading_new_page = false;
     }

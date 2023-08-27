@@ -384,8 +384,12 @@ fn wrap_text(layout_rect: &LayoutRect, max_width: f32, width_remaining_on_curren
 
     str_buffers.push(String::new());
 
-    for c in text.unwrap().chars() {
-        if c == ' ' && !(no_wrap_positions.is_some() && no_wrap_positions.as_ref().unwrap().contains(&pos)) {
+    let mut char_iter = text.unwrap().chars();
+    loop {
+        let possible_c = char_iter.next();
+
+        if possible_c.is_none() ||
+                (possible_c.unwrap() == ' ' && !(no_wrap_positions.is_some() && no_wrap_positions.as_ref().unwrap().contains(&pos))) {
             let mut combined = String::new();
             combined.push_str(&str_buffers[current_line]);
             combined.push_str(&str_buffer_undecided);
@@ -408,8 +412,11 @@ fn wrap_text(layout_rect: &LayoutRect, max_width: f32, width_remaining_on_curren
             str_buffer_undecided = String::new();
         }
 
-        str_buffer_undecided.push(c);
+        if possible_c.is_none() {
+            break;
+        }
 
+        str_buffer_undecided.push(possible_c.unwrap());
         pos += 1;
     }
 

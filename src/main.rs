@@ -10,6 +10,7 @@ mod network;
 mod platform;
 mod renderer;
 mod style;
+mod ui;
 #[cfg(test)] mod test_util; //TODO: is there a better (test-specific) place to define this?
 
 use std::env;
@@ -17,7 +18,7 @@ use std::fs;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use crate::debug::{debug_log_warn, debug_print_dom_tree, debug_print_layout_tree};
+use crate::debug::debug_log_warn;
 use crate::fonts::Font;
 use crate::layout::{FullLayout, LayoutNode};
 use crate::network::http_get;
@@ -37,7 +38,7 @@ const TARGET_FPS: u32 = if cfg!(debug_assertions) { 30 } else { 60 };
 const SCREEN_WIDTH: u32 = 1000;
 const SCREEN_HEIGHT: u32 = 700;
 const DEFAULT_LOCATION_TO_LOAD: &str = "file://testinput/doc.html";
-const HEADER_HIGHT: f32 = 50.0; //The hight of the header of bbrowser, so below this point the actual page is rendered:
+
 
 //Non-config constants:
 const TARGET_MS_PER_FRAME: u128 = 1000 / TARGET_FPS as u128;
@@ -118,10 +119,7 @@ fn main() -> Result<(), String> {
 
     let lex_result = html_lexer::lex_html(&file_contents);
     let dom_tree = html_parser::parse(lex_result);
-    debug_print_dom_tree(&dom_tree, "DOM TREE");
-
     let full_layout_tree = layout::build_full_layout(&dom_tree, &mut platform);
-    debug_print_layout_tree(&full_layout_tree.root_node);
 
 
     let mut event_pump = platform.sdl_context.event_pump()?;

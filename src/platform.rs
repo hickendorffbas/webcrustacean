@@ -68,7 +68,13 @@ impl Platform<'_> {
         let result = sdl_font.size_of(text);
         let (width, height) = result.expect("error measuring size of text");
         return (width as f32, height as f32);
-    }    
+    }
+    pub fn fill_rect(&mut self, x: u32, y: u32, width: u32, height: u32, color: Color) {
+        self.canvas.set_draw_color(color.to_sdl_color());
+
+        let rect = Rect::new(x as i32, y as i32, width, height);
+        self.canvas.fill_rect(rect).expect("error drawing rect");
+    }
 }
 
 

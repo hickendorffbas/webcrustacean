@@ -1,16 +1,24 @@
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet
+};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering
+};
 
 use crate::{
     Font,
-    HEADER_HIGHT,
     SCREEN_WIDTH,
 };
 use crate::color::Color;
 use crate::debug::debug_log_warn;
-use crate::dom::{Document, DomNode};
+use crate::dom::{
+    Document,
+    DomNode
+};
 use crate::platform::Platform;
 use crate::style::{
     Style,
@@ -20,6 +28,15 @@ use crate::style::{
     has_style_value,
     resolve_full_styles_for_layout_node,
 };
+use crate::ui::{
+    HEADER_HEIGHT,
+    SIDE_SCROLLBAR_WIDTH
+};
+
+
+const CONTENT_WIDTH: f32 = (SCREEN_WIDTH - SIDE_SCROLLBAR_WIDTH) as f32;
+const CONTENT_TOP_LEFT_X: f32 = 0.0;
+const CONTENT_TOP_LEFT_Y: f32 = HEADER_HEIGHT as f32;
 
 
 //TODO: I need to understand orderings with atomics a bit better
@@ -145,9 +162,9 @@ pub fn build_full_layout(document_node: &Document, platform: &mut Platform) -> F
     let rc_root_node = Rc::new(root_node);
     all_nodes.insert(id_of_node_being_built, Rc::clone(&rc_root_node));
 
-    let (root_width, root_height) = compute_layout(&rc_root_node, &all_nodes, 0.0, HEADER_HIGHT, platform);
+    let (root_width, root_height) = compute_layout(&rc_root_node, &all_nodes, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y, platform);
     let root_location = ComputedLocation::Computed(
-        Rect { x: 0.0, y: HEADER_HIGHT, width: root_width, height: root_height }
+        Rect { x: CONTENT_TOP_LEFT_X, y: CONTENT_TOP_LEFT_Y, width: root_width, height: root_height }
     );
     rc_root_node.update_single_rect_location(root_location);
 
@@ -175,7 +192,7 @@ fn compute_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>,
             return apply_block_layout(node, all_nodes, top_left_x, top_left_y, platform);
         }
         if all_inline {
-            return apply_inline_layout(node, all_nodes, top_left_x, top_left_y, (SCREEN_WIDTH - 1) as f32 - top_left_x, platform);
+            return apply_inline_layout(node, all_nodes, top_left_x, top_left_y, CONTENT_WIDTH - top_left_x, platform);
         }
 
         panic!("Not all children are either inline or block, earlier in the process this should already have been fixed with anonymous blocks");

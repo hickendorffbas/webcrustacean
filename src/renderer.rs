@@ -1,35 +1,22 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::{
-    HEADER_HIGHT,
-    SCREEN_WIDTH
-};
 
 use crate::color::Color;
-use crate::fonts::Font;
 use crate::layout::{FullLayout, LayoutNode, get_font_given_styles};
-use crate::platform::{Platform, Position};
+use crate::platform::Platform;
 use crate::style::resolve_full_styles_for_layout_node;
+use crate::ui::render_ui;
 
 
 pub fn render(platform: &mut Platform, full_layout: &FullLayout) {
     platform.render_clear(Color::WHITE);
 
-    render_header(platform);
+    render_ui(platform);
 
     render_layout_node(platform, &full_layout.root_node, &full_layout.all_nodes);
 
     platform.present();
-}
-
-
-fn render_header(platform: &mut Platform) {
-    let font = Font::new(true, 14);
-    platform.render_text(&"Bbrowser".to_owned(), 10, 10, &font, Color::BLACK);
-    platform.draw_line(Position { x: 0, y: HEADER_HIGHT as u32 - 5 },
-                       Position { x: SCREEN_WIDTH, y: HEADER_HIGHT as u32 - 5 },
-                       Color::BLACK);
 }
 
 

@@ -35,10 +35,10 @@ use sdl2::{
 //Config:
 const FONT_PATH: &str = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf";
 const TARGET_FPS: u32 = if cfg!(debug_assertions) { 30 } else { 60 };
-const SCREEN_WIDTH: u32 = 1000;
-const SCREEN_HEIGHT: u32 = 700;
+const SCREEN_WIDTH: f32 = 1000.0;
+const SCREEN_HEIGHT: f32 = 700.0;
 const DEFAULT_LOCATION_TO_LOAD: &str = "file://testinput/doc.html";
-
+const SCROLL_SPEED: i32 = 25;
 
 //Non-config constants:
 const TARGET_MS_PER_FRAME: u128 = 1000 / TARGET_FPS as u128;
@@ -121,7 +121,10 @@ fn main() -> Result<(), String> {
     let dom_tree = html_parser::parse(lex_result);
     let full_layout_tree = layout::build_full_layout(&dom_tree, &mut platform);
 
-    let current_scroll_y = 0.0;
+    let mut current_scroll_y = 0.0;
+
+    debug_assert!(full_layout_tree.root_node.rects.borrow().len() == 1);
+    let current_page_height = full_layout_tree.root_node.rects.borrow().iter().next().unwrap().location.borrow().height();
 
     let mut event_pump = platform.sdl_context.event_pump()?;
     'main_loop: loop {
@@ -135,7 +138,23 @@ fn main() -> Result<(), String> {
                 },
                 SdlEvent::MouseButtonUp { mouse_btn: MouseButton::Left, x: mouse_x, y: mouse_y, .. } => {
                     handle_left_click(mouse_x as u32, mouse_y as u32, &full_layout_tree);
-                }
+                },
+                SdlEvent::MouseWheel { y, direction, .. } => {
+                    match direction {
+                        sdl2::mouse::MouseWheelDirection::Normal => {
+                            //TODO: someday it might be nice to implement smooth scrolling (animate the movement over frames)
+                            current_scroll_y -= (y * SCROLL_SPEED) as f32;
+                            if current_scroll_y < 0.0 {
+                                current_scroll_y = 0.0;
+                            }
+                            if current_scroll_y > (current_page_height + 1.0) {
+                                current_scroll_y = current_page_height + 1.0;
+                            }
+                        },
+                        sdl2::mouse::MouseWheelDirection::Flipped => {},
+                        sdl2::mouse::MouseWheelDirection::Unknown(_) => debug_log_warn("Unknown mousewheel direction unknown!"),
+                    }
+                },
                 _ => {}
             }
         }

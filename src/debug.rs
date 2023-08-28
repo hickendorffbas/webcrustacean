@@ -58,10 +58,10 @@ fn debug_print_dom_node_tree_with_indent(dom_node: &Rc<DomNode>, indent_cnt: u32
 
 
 #[cfg(not(debug_assertions))]
-pub fn debug_log_warn(_: String) {}
+pub fn debug_log_warn<S: AsRef<str>>(_: S) {}
 #[cfg(debug_assertions)]
-pub fn debug_log_warn(warning_text: String) {
-    println!("WARN: {}", warning_text);
+pub fn debug_log_warn<S: AsRef<str>>(warning_text: S) {
+    println!("WARN: {}", warning_text.as_ref());
 }
 
 

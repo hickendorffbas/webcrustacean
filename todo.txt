@@ -1,14 +1,11 @@
 
-- BUG: we loose the end of some text in some paragraphs
-
-
 - implement scrolling:
 
     TODO:
-        - make the scrollwheel change the rendering position
         - implement the scrolbar controlling that position
 
 
 
 - align where (in which layers) we use ints vs floats (I think as much floats as possible)
+    - in general I need to be more specific about what units are used where
 

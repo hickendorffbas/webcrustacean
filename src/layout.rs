@@ -4,12 +4,11 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::ui::{
-    CONTENT_HEIGHT,
     CONTENT_TOP_LEFT_X,
     CONTENT_TOP_LEFT_Y,
     CONTENT_WIDTH
 };
-use crate::Font;
+use crate::{Font, SCREEN_HEIGHT};
 use crate::color::Color;
 use crate::debug::debug_log_warn;
 use crate::dom::{Document, DomNode};
@@ -82,12 +81,16 @@ pub enum ComputedLocation {
     Computed(Rect)
 }
 impl ComputedLocation {
-    pub fn x_y_as_int(&self) -> (u32, u32) {
-        //TODO: for now we use this to get pixel values, but we actually should convert units properly somewhere (before the renderer, I guess)
-        //      in general we need to do a pass on using correct units everywhere
+    pub fn x_y(&self) -> (f32, f32) {
         return match self {
             ComputedLocation::NotYetComputed => panic!("Node has not yet been computed"),
-            ComputedLocation::Computed(loc) => { (loc.x as u32, loc.y as u32) },
+            ComputedLocation::Computed(loc) => { (loc.x, loc.y) },
+        }
+    }
+    pub fn height(&self) -> f32 {
+        return match self {
+            ComputedLocation::NotYetComputed => panic!("Node has not yet been computed"),
+            ComputedLocation::Computed(loc) => { loc.height },
         }
     }
     pub fn is_inside(&self, x: u32, y: u32) -> bool {
@@ -109,7 +112,7 @@ impl ComputedLocation {
                 let top_of_node = loc.y;
                 let top_of_view = y;
                 let bottom_of_node = top_of_node + loc.height;
-                let bottom_of_view = top_of_view + CONTENT_HEIGHT;
+                let bottom_of_view = top_of_view + SCREEN_HEIGHT;
 
                 !(top_of_node > bottom_of_view || bottom_of_node < top_of_view)
             }

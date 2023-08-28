@@ -15,9 +15,9 @@ use crate::ui::render_ui;
 pub fn render(platform: &mut Platform, full_layout: &FullLayout, current_scroll_y: f32) {
     platform.render_clear(Color::WHITE);
 
-    render_ui(platform);
-
     render_layout_node(platform, &full_layout.root_node, &full_layout.all_nodes, current_scroll_y);
+
+    render_ui(platform);
 
     platform.present();
 }
@@ -33,9 +33,9 @@ fn render_layout_node(platform: &mut Platform, layout_node: &LayoutNode, all_nod
     for layout_rect in layout_node.rects.borrow().iter() {
         if layout_rect.text.is_some() {
             let (font, font_color) = get_font_given_styles(&resolved_styles);
-            let (x, y) = layout_rect.location.borrow().x_y_as_int();
+            let (x, y) = layout_rect.location.borrow().x_y();
 
-            platform.render_text(layout_rect.text.as_ref().unwrap(), x, y  - current_scroll_y as u32, &font, font_color);
+            platform.render_text(layout_rect.text.as_ref().unwrap(), x, y - current_scroll_y, &font, font_color);
         }
     }
 

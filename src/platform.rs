@@ -15,13 +15,12 @@ use crate::fonts::{FontCache, Font};
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone, Copy)]
-pub struct Position {  //TODO: this is more general than just the renderer, but maybe also not needed if we start using LayoutBox
-    pub x: u32,
-    pub y: u32,
+pub struct Position {
+    pub x: f32,
+    pub y: f32,
 }
 impl Position {
-    //TODO: this method belongs in the platform!
-    pub fn to_sdl_point(&self) -> SdlPoint { //TODO: maybe want to put all SDL stuff in a separate place, and therefore not in this impl?
+    pub fn to_sdl_point(&self) -> SdlPoint {
         return SdlPoint::new(self.x as i32, self.y as i32);
     }
 }
@@ -44,7 +43,7 @@ impl Platform<'_> {
         self.canvas.set_draw_color(color.to_sdl_color());
         self.canvas.draw_line(start.to_sdl_point(), end.to_sdl_point()).expect("error drawing line");
     }
-    pub fn render_text(&mut self, text: &String, x: u32, y: u32, font: &Font, color: Color) {
+    pub fn render_text(&mut self, text: &String, x: f32, y: f32, font: &Font, color: Color) {
         let sdl_font = self.font_cache.get_font(font);
 
         let sdl_surface = sdl_font
@@ -69,7 +68,7 @@ impl Platform<'_> {
         let (width, height) = result.expect("error measuring size of text");
         return (width as f32, height as f32);
     }
-    pub fn fill_rect(&mut self, x: u32, y: u32, width: u32, height: u32, color: Color) {
+    pub fn fill_rect(&mut self, x: f32, y: f32, width: u32, height: u32, color: Color) {
         self.canvas.set_draw_color(color.to_sdl_color());
 
         let rect = Rect::new(x as i32, y as i32, width, height);
@@ -82,7 +81,7 @@ pub fn init_platform<'a>(sdl_context: Sdl, ttf_context: &Sdl2TtfContext) -> Resu
     let video_subsystem = sdl_context.video()
         .expect("Could not get the video subsystem");
 
-    let window = video_subsystem.window("BBrowser", SCREEN_WIDTH, SCREEN_HEIGHT)
+    let window = video_subsystem.window("BBrowser", SCREEN_WIDTH as u32, SCREEN_HEIGHT as u32)
         .position_centered()
         .build()
         .expect("could not initialize video subsystem");

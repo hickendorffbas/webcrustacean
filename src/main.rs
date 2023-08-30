@@ -22,6 +22,7 @@ use crate::debug::debug_log_warn;
 use crate::fonts::Font;
 use crate::layout::{FullLayout, LayoutNode};
 use crate::network::http_get;
+use crate::ui::CONTENT_HEIGHT;
 
 use renderer::render;
 use sdl2::{
@@ -65,7 +66,6 @@ fn handle_left_click(x: u32, y: u32, layout_tree: &FullLayout) {
     fn check_left_click_for_layout_node(x: u32, y: u32, layout_node: &Rc<LayoutNode>) {
 
         let any_inside = layout_node.rects.borrow().iter().any(|rect| -> bool {rect.location.borrow().is_inside(x, y)});
-
         if !any_inside {
             return;
         }
@@ -82,10 +82,18 @@ fn handle_left_click(x: u32, y: u32, layout_tree: &FullLayout) {
                 }
             }
         }
-
     }
 
     check_left_click_for_layout_node(x, y, &layout_tree.root_node);
+}
+
+
+pub struct MouseState {
+    x: i32,
+    y: i32,
+    click_start_x: i32,
+    click_start_y: i32,
+    left_down: bool,
 }
 
 
@@ -126,6 +134,9 @@ fn main() -> Result<(), String> {
     debug_assert!(full_layout_tree.root_node.rects.borrow().len() == 1);
     let current_page_height = full_layout_tree.root_node.rects.borrow().iter().next().unwrap().location.borrow().height();
 
+
+    let mut mouse_state = MouseState { x: 0, y: 0, click_start_x: 0, click_start_y: 0, left_down: false };
+
     let mut event_pump = platform.sdl_context.event_pump()?;
     'main_loop: loop {
         let start_instant = Instant::now();
@@ -136,20 +147,38 @@ fn main() -> Result<(), String> {
                 SdlEvent::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     break 'main_loop;
                 },
+                SdlEvent::MouseMotion { x: mouse_x, y: mouse_y, yrel, .. } => {
+                    mouse_state.x = mouse_x;
+                    mouse_state.y = mouse_y;
+
+                    if mouse_state.left_down && ui::mouse_started_on_scrollblock(&mouse_state, current_scroll_y, current_page_height) {
+                        current_scroll_y = clamp_scroll_position(current_scroll_y + yrel as f32, current_page_height);
+                    }
+                },
+                SdlEvent::MouseButtonDown { mouse_btn: MouseButton::Left, x: mouse_x, y: mouse_y, .. } => {
+                    mouse_state.x = mouse_x;
+                    mouse_state.y = mouse_y;
+                    mouse_state.click_start_x = mouse_x;
+                    mouse_state.click_start_y = mouse_y;
+                    mouse_state.left_down = true;
+                },
                 SdlEvent::MouseButtonUp { mouse_btn: MouseButton::Left, x: mouse_x, y: mouse_y, .. } => {
-                    handle_left_click(mouse_x as u32, mouse_y as u32, &full_layout_tree);
+                    mouse_state.x = mouse_x;
+                    mouse_state.y = mouse_y;
+                    mouse_state.left_down = false;
+
+                    let abs_movement = (mouse_state.x - mouse_state.click_start_x).abs() + (mouse_state.y - mouse_state.click_start_y).abs();
+                    let was_dragging = abs_movement > 1;
+
+                    if !was_dragging {
+                        handle_left_click(mouse_x as u32, (mouse_y as f32 + current_scroll_y) as u32, &full_layout_tree);
+                    }
                 },
                 SdlEvent::MouseWheel { y, direction, .. } => {
                     match direction {
                         sdl2::mouse::MouseWheelDirection::Normal => {
                             //TODO: someday it might be nice to implement smooth scrolling (animate the movement over frames)
-                            current_scroll_y -= (y * SCROLL_SPEED) as f32;
-                            if current_scroll_y < 0.0 {
-                                current_scroll_y = 0.0;
-                            }
-                            if current_scroll_y > (current_page_height + 1.0) {
-                                current_scroll_y = current_page_height + 1.0;
-                            }
+                            current_scroll_y = clamp_scroll_position(current_scroll_y - (y * SCROLL_SPEED) as f32, current_page_height);
                         },
                         sdl2::mouse::MouseWheelDirection::Flipped => {},
                         sdl2::mouse::MouseWheelDirection::Unknown(_) => debug_log_warn("Unknown mousewheel direction unknown!"),
@@ -165,4 +194,15 @@ fn main() -> Result<(), String> {
     }
 
     Ok(())
+}
+
+fn clamp_scroll_position(current_scroll_y: f32, current_page_height: f32) -> f32 {
+    if current_scroll_y < 0.0 {
+        return 0.0;
+    }
+    let max_scroll_y = (current_page_height + 1.0) - CONTENT_HEIGHT;
+    if current_scroll_y > max_scroll_y {
+        return max_scroll_y;
+    }
+    return current_scroll_y;
 }

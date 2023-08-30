@@ -2,10 +2,12 @@
 - implement scrolling:
 
     TODO:
-        - implement the scrolbar controlling that position
-
+        - BUG: when dragging, the scrollblock does not go all the way down
 
 
 - align where (in which layers) we use ints vs floats (I think as much floats as possible)
     - in general I need to be more specific about what units are used where
+
+
+- load basic images
 

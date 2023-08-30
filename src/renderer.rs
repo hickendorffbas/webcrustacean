@@ -17,7 +17,10 @@ pub fn render(platform: &mut Platform, full_layout: &FullLayout, current_scroll_
 
     render_layout_node(platform, &full_layout.root_node, &full_layout.all_nodes, current_scroll_y);
 
-    render_ui(platform);
+    debug_assert!(full_layout.root_node.rects.borrow().len() == 1);
+    let page_height = full_layout.root_node.rects.borrow().first().unwrap().location.borrow().height();
+
+    render_ui(platform, current_scroll_y, page_height);
 
     platform.present();
 }

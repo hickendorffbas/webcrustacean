@@ -94,6 +94,8 @@ pub struct MouseState {
     click_start_x: i32,
     click_start_y: i32,
     left_down: bool,
+    //TODO: eventually we need a more generic way to refer to controls we are currently dragging...
+    is_dragging_scrollblock: bool,
 }
 
 
@@ -135,7 +137,7 @@ fn main() -> Result<(), String> {
     let current_page_height = full_layout_tree.root_node.rects.borrow().iter().next().unwrap().location.borrow().height();
 
 
-    let mut mouse_state = MouseState { x: 0, y: 0, click_start_x: 0, click_start_y: 0, left_down: false };
+    let mut mouse_state = MouseState { x: 0, y: 0, click_start_x: 0, click_start_y: 0, left_down: false, is_dragging_scrollblock: false };
 
     let mut event_pump = platform.sdl_context.event_pump()?;
     'main_loop: loop {
@@ -151,7 +153,7 @@ fn main() -> Result<(), String> {
                     mouse_state.x = mouse_x;
                     mouse_state.y = mouse_y;
 
-                    if mouse_state.left_down && ui::mouse_started_on_scrollblock(&mouse_state, current_scroll_y, current_page_height) {
+                    if mouse_state.is_dragging_scrollblock {
                         current_scroll_y = clamp_scroll_position(current_scroll_y + yrel as f32, current_page_height);
                     }
                 },
@@ -161,11 +163,19 @@ fn main() -> Result<(), String> {
                     mouse_state.click_start_x = mouse_x;
                     mouse_state.click_start_y = mouse_y;
                     mouse_state.left_down = true;
+
+                    //TODO: its probably nicer to call a generic method in UI, to check any drags and update the mouse state
+                    if ui::mouse_on_scrollblock(&mouse_state, current_scroll_y, current_page_height) {
+                        mouse_state.is_dragging_scrollblock = true;
+                    } else {
+                        mouse_state.is_dragging_scrollblock = false;
+                    }
                 },
                 SdlEvent::MouseButtonUp { mouse_btn: MouseButton::Left, x: mouse_x, y: mouse_y, .. } => {
                     mouse_state.x = mouse_x;
                     mouse_state.y = mouse_y;
                     mouse_state.left_down = false;
+                    mouse_state.is_dragging_scrollblock = false;
 
                     let abs_movement = (mouse_state.x - mouse_state.click_start_x).abs() + (mouse_state.y - mouse_state.click_start_y).abs();
                     let was_dragging = abs_movement > 1;

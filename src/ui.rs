@@ -25,11 +25,11 @@ pub fn render_ui(platform: &mut Platform, current_scroll_y: f32, page_height: f3
 }
 
 
-pub fn mouse_started_on_scrollblock(mouse_state: &MouseState, current_scroll_y: f32, page_height: f32) -> bool {
+pub fn mouse_on_scrollblock(mouse_state: &MouseState, current_scroll_y: f32, page_height: f32) -> bool {
     let (block_x, block_y, block_width, block_height) = compute_scrollblock_positions(current_scroll_y, page_height);
-    return mouse_state.click_start_x > block_x as i32 && mouse_state.click_start_x < (block_x + block_width) as i32
+    return mouse_state.x > block_x as i32 && mouse_state.x < (block_x + block_width) as i32
            &&
-           mouse_state.click_start_y > block_y as i32 && mouse_state.click_start_y < (block_y + block_height) as i32
+           mouse_state.y > block_y as i32 && mouse_state.y < (block_y + block_height) as i32
 }
 
 

@@ -4,6 +4,9 @@
 
 
 - load basic images
+    - factor out url loading (i.e. either loading from network or file based on url), put it in network module
+        - make a resource loader (that does either file or network)
+    - load more different image formats
 
 
 - work on better automated testing

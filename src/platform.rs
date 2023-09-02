@@ -1,8 +1,11 @@
 use std::collections::HashMap;
 
-use sdl2::rect::{Point as SdlPoint, Rect};
-use sdl2::render::TextureQuery;
+use image::DynamicImage;
+
 use sdl2::{
+    pixels::PixelFormatEnum,
+    rect::{Point as SdlPoint, Rect},
+    render::{TextureQuery, TextureAccess},
     render::WindowCanvas,
     Sdl,
     ttf::Sdl2TtfContext,
@@ -27,22 +30,26 @@ impl Position {
 
 
 pub struct Platform<'a> {
+    //TODO: would be nice to not have all of these public eventually
     pub sdl_context: Sdl,
     pub font_cache: FontCache<'a, 'a>,
-    canvas: WindowCanvas,
+    pub canvas: WindowCanvas,
 }
 impl Platform<'_> {
     pub fn present(&mut self) {
         self.canvas.present();
     }
+
     pub fn render_clear(&mut self, color: Color) {
         self.canvas.set_draw_color(color.to_sdl_color());
         self.canvas.clear();
     }
+
     pub fn draw_line(&mut self, start: Position, end: Position, color: Color) {
         self.canvas.set_draw_color(color.to_sdl_color());
         self.canvas.draw_line(start.to_sdl_point(), end.to_sdl_point()).expect("error drawing line");
     }
+
     pub fn render_text(&mut self, text: &String, x: f32, y: f32, font: &Font, color: Color) {
         let sdl_font = self.font_cache.get_font(font);
 
@@ -62,18 +69,35 @@ impl Platform<'_> {
         self.canvas.copy(&texture, None, Some(target))
             .expect("copying texture in canvas failed!");
     }
+
     pub fn get_text_dimension(&mut self, text: &String, font: &Font) -> (f32, f32) {
         let sdl_font = self.font_cache.get_font(font);
         let result = sdl_font.size_of(text);
         let (width, height) = result.expect("error measuring size of text");
         return (width as f32, height as f32);
     }
+
     pub fn fill_rect(&mut self, x: f32, y: f32, width: u32, height: u32, color: Color) {
         self.canvas.set_draw_color(color.to_sdl_color());
 
         let rect = Rect::new(x as i32, y as i32, width, height);
         self.canvas.fill_rect(rect).expect("error drawing rect");
     }
+
+    pub fn render_image(&mut self, image: &DynamicImage, x: f32, y: f32) {
+
+        let texture_creator = self.canvas.texture_creator(); //TODO: reuse the texture creator for the canvas by storing it on the context?
+
+        //TODO: the pixel format below is not always correct, derive it from the image
+        let mut texture = texture_creator.create_texture(PixelFormatEnum::RGB24, TextureAccess::Target, image.width(), image.height()).unwrap();
+
+        let bytes_per_pixel = 3; //TODO: not always correct, can we derive this from the img object? Probably based on the pixel type
+
+        texture.update(None, image.as_bytes(), image.width() as usize * bytes_per_pixel).unwrap();
+
+        self.canvas.copy(&texture, None, Some(Rect::new(x as i32, y as i32, image.width(), image.height()))).expect("error rendering image");
+    }
+
 }
 
 
@@ -95,4 +119,3 @@ pub fn init_platform<'a>(sdl_context: Sdl, ttf_context: &Sdl2TtfContext) -> Resu
         font_cache: FontCache {ttf_context: ttf_context, mapping: HashMap::new()},
     });
 }
-

@@ -21,12 +21,13 @@ use std::time::{Duration, Instant};
 use crate::debug::debug_log_warn;
 use crate::fonts::Font;
 use crate::layout::{FullLayout, LayoutNode};
-use crate::network::http_get;
+use crate::network::{http_get_text, http_get_image};
+use crate::renderer::render;
 use crate::ui::CONTENT_HEIGHT;
 
-use renderer::render;
 use sdl2::{
     event::Event as SdlEvent,
+    image as SdlImage,
     keyboard::Keycode,
     mouse::MouseButton,
 };
@@ -105,6 +106,10 @@ fn main() -> Result<(), String> {
                                 .expect("could not initialize the font system");
     let mut platform = platform::init_platform(sdl_context, &ttf_context).unwrap();
 
+    //this is not used by our code, but needs to be kept alive in order to work with images in SDL2
+    //TODO: can I move this to platform, and keep it on a context somehow?
+    let _image_context = SdlImage::init(SdlImage::InitFlag::PNG | SdlImage::InitFlag::JPG)?;
+
     let args: Vec<String> = env::args().collect();
 
     let url: String;
@@ -122,8 +127,12 @@ fn main() -> Result<(), String> {
         file_contents = fs::read_to_string(file_path)
                                 .expect("Something went wrong reading the file");
     } else {
-        file_contents = http_get(String::from(url));
+        file_contents = http_get_text(String::from(url));
     }
+
+    //TODO: this is of course temporary, these loads should be triggered from image uri's in the html document we are loading
+    let img_url = "https://upload.wikimedia.org/wikipedia/commons/thumb/a/af/Einstein1921_by_F_Schmutzer_2.jpg/88px-Einstein1921_by_F_Schmutzer_2.jpg";
+    let test_image = http_get_image(img_url.to_owned());
 
     let mut currently_loading_new_page = true;
 
@@ -198,7 +207,7 @@ fn main() -> Result<(), String> {
             }
         }
 
-        render(&mut platform, &full_layout_tree, current_scroll_y);
+        render(&mut platform, &full_layout_tree, current_scroll_y, &test_image);
         frame_time_check(&start_instant, currently_loading_new_page);
         currently_loading_new_page = false;
     }

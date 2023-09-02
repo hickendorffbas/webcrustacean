@@ -1,3 +1,4 @@
+use crate::html_lexer::AttributeContent;
 #[cfg(test)]
 
 use crate::html_lexer::{HtmlToken, HtmlTokenWithLocation};
@@ -53,3 +54,11 @@ pub fn html_comment_loc(text: &str, line_nr: u32, character_nr: u32) -> HtmlToke
     return HtmlTokenWithLocation { html_token: HtmlToken::Comment(text.to_owned()), line: line_nr, character: character_nr };
 }
 pub fn html_comment(text: &str) -> HtmlTokenWithLocation { return html_comment_loc(text, 0, 0); }
+
+
+pub fn html_attribute_loc(name: &str, value: &str, line_nr: u32, character_nr: u32) -> HtmlTokenWithLocation {
+    return HtmlTokenWithLocation { html_token: HtmlToken::Attribute(AttributeContent { name: name.to_owned(), value: value.to_owned() }),
+                                   line: line_nr, character: character_nr };
+}
+pub fn html_attribute(name: &str, value: &str) -> HtmlTokenWithLocation { return html_attribute_loc(name, value, 0, 0); }
+

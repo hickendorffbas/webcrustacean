@@ -272,7 +272,7 @@ fn consume_full_name(iterator: &mut HtmlIterator) -> String {
         }
 
         let peek = *opt_peek.unwrap();
-        if (peek >= 'a' && peek <= 'z') || (peek >= 'A' && peek <= 'Z') || (peek >= '0' && peek <= '9') {
+        if (peek >= 'a' && peek <= 'z') || (peek >= 'A' && peek <= 'Z') || (peek >= '0' && peek <= '9') || peek == '-' {
             str_buffer.push(iterator.next());
         } else {
             return str_buffer

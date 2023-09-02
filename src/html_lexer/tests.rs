@@ -94,3 +94,22 @@ fn test_comment() {
     let tokens = html_lexer::lex_html(html);
     assert!(tokens_equal_ignoring_location(tokens, expected_tokens));
 }
+
+
+#[test]
+fn test_attribute_with_dash() {
+    let html = "<html><div a-b=\"x\"></div></html>";
+
+    let expected_tokens = vec![
+        html_open("html"),
+        html_open_tag_end(),
+        html_open("div"),
+        html_attribute("a-b", "x"),
+        html_open_tag_end(),
+        html_close("div"),
+        html_close("html"),
+    ];
+
+    let tokens = html_lexer::lex_html(html);
+    assert!(tokens_equal_ignoring_location(tokens, expected_tokens));
+}

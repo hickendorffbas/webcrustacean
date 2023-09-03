@@ -1,6 +1,5 @@
 
-- BUG: according to the spec, the IMG tag has no closing tag (also not self closing). I need to ignore a possible close somewhere, so I don't get
-       children under the img node (currently that happens if you do <img src="..." />)
+- BUG: if you drag the scrollbar, speed correponds to page moving instead of scrollblock moving
 
 
 - load more different image formats

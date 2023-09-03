@@ -17,6 +17,9 @@ use crate::html_lexer::{HtmlToken, HtmlTokenWithLocation};
 mod tests;
 
 
+const SELF_CLOSING_TAGS: [&str; 6] = ["br", "hr", "img", "input", "link", "meta"];
+
+
 pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>) -> Document {
     let mut all_nodes = HashMap::new();
 
@@ -60,9 +63,9 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
             },
             HtmlToken::OpenTagEnd => {
                 //Some tags can't have children and therefore also no (self)close tag
-                //TODO: on the line below I create a new "img" String each time, that seems bad...
-                if tag_being_parsed.is_some() && tag_being_parsed == Some("img".to_owned()) { //TODO: did I handle uppercase already?
-                                                                                              //      (needs to happen in the lexer)
+
+                //TODO: did I handle uppercase tags already? (needs to happen in the lexer)
+                if tag_being_parsed.is_some() && SELF_CLOSING_TAGS.contains(&tag_being_parsed.as_ref().unwrap().as_str()) {
                     let new_node = DomNode::Element(ElementDomNode {
                         internal_id: node_being_build_internal_id,
                         name: tag_being_parsed,
@@ -92,6 +95,13 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
 
             },
             HtmlToken::CloseTag { name } => {
+
+                if SELF_CLOSING_TAGS.contains(&name.as_str()) {
+                    //these tags should never be closed, so we just ignore when that happens anyway
+                    *current_token_idx += 1;
+                    continue;
+                }
+
                 if tag_being_parsed.is_none() || name != tag_being_parsed.as_ref().unwrap() {
                     //TODO: this is a case that can happen in the real world of course, figure out how to handle this...
                     debug_log_warn(format!("We are not closing the tag we opened, something is wrong! ({}) ({}:{})", 

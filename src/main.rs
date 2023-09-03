@@ -119,10 +119,6 @@ fn main() -> Result<(), String> {
     }
     let page_content = resource_loader::load_text(&url);
 
-    //TODO: this is of course temporary, these loads should be triggered from image uri's in the html document we are loading
-    let img_url = "https://upload.wikimedia.org/wikipedia/commons/thumb/a/af/Einstein1921_by_F_Schmutzer_2.jpg/88px-Einstein1921_by_F_Schmutzer_2.jpg";
-    let test_image = resource_loader::load_image(&img_url.to_owned());
-
     let mut currently_loading_new_page = true;
 
     let lex_result = html_lexer::lex_html(&page_content);
@@ -196,7 +192,7 @@ fn main() -> Result<(), String> {
             }
         }
 
-        render(&mut platform, &full_layout_tree, current_scroll_y, &test_image);
+        render(&mut platform, &full_layout_tree, current_scroll_y);
         frame_time_check(&start_instant, currently_loading_new_page);
         currently_loading_new_page = false;
     }

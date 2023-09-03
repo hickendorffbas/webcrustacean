@@ -3,12 +3,14 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use image::DynamicImage;
+
 use crate::ui::{
     CONTENT_TOP_LEFT_X,
     CONTENT_TOP_LEFT_Y,
     CONTENT_WIDTH
 };
-use crate::{Font, SCREEN_HEIGHT};
+use crate::{Font, SCREEN_HEIGHT, resource_loader};
 use crate::color::Color;
 use crate::debug::debug_log_warn;
 use crate::dom::{Document, DomNode};
@@ -56,13 +58,17 @@ impl LayoutNode {
         debug_assert!(self.rects.borrow().len() == 1);
         self.rects.borrow()[0].location.replace(new_location);
     }
+    pub fn can_wrap(&self) -> bool {
+        return self.rects.borrow().iter().any(|rect| { rect.text.is_some()});
+    }
 }
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct LayoutRect {
-    pub text: Option<String>, //eventually we need different kinds of layout nodes, text is just one type (or do we just have text/no text maybe?)
+    pub text: Option<String>,
     pub non_breaking_space_positions: Option<HashSet<usize>>, //TODO: might be nice to combine this with text_content in a text struct
+    pub image: Option<DynamicImage>,
     pub location: RefCell<ComputedLocation>,
 }
 impl LayoutRect {
@@ -70,6 +76,7 @@ impl LayoutRect {
         return LayoutRect {
             text: None,
             non_breaking_space_positions: None,
+            image: None,
             location: RefCell::new(ComputedLocation::NotYetComputed),
         };
     }
@@ -85,6 +92,18 @@ impl ComputedLocation {
         return match self {
             ComputedLocation::NotYetComputed => panic!("Node has not yet been computed"),
             ComputedLocation::Computed(loc) => { (loc.x, loc.y) },
+        }
+    }
+    pub fn x(&self) -> f32 {
+        return match self {
+            ComputedLocation::NotYetComputed => panic!("Node has not yet been computed"),
+            ComputedLocation::Computed(loc) => { loc.x },
+        }
+    }
+    pub fn y(&self) -> f32 {
+        return match self {
+            ComputedLocation::NotYetComputed => panic!("Node has not yet been computed"),
+            ComputedLocation::Computed(loc) => { loc.y },
         }
     }
     pub fn height(&self) -> f32 {
@@ -281,7 +300,7 @@ fn apply_inline_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNo
 
         if (cursor_x - top_left_x + child_width) > max_allowed_width {
 
-            if child.children.is_none() && child.rects.borrow().iter().all(|rect| -> bool { rect.text.is_some()} ) {
+            if child.children.is_none() && child.can_wrap() && child.rects.borrow().iter().all(|rect| -> bool { rect.text.is_some()} ) {
                 // in this case, we might be able to split rects, and put part of the node on this line
 
                 let resolved_styles = resolve_full_styles_for_layout_node(child, all_nodes);
@@ -297,6 +316,7 @@ fn apply_inline_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNo
                     let new_rect = LayoutRect {
                         text: Some(text),
                         non_breaking_space_positions: None, //For now not computing these, although it would be more correct to update them after wrapping
+                        image: None,
                         location: RefCell::new(ComputedLocation::NotYetComputed),
                     };
 
@@ -372,6 +392,11 @@ fn compute_size_for_rect(layout_rect: &LayoutRect, resolved_styles: &Vec<&Style>
         return platform.get_text_dimension(layout_rect.text.as_ref().unwrap(), &font.0);
     }
 
+    if layout_rect.image.is_some() {
+        let img = layout_rect.image.as_ref().unwrap();
+        return (img.width() as f32, img.height() as f32);
+    }
+
     //we panic here, because we only expect to be this this method for rects of layoutnodes that don't have children, otherwise we should compute via the sizes of the children:
     panic!("We don't know how to compute the size of rects without content, they should be computed via their children")
 }
@@ -433,6 +458,7 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, all_nodes: &mut H
     let mut partial_node_non_breaking_space_positions = None;
     let mut partial_node_visible = true;
     let mut partial_node_optional_link_url = None;
+    let mut partial_node_optional_img = None;
     let mut partial_node_line_break = false;
     let mut partial_node_display = Display::Block;
     let mut partial_node_styles = Vec::new();
@@ -444,6 +470,7 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, all_nodes: &mut H
             childs_to_recurse_on = &node.children;
         },
         DomNode::Element(node) => {
+            childs_to_recurse_on = &node.children;
 
             match &node.name.as_ref().unwrap()[..] {
 
@@ -509,6 +536,13 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, all_nodes: &mut H
                     //for now this needs the default for all fields
                 }
 
+                "img" => {
+                    let image_url = node.get_attribute_value("src").expect("can't handle img without src yet..."); //TODO: handle the un-expect'ed case
+                    partial_node_optional_img = Some(resource_loader::load_image(&image_url));
+
+                    childs_to_recurse_on = &None; //images should not have children (its a tag that does not have a close tag, formally)
+                }
+
                 "p" =>  {
                     partial_node_display = Display::Block;
                 }
@@ -523,14 +557,10 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, all_nodes: &mut H
                     debug_log_warn(format!("unknown tag: {}", default));
                 }
             }
-
-            childs_to_recurse_on = &node.children;
         }
         DomNode::Attribute(_) => {
-            partial_node_visible = false;
-
-            //TODO: this is a bit weird, we should error on getting to this point (because they don't need seperate layout),
-            //      but then we need to make sure we handle them in their parents node
+            //We should always handle these in their parents nodes
+            panic!("We should never have to handle attributes by themselves")
         },
         DomNode::Text(node) => {
             if document.has_element_parent_with_name(main_node, "a") {
@@ -593,6 +623,7 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, all_nodes: &mut H
     let layout_rect = LayoutRect {
         text: partial_node_text,
         non_breaking_space_positions: partial_node_non_breaking_space_positions,
+        image: partial_node_optional_img,
         location: RefCell::new(ComputedLocation::NotYetComputed),
     };
 

@@ -102,7 +102,12 @@ fn debug_print_layout_tree_with_indent(node: &Rc<LayoutNode>, indent_cnt: u32) {
         indent.push(' ');
     }
 
-    println!("{}{:?} ({}) (parent: {})", indent, node.rects.borrow(), node.internal_id, node.parent_id);
+    let mut rect_str = String::new();
+    for rect in node.rects.borrow().iter() {
+        rect_str.push_str(format!("LayoutRect({:?} {:?} {})", rect.location, rect.text, if rect.image.is_some() {"IMG"} else {""}, ).as_str())
+    }
+
+    println!("{}{:?} ({}) (parent: {})", indent, rect_str, node.internal_id, node.parent_id);
 
     if node.children.is_some() {
         for child in node.children.clone().unwrap() {

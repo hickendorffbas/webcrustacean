@@ -59,7 +59,21 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                 }
             },
             HtmlToken::OpenTagEnd => {
-                //I think I can just ignore this for now, it would just seperate attributes from tag children
+                //Some tags can't have children and therefore also no (self)close tag
+                //TODO: on the line below I create a new "img" String each time, that seems bad...
+                if tag_being_parsed.is_some() && tag_being_parsed == Some("img".to_owned()) { //TODO: did I handle uppercase already?
+                                                                                              //      (needs to happen in the lexer)
+                    let new_node = DomNode::Element(ElementDomNode {
+                        internal_id: node_being_build_internal_id,
+                        name: tag_being_parsed,
+                        children: Some(children),
+                        parent_id,
+                    });
+
+                    let rc_node = Rc::new(new_node);
+                    all_nodes.insert(node_being_build_internal_id, Rc::clone(&rc_node));
+                    return rc_node;
+                }
             },
             HtmlToken::Attribute(token) => {
                 let id_of_attr_node = get_next_dom_node_interal_id();

@@ -3,7 +3,6 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 
-//TODO: I need to understand orderings with atomics a bit better
 static NEXT_DOM_NODE_INTERNAL: AtomicUsize = AtomicUsize::new(1);
 pub fn get_next_dom_node_interal_id() -> usize { NEXT_DOM_NODE_INTERNAL.fetch_add(1, Ordering::Relaxed) }
 

@@ -279,7 +279,7 @@ fn apply_inline_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNo
             continue;
         }
 
-        if (cursor_x - top_left_x + child_width) > max_allowed_width as f32 {
+        if (cursor_x - top_left_x + child_width) > max_allowed_width {
 
             if child.children.is_none() && child.rects.borrow().iter().all(|rect| -> bool { rect.text.is_some()} ) {
                 // in this case, we might be able to split rects, and put part of the node on this line

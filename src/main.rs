@@ -9,19 +9,18 @@ mod macros;
 mod network;
 mod platform;
 mod renderer;
+mod resource_loader;
 mod style;
 mod ui;
 #[cfg(test)] mod test_util; //TODO: is there a better (test-specific) place to define this?
 
 use std::env;
-use std::fs;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use crate::debug::debug_log_warn;
 use crate::fonts::Font;
 use crate::layout::{FullLayout, LayoutNode};
-use crate::network::{http_get_text, http_get_image};
 use crate::renderer::render;
 use crate::ui::CONTENT_HEIGHT;
 
@@ -118,25 +117,15 @@ fn main() -> Result<(), String> {
     } else {
         url = args[1].clone();
     }
-    let loading_local_file = url.starts_with("file://");
-
-    let file_contents: String;
-    if loading_local_file {
-        let file_path = url[7..] //remove the "file://" prefix
-                        .to_owned();
-        file_contents = fs::read_to_string(file_path)
-                                .expect("Something went wrong reading the file");
-    } else {
-        file_contents = http_get_text(String::from(url));
-    }
+    let page_content = resource_loader::load_text(&url);
 
     //TODO: this is of course temporary, these loads should be triggered from image uri's in the html document we are loading
     let img_url = "https://upload.wikimedia.org/wikipedia/commons/thumb/a/af/Einstein1921_by_F_Schmutzer_2.jpg/88px-Einstein1921_by_F_Schmutzer_2.jpg";
-    let test_image = http_get_image(img_url.to_owned());
+    let test_image = resource_loader::load_image(&img_url.to_owned());
 
     let mut currently_loading_new_page = true;
 
-    let lex_result = html_lexer::lex_html(&file_contents);
+    let lex_result = html_lexer::lex_html(&page_content);
     let dom_tree = html_parser::parse(lex_result);
     let full_layout_tree = layout::build_full_layout(&dom_tree, &mut platform);
 

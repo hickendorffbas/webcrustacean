@@ -1,12 +1,12 @@
 
-- align where (in which layers) we use ints vs floats (I think as much floats as possible)
-    - in general I need to be more specific about what units are used where
-
-
 - load basic images
-    - factor out url loading (i.e. either loading from network or file based on url), put it in network module
-        - make a resource loader (that does either file or network)
+    - trigger load based on img tag
     - load more different image formats
 
 
 - work on better automated testing
+
+
+- add an adressbar
+    - make a textinput
+

@@ -110,10 +110,8 @@ pub fn lex_html(document: &str) -> Vec<HtmlTokenWithLocation> {
                         if let Some('-') = html_iterator.peek() { //we are reading a comment
                             html_iterator.next(); //eat the -
 
-                            //TODO: this will potentially add the closing -- to the comment string, but they might not be present
-                            //      remove them when present?
-                            let rest_of_tag_content = consume_until_char(&mut html_iterator, '>');
-                            tokens.push(HtmlTokenWithLocation { html_token: HtmlToken::Comment(rest_of_tag_content), line: line_nr, character: char_nr } );
+                            let comment_content = lex_comment(&mut html_iterator);
+                            tokens.push(HtmlTokenWithLocation { html_token: HtmlToken::Comment(comment_content), line: line_nr, character: char_nr } );
                         } else {
                             debug_log_warn(format!("Unexpected chars after <! ({}:{})", line_nr, char_nr));
                         }
@@ -262,6 +260,35 @@ fn consume_until_char(html_iterator: &mut HtmlIterator, limit: char) -> String {
     return str_buffer;
 }
 
+
+fn lex_comment(html_iterator: &mut HtmlIterator) -> String {
+    let mut buffer = String::new();
+
+    while html_iterator.has_next() {
+        let cur_char = html_iterator.next();
+
+        if cur_char == '-' {
+            let cur_char = html_iterator.next();
+            if cur_char == '-' {
+                let cur_char = html_iterator.next();
+                if cur_char == '>' {
+                    return buffer;
+                } else {
+                    buffer.push('-');
+                    buffer.push('-');
+                    buffer.push(cur_char);
+                }
+            } else {
+                buffer.push('-');
+                buffer.push(cur_char);
+            }
+        } else {
+            buffer.push(cur_char);
+        }
+    }
+
+    return buffer;
+}
 
 fn consume_full_name(iterator: &mut HtmlIterator) -> String {
     let mut str_buffer = String::new();

@@ -88,7 +88,24 @@ fn test_comment() {
         html_open_tag_end(),
         html_text("a"),
         html_close("x"),
-        html_comment(" this is a comment --")
+        html_comment(" this is a comment ")
+    ];
+
+    let tokens = html_lexer::lex_html(html);
+    assert!(tokens_equal_ignoring_location(tokens, expected_tokens));
+}
+
+
+#[test]
+fn test_comment_with_tag_inside() {
+    let html = "<x>a</x><!-- this is a comment with a <br /> tag -->";
+
+    let expected_tokens = vec![
+        html_open("x"),
+        html_open_tag_end(),
+        html_text("a"),
+        html_close("x"),
+        html_comment(" this is a comment with a <br /> tag ")
     ];
 
     let tokens = html_lexer::lex_html(html);

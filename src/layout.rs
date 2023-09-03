@@ -500,32 +500,26 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, all_nodes: &mut H
                 "h1" => {
                     partial_node_styles.push(Style { name: "font-weight".to_owned(), value: "bold".to_owned() });
                     partial_node_styles.push(Style { name: "font-size".to_owned(), value: "32".to_owned() });
-                    partial_node_display = Display::Block;
                 }
                 "h2" => {
                     partial_node_styles.push(Style { name: "font-weight".to_owned(), value: "bold".to_owned() });
                     partial_node_styles.push(Style { name: "font-size".to_owned(), value: "30".to_owned() });
-                    partial_node_display = Display::Block;
                 }
                 "h3" => {
                     partial_node_styles.push(Style { name: "font-weight".to_owned(), value: "bold".to_owned() });
                     partial_node_styles.push(Style { name: "font-size".to_owned(), value: "28".to_owned() });
-                    partial_node_display = Display::Block;
                 }
                 "h4" => {
                     partial_node_styles.push(Style { name: "font-weight".to_owned(), value: "bold".to_owned() });
                     partial_node_styles.push(Style { name: "font-size".to_owned(), value: "26".to_owned() });
-                    partial_node_display = Display::Block;
                 }
                 "h5" => {
                     partial_node_styles.push(Style { name: "font-weight".to_owned(), value: "bold".to_owned() });
                     partial_node_styles.push(Style { name: "font-size".to_owned(), value: "24".to_owned() });
-                    partial_node_display = Display::Block;
                 }
                 "h6" => {
                     partial_node_styles.push(Style { name: "font-weight".to_owned(), value: "bold".to_owned() });
                     partial_node_styles.push(Style { name: "font-size".to_owned(), value:  "22".to_owned() });
-                    partial_node_display = Display::Block;
                 }
 
                 "head" => {
@@ -539,12 +533,13 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, all_nodes: &mut H
                 "img" => {
                     let image_url = node.get_attribute_value("src").expect("can't handle img without src yet..."); //TODO: handle the un-expect'ed case
                     partial_node_optional_img = Some(resource_loader::load_image(&image_url));
+                    partial_node_display = Display::Inline;
 
                     childs_to_recurse_on = &None; //images should not have children (its a tag that does not have a close tag, formally)
                 }
 
                 "p" =>  {
-                    partial_node_display = Display::Block;
+
                 }
 
                 //TODO: this one might not be neccesary any more after we fix our html parser to not try to parse the javascript

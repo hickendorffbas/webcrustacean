@@ -204,7 +204,10 @@ fn clamp_scroll_position(current_scroll_y: f32, current_page_height: f32) -> f32
     if current_scroll_y < 0.0 {
         return 0.0;
     }
-    let max_scroll_y = (current_page_height + 1.0) - CONTENT_HEIGHT;
+    let mut max_scroll_y = (current_page_height + 1.0) - CONTENT_HEIGHT;
+    if max_scroll_y < 0.0 {
+        max_scroll_y = 0.0;
+    }
     if current_scroll_y > max_scroll_y {
         return max_scroll_y;
     }

@@ -1,8 +1,6 @@
 
 - BUG: images don't seem to be actually inlined yet... (i.e. when you put text before and/or after them)
 
-- BUG: scrolling does weird things if there is nothing to scroll (page is short)
-
 - BUG: according to the spec, the IMG tag has no closing tag (also not self closing). I need to ignore a possible close somewhere, so I don't get
        children under the img node (currently that happens if you do <img src="..." />)
 

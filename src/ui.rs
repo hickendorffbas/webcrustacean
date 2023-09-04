@@ -1,6 +1,7 @@
 use crate::{
+    MouseState,
     SCREEN_HEIGHT,
-    SCREEN_WIDTH, MouseState,
+    SCREEN_WIDTH,
 };
 use crate::color::Color;
 use crate::fonts::Font;
@@ -19,9 +20,16 @@ pub const CONTENT_TOP_LEFT_X: f32 = 0.0;
 pub const CONTENT_TOP_LEFT_Y: f32 = HEADER_HEIGHT;
 
 
-pub fn render_ui(platform: &mut Platform, current_scroll_y: f32, page_height: f32) {
-    render_header(platform);
-    render_scrollbar(platform, current_scroll_y, page_height);
+pub struct UIState {
+    pub addressbar_has_focus: bool,
+    pub addressbar_text: String,
+    pub current_scroll_y: f32,
+}
+
+
+pub fn render_ui(platform: &mut Platform, ui_state: &UIState, page_height: f32) {
+    render_header(platform, ui_state);
+    render_scrollbar(platform, ui_state.current_scroll_y, page_height);
 }
 
 
@@ -33,12 +41,20 @@ pub fn mouse_on_scrollblock(mouse_state: &MouseState, current_scroll_y: f32, pag
 }
 
 
-pub fn handle_keyboard_input(input: &String, is_backspace: bool) {
-    println!("keyboard input: {}, {}", input, is_backspace);
+pub fn handle_keyboard_input(input: &String, is_backspace: bool, ui_state: &mut UIState) {
+    if ui_state.addressbar_has_focus {
+        if is_backspace {
+            let mut chars_iter = ui_state.addressbar_text.chars();
+            chars_iter.next_back();
+            ui_state.addressbar_text = chars_iter.collect::<String>()
+        } else {
+            ui_state.addressbar_text.push_str(input);
+        }
+    }
 }
 
 
-fn render_header(platform: &mut Platform) {
+fn render_header(platform: &mut Platform, ui_state: &UIState) {
     platform.fill_rect(0.0, 0.0, SCREEN_WIDTH as u32, HEADER_HEIGHT as u32, Color::WHITE);
 
     let font = Font::new(true, 14);
@@ -46,6 +62,34 @@ fn render_header(platform: &mut Platform) {
     platform.draw_line(Position { x: 0.0, y: HEADER_HEIGHT - 1.0 },
                        Position { x: SCREEN_WIDTH, y: HEADER_HEIGHT - 1.0 },
                        Color::BLACK);
+
+    render_address_bar(platform, ui_state);
+}
+
+
+fn render_address_bar(platform: &mut Platform, ui_state: &UIState) {
+    let x = 100.0;
+    let y = 10.0;
+    let width = SCREEN_WIDTH - 200.0;
+    let height = 35.0;
+
+    draw_square(platform, x, y, width, height, Color::BLACK);
+
+    let font = Font::new(false, 18);
+    platform.render_text(&ui_state.addressbar_text, x + 5.0, y + 5.0, &font, Color::BLACK);
+}
+
+
+fn draw_square(platform: &mut Platform, x: f32, y: f32, width: f32, height: f32, color: Color) {
+    let p1 = Position { x, y };
+    let p2 = Position { x: width + x, y };
+    let p3 = Position { x: width + x, y: height + y };
+    let p4 = Position { x, y: height + y };
+
+    platform.draw_line(p1, p2, color);
+    platform.draw_line(p2, p3, color);
+    platform.draw_line(p3, p4, color);
+    platform.draw_line(p4, p1, color);
 }
 
 

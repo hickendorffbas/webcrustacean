@@ -9,18 +9,18 @@ use crate::layout::{
 };
 use crate::platform::Platform;
 use crate::style::resolve_full_styles_for_layout_node;
-use crate::ui::render_ui;
+use crate::ui::{render_ui, UIState};
 
 
-pub fn render(platform: &mut Platform, full_layout: &FullLayout, current_scroll_y: f32) {
+pub fn render(platform: &mut Platform, full_layout: &FullLayout, ui_state: &UIState) {
     platform.render_clear(Color::WHITE);
 
-    render_layout_node(platform, &full_layout.root_node, &full_layout.all_nodes, current_scroll_y);
+    render_layout_node(platform, &full_layout.root_node, &full_layout.all_nodes, ui_state.current_scroll_y);
 
     debug_assert!(full_layout.root_node.rects.borrow().len() == 1);
     let page_height = full_layout.root_node.rects.borrow().first().unwrap().location.borrow().height();
 
-    render_ui(platform, current_scroll_y, page_height);
+    render_ui(platform, ui_state, page_height);
 
     platform.present();
 }

@@ -51,6 +51,10 @@ impl Platform<'_> {
     }
 
     pub fn render_text(&mut self, text: &String, x: f32, y: f32, font: &Font, color: Color) {
+        if text.len() == 0 {
+            return;
+        }
+
         let sdl_font = self.font_cache.get_font(font);
 
         let sdl_surface = sdl_font

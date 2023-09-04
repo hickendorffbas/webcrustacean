@@ -5,8 +5,10 @@
 - work on better automated testing
 
 - add an adressbar
-    - make a textinput
-
+    - handle Enter
+    - make shift work for special symbols
+    - actually load the url you give it
+    - make it focus and un-focus on click
 
 - load more different image formats
 

@@ -22,7 +22,7 @@ use crate::debug::debug_log_warn;
 use crate::fonts::Font;
 use crate::layout::{FullLayout, LayoutNode};
 use crate::renderer::render;
-use crate::ui::CONTENT_HEIGHT;
+use crate::ui::{CONTENT_HEIGHT, UIState};
 
 use sdl2::keyboard::Mod;
 use sdl2::{
@@ -41,6 +41,8 @@ const SCREEN_WIDTH: f32 = 1000.0;
 const SCREEN_HEIGHT: f32 = 700.0;
 const DEFAULT_LOCATION_TO_LOAD: &str = "file://testinput/doc.html";
 const SCROLL_SPEED: i32 = 25;
+
+
 
 //Non-config constants:
 const TARGET_MS_PER_FRAME: u128 = 1000 / TARGET_FPS as u128;
@@ -127,13 +129,12 @@ fn main() -> Result<(), String> {
     let dom_tree = html_parser::parse(lex_result);
     let full_layout_tree = layout::build_full_layout(&dom_tree, &mut platform);
 
-    let mut current_scroll_y = 0.0;
-
     debug_assert!(full_layout_tree.root_node.rects.borrow().len() == 1);
     let current_page_height = full_layout_tree.root_node.rects.borrow().iter().next().unwrap().location.borrow().height();
 
 
     let mut mouse_state = MouseState { x: 0, y: 0, click_start_x: 0, click_start_y: 0, left_down: false, is_dragging_scrollblock: false };
+    let mut ui_state = UIState { addressbar_has_focus: false, addressbar_text: String::new(), current_scroll_y: 0.0 };
 
     let mut event_pump = platform.sdl_context.event_pump()?;
     'main_loop: loop {
@@ -150,7 +151,7 @@ fn main() -> Result<(), String> {
                     mouse_state.y = mouse_y;
 
                     if mouse_state.is_dragging_scrollblock {
-                        current_scroll_y = clamp_scroll_position(current_scroll_y + yrel as f32, current_page_height);
+                        ui_state.current_scroll_y = clamp_scroll_position(ui_state.current_scroll_y + yrel as f32, current_page_height);
                     }
                 },
                 SdlEvent::MouseButtonDown { mouse_btn: MouseButton::Left, x: mouse_x, y: mouse_y, .. } => {
@@ -161,7 +162,7 @@ fn main() -> Result<(), String> {
                     mouse_state.left_down = true;
 
                     //TODO: its probably nicer to call a generic method in UI, to check any drags and update the mouse state
-                    if ui::mouse_on_scrollblock(&mouse_state, current_scroll_y, current_page_height) {
+                    if ui::mouse_on_scrollblock(&mouse_state, ui_state.current_scroll_y, current_page_height) {
                         mouse_state.is_dragging_scrollblock = true;
                     } else {
                         mouse_state.is_dragging_scrollblock = false;
@@ -177,14 +178,14 @@ fn main() -> Result<(), String> {
                     let was_dragging = abs_movement > 1;
 
                     if !was_dragging {
-                        handle_left_click(mouse_x as u32, (mouse_y as f32 + current_scroll_y) as u32, &full_layout_tree);
+                        handle_left_click(mouse_x as u32, (mouse_y as f32 + ui_state.current_scroll_y) as u32, &full_layout_tree);
                     }
                 },
                 SdlEvent::MouseWheel { y, direction, .. } => {
                     match direction {
                         sdl2::mouse::MouseWheelDirection::Normal => {
                             //TODO: someday it might be nice to implement smooth scrolling (animate the movement over frames)
-                            current_scroll_y = clamp_scroll_position(current_scroll_y - (y * SCROLL_SPEED) as f32, current_page_height);
+                            ui_state.current_scroll_y = clamp_scroll_position(ui_state.current_scroll_y - (y * SCROLL_SPEED) as f32, current_page_height);
                         },
                         sdl2::mouse::MouseWheelDirection::Flipped => {},
                         sdl2::mouse::MouseWheelDirection::Unknown(_) => debug_log_warn("Unknown mousewheel direction unknown!"),
@@ -218,7 +219,7 @@ fn main() -> Result<(), String> {
                             text = text.to_lowercase();
                         }
 
-                        ui::handle_keyboard_input(&text, is_backspace);
+                        ui::handle_keyboard_input(&text, is_backspace, &mut ui_state);
                     }
 
                 },
@@ -226,7 +227,7 @@ fn main() -> Result<(), String> {
             }
         }
 
-        render(&mut platform, &full_layout_tree, current_scroll_y);
+        render(&mut platform, &full_layout_tree, &ui_state);
         frame_time_check(&start_instant, currently_loading_new_page);
         currently_loading_new_page = false;
     }

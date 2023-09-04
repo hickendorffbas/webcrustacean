@@ -2,6 +2,7 @@ use sdl2::pixels::Color as SdlColor;
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone, Copy)]
 pub struct Color {
     pub r: u8,
     pub g: u8,

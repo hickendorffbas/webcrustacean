@@ -2,10 +2,19 @@
 - BUG: if you drag the scrollbar, speed correponds to page moving instead of scrollblock moving
 
 
-- load more different image formats
-
 - work on better automated testing
 
 - add an adressbar
     - make a textinput
+
+
+- load more different image formats
+
+
+features still needed for 0.1 release:
+       - basic adressbar
+       - basic background colors
+       - load another image format besides PNG
+       - test on mac / windows (document SDL install?)
+       - add a readme
 

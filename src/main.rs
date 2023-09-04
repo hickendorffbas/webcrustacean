@@ -24,6 +24,7 @@ use crate::layout::{FullLayout, LayoutNode};
 use crate::renderer::render;
 use crate::ui::CONTENT_HEIGHT;
 
+use sdl2::keyboard::Mod;
 use sdl2::{
     event::Event as SdlEvent,
     image as SdlImage,
@@ -43,7 +44,8 @@ const SCROLL_SPEED: i32 = 25;
 
 //Non-config constants:
 const TARGET_MS_PER_FRAME: u128 = 1000 / TARGET_FPS as u128;
-
+const KEY_CODES_TO_IGNORE: [&str; 17] = ["Left Shift", "Left Ctrl", "Return", "Tab", "Home", "End", "Numlock", "PageUp", "PageDown",
+                                         "Left Alt", "Right Alt", "CapsLock", "Enter", "Left", "Right", "Up", "Down"];
 
 
 fn frame_time_check(start_instant: &Instant, currently_loading_new_page: bool) {
@@ -187,6 +189,38 @@ fn main() -> Result<(), String> {
                         sdl2::mouse::MouseWheelDirection::Flipped => {},
                         sdl2::mouse::MouseWheelDirection::Unknown(_) => debug_log_warn("Unknown mousewheel direction unknown!"),
                     }
+                },
+                SdlEvent::KeyUp { keycode, keymod, .. } => {
+                    let shift_on = (keymod & Mod::LSHIFTMOD == Mod::LSHIFTMOD) || (keymod & Mod::RSHIFTMOD == Mod::RSHIFTMOD);
+                    let control_on = (keymod & Mod::LCTRLMOD == Mod::LCTRLMOD) || (keymod & Mod::RCTRLMOD == Mod::RCTRLMOD);
+
+                    if keycode.is_some() & !control_on {
+                        let mut text = keycode.unwrap().name();
+
+                        if text.starts_with("Keypad ") {
+                            text = String::from(&text[7..]);
+                        }
+                        if KEY_CODES_TO_IGNORE.contains(&text.as_str()) {
+                            continue;
+                        }
+                        if text == "Space" {
+                            text = String::from(" ");
+                        }
+                        let is_backspace = text == "Backspace";
+                        if is_backspace {
+                            text = String::new();
+                        }
+                        if shift_on {
+                            //TODO: this needs to do something for numbers (to get to the special symbols)
+                            //      but not for keypad numbers...
+                            //      is the shift symbol above the numbers even the same for different keyboards?
+                        } else {
+                            text = text.to_lowercase();
+                        }
+
+                        ui::handle_keyboard_input(&text, is_backspace);
+                    }
+
                 },
                 _ => {}
             }

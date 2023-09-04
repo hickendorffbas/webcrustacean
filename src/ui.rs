@@ -33,6 +33,11 @@ pub fn mouse_on_scrollblock(mouse_state: &MouseState, current_scroll_y: f32, pag
 }
 
 
+pub fn handle_keyboard_input(input: &String, is_backspace: bool) {
+    println!("keyboard input: {}, {}", input, is_backspace);
+}
+
+
 fn render_header(platform: &mut Platform) {
     platform.fill_rect(0.0, 0.0, SCREEN_WIDTH as u32, HEADER_HEIGHT as u32, Color::WHITE);
 

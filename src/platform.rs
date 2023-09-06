@@ -8,7 +8,7 @@ use sdl2::{
     render::{TextureQuery, TextureAccess},
     render::WindowCanvas,
     Sdl,
-    ttf::Sdl2TtfContext,
+    ttf::Sdl2TtfContext, VideoSubsystem,
 };
 
 use crate::color::Color;
@@ -34,6 +34,7 @@ pub struct Platform<'a> {
     pub sdl_context: Sdl,
     pub font_cache: FontCache<'a, 'a>,
     pub canvas: WindowCanvas,
+    pub video_subsystem: VideoSubsystem,
 }
 impl Platform<'_> {
     pub fn present(&mut self) {
@@ -101,7 +102,12 @@ impl Platform<'_> {
 
         self.canvas.copy(&texture, None, Some(Rect::new(x as i32, y as i32, image.width(), image.height()))).expect("error rendering image");
     }
-
+    pub fn enable_text_input(&self) {
+        self.video_subsystem.text_input().start();
+    }
+    pub fn _disable_text_input(&self) { //TODO: use
+        self.video_subsystem.text_input().stop();
+    }
 }
 
 
@@ -121,5 +127,6 @@ pub fn init_platform<'a>(sdl_context: Sdl, ttf_context: &Sdl2TtfContext) -> Resu
         canvas,
         sdl_context,
         font_cache: FontCache {ttf_context: ttf_context, mapping: HashMap::new()},
+        video_subsystem,
     });
 }

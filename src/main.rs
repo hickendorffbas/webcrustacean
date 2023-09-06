@@ -14,7 +14,7 @@ mod style;
 mod ui;
 #[cfg(test)] mod test_util; //TODO: is there a better (test-specific) place to define this?
 
-use std::env;
+use std::{env, thread};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
@@ -24,14 +24,12 @@ use crate::layout::{FullLayout, LayoutNode};
 use crate::renderer::render;
 use crate::ui::{CONTENT_HEIGHT, UIState};
 
-use sdl2::keyboard::Mod;
 use sdl2::{
     event::Event as SdlEvent,
     image as SdlImage,
     keyboard::Keycode,
     mouse::MouseButton,
 };
-
 
 
 //Config:
@@ -46,8 +44,7 @@ const SCROLL_SPEED: i32 = 25;
 
 //Non-config constants:
 const TARGET_MS_PER_FRAME: u128 = 1000 / TARGET_FPS as u128;
-const KEY_CODES_TO_IGNORE: [&str; 17] = ["Left Shift", "Left Ctrl", "Return", "Tab", "Home", "End", "Numlock", "PageUp", "PageDown",
-                                         "Left Alt", "Right Alt", "CapsLock", "Enter", "Left", "Right", "Up", "Down"];
+
 
 
 fn frame_time_check(start_instant: &Instant, currently_loading_new_page: bool) {
@@ -55,7 +52,7 @@ fn frame_time_check(start_instant: &Instant, currently_loading_new_page: bool) {
     let sleep_time_millis = TARGET_MS_PER_FRAME as i64 - millis_elapsed as i64;
     if sleep_time_millis > 1 {
         //If we are more than a millisecond faster than what we need to reach the target FPS, we sleep
-        ::std::thread::sleep(Duration::from_millis(sleep_time_millis as u64));
+        thread::sleep(Duration::from_millis(sleep_time_millis as u64));
     } else {
         if !currently_loading_new_page {
             debug_log_warn(format!("we did not reach the target FPS, frametime: {}", millis_elapsed));
@@ -109,6 +106,8 @@ fn main() -> Result<(), String> {
                                 .expect("could not initialize the font system");
     let mut platform = platform::init_platform(sdl_context, &ttf_context).unwrap();
 
+    platform.enable_text_input();  //TODO: only do this when something has focus
+
     //this is not used by our code, but needs to be kept alive in order to work with images in SDL2
     //TODO: can I move this to platform, and keep it on a context somehow?
     let _image_context = SdlImage::init(SdlImage::InitFlag::PNG | SdlImage::InitFlag::JPG)?;
@@ -131,7 +130,6 @@ fn main() -> Result<(), String> {
 
     debug_assert!(full_layout_tree.root_node.rects.borrow().len() == 1);
     let current_page_height = full_layout_tree.root_node.rects.borrow().iter().next().unwrap().location.borrow().height();
-
 
     let mut mouse_state = MouseState { x: 0, y: 0, click_start_x: 0, click_start_y: 0, left_down: false, is_dragging_scrollblock: false };
     let mut ui_state = UIState { addressbar_has_focus: false, addressbar_text: String::new(), current_scroll_y: 0.0 };
@@ -191,38 +189,14 @@ fn main() -> Result<(), String> {
                         sdl2::mouse::MouseWheelDirection::Unknown(_) => debug_log_warn("Unknown mousewheel direction unknown!"),
                     }
                 },
-                SdlEvent::KeyUp { keycode, keymod, .. } => {
-                    let shift_on = (keymod & Mod::LSHIFTMOD == Mod::LSHIFTMOD) || (keymod & Mod::RSHIFTMOD == Mod::RSHIFTMOD);
-                    let control_on = (keymod & Mod::LCTRLMOD == Mod::LCTRLMOD) || (keymod & Mod::RCTRLMOD == Mod::RCTRLMOD);
-
-                    if keycode.is_some() & !control_on {
-                        let mut text = keycode.unwrap().name();
-
-                        if text.starts_with("Keypad ") {
-                            text = String::from(&text[7..]);
-                        }
-                        if KEY_CODES_TO_IGNORE.contains(&text.as_str()) {
-                            continue;
-                        }
-                        if text == "Space" {
-                            text = String::from(" ");
-                        }
-                        let is_backspace = text == "Backspace";
-                        if is_backspace {
-                            text = String::new();
-                        }
-                        if shift_on {
-                            //TODO: this needs to do something for numbers (to get to the special symbols)
-                            //      but not for keypad numbers...
-                            //      is the shift symbol above the numbers even the same for different keyboards?
-                        } else {
-                            text = text.to_lowercase();
-                        }
-
-                        ui::handle_keyboard_input(&text, is_backspace, &mut ui_state);
+                SdlEvent::KeyUp { keycode, .. } => {
+                    if keycode.is_some() && keycode.unwrap().name() == "Backspace" {
+                        ui::handle_keyboard_input(None, true, &mut ui_state);
                     }
-
                 },
+                SdlEvent::TextInput { text, .. } =>  {
+                    ui::handle_keyboard_input(Some(&text), false, &mut ui_state);
+                }
                 _ => {}
             }
         }

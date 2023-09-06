@@ -41,14 +41,14 @@ pub fn mouse_on_scrollblock(mouse_state: &MouseState, current_scroll_y: f32, pag
 }
 
 
-pub fn handle_keyboard_input(input: &String, is_backspace: bool, ui_state: &mut UIState) {
+pub fn handle_keyboard_input(input: Option<&String>, is_backspace: bool, ui_state: &mut UIState) {
     if ui_state.addressbar_has_focus {
         if is_backspace {
             let mut chars_iter = ui_state.addressbar_text.chars();
             chars_iter.next_back();
             ui_state.addressbar_text = chars_iter.collect::<String>()
         } else {
-            ui_state.addressbar_text.push_str(input);
+            ui_state.addressbar_text.push_str(input.unwrap());
         }
     }
 }
@@ -80,6 +80,7 @@ fn render_address_bar(platform: &mut Platform, ui_state: &UIState) {
 }
 
 
+//TODO: fill rect is on platform, should this be too?
 fn draw_square(platform: &mut Platform, x: f32, y: f32, width: f32, height: f32, color: Color) {
     let p1 = Position { x, y };
     let p2 = Position { x: width + x, y };

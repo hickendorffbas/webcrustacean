@@ -105,7 +105,7 @@ impl Platform<'_> {
     pub fn enable_text_input(&self) {
         self.video_subsystem.text_input().start();
     }
-    pub fn _disable_text_input(&self) { //TODO: use
+    pub fn disable_text_input(&self) {
         self.video_subsystem.text_input().stop();
     }
 }

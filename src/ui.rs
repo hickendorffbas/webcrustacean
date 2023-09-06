@@ -19,6 +19,11 @@ pub const CONTENT_WIDTH: f32 = SCREEN_WIDTH - SIDE_SCROLLBAR_WIDTH;
 pub const CONTENT_TOP_LEFT_X: f32 = 0.0;
 pub const CONTENT_TOP_LEFT_Y: f32 = HEADER_HEIGHT;
 
+const ADDRESSBAR_X: f32 = 100.0;
+const ADDRESSBAR_Y: f32 = 10.0;
+const ADDRESSBAR_WIDTH: f32 = SCREEN_WIDTH - 200.0;
+const ADDRESSBAR_HEIGHT: f32 = 35.0;
+
 
 pub struct UIState {
     pub addressbar_has_focus: bool,
@@ -54,6 +59,25 @@ pub fn handle_keyboard_input(input: Option<&String>, is_backspace: bool, ui_stat
 }
 
 
+pub fn handle_possible_ui_click(platform: &mut Platform, ui_state: &mut UIState, x: f32, y: f32) {
+    ui_state.addressbar_has_focus = false;
+
+    //TODO: I think this should also handle the scrollbar, but we now handle that in main still
+
+    if x > ADDRESSBAR_X && x < (ADDRESSBAR_X + ADDRESSBAR_WIDTH) {
+        if y > ADDRESSBAR_Y && y < (ADDRESSBAR_Y + ADDRESSBAR_HEIGHT) {
+            ui_state.addressbar_has_focus = true;
+        }
+    }
+
+    if ui_state.addressbar_has_focus {
+        platform.enable_text_input();
+    } else {
+        platform.disable_text_input();
+    }
+}
+
+
 fn render_header(platform: &mut Platform, ui_state: &UIState) {
     platform.fill_rect(0.0, 0.0, SCREEN_WIDTH as u32, HEADER_HEIGHT as u32, Color::WHITE);
 
@@ -68,15 +92,10 @@ fn render_header(platform: &mut Platform, ui_state: &UIState) {
 
 
 fn render_address_bar(platform: &mut Platform, ui_state: &UIState) {
-    let x = 100.0;
-    let y = 10.0;
-    let width = SCREEN_WIDTH - 200.0;
-    let height = 35.0;
-
-    draw_square(platform, x, y, width, height, Color::BLACK);
+    draw_square(platform, ADDRESSBAR_X, ADDRESSBAR_Y, ADDRESSBAR_WIDTH, ADDRESSBAR_HEIGHT, Color::BLACK);
 
     let font = Font::new(false, 18);
-    platform.render_text(&ui_state.addressbar_text, x + 5.0, y + 5.0, &font, Color::BLACK);
+    platform.render_text(&ui_state.addressbar_text, ADDRESSBAR_X + 5.0, ADDRESSBAR_Y + 5.0, &font, Color::BLACK);
 }
 
 

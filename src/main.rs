@@ -21,6 +21,7 @@ use std::time::{Duration, Instant};
 use crate::debug::debug_log_warn;
 use crate::fonts::Font;
 use crate::layout::{FullLayout, LayoutNode};
+use crate::platform::Platform;
 use crate::renderer::render;
 use crate::ui::{CONTENT_HEIGHT, UIState};
 
@@ -61,10 +62,9 @@ fn frame_time_check(start_instant: &Instant, currently_loading_new_page: bool) {
 }
 
 
+fn handle_left_click(platform: &mut Platform, ui_state: &mut UIState, x: f32, y: f32, layout_tree: &FullLayout) {
 
-fn handle_left_click(x: u32, y: u32, layout_tree: &FullLayout) {
-
-    fn check_left_click_for_layout_node(x: u32, y: u32, layout_node: &Rc<LayoutNode>) {
+    fn check_left_click_for_layout_node(x: f32, y: f32, layout_node: &Rc<LayoutNode>) {
 
         let any_inside = layout_node.rects.borrow().iter().any(|rect| -> bool {rect.location.borrow().is_inside(x, y)});
         if !any_inside {
@@ -85,6 +85,7 @@ fn handle_left_click(x: u32, y: u32, layout_tree: &FullLayout) {
         }
     }
 
+    ui::handle_possible_ui_click(platform, ui_state, x, y);
     check_left_click_for_layout_node(x, y, &layout_tree.root_node);
 }
 
@@ -176,7 +177,8 @@ fn main() -> Result<(), String> {
                     let was_dragging = abs_movement > 1;
 
                     if !was_dragging {
-                        handle_left_click(mouse_x as u32, (mouse_y as f32 + ui_state.current_scroll_y) as u32, &full_layout_tree);
+                        let new_mouse_y = mouse_y as f32 + ui_state.current_scroll_y;
+                        handle_left_click(&mut platform, &mut ui_state, mouse_x as f32, new_mouse_y, &full_layout_tree);
                     }
                 },
                 SdlEvent::MouseWheel { y, direction, .. } => {

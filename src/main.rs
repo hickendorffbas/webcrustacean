@@ -101,39 +101,44 @@ pub struct MouseState {
 }
 
 
+pub fn load_url(platform: &mut Platform, url: &String) -> FullLayout {
+    let page_content = resource_loader::load_text(&url);
+
+    let lex_result = html_lexer::lex_html(&page_content);
+    let dom_tree = html_parser::parse(lex_result);
+    let full_layout_tree = layout::build_full_layout(&dom_tree, platform);
+
+    return full_layout_tree;
+}
+
+
 fn main() -> Result<(), String> {
     let sdl_context = sdl2::init()?;
     let ttf_context = sdl2::ttf::init()
                                 .expect("could not initialize the font system");
     let mut platform = platform::init_platform(sdl_context, &ttf_context).unwrap();
 
-    platform.enable_text_input();  //TODO: only do this when something has focus
-
     //this is not used by our code, but needs to be kept alive in order to work with images in SDL2
-    //TODO: can I move this to platform, and keep it on a context somehow?
+    //TODO: can I move this to platform, and keep it the platform context somehow?
     let _image_context = SdlImage::init(SdlImage::InitFlag::PNG | SdlImage::InitFlag::JPG)?;
 
     let args: Vec<String> = env::args().collect();
 
-    let url: String;
+    let mut url: String;
     if args.len() < 2 {
         url = String::from(DEFAULT_LOCATION_TO_LOAD);
     } else {
         url = args[1].clone();
     }
-    let page_content = resource_loader::load_text(&url);
 
+    let mut full_layout_tree = load_url(&mut platform, &url);
     let mut currently_loading_new_page = true;
-
-    let lex_result = html_lexer::lex_html(&page_content);
-    let dom_tree = html_parser::parse(lex_result);
-    let full_layout_tree = layout::build_full_layout(&dom_tree, &mut platform);
 
     debug_assert!(full_layout_tree.root_node.rects.borrow().len() == 1);
     let current_page_height = full_layout_tree.root_node.rects.borrow().iter().next().unwrap().location.borrow().height();
 
     let mut mouse_state = MouseState { x: 0, y: 0, click_start_x: 0, click_start_y: 0, left_down: false, is_dragging_scrollblock: false };
-    let mut ui_state = UIState { addressbar_has_focus: false, addressbar_text: String::new(), current_scroll_y: 0.0 };
+    let mut ui_state = UIState { addressbar_has_focus: false, addressbar_text: String::from(DEFAULT_LOCATION_TO_LOAD), current_scroll_y: 0.0 };
 
     let mut event_pump = platform.sdl_context.event_pump()?;
     'main_loop: loop {
@@ -192,8 +197,15 @@ fn main() -> Result<(), String> {
                     }
                 },
                 SdlEvent::KeyUp { keycode, .. } => {
-                    if keycode.is_some() && keycode.unwrap().name() == "Backspace" {
-                        ui::handle_keyboard_input(None, true, &mut ui_state);
+                    if keycode.is_some() {
+                        if keycode.unwrap().name() == "Backspace" {
+                            ui::handle_keyboard_input(None, true, &mut ui_state);
+                        }
+                        if keycode.unwrap().name() == "Return" {
+                            url = ui_state.addressbar_text.clone();
+                            full_layout_tree = load_url(&mut platform, &url);
+                            currently_loading_new_page = true;
+                        }
                     }
                 },
                 SdlEvent::TextInput { text, .. } =>  {

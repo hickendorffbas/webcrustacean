@@ -4,18 +4,12 @@
 
 - work on better automated testing
 
-- add an adressbar
-    - handle Enter
-    - actually load the url you give it
-    - make it focus and un-focus on click
 
 - load more different image formats
 
 
 features still needed for 0.1 release:
-       - basic adressbar
        - basic background colors
        - load another image format besides PNG
        - test on mac / windows (document SDL install?)
        - add a readme
-

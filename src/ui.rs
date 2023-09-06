@@ -24,6 +24,10 @@ const ADDRESSBAR_Y: f32 = 10.0;
 const ADDRESSBAR_WIDTH: f32 = SCREEN_WIDTH - 200.0;
 const ADDRESSBAR_HEIGHT: f32 = 35.0;
 
+const SCROLLBAR_HEIGHT: f32 = SCREEN_HEIGHT - HEADER_HEIGHT;
+const SCROLLBAR_X_POS: f32 = SCREEN_WIDTH - SIDE_SCROLLBAR_WIDTH;
+
+
 
 pub struct UIState {
     pub addressbar_has_focus: bool,
@@ -39,7 +43,7 @@ pub fn render_ui(platform: &mut Platform, ui_state: &UIState, page_height: f32) 
 
 
 pub fn mouse_on_scrollblock(mouse_state: &MouseState, current_scroll_y: f32, page_height: f32) -> bool {
-    let (block_x, block_y, block_width, block_height) = compute_scrollblock_positions(current_scroll_y, page_height);
+    let (block_x, block_y, block_width, block_height) = compute_scrollblock_position(current_scroll_y, page_height);
     return mouse_state.x > block_x as i32 && mouse_state.x < (block_x + block_width) as i32
            &&
            mouse_state.y > block_y as i32 && mouse_state.y < (block_y + block_height) as i32
@@ -78,8 +82,17 @@ pub fn handle_possible_ui_click(platform: &mut Platform, ui_state: &mut UIState,
 }
 
 
+pub fn convert_block_drag_to_page_scroll(ui_state: &UIState, scroll_block_amount_moved: f32, page_height: f32) -> f32 {
+    let (_, _, _, block_height) = compute_scrollblock_position(ui_state.current_scroll_y, page_height);
+
+    let movable_space = SCROLLBAR_HEIGHT - block_height;
+    let relatively_moved = scroll_block_amount_moved / movable_space;
+    return (page_height - CONTENT_HEIGHT) * relatively_moved;
+}
+
+
 fn render_header(platform: &mut Platform, ui_state: &UIState) {
-    platform.fill_rect(0.0, 0.0, SCREEN_WIDTH as u32, HEADER_HEIGHT as u32, Color::WHITE);
+    platform.fill_rect(0.0, 0.0, SCREEN_WIDTH, HEADER_HEIGHT, Color::WHITE);
 
     let font = Font::new(true, 14);
     platform.render_text(&"Bbrowser".to_owned(), 10.0, 10.0, &font, Color::BLACK);
@@ -92,24 +105,10 @@ fn render_header(platform: &mut Platform, ui_state: &UIState) {
 
 
 fn render_address_bar(platform: &mut Platform, ui_state: &UIState) {
-    draw_square(platform, ADDRESSBAR_X, ADDRESSBAR_Y, ADDRESSBAR_WIDTH, ADDRESSBAR_HEIGHT, Color::BLACK);
+    platform.draw_square(ADDRESSBAR_X, ADDRESSBAR_Y, ADDRESSBAR_WIDTH, ADDRESSBAR_HEIGHT, Color::BLACK);
 
     let font = Font::new(false, 18);
     platform.render_text(&ui_state.addressbar_text, ADDRESSBAR_X + 5.0, ADDRESSBAR_Y + 5.0, &font, Color::BLACK);
-}
-
-
-//TODO: fill rect is on platform, should this be too?
-fn draw_square(platform: &mut Platform, x: f32, y: f32, width: f32, height: f32, color: Color) {
-    let p1 = Position { x, y };
-    let p2 = Position { x: width + x, y };
-    let p3 = Position { x: width + x, y: height + y };
-    let p4 = Position { x, y: height + y };
-
-    platform.draw_line(p1, p2, color);
-    platform.draw_line(p2, p3, color);
-    platform.draw_line(p3, p4, color);
-    platform.draw_line(p4, p1, color);
 }
 
 
@@ -117,27 +116,22 @@ fn render_scrollbar(platform: &mut Platform, current_scroll_y: f32, page_height:
     //TODO: I don't like that we are using HEADER_HEIGHT etc. here. The scrollbar should only know where it should draw, and we should derive that from
     //      header hight etc. outside this function
 
-    let scrollbar_start_x = SCREEN_WIDTH - SIDE_SCROLLBAR_WIDTH;
-    let scrollbar_height = SCREEN_HEIGHT - HEADER_HEIGHT;
-    platform.fill_rect(scrollbar_start_x, HEADER_HEIGHT, (SCREEN_WIDTH - scrollbar_start_x) as u32, scrollbar_height as u32, UI_BASIC_COLOR);
+    platform.fill_rect(SCROLLBAR_X_POS, HEADER_HEIGHT, SCREEN_WIDTH - SCROLLBAR_X_POS, SCROLLBAR_HEIGHT, UI_BASIC_COLOR);
 
-    let (block_x, block_y, block_width, block_height) = compute_scrollblock_positions(current_scroll_y, page_height);
-    platform.fill_rect(block_x, block_y, block_width as u32, block_height as u32, UI_BASIC_DARKER_COLOR);
+    let (block_x, block_y, block_width, block_height) = compute_scrollblock_position(current_scroll_y, page_height);
+    platform.fill_rect(block_x, block_y, block_width, block_height, UI_BASIC_DARKER_COLOR);
 }
 
 
-fn compute_scrollblock_positions(current_scroll_y: f32, page_height: f32) -> (f32, f32, f32, f32) {
-    let scrollbar_start_x = SCREEN_WIDTH - SIDE_SCROLLBAR_WIDTH;
-    let scrollbar_height = SCREEN_HEIGHT - HEADER_HEIGHT;
-
-    let scrollbar_height_per_page_y = scrollbar_height / page_height;
+fn compute_scrollblock_position(current_scroll_y: f32, page_height: f32) -> (f32, f32, f32, f32) {
+    let scrollbar_height_per_page_y = SCROLLBAR_HEIGHT / page_height;
     let relative_size_of_scroll_block = CONTENT_HEIGHT / page_height;
 
     //TODO: I do need to account that we don't scroll the bottom of the page all the way to the top
     let top_scroll_block_y = (scrollbar_height_per_page_y * current_scroll_y) + HEADER_HEIGHT;
 
     //TODO: we probably should clamp this to a minimum
-    let scroll_block_height = relative_size_of_scroll_block * scrollbar_height;
+    let scroll_block_height = relative_size_of_scroll_block * SCROLLBAR_HEIGHT;
 
-    return (scrollbar_start_x, top_scroll_block_y, (SCREEN_WIDTH - scrollbar_start_x), scroll_block_height);
+    return (SCROLLBAR_X_POS, top_scroll_block_y, (SCREEN_WIDTH - SCROLLBAR_X_POS), scroll_block_height);
 }

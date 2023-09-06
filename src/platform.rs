@@ -86,11 +86,18 @@ impl Platform<'_> {
         return (width as f32, height as f32);
     }
 
-    pub fn fill_rect(&mut self, x: f32, y: f32, width: u32, height: u32, color: Color) {
+    pub fn fill_rect(&mut self, x: f32, y: f32, width: f32, height: f32, color: Color) {
         self.canvas.set_draw_color(color.to_sdl_color());
 
-        let rect = SdlRect::new(x as i32, y as i32, width, height);
-        self.canvas.fill_rect(rect).expect("error drawing rect");
+        let rect = SdlRect::new(x as i32, y as i32, width as u32, height as u32);
+        self.canvas.fill_rect(rect).expect("error filling rect");
+    }
+
+    pub fn draw_square(&mut self, x: f32, y: f32, width: f32, height: f32, color: Color) {
+        self.canvas.set_draw_color(color.to_sdl_color());
+
+        let rect = SdlRect::new(x as i32, y as i32, width as u32, height as u32);
+        self.canvas.draw_rect(rect).expect("error drawing rect");
     }
 
     pub fn render_image(&mut self, image: &DynamicImage, x: f32, y: f32) {

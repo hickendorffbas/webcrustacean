@@ -150,7 +150,8 @@ fn main() -> Result<(), String> {
                     mouse_state.y = mouse_y;
 
                     if mouse_state.is_dragging_scrollblock {
-                        ui_state.current_scroll_y = clamp_scroll_position(ui_state.current_scroll_y + yrel as f32, current_page_height);
+                        let page_scroll = ui::convert_block_drag_to_page_scroll(&mut ui_state, yrel as f32, current_page_height);
+                        ui_state.current_scroll_y = clamp_scroll_position(ui_state.current_scroll_y + page_scroll, current_page_height);
                     }
                 },
                 SdlEvent::MouseButtonDown { mouse_btn: MouseButton::Left, x: mouse_x, y: mouse_y, .. } => {

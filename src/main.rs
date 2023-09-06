@@ -27,7 +27,6 @@ use crate::ui::{CONTENT_HEIGHT, UIState};
 
 use sdl2::{
     event::Event as SdlEvent,
-    image as SdlImage,
     keyboard::Keycode,
     mouse::MouseButton,
 };
@@ -117,10 +116,6 @@ fn main() -> Result<(), String> {
     let ttf_context = sdl2::ttf::init()
                                 .expect("could not initialize the font system");
     let mut platform = platform::init_platform(sdl_context, &ttf_context).unwrap();
-
-    //this is not used by our code, but needs to be kept alive in order to work with images in SDL2
-    //TODO: can I move this to platform, and keep it the platform context somehow?
-    let _image_context = SdlImage::init(SdlImage::InitFlag::PNG | SdlImage::InitFlag::JPG)?;
 
     let args: Vec<String> = env::args().collect();
 

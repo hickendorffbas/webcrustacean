@@ -3,16 +3,17 @@ use std::collections::HashMap;
 use image::DynamicImage;
 
 use sdl2::{
+    image::{self as SdlImage, Sdl2ImageContext},
     pixels::PixelFormatEnum,
-    rect::{Point as SdlPoint, Rect},
-    render::{TextureQuery, TextureAccess},
-    render::WindowCanvas,
+    rect::{Point as SdlPoint, Rect as SdlRect},
+    render::{TextureQuery, TextureAccess, WindowCanvas},
     Sdl,
-    ttf::Sdl2TtfContext, VideoSubsystem,
+    ttf::Sdl2TtfContext,
+    VideoSubsystem,
 };
 
-use crate::color::Color;
 use crate::{SCREEN_WIDTH, SCREEN_HEIGHT};
+use crate::color::Color;
 use crate::fonts::{FontCache, Font};
 
 
@@ -30,11 +31,14 @@ impl Position {
 
 
 pub struct Platform<'a> {
-    //TODO: would be nice to not have all of these public eventually
     pub sdl_context: Sdl,
-    pub font_cache: FontCache<'a, 'a>,
-    pub canvas: WindowCanvas,
-    pub video_subsystem: VideoSubsystem,
+
+    font_cache: FontCache<'a, 'a>,
+    canvas: WindowCanvas,
+    video_subsystem: VideoSubsystem,
+
+    //the image_context is not used by our code, but needs to be kept alive in order to work with images in SDL2:
+    _image_context: Sdl2ImageContext,
 }
 impl Platform<'_> {
     pub fn present(&mut self) {
@@ -69,7 +73,7 @@ impl Platform<'_> {
             .expect("error while building surface");
     
         let TextureQuery { width, height, .. } = texture.query();
-        let target = Rect::new(x as i32, y as i32, width, height);
+        let target = SdlRect::new(x as i32, y as i32, width, height);
     
         self.canvas.copy(&texture, None, Some(target))
             .expect("copying texture in canvas failed!");
@@ -85,7 +89,7 @@ impl Platform<'_> {
     pub fn fill_rect(&mut self, x: f32, y: f32, width: u32, height: u32, color: Color) {
         self.canvas.set_draw_color(color.to_sdl_color());
 
-        let rect = Rect::new(x as i32, y as i32, width, height);
+        let rect = SdlRect::new(x as i32, y as i32, width, height);
         self.canvas.fill_rect(rect).expect("error drawing rect");
     }
 
@@ -100,7 +104,7 @@ impl Platform<'_> {
 
         texture.update(None, image.as_bytes(), image.width() as usize * bytes_per_pixel).unwrap();
 
-        self.canvas.copy(&texture, None, Some(Rect::new(x as i32, y as i32, image.width(), image.height()))).expect("error rendering image");
+        self.canvas.copy(&texture, None, Some(SdlRect::new(x as i32, y as i32, image.width(), image.height()))).expect("error rendering image");
     }
     pub fn enable_text_input(&self) {
         self.video_subsystem.text_input().start();
@@ -115,6 +119,8 @@ pub fn init_platform<'a>(sdl_context: Sdl, ttf_context: &Sdl2TtfContext) -> Resu
     let video_subsystem = sdl_context.video()
         .expect("Could not get the video subsystem");
 
+    let image_context = SdlImage::init(SdlImage::InitFlag::PNG | SdlImage::InitFlag::JPG)?;
+
     let window = video_subsystem.window("BBrowser", SCREEN_WIDTH as u32, SCREEN_HEIGHT as u32)
         .position_centered()
         .build()
@@ -128,5 +134,6 @@ pub fn init_platform<'a>(sdl_context: Sdl, ttf_context: &Sdl2TtfContext) -> Resu
         sdl_context,
         font_cache: FontCache {ttf_context: ttf_context, mapping: HashMap::new()},
         video_subsystem,
+        _image_context: image_context,
     });
 }

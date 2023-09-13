@@ -31,6 +31,7 @@ pub enum HtmlToken {
     Comment(String),
     Doctype(String),
     Entity(String),
+    Style(String),
 }
 
 
@@ -42,13 +43,14 @@ pub struct AttributeContent {
 }
 
 
-struct HtmlIterator<'document> {
-    iter: Peekable<Chars<'document>>,
-    current_line: u32,
-    current_char: u32,
+//TODO: move this iterator to a parsing.rs or something
+pub struct TrackingIterator<'document> {
+    pub iter: Peekable<Chars<'document>>,
+    pub current_line: u32,
+    pub current_char: u32,
 }
-impl HtmlIterator<'_> {
-    fn next(&mut self) -> char {
+impl TrackingIterator<'_> {
+    pub fn next(&mut self) -> char {
         let next_char = self.iter.next().unwrap();
         if next_char == '\n' {
             self.current_line += 1;
@@ -58,10 +60,10 @@ impl HtmlIterator<'_> {
         }
         return next_char;
     }
-    fn peek(&mut self) -> Option<&char> {
+    pub fn peek(&mut self) -> Option<&char> {
         return self.iter.peek();
     }
-    fn has_next(&mut self) -> bool {
+    pub fn has_next(&mut self) -> bool {
         return self.iter.peek().is_some();
     }
 }
@@ -70,7 +72,7 @@ impl HtmlIterator<'_> {
 pub fn lex_html(document: &str) -> Vec<HtmlTokenWithLocation> {
     let mut tokens: Vec<HtmlTokenWithLocation> = Vec::new();
 
-    let mut html_iterator = HtmlIterator {
+    let mut html_iterator = TrackingIterator {
         iter: document.chars().peekable(),
         current_line: 1,
         current_char: 0,
@@ -178,6 +180,19 @@ pub fn lex_html(document: &str) -> Vec<HtmlTokenWithLocation> {
                         tokens.push(HtmlTokenWithLocation { html_token: HtmlToken::OpenTagEnd,
                                                             line: html_iterator.current_line,
                                                             character: html_iterator.current_char } );
+
+                        if tag_name == "style" { //TODO: do we already lower() the tag names?
+
+                            let mut css_data = String::new();
+                            while html_iterator.has_next() && html_iterator.peek().unwrap() != &'<' {  //TODO: this is wrong, we need to check for </style> in some form
+                                css_data.push(html_iterator.next());
+                            }
+
+                            tokens.push(HtmlTokenWithLocation { html_token: HtmlToken::Style(css_data),
+                                                                line: html_iterator.current_line, //TODO: line (and char below are wrong, should be start positions...)
+                                                                character: html_iterator.current_char });
+                        }
+
                     } else {
                         //Given the while loop above, this should not be reachable
                         panic!("Illegal state");
@@ -220,7 +235,7 @@ pub fn lex_html(document: &str) -> Vec<HtmlTokenWithLocation> {
 }
 
 
-fn consume_tag_attribute(html_iterator: &mut HtmlIterator) -> HtmlToken {
+fn consume_tag_attribute(html_iterator: &mut TrackingIterator) -> HtmlToken {
     let attribute_name = consume_full_name(html_iterator);
 
     let mut attribute_value: String;
@@ -251,7 +266,7 @@ fn consume_tag_attribute(html_iterator: &mut HtmlIterator) -> HtmlToken {
 }
 
 
-fn consume_until_char(html_iterator: &mut HtmlIterator, limit: char) -> String {
+fn consume_until_char(html_iterator: &mut TrackingIterator, limit: char) -> String {
     let mut str_buffer = String::new();
     while html_iterator.has_next() && *html_iterator.peek().unwrap() != limit {
         str_buffer.push(html_iterator.next());
@@ -261,7 +276,7 @@ fn consume_until_char(html_iterator: &mut HtmlIterator, limit: char) -> String {
 }
 
 
-fn lex_comment(html_iterator: &mut HtmlIterator) -> String {
+fn lex_comment(html_iterator: &mut TrackingIterator) -> String {
     let mut buffer = String::new();
 
     while html_iterator.has_next() {
@@ -290,7 +305,7 @@ fn lex_comment(html_iterator: &mut HtmlIterator) -> String {
     return buffer;
 }
 
-fn consume_full_name(iterator: &mut HtmlIterator) -> String {
+fn consume_full_name(iterator: &mut TrackingIterator) -> String {
     let mut str_buffer = String::new();
     loop {
         let opt_peek = iterator.peek();
@@ -308,7 +323,7 @@ fn consume_full_name(iterator: &mut HtmlIterator) -> String {
 }
 
 
-fn eat_whitespace(iterator: &mut HtmlIterator) {
+fn eat_whitespace(iterator: &mut TrackingIterator) {
     loop {
         let opt_peek = iterator.peek();
         if opt_peek.is_none() {

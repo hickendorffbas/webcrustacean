@@ -1,4 +1,6 @@
 mod color;
+mod css_lexer;
+mod css_parser;
 mod debug;
 mod dom;
 mod fonts;

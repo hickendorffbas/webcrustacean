@@ -1,8 +1,8 @@
 
-- BUG: if you drag the scrollbar, speed correponds to page moving instead of scrollblock moving
-
-
 - work on better automated testing
+
+
+- need to setup a good structure for storing styles (CSSOM), and figure out where to keep that state
 
 
 

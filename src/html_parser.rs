@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
+use crate::{css_lexer, css_parser};
 use crate::debug::debug_log_warn;
 use crate::dom::{
     Document,
@@ -136,7 +137,14 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
             HtmlToken::Comment(_) => {},
             HtmlToken::Doctype(_) => {
                 //for now we ignore, eventually we should probably distinguish html5 and other html variants here
-            }
+            },
+            HtmlToken::Style(content) => {
+                let style_tokens = css_lexer::lex_css(content, current_token.line, current_token.character);
+                let style_tree = css_parser::parse_css(&style_tokens);
+                println!("style_tokens: {:?}", style_tokens);
+                println!("style_tree: {:?}", style_tree);
+                //TODO: I somehow need keep that tree of styles somewhere...
+            },
         }
 
         *current_token_idx += 1;

@@ -10,7 +10,7 @@ use crate::ui::{
     CONTENT_TOP_LEFT_Y,
     CONTENT_WIDTH
 };
-use crate::{Font, SCREEN_HEIGHT, resource_loader};
+use crate::{Font, resource_loader, SCREEN_HEIGHT};
 use crate::color::Color;
 use crate::debug::debug_log_warn;
 use crate::dom::{Document, DomNode};
@@ -544,6 +544,9 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, all_nodes: &mut H
 
                 //TODO: this one might not be neccesary any more after we fix our html parser to not try to parse the javascript
                 "script" => { partial_node_visible = false; }
+
+                //TODO: same as for "script", do these need nodes in the DOM? probably not
+                "style" => { partial_node_visible = false; }
 
                 //TODO: eventually we want to do something else with the title (update the window title or so)
                 "title" => { partial_node_visible = false; }

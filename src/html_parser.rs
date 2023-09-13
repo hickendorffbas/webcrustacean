@@ -4,14 +4,16 @@ use std::rc::Rc;
 use crate::{css_lexer, css_parser};
 use crate::debug::debug_log_warn;
 use crate::dom::{
+    AttributeDomNode,
     Document,
     DocumentDomNode,
     DomNode,
     ElementDomNode,
     TextDomNode,
-    get_next_dom_node_interal_id, AttributeDomNode,
+    get_next_dom_node_interal_id,
 };
 use crate::html_lexer::{HtmlToken, HtmlTokenWithLocation};
+use crate::style::StyleRule;
 
 
 #[cfg(test)]
@@ -23,6 +25,7 @@ const SELF_CLOSING_TAGS: [&str; 6] = ["br", "hr", "img", "input", "link", "meta"
 
 pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>) -> Document {
     let mut all_nodes = HashMap::new();
+    let mut styles = Vec::new();
 
     let mut children = Vec::new();
     let root_node_internal_id = get_next_dom_node_interal_id();
@@ -30,7 +33,7 @@ pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>) -> Document {
     let mut current_token_idx = 0;
 
     while current_token_idx < html_tokens.len() {
-        children.push(parse_node(&html_tokens, &mut current_token_idx, root_node_internal_id, &mut all_nodes));
+        children.push(parse_node(&html_tokens, &mut current_token_idx, root_node_internal_id, &mut all_nodes, &mut styles));
         current_token_idx += 1;
     }
     let root_node = DomNode::Document(DocumentDomNode { internal_id: root_node_internal_id, children: Some(children)});
@@ -39,12 +42,12 @@ pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>) -> Document {
     let rc_root_node = Rc::new(root_node);
     all_nodes.insert(root_node_internal_id, Rc::clone(&rc_root_node));
 
-    return Document { document_node: rc_root_node, all_nodes };
+    return Document { document_node: rc_root_node, all_nodes, styles };
 }
 
 
 fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut usize, parent_id: usize,
-              all_nodes: &mut HashMap<usize, Rc<DomNode>>) -> Rc<DomNode> {
+              all_nodes: &mut HashMap<usize, Rc<DomNode>>, styles: &mut Vec<StyleRule>) -> Rc<DomNode> {
     let node_being_build_internal_id = get_next_dom_node_interal_id();
 
     let mut tag_being_parsed = None;
@@ -58,7 +61,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                 if tag_being_parsed.is_none() {
                     tag_being_parsed = Some(name.clone());
                 } else {
-                    let new_node = parse_node(html_tokens, current_token_idx, node_being_build_internal_id, all_nodes);
+                    let new_node = parse_node(html_tokens, current_token_idx, node_being_build_internal_id, all_nodes, styles);
                     children.push(new_node);
                 }
             },
@@ -140,10 +143,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
             },
             HtmlToken::Style(content) => {
                 let style_tokens = css_lexer::lex_css(content, current_token.line, current_token.character);
-                let style_tree = css_parser::parse_css(&style_tokens);
-                println!("style_tokens: {:?}", style_tokens);
-                println!("style_tree: {:?}", style_tree);
-                //TODO: I somehow need keep that tree of styles somewhere...
+                styles.append(&mut css_parser::parse_css(&style_tokens));
             },
         }
 

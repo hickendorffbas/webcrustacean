@@ -2,8 +2,9 @@
 - work on better automated testing
 
 
-- need to setup a good structure for storing styles (CSSOM), and figure out where to keep that state
+- apply styles from the styles on the document to the nodes
 
+- integrate default styles in the styles list on the document
 
 
 

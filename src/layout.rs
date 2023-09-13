@@ -480,7 +480,7 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, all_nodes: &mut H
                 }
 
                 "b" => {
-                    partial_node_styles.push(Style { name: "font-weight".to_owned(), value: "bold".to_owned() });
+                    partial_node_styles.push(Style { property: "font-weight".to_owned(), value: "bold".to_owned() });
                     partial_node_display = Display::Inline;
                 }
 
@@ -498,28 +498,28 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, all_nodes: &mut H
                 }
 
                 "h1" => {
-                    partial_node_styles.push(Style { name: "font-weight".to_owned(), value: "bold".to_owned() });
-                    partial_node_styles.push(Style { name: "font-size".to_owned(), value: "32".to_owned() });
+                    partial_node_styles.push(Style { property: "font-weight".to_owned(), value: "bold".to_owned() });
+                    partial_node_styles.push(Style { property: "font-size".to_owned(), value: "32".to_owned() });
                 }
                 "h2" => {
-                    partial_node_styles.push(Style { name: "font-weight".to_owned(), value: "bold".to_owned() });
-                    partial_node_styles.push(Style { name: "font-size".to_owned(), value: "30".to_owned() });
+                    partial_node_styles.push(Style { property: "font-weight".to_owned(), value: "bold".to_owned() });
+                    partial_node_styles.push(Style { property: "font-size".to_owned(), value: "30".to_owned() });
                 }
                 "h3" => {
-                    partial_node_styles.push(Style { name: "font-weight".to_owned(), value: "bold".to_owned() });
-                    partial_node_styles.push(Style { name: "font-size".to_owned(), value: "28".to_owned() });
+                    partial_node_styles.push(Style { property: "font-weight".to_owned(), value: "bold".to_owned() });
+                    partial_node_styles.push(Style { property: "font-size".to_owned(), value: "28".to_owned() });
                 }
                 "h4" => {
-                    partial_node_styles.push(Style { name: "font-weight".to_owned(), value: "bold".to_owned() });
-                    partial_node_styles.push(Style { name: "font-size".to_owned(), value: "26".to_owned() });
+                    partial_node_styles.push(Style { property: "font-weight".to_owned(), value: "bold".to_owned() });
+                    partial_node_styles.push(Style { property: "font-size".to_owned(), value: "26".to_owned() });
                 }
                 "h5" => {
-                    partial_node_styles.push(Style { name: "font-weight".to_owned(), value: "bold".to_owned() });
-                    partial_node_styles.push(Style { name: "font-size".to_owned(), value: "24".to_owned() });
+                    partial_node_styles.push(Style { property: "font-weight".to_owned(), value: "bold".to_owned() });
+                    partial_node_styles.push(Style { property: "font-size".to_owned(), value: "24".to_owned() });
                 }
                 "h6" => {
-                    partial_node_styles.push(Style { name: "font-weight".to_owned(), value: "bold".to_owned() });
-                    partial_node_styles.push(Style { name: "font-size".to_owned(), value:  "22".to_owned() });
+                    partial_node_styles.push(Style { property: "font-weight".to_owned(), value: "bold".to_owned() });
+                    partial_node_styles.push(Style { property: "font-size".to_owned(), value:  "22".to_owned() });
                 }
 
                 "head" => {
@@ -562,7 +562,7 @@ fn build_layout_tree(main_node: &DomNode, document: &Document, all_nodes: &mut H
         },
         DomNode::Text(node) => {
             if document.has_element_parent_with_name(main_node, "a") {
-                partial_node_styles.push(Style { name: "font-color".to_owned(), value: "blue".to_owned() });
+                partial_node_styles.push(Style { property: "font-color".to_owned(), value: "blue".to_owned() });
             }
 
             partial_node_text = Option::Some(node.text_content.to_string());

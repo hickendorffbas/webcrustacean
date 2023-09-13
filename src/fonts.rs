@@ -10,8 +10,8 @@ pub struct Font {
     font_size: u16
 }
 impl Font {
-    pub fn new(p_bold: bool, p_font_size: u16) -> Font {
-        return Font {bold: p_bold, font_size: p_font_size};
+    pub fn new(bold: bool, font_size: u16) -> Font {
+        return Font {bold, font_size};
     }
 }
 

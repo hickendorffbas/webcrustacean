@@ -1,10 +1,12 @@
 
-- work on better automated testing
-
-
-- apply styles from the styles on the document to the nodes
-
 - integrate default styles in the styles list on the document
+
+- convert the a tag styling to a default style rule
+
+- fix layout resolving test(s)
+
+
+- work on better automated testing
 
 
 

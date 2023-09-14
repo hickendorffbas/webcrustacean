@@ -8,7 +8,7 @@ use crate::layout::{
     get_font_given_styles
 };
 use crate::platform::Platform;
-use crate::style::resolve_full_styles_for_layout_node;
+use crate::style::get_default_styles;
 use crate::ui::{render_ui, UIState};
 
 
@@ -27,7 +27,6 @@ pub fn render(platform: &mut Platform, full_layout: &FullLayout, ui_state: &UISt
 
 
 fn render_layout_node(platform: &mut Platform, layout_node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>, current_scroll_y: f32) {
-    let resolved_styles = resolve_full_styles_for_layout_node(&layout_node, all_nodes);
 
     if !layout_node.rects.borrow().iter().any(|rect| -> bool { rect.location.borrow().is_visible_on_y_location(current_scroll_y) }) {
         return;
@@ -48,7 +47,7 @@ fn render_layout_node(platform: &mut Platform, layout_node: &LayoutNode, all_nod
 
     for layout_rect in layout_node.rects.borrow().iter() {
         if layout_rect.text.is_some() {
-            let (font, font_color) = get_font_given_styles(&resolved_styles);
+            let (font, font_color) = get_font_given_styles(layout_node.styles.borrow().as_ref());
             let (x, y) = layout_rect.location.borrow().x_y();
 
             platform.render_text(layout_rect.text.as_ref().unwrap(), x, y - current_scroll_y, &font, font_color);

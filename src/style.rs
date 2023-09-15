@@ -129,6 +129,8 @@ pub fn get_numeric_style_value(styles: &Vec<Style>, style_name: &str) -> u16 {
 
 pub fn get_color_style_value(styles: &Vec<Style>, style_name: &str) -> Option<Color> {
     let colors = styles.iter().filter(|style| style.property == style_name).map(|style| style.value.clone()).collect::<Vec<String>>();
-    return Color::from_string(colors.first().unwrap()); //TODO: we need to handle the case where the style_name does not exist, 
-                                                        //      and where the color does not exist
+    if colors.len() == 0 {
+        return None;
+    }
+    return Color::from_string(colors.first().unwrap());
 }

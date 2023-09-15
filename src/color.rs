@@ -26,6 +26,7 @@ impl Color {
             "red" => Some(Color::RED),
             "green" => Some(Color::GREEN),
             "white" => Some(Color::WHITE),
+            "yellow" => Some(Color::YELLOW),
             _ => None
         }
     }
@@ -35,4 +36,5 @@ impl Color {
     pub const GREEN: Color = Color::new(0, 255, 0);
     pub const RED: Color = Color::new(255, 0, 0);
     pub const WHITE: Color = Color::new(255, 255, 255);
+    pub const YELLOW: Color = Color::new(255, 255, 0);
 }

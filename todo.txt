@@ -11,8 +11,8 @@
 
 
 features still needed for 0.1 release:
-       - basic background colors
        - build a cursor in the addressbar
        - load another image format besides PNG
        - test on mac / windows (document SDL install?)
        - add a readme
+       - don't crash on non-closed tags (or out of order closed tags)

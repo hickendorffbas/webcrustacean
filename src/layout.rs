@@ -108,6 +108,12 @@ impl ComputedLocation {
             ComputedLocation::Computed(loc) => { loc.y },
         }
     }
+    pub fn width(&self) -> f32 {
+        return match self {
+            ComputedLocation::NotYetComputed => panic!("Node has not yet been computed"),
+            ComputedLocation::Computed(loc) => { loc.width },
+        }
+    }
     pub fn height(&self) -> f32 {
         return match self {
             ComputedLocation::NotYetComputed => panic!("Node has not yet been computed"),
@@ -209,7 +215,6 @@ fn compute_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>,
     //TODO: it makes more sense if we set these when we build the layout node, and then just pass in the dom node, then the style field does
     //      not need to be mutable
     node.styles.replace(resolve_full_styles_for_layout_node(node, all_nodes, style_rules));
-
 
     if node.children.is_some() {
         let all_block = node.all_childnodes_have_given_display(Display::Block);

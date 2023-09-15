@@ -8,8 +8,8 @@ use crate::layout::{
     get_font_given_styles
 };
 use crate::platform::Platform;
-use crate::style::get_default_styles;
-use crate::ui::{render_ui, UIState};
+use crate::style::get_color_style_value;
+use crate::ui::{UIState, render_ui};
 
 
 pub fn render(platform: &mut Platform, full_layout: &FullLayout, ui_state: &UIState) {
@@ -33,6 +33,24 @@ fn render_layout_node(platform: &mut Platform, layout_node: &LayoutNode, all_nod
     }
 
     let node_rects = layout_node.rects.borrow();
+
+    for layout_rect in node_rects.iter() {
+        if layout_rect.text.is_some() {
+            let (font, font_color) = get_font_given_styles(layout_node.styles.borrow().as_ref());
+            let (x, y) = layout_rect.location.borrow().x_y();
+
+            platform.render_text(layout_rect.text.as_ref().unwrap(), x, y - current_scroll_y, &font, font_color);
+
+        } else {
+            let background_color = get_color_style_value(layout_node.styles.borrow().as_ref(), "background-color");
+            if background_color.is_some() {
+                let location = layout_rect.location.borrow();
+                platform.fill_rect(location.x(), location.y() - current_scroll_y, location.width(), location.height(), background_color.unwrap());
+            }
+
+        }
+    }
+
     let possible_img_rect = node_rects.iter().find(|rect| { rect.image.is_some()});
     if possible_img_rect.is_some() {
         debug_assert!(layout_node.rects.borrow().len() == 1);
@@ -43,15 +61,6 @@ fn render_layout_node(platform: &mut Platform, layout_node: &LayoutNode, all_nod
         let y = rect.location.borrow().y() - current_scroll_y;
 
         platform.render_image(&possible_img_rect.unwrap().image.as_ref().unwrap(), x, y)
-    }
-
-    for layout_rect in layout_node.rects.borrow().iter() {
-        if layout_rect.text.is_some() {
-            let (font, font_color) = get_font_given_styles(layout_node.styles.borrow().as_ref());
-            let (x, y) = layout_rect.location.borrow().x_y();
-
-            platform.render_text(layout_rect.text.as_ref().unwrap(), x, y - current_scroll_y, &font, font_color);
-        }
     }
 
     if layout_node.children.is_some() {

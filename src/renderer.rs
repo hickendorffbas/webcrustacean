@@ -36,13 +36,13 @@ fn render_layout_node(platform: &mut Platform, layout_node: &LayoutNode, all_nod
 
     for layout_rect in node_rects.iter() {
         if layout_rect.text.is_some() {
-            let (font, font_color) = get_font_given_styles(layout_node.styles.borrow().as_ref());
+            let (font, font_color) = get_font_given_styles(&layout_node.styles);
             let (x, y) = layout_rect.location.borrow().x_y();
 
             platform.render_text(layout_rect.text.as_ref().unwrap(), x, y - current_scroll_y, &font, font_color);
 
         } else {
-            let background_color = get_color_style_value(layout_node.styles.borrow().as_ref(), "background-color");
+            let background_color = get_color_style_value(&layout_node.styles, "background-color");
             if background_color.is_some() {
                 let location = layout_rect.location.borrow();
                 platform.fill_rect(location.x(), location.y() - current_scroll_y, location.width(), location.height(), background_color.unwrap());

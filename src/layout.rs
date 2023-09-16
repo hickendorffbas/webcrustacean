@@ -10,7 +10,11 @@ use crate::ui::{
     CONTENT_TOP_LEFT_Y,
     CONTENT_WIDTH
 };
-use crate::{Font, resource_loader, SCREEN_HEIGHT};
+use crate::{
+    Font,
+    resource_loader,
+    SCREEN_HEIGHT
+};
 use crate::color::Color;
 use crate::debug::debug_log_warn;
 use crate::dom::{Document, DomNode};
@@ -19,7 +23,6 @@ use crate::style::{
     Style,
     StyleRule,
     get_color_style_value,
-    get_default_styles,
     get_numeric_style_value,
     has_style_value,
     resolve_full_styles_for_layout_node,
@@ -44,7 +47,7 @@ pub struct LayoutNode {
     pub line_break: bool,
     pub children: Option<Vec<Rc<LayoutNode>>>,
     pub parent_id: usize,
-    pub styles: RefCell<Vec<Style>>,
+    pub styles: Vec<Style>,
     pub optional_link_url: Option<String>,
     pub rects: RefCell<Vec<LayoutRect>>,
     pub from_dom_node: Option<Rc<DomNode>>,
@@ -181,7 +184,7 @@ pub fn build_full_layout(document: &Document, platform: &mut Platform) -> FullLa
         line_break: false,
         children: Some(top_level_layout_nodes),
         parent_id: id_of_node_being_built,  //this is the top node, so it does not really have a parent, we set it to ourselves,
-        styles: RefCell::new(get_default_styles()), //TODO: should we instead resolve styles for this node?
+        styles: resolve_full_styles_for_layout_node(&Rc::clone(&document.document_node), &document.all_nodes, &document.style_rules),
         optional_link_url: None,
         rects: RefCell::new(vec![LayoutRect::get_default_non_computed_rect()]),
         from_dom_node: Some(Rc::clone(&document.document_node)),
@@ -190,7 +193,7 @@ pub fn build_full_layout(document: &Document, platform: &mut Platform) -> FullLa
     let rc_root_node = Rc::new(root_node);
     all_nodes.insert(id_of_node_being_built, Rc::clone(&rc_root_node));
 
-    let (root_width, root_height) = compute_layout(&rc_root_node, &all_nodes, &document.styles, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y, platform);
+    let (root_width, root_height) = compute_layout(&rc_root_node, &all_nodes, &document.style_rules, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y, platform);
     let root_location = ComputedLocation::Computed(
         Rect { x: CONTENT_TOP_LEFT_X, y: CONTENT_TOP_LEFT_Y, width: root_width, height: root_height }
     );
@@ -204,6 +207,7 @@ pub fn build_full_layout(document: &Document, platform: &mut Platform) -> FullLa
 //TODO: need to find a way to make good tests for this
 fn compute_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>, style_rules: &Vec<StyleRule>,
                   top_left_x: f32, top_left_y: f32, platform: &mut Platform) -> (f32, f32) {
+
     if !node.visible {
         let node_location = ComputedLocation::Computed(
             Rect { x: top_left_x, y: top_left_y, width: 0.0, height: 0.0 }
@@ -211,10 +215,6 @@ fn compute_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>,
         node.update_single_rect_location(node_location);
         return (0.0, 0.0);
     }
-
-    //TODO: it makes more sense if we set these when we build the layout node, and then just pass in the dom node, then the style field does
-    //      not need to be mutable
-    node.styles.replace(resolve_full_styles_for_layout_node(node, all_nodes, style_rules));
 
     if node.children.is_some() {
         let all_block = node.all_childnodes_have_given_display(Display::Block);
@@ -232,7 +232,7 @@ fn compute_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>,
 
     debug_assert!(node.rects.borrow().len() == 1);
 
-    let (node_width, node_height) = compute_size_for_rect(node.rects.borrow().iter().next().unwrap(), node.styles.borrow().as_ref(), platform);
+    let (node_width, node_height) = compute_size_for_rect(node.rects.borrow().iter().next().unwrap(), &node.styles, platform);
     let node_location = ComputedLocation::Computed(
         Rect { x: top_left_x, y: top_left_y, width: node_width, height: node_height }
     );
@@ -242,10 +242,11 @@ fn compute_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>,
 }
 
 
-pub fn get_font_given_styles(resolved_styles: &Vec<Style>) -> (Font, Color) {
-    let font_bold = has_style_value(&resolved_styles, "font-weight", &"bold".to_owned());
-    let font_size = get_numeric_style_value(&resolved_styles, "font-size");
-    let font_color = get_color_style_value(&resolved_styles, "font-color")
+pub fn get_font_given_styles(styles: &Vec<Style>) -> (Font, Color) {
+    let font_bold = has_style_value(&styles, "font-weight", &"bold".to_owned());
+    let font_size = get_numeric_style_value(&styles, "font-size")
+                        .expect("No font-size found"); //font-size should be in the default styles, so this is a fatal error if not found
+    let font_color = get_color_style_value(&styles, "font-color")
                         .expect(format!("Unkown color").as_str()); //TODO: we need to handle this in a graceful way, instead of crashing
 
     return (Font::new(font_bold, font_size), font_color);
@@ -291,7 +292,7 @@ fn apply_inline_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNo
                 cursor_y += max_height_of_line;
                 child_height = max_height_of_line;
             } else {
-                let (font, _) = get_font_given_styles(child.styles.borrow().as_ref());
+                let (font, _) = get_font_given_styles(&child.styles);
                 //we get the hight of a random character in the font for the height of the newline:
                 let (_, random_char_height) = platform.get_text_dimension(&String::from("x"), &font);
 
@@ -313,7 +314,7 @@ fn apply_inline_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNo
             if child.children.is_none() && child.can_wrap() && child.rects.borrow().iter().all(|rect| -> bool { rect.text.is_some()} ) {
                 // in this case, we might be able to split rects, and put part of the node on this line
 
-                let font = get_font_given_styles(child.styles.borrow().as_ref());
+                let font = get_font_given_styles(&child.styles);
                 let relative_cursor_x = cursor_x - top_left_x;
                 let amount_of_space_left_on_line = max_allowed_width - relative_cursor_x;
                 let wrapped_text = wrap_text(child.rects.borrow().last().unwrap(), max_allowed_width, 
@@ -329,7 +330,7 @@ fn apply_inline_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNo
                         location: RefCell::new(ComputedLocation::NotYetComputed),
                     };
 
-                    let (rect_width, rect_height) = compute_size_for_rect(&new_rect, child.styles.borrow().as_ref(), platform);
+                    let (rect_width, rect_height) = compute_size_for_rect(&new_rect, &child.styles, platform);
 
                     if cursor_x - top_left_x + rect_width > max_allowed_width {
                         if cursor_x != top_left_x {
@@ -394,10 +395,10 @@ fn apply_inline_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNo
 
 
 //Note that this function returns the size, but does not update the rect with that size (because we also need to position for the computed location object)
-fn compute_size_for_rect(layout_rect: &LayoutRect, resolved_styles: &Vec<Style>, platform: &mut Platform) -> (f32, f32) {
+fn compute_size_for_rect(layout_rect: &LayoutRect, styles: &Vec<Style>, platform: &mut Platform) -> (f32, f32) {
 
     if layout_rect.text.is_some() {
-        let font = get_font_given_styles(resolved_styles);
+        let font = get_font_given_styles(styles);
         return platform.get_text_dimension(layout_rect.text.as_ref().unwrap(), &font.0);
     }
 
@@ -470,8 +471,7 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
     let mut partial_node_optional_img = None;
     let mut partial_node_line_break = false;
     let mut partial_node_display = Display::Block;
-    let mut partial_node_styles = Vec::new();
-
+    let mut partial_node_styles = resolve_full_styles_for_layout_node(&Rc::clone(main_node), &document.all_nodes, &document.style_rules);
 
     let mut childs_to_recurse_on: &Option<Vec<Rc<DomNode>>> = &None;
     match main_node.as_ref() {
@@ -602,7 +602,7 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
                     Display::Block => {
                         if temp_buffer_for_inline_children.len() > 0 {
                             let anonymous_block_node = build_anonymous_block_layout_node(partial_node_visible, id_of_node_being_built,
-                                                                                         temp_buffer_for_inline_children, all_nodes);
+                                                                                         temp_buffer_for_inline_children, all_nodes, &partial_node_styles);
 
                             temp_children_with_anonymous_blocks.push(anonymous_block_node);
                             temp_buffer_for_inline_children = Vec::new();
@@ -616,7 +616,7 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
 
             if temp_buffer_for_inline_children.len() > 0 {
                 let anonymous_block_node = build_anonymous_block_layout_node(partial_node_visible, id_of_node_being_built,
-                                                                             temp_buffer_for_inline_children, all_nodes);
+                                                                             temp_buffer_for_inline_children, all_nodes, &partial_node_styles);
                 temp_children_with_anonymous_blocks.push(anonymous_block_node);
             }
 
@@ -642,7 +642,7 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
         line_break: partial_node_line_break,
         children: new_childeren,
         parent_id: parent_id,
-        styles: RefCell::new(partial_node_styles),
+        styles: partial_node_styles,
         optional_link_url: partial_node_optional_link_url,
         rects: RefCell::new(vec![layout_rect]),
         from_dom_node: Some(Rc::clone(main_node)),
@@ -656,7 +656,7 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
 
 
 fn build_anonymous_block_layout_node(visible: bool, parent_id: usize, inline_children: Vec<Rc<LayoutNode>>,
-                                     all_nodes: &mut HashMap<usize, Rc<LayoutNode>>) -> Rc<LayoutNode> {
+                                     all_nodes: &mut HashMap<usize, Rc<LayoutNode>>, styles: &Vec<Style>) -> Rc<LayoutNode> {
     let id_of_node_being_built = get_next_layout_node_interal_id();
 
     let anonymous_node = LayoutNode {
@@ -666,7 +666,7 @@ fn build_anonymous_block_layout_node(visible: bool, parent_id: usize, inline_chi
         line_break: false,
         children: Some(inline_children),
         parent_id: parent_id,
-        styles: RefCell::new(Vec::new()),
+        styles: styles.clone(),
         optional_link_url: None,
         rects: RefCell::new(vec![LayoutRect::get_default_non_computed_rect()]),
         from_dom_node: None,

@@ -25,7 +25,7 @@ const SELF_CLOSING_TAGS: [&str; 6] = ["br", "hr", "img", "input", "link", "meta"
 
 pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>) -> Document {
     let mut all_nodes = HashMap::new();
-    let mut styles = Vec::new();
+    let mut style_rules = Vec::new();
 
     let mut children = Vec::new();
     let root_node_internal_id = get_next_dom_node_interal_id();
@@ -33,7 +33,7 @@ pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>) -> Document {
     let mut current_token_idx = 0;
 
     while current_token_idx < html_tokens.len() {
-        children.push(parse_node(&html_tokens, &mut current_token_idx, root_node_internal_id, &mut all_nodes, &mut styles));
+        children.push(parse_node(&html_tokens, &mut current_token_idx, root_node_internal_id, &mut all_nodes, &mut style_rules));
         current_token_idx += 1;
     }
     let root_node = DomNode::Document(DocumentDomNode { internal_id: root_node_internal_id, children: Some(children)});
@@ -42,7 +42,7 @@ pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>) -> Document {
     let rc_root_node = Rc::new(root_node);
     all_nodes.insert(root_node_internal_id, Rc::clone(&rc_root_node));
 
-    return Document { document_node: rc_root_node, all_nodes, styles };
+    return Document { document_node: rc_root_node, all_nodes, style_rules };
 }
 
 

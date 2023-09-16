@@ -13,7 +13,7 @@ pub fn get_next_dom_node_interal_id() -> usize { NEXT_DOM_NODE_INTERNAL.fetch_ad
 pub struct Document {
     pub document_node: Rc<DomNode>,
     pub all_nodes: HashMap<usize, Rc<DomNode>>,
-    pub styles: Vec<StyleRule>,
+    pub style_rules: Vec<StyleRule>,
 }
 impl Document {
     pub fn has_element_parent_with_name(&self, node: &DomNode, element_name: &str) -> bool {

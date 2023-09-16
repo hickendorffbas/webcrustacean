@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use crate::color::Color;
-use crate::layout::LayoutNode;
+use crate::dom::DomNode;
 
 
 #[cfg(test)]
@@ -18,7 +18,8 @@ pub struct StyleRule {
 #[derive(Clone)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Selector {
-    //TODO: this should become more complex (we don't want the whole selector as text, but as actual parsed info, for now we just support nodes thought)
+    //TODO: this should become more complex (we don't want the whole selector as text, but as actual parsed info, for now we just support nodes though)
+    pub wildcard: bool,
     pub nodes: Option<Vec<String>>,
 }
 
@@ -30,55 +31,43 @@ pub struct Style {
 }
 
 
-pub fn get_default_styles() -> Vec<Style> {
+pub fn get_default_styles() -> Vec<StyleRule> {
     //These are the styles that are applied to the outer most node, and are used when no styling is specified.
-    //TODO: we should specify these as actual hardcoded CSS rules, with selectors
     return vec![
-        Style { property: "font-size".to_owned(), value: "20".to_owned() },
-        Style { property: "font-color".to_owned(), value: "black".to_owned() },
+        StyleRule { selector: Selector { nodes: None, wildcard: true },
+                    style: Style { property: "font-size".to_owned(), value: "20".to_owned() }},
+        StyleRule { selector: Selector { nodes: None, wildcard: true },
+                    style: Style { property: "font-color".to_owned(), value: "black".to_owned() }},
     ];
 }
 
 
 //TODO: we are now doing this when rendering. It might make more sense to do this earlier, cache the result on the node, and recompute only when needed
-//TODO: we now do this on layout nodes, shouldn't we compute styles on DOM nodes? I think so
-pub fn resolve_full_styles_for_layout_node<'a>(layout_node: &'a LayoutNode, all_nodes: &'a HashMap<usize, Rc<LayoutNode>>,
+pub fn resolve_full_styles_for_layout_node<'a>(dom_node: &'a Rc<DomNode>, all_dom_nodes: &'a HashMap<usize, Rc<DomNode>>,
                                                style_rules: &Vec<StyleRule>) -> Vec<Style> {
     let mut resolved_style_names: HashSet<String> = HashSet::new();
-    let mut node_to_check: &LayoutNode = layout_node;
-    let is_root_node = node_to_check.parent_id == node_to_check.internal_id;
+    let mut node_to_check = dom_node;
 
     let mut resolved_styles = apply_all_styles(node_to_check, style_rules);
 
     //TODO: not all properties should be inherited: https://developer.mozilla.org/en-US/docs/Web/CSS/Inheritance
     loop {
 
-        let parent_id = node_to_check.parent_id;
-        if parent_id == node_to_check.internal_id {
-            //the top node has itself as parent
+        let parent_id = node_to_check.get_parent_id();
+        if parent_id.is_none() {
             break;
         }
-        let parent_node = all_nodes.get(&parent_id).expect(format!("id {} not present in all nodes", parent_id).as_str());
+        let parent_node = all_dom_nodes.get(&parent_id.unwrap()).expect(format!("id {} not present in all nodes", parent_id.unwrap()).as_str());
         node_to_check = parent_node;
 
         //TODO: we also need to compute styles for our parents, so we should only do this if we did not do this yet...
-        //      (store it somewhere and even persist across frames)
-        let styles_of_parent = resolve_full_styles_for_layout_node(node_to_check, all_nodes, style_rules);
+        //      (store it somewhere and even persist across frames?)
+        let styles_of_parent = resolve_full_styles_for_layout_node(node_to_check, all_dom_nodes, style_rules);
 
         for parent_style in styles_of_parent {
             if !resolved_style_names.contains(&parent_style.property) {
                 resolved_style_names.insert(parent_style.property.clone());
                 resolved_styles.push(parent_style);
-            }
-        }
-
-    }
-
-    if is_root_node {
-        for default_style in get_default_styles() {
-            if !resolved_style_names.contains(&default_style.property) {
-                resolved_style_names.insert(default_style.property.clone());
-                resolved_styles.push(default_style);
             }
         }
     }
@@ -87,31 +76,51 @@ pub fn resolve_full_styles_for_layout_node<'a>(layout_node: &'a LayoutNode, all_
 }
 
 
-fn apply_all_styles(node_to_check: &LayoutNode, styles: &Vec<StyleRule>) -> Vec<Style> {
+fn apply_all_styles(node_to_check: &DomNode, style_rules: &Vec<StyleRule>) -> Vec<Style> {
     let mut applied_styles = Vec::new();
 
-    if node_to_check.from_dom_node.is_some() {
+    //TODO: the rules are not checked by prio currently (specificity?, I think for example wildcard should have less prio)
 
-        match node_to_check.from_dom_node.as_ref().unwrap().as_ref() {
-            crate::dom::DomNode::Document(_) => { /* TODO: should this indeed be empty, or are there styles we need to apply here? */},
-            crate::dom::DomNode::Attribute(_) => {},
-            crate::dom::DomNode::Text(_) => {},
-            crate::dom::DomNode::Element(element_node) => {
+    //TODO: we don't check for overlapping styles (i.e. having the same property) yet
 
-                for style in styles {
-                    if style.selector.nodes.is_some() {
-                        if style.selector.nodes.as_ref().unwrap().contains(&element_node.name.as_ref().unwrap()) {
-                            applied_styles.push(style.style.clone());
-                        }
-                    }
-                }
-
-            }
+    for style_rule in style_rules {
+        if does_style_rule_apply(&style_rule, &node_to_check) {
+            applied_styles.push(style_rule.style.clone());
         }
+    }
 
+    for style_rule in get_default_styles() {
+        if does_style_rule_apply(&style_rule, &node_to_check) {
+            applied_styles.push(style_rule.style.clone());
+        }
     }
 
     return applied_styles;
+}
+
+
+fn does_style_rule_apply(style_rule: &StyleRule, dom_node: &DomNode) -> bool {
+    if style_rule.selector.wildcard {
+        return true;
+    }
+
+    match dom_node {
+        DomNode::Document(_) => {
+            return false;
+        },
+        DomNode::Element(element_node) => {
+            if style_rule.selector.nodes.is_some() && style_rule.selector.nodes.as_ref().unwrap().contains(&element_node.name.as_ref().unwrap()) {
+                return true;
+            }
+            return false;
+        },
+        DomNode::Attribute(_) => {
+            return false;
+        },
+        DomNode::Text(_) => {
+            return false;
+        },
+    }
 }
 
 
@@ -121,9 +130,12 @@ pub fn has_style_value(styles: &Vec<Style>, style_name: &str, style_value: &Stri
 }
 
 
-pub fn get_numeric_style_value(styles: &Vec<Style>, style_name: &str) -> u16 {
+pub fn get_numeric_style_value(styles: &Vec<Style>, style_name: &str) -> Option<u16> {
     let results = styles.iter().filter(|style| style.property == style_name).map(|style| style.value.clone()).collect::<Vec<String>>();
-    return results.first().unwrap().parse::<u16>().unwrap(); //TODO: this should handle errors, return a Result?
+    if results.first().is_none() {
+        return None;
+    }
+    return results.first().unwrap().parse::<u16>().ok();
 }
 
 

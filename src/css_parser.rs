@@ -1,5 +1,5 @@
 use crate::css_lexer::{CssTokenWithLocation, CssToken};
-use crate::style::{StyleRule, Selector, Style};
+use crate::style::{StyleRule, Selector};
 
 
 pub fn parse_css(css_tokens: &Vec<CssTokenWithLocation>) -> Vec<StyleRule> {
@@ -26,8 +26,7 @@ pub fn parse_css(css_tokens: &Vec<CssTokenWithLocation>) -> Vec<StyleRule> {
                 last_property = property;
             }
             CssToken::Value(value) => {
-                let style = Style { property: last_property.to_string(), value: value.to_string() };
-                style_rules.push( StyleRule { selector: current_context.clone(), style } );
+                style_rules.push( StyleRule { selector: current_context.clone(), property: last_property.to_string(), value: value.to_string() } );
             },
             CssToken::BlockStart => {
                 //TODO: is there even something we need to do here? Maybe not. Should we then even emit the token?

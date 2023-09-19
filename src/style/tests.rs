@@ -4,7 +4,6 @@ use std::rc::Rc;
 
 use crate::style::{
     Selector,
-    Style,
     StyleRule,
     get_default_styles,
     resolve_full_styles_for_layout_node,
@@ -28,12 +27,13 @@ fn test_basic_style_resolving() {
     all_dom_nodes.insert(document_node_id, Rc::clone(&document_node));
 
     let style_rules = vec![ StyleRule { selector: Selector { wildcard: false, nodes: Some(vec!["a".to_owned()]) },
-                                        style: Style { property: "prop".to_owned(), value: "some value".to_owned() } }  ];
+                                        property: "prop".to_owned(), value: "some value".to_owned() } ];
 
     let resolved_styles = resolve_full_styles_for_layout_node(&dom_node, &all_dom_nodes, &style_rules);
 
     assert_eq!(resolved_styles.len(), 1 + get_default_styles().len());
-    assert!(resolved_styles.contains( &Style { property: "prop".to_owned(), value: "some value".to_owned()} ));
+    assert!(resolved_styles.contains_key("prop"));
+    assert_eq!(resolved_styles.get("prop").unwrap(), "some value");
 }
 
 
@@ -51,7 +51,7 @@ fn test_overwrite_default_style() {
     all_dom_nodes.insert(document_node_id, Rc::clone(&document_node));
 
     let style_rules = vec![ StyleRule { selector: Selector { wildcard: false, nodes: Some(vec!["a".to_owned()]) },
-                                        style: Style { property: "font-size".to_owned(), value: "3".to_owned() } }  ];
+                                        property: "font-size".to_owned(), value: "3".to_owned() } ];
 
     let resolved_styles = resolve_full_styles_for_layout_node(&dom_node, &all_dom_nodes, &style_rules);
 

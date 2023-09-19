@@ -20,7 +20,6 @@ use crate::debug::debug_log_warn;
 use crate::dom::{Document, DomNode};
 use crate::platform::Platform;
 use crate::style::{
-    Style,
     StyleRule,
     get_color_style_value,
     get_numeric_style_value,
@@ -47,7 +46,7 @@ pub struct LayoutNode {
     pub line_break: bool,
     pub children: Option<Vec<Rc<LayoutNode>>>,
     pub parent_id: usize,
-    pub styles: Vec<Style>,
+    pub styles: HashMap<String, String>,  //TODO: it would eventually be nice to have something stronger typed here
     pub optional_link_url: Option<String>,
     pub rects: RefCell<Vec<LayoutRect>>,
     pub from_dom_node: Option<Rc<DomNode>>,
@@ -242,7 +241,7 @@ fn compute_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>,
 }
 
 
-pub fn get_font_given_styles(styles: &Vec<Style>) -> (Font, Color) {
+pub fn get_font_given_styles(styles: &HashMap<String, String>) -> (Font, Color) {
     let font_bold = has_style_value(&styles, "font-weight", &"bold".to_owned());
     let font_size = get_numeric_style_value(&styles, "font-size")
                         .expect("No font-size found"); //font-size should be in the default styles, so this is a fatal error if not found
@@ -395,7 +394,7 @@ fn apply_inline_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNo
 
 
 //Note that this function returns the size, but does not update the rect with that size (because we also need to position for the computed location object)
-fn compute_size_for_rect(layout_rect: &LayoutRect, styles: &Vec<Style>, platform: &mut Platform) -> (f32, f32) {
+fn compute_size_for_rect(layout_rect: &LayoutRect, styles: &HashMap<String, String>, platform: &mut Platform) -> (f32, f32) {
 
     if layout_rect.text.is_some() {
         let font = get_font_given_styles(styles);
@@ -489,7 +488,7 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
                 }
 
                 "b" => {
-                    partial_node_styles.push(Style { property: "font-weight".to_owned(), value: "bold".to_owned() });
+                    partial_node_styles.insert("font-weight".to_owned(), "bold".to_owned());
                     partial_node_display = Display::Inline;
                 }
 
@@ -507,28 +506,28 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
                 }
 
                 "h1" => {
-                    partial_node_styles.push(Style { property: "font-weight".to_owned(), value: "bold".to_owned() });
-                    partial_node_styles.push(Style { property: "font-size".to_owned(), value: "32".to_owned() });
+                    partial_node_styles.insert("font-weight".to_owned(), "bold".to_owned());
+                    partial_node_styles.insert("font-size".to_owned(), "32".to_owned());
                 }
                 "h2" => {
-                    partial_node_styles.push(Style { property: "font-weight".to_owned(), value: "bold".to_owned() });
-                    partial_node_styles.push(Style { property: "font-size".to_owned(), value: "30".to_owned() });
+                    partial_node_styles.insert("font-weight".to_owned(), "bold".to_owned());
+                    partial_node_styles.insert("font-size".to_owned(), "30".to_owned());
                 }
                 "h3" => {
-                    partial_node_styles.push(Style { property: "font-weight".to_owned(), value: "bold".to_owned() });
-                    partial_node_styles.push(Style { property: "font-size".to_owned(), value: "28".to_owned() });
+                    partial_node_styles.insert("font-weight".to_owned(), "bold".to_owned());
+                    partial_node_styles.insert("font-size".to_owned(), "28".to_owned());
                 }
                 "h4" => {
-                    partial_node_styles.push(Style { property: "font-weight".to_owned(), value: "bold".to_owned() });
-                    partial_node_styles.push(Style { property: "font-size".to_owned(), value: "26".to_owned() });
+                    partial_node_styles.insert("font-weight".to_owned(), "bold".to_owned());
+                    partial_node_styles.insert("font-size".to_owned(), "26".to_owned());
                 }
                 "h5" => {
-                    partial_node_styles.push(Style { property: "font-weight".to_owned(), value: "bold".to_owned() });
-                    partial_node_styles.push(Style { property: "font-size".to_owned(), value: "24".to_owned() });
+                    partial_node_styles.insert("font-weight".to_owned(), "bold".to_owned());
+                    partial_node_styles.insert("font-size".to_owned(), "24".to_owned());
                 }
                 "h6" => {
-                    partial_node_styles.push(Style { property: "font-weight".to_owned(), value: "bold".to_owned() });
-                    partial_node_styles.push(Style { property: "font-size".to_owned(), value:  "22".to_owned() });
+                    partial_node_styles.insert("font-weight".to_owned(), "bold".to_owned());
+                    partial_node_styles.insert("font-size".to_owned(), "22".to_owned());
                 }
 
                 "head" => {
@@ -572,7 +571,7 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
         DomNode::Text(node) => {
             //TODO: this should become an style rule in the default rules (when they are changed from Style to StyleRule)
             if document.has_element_parent_with_name(main_node.as_ref(), "a") {
-                partial_node_styles.push(Style { property: "font-color".to_owned(), value: "blue".to_owned() });
+                partial_node_styles.insert("font-color".to_owned(), "blue".to_owned());
             }
 
             partial_node_text = Option::Some(node.text_content.to_string());
@@ -656,7 +655,7 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
 
 
 fn build_anonymous_block_layout_node(visible: bool, parent_id: usize, inline_children: Vec<Rc<LayoutNode>>,
-                                     all_nodes: &mut HashMap<usize, Rc<LayoutNode>>, styles: &Vec<Style>) -> Rc<LayoutNode> {
+                                     all_nodes: &mut HashMap<usize, Rc<LayoutNode>>, styles: &HashMap<String, String>) -> Rc<LayoutNode> {
     let id_of_node_being_built = get_next_layout_node_interal_id();
 
     let anonymous_node = LayoutNode {

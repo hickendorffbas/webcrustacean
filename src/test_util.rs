@@ -1,7 +1,10 @@
-use crate::html_lexer::AttributeContent;
-#[cfg(test)]
+use std::sync::atomic::{AtomicUsize, Ordering};
 
-use crate::html_lexer::{HtmlToken, HtmlTokenWithLocation};
+use crate::html_lexer::{AttributeContent, HtmlToken, HtmlTokenWithLocation};
+
+
+static NEXT_TEST_ID: AtomicUsize = AtomicUsize::new(1);
+pub fn get_next_test_id() -> usize { NEXT_TEST_ID.fetch_add(1, Ordering::Relaxed) }
 
 
 pub fn tokens_equal_ignoring_location(actual_tokens: Vec<HtmlTokenWithLocation>, expected_tokens: Vec<HtmlTokenWithLocation>) -> bool {

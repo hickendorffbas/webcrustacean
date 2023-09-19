@@ -3,8 +3,6 @@
 
 - do a basic fix for specificity ordering in style rules (https://www.w3schools.com/css/css_specificity.asp)
 
-- implement new style tests
-
 - work on better automated testing
 
 

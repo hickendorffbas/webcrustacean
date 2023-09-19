@@ -45,10 +45,13 @@ pub fn get_default_styles() -> Vec<StyleRule> {
 //TODO: we are now doing this when rendering. It might make more sense to do this earlier, cache the result on the node, and recompute only when needed
 pub fn resolve_full_styles_for_layout_node<'a>(dom_node: &'a Rc<DomNode>, all_dom_nodes: &'a HashMap<usize, Rc<DomNode>>,
                                                style_rules: &Vec<StyleRule>) -> Vec<Style> {
-    let mut resolved_style_names: HashSet<String> = HashSet::new();
+    let mut resolved_style_properties: HashSet<String> = HashSet::new();
     let mut node_to_check = dom_node;
 
-    let mut resolved_styles = apply_all_styles(node_to_check, style_rules);
+    let mut resolved_styles = apply_all_styles(node_to_check, style_rules, &mut resolved_style_properties);
+    for style in &resolved_styles {
+        resolved_style_properties.insert(style.property.clone());
+    }
 
     //TODO: not all properties should be inherited: https://developer.mozilla.org/en-US/docs/Web/CSS/Inheritance
     loop {
@@ -65,8 +68,8 @@ pub fn resolve_full_styles_for_layout_node<'a>(dom_node: &'a Rc<DomNode>, all_do
         let styles_of_parent = resolve_full_styles_for_layout_node(node_to_check, all_dom_nodes, style_rules);
 
         for parent_style in styles_of_parent {
-            if !resolved_style_names.contains(&parent_style.property) {
-                resolved_style_names.insert(parent_style.property.clone());
+            if !resolved_style_properties.contains(&parent_style.property) {
+                resolved_style_properties.insert(parent_style.property.clone());
                 resolved_styles.push(parent_style);
             }
         }
@@ -76,7 +79,8 @@ pub fn resolve_full_styles_for_layout_node<'a>(dom_node: &'a Rc<DomNode>, all_do
 }
 
 
-fn apply_all_styles(node_to_check: &DomNode, style_rules: &Vec<StyleRule>) -> Vec<Style> {
+//TODO: Vec<Style> should be a hashmap, but keep the Style object in there, with the property? For easy filling from a StyleRule
+fn apply_all_styles(node_to_check: &DomNode, style_rules: &Vec<StyleRule>, resolved_style_properties: &mut HashSet<String>) -> Vec<Style> {
     let mut applied_styles = Vec::new();
 
     //TODO: the rules are not checked by prio currently (specificity?, I think for example wildcard should have less prio)
@@ -85,13 +89,19 @@ fn apply_all_styles(node_to_check: &DomNode, style_rules: &Vec<StyleRule>) -> Ve
 
     for style_rule in style_rules {
         if does_style_rule_apply(&style_rule, &node_to_check) {
-            applied_styles.push(style_rule.style.clone());
+            if !resolved_style_properties.contains(&style_rule.style.property) { //TODO: this is not great, because it will just take the first matching one
+                applied_styles.push(style_rule.style.clone());
+                resolved_style_properties.insert(style_rule.style.property.clone());
+            }
         }
     }
 
     for style_rule in get_default_styles() {
         if does_style_rule_apply(&style_rule, &node_to_check) {
-            applied_styles.push(style_rule.style.clone());
+            if !resolved_style_properties.contains(&style_rule.style.property) { //TODO: this is not great, because it will just take the first matching one
+                applied_styles.push(style_rule.style.clone());
+                resolved_style_properties.insert(style_rule.style.property.clone());
+            }
         }
     }
 

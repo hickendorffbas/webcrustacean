@@ -35,13 +35,20 @@ use sdl2::{
 
 
 //Config:
-const FONT_PATH: &str = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf";
 const TARGET_FPS: u32 = if cfg!(debug_assertions) { 30 } else { 60 };
 const SCREEN_WIDTH: f32 = 1000.0;
 const SCREEN_HEIGHT: f32 = 700.0;
 const DEFAULT_LOCATION_TO_LOAD: &str = "file://testinput/doc.html";
 const SCROLL_SPEED: i32 = 25;
 
+
+//TODO: detect OS automatically (compile time, using cfg) and set constants automatically
+//Config for macOS:
+//const FONT_PATH: &str = "/Library/Fonts/Managed/OpenSans-Light_744839258.ttf";
+
+
+//Config for Linux
+const FONT_PATH: &str = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf";
 
 
 //Non-config constants:

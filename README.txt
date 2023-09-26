@@ -18,3 +18,8 @@ brew install sdl2_ttf
 (optionally) brew link sdl2_ttf
 brew install sdl2_gfx
 (optionally) brew link sdl2_gfx
+
+
+## If linking with SDL2 fails, run:
+
+export LIBRARY_PATH="$LIBRARY_PATH:$(brew --prefix)/lib"

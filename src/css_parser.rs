@@ -4,7 +4,7 @@ use crate::style::{StyleRule, Selector};
 
 pub fn parse_css(css_tokens: &Vec<CssTokenWithLocation>) -> Vec<StyleRule> {
     let mut style_rules = Vec::new();
-    let mut current_context = Selector { nodes: None, wildcard: false };
+    let mut current_context = Selector { nodes: None };
     let mut last_property = "";
 
     for token in css_tokens {
@@ -15,12 +15,9 @@ pub fn parse_css(css_tokens: &Vec<CssTokenWithLocation>) -> Vec<StyleRule> {
                     current_context.nodes = Some(Vec::new());
                 }
 
-                if element == "*" { //TODO: do we need to strip the string somewhere?
-                    current_context.wildcard = true;
-                } else {
-                    let node_vec = current_context.nodes.as_mut().unwrap();
-                    node_vec.push(element.clone());
-                }
+                let node_vec = current_context.nodes.as_mut().unwrap();
+                node_vec.push(element.clone());
+
             }
             CssToken::Property(property) => {
                 last_property = property;

@@ -1,9 +1,7 @@
 
 - convert the "a" (and headings etc.) tag styling to a default style rule
 
-- do a basic fix for specificity ordering in style rules (https://www.w3schools.com/css/css_specificity.asp)
-
-- work on better automated testing
+- work on better automated testing, especially for the styling rules
 
 
 

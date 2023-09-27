@@ -9,6 +9,9 @@ use crate::layout::LayoutNode;
 #[cfg(debug_assertions)] const INDENT_AMOUNT: u32 = 2;
 
 
+//TODO: a few of these should probably output json (they are trees, mostly), so I can nicely format them, and collapse parts.
+
+
 #[allow(dead_code)]
 #[cfg(not(debug_assertions))]
 pub fn debug_print_dom_tree(_: &Document, _: &str) {}
@@ -107,7 +110,7 @@ fn debug_print_layout_tree_with_indent(node: &Rc<LayoutNode>, indent_cnt: u32) {
         rect_str.push_str(format!("LayoutRect({:?} {:?} {})", rect.location, rect.text, if rect.image.is_some() {"IMG"} else {""}, ).as_str());
     }
 
-    println!("{}{:?} ({}) (parent: {})", indent, rect_str, node.internal_id, node.parent_id);
+    println!("{}{:?} ({}) (parent: {}) {:?}", indent, rect_str, node.internal_id, node.parent_id, node.styles);
 
     if node.children.is_some() {
         for child in node.children.clone().unwrap() {

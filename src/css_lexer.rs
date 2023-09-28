@@ -33,7 +33,7 @@ pub fn lex_css(document: &str, starting_line: u32, starting_char_idx: u32) -> Ve
     };
 
     while css_iterator.has_next() {
-        parse_css_rule(&mut css_iterator, &mut tokens);
+        lex_css_rule(&mut css_iterator, &mut tokens);
         eat_whitespace(&mut css_iterator);
     }
 
@@ -41,7 +41,7 @@ pub fn lex_css(document: &str, starting_line: u32, starting_char_idx: u32) -> Ve
 }
 
 
-fn parse_css_rule(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenWithLocation>) {
+fn lex_css_rule(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenWithLocation>) {
     eat_whitespace(css_iterator);
 
     while css_iterator.has_next() && css_iterator.peek() != Some(&'{') {
@@ -60,14 +60,16 @@ fn parse_css_rule(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssToken
         css_iterator.next(); //read the {
         tokens.push(CssTokenWithLocation { css_token: CssToken::BlockStart, line: css_iterator.current_line, character: css_iterator.current_char });
 
-        parse_css_block(css_iterator, tokens);
+        lex_css_block(css_iterator, tokens);
 
     }
 }
 
 
-fn parse_css_block(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenWithLocation>) {
+fn lex_css_block(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenWithLocation>) {
     eat_whitespace(css_iterator);
+
+    //TODO: this function is currently wrong, because new selectors might be nested in the block, and we assume everything is a property
 
     while css_iterator.has_next() && css_iterator.peek() != Some(&'}') {
 

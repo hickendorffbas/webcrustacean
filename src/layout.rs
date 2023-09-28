@@ -244,7 +244,7 @@ pub fn get_font_given_styles(styles: &HashMap<String, String>) -> (Font, Color) 
     let font_bold = has_style_value(&styles, "font-weight", &"bold".to_owned());
     let font_size = get_numeric_style_value(&styles, "font-size")
                         .expect("No font-size found"); //font-size should be in the default styles, so this is a fatal error if not found
-    let font_color = get_color_style_value(&styles, "font-color")
+    let font_color = get_color_style_value(&styles, "color")
                         .expect(format!("Unkown color").as_str()); //TODO: we need to handle this in a graceful way, instead of crashing
 
     return (Font::new(font_bold, font_size), font_color);
@@ -547,11 +547,6 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
             panic!("We should never have to handle attributes by themselves")
         },
         DomNode::Text(node) => {
-            //TODO: this should become an style rule in the default rules (when they are changed from Style to StyleRule)
-            if document.has_element_parent_with_name(main_node.as_ref(), "a") {
-                partial_node_styles.insert("font-color".to_owned(), "blue".to_owned());
-            }
-
             partial_node_text = Option::Some(node.text_content.to_string());
             partial_node_non_breaking_space_positions = node.non_breaking_space_positions.clone();
             partial_node_display = Display::Inline;
@@ -565,6 +560,8 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
         let mut temp_children = Vec::new();
 
         for child in children {
+            match child.as_ref() { DomNode::Attribute(_) => { continue; }, _ => {} }
+
             temp_children.push(build_layout_tree(child, document, all_nodes, id_of_node_being_built, platform));
         }
 

@@ -142,6 +142,9 @@ pub fn get_user_agent_style_sheet() -> Vec<StyleRule> {
                     property: "font-size".to_owned(), value: "24".to_owned() },
         StyleRule { selector: Selector { nodes: Some(vec!["h6".to_owned()]) },
                     property: "font-size".to_owned(), value: "22".to_owned() },
+
+        StyleRule { selector: Selector { nodes: Some(vec!["a".to_owned()]) },
+                    property: "color".to_owned(), value: "blue".to_owned() },
     ];
 }
 
@@ -186,7 +189,7 @@ pub fn get_property_from_computed_styles(property: &str, styles: &HashMap<String
 
     //Defaults per css property:
     match property {
-        "font-color" => return Some(String::from("black")),
+        "color" => return Some(String::from("black")),
         "font-size" => return Some(String::from("18")),
         "font-weight" => return Some(String::from("normal")),
         _ => { return None }
@@ -197,21 +200,14 @@ pub fn get_property_from_computed_styles(property: &str, styles: &HashMap<String
 
 fn does_style_rule_apply(style_rule: &StyleRule, dom_node: &DomNode) -> bool {
     match dom_node {
-        DomNode::Document(_) => {
-            return false;
-        },
         DomNode::Element(element_node) => {
+            //TODO: currently this matches if any of the nodes matches, I'm not sure if this is correct, do they all need to match?
             if style_rule.selector.nodes.is_some() && style_rule.selector.nodes.as_ref().unwrap().contains(&element_node.name.as_ref().unwrap()) {
                 return true;
             }
             return false;
         },
-        DomNode::Attribute(_) => {
-            return false;
-        },
-        DomNode::Text(_) => {
-            return false;
-        },
+        _ => { return false; },
     }
 }
 

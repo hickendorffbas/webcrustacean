@@ -15,21 +15,6 @@ pub struct Document {
     pub all_nodes: HashMap<usize, Rc<DomNode>>,
     pub style_context: StyleContext,
 }
-impl Document {
-    pub fn has_element_parent_with_name(&self, node: &DomNode, element_name: &str) -> bool {
-        match node {
-            DomNode::Element(node) => {
-                if node.name.is_some() && node.name.as_ref().unwrap() == element_name {
-                    return true;
-                }
-            },
-            _ => {},
-        };
-
-        let parent_id = node.get_parent_id();
-        return parent_id.is_some() && self.has_element_parent_with_name(self.all_nodes.get(&parent_id.unwrap()).unwrap(), element_name);
-    }
-}
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]

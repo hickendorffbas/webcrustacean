@@ -17,10 +17,8 @@ use crate::layout::LayoutNode;
 pub fn debug_print_dom_tree(_: &Document, _: &str) {}
 #[allow(dead_code)]
 #[cfg(debug_assertions)]
-pub fn debug_print_dom_tree(document: &Document, dump_name: &str) {
-    println!("== dumping DOM node tree for {}", dump_name);
+pub fn debug_print_dom_tree(document: &Document) {
     debug_print_dom_node_tree_with_indent(&document.document_node, 0);
-    println!("== done dumping DOM node tree for {}", dump_name);
 }
 
 

@@ -1,9 +1,7 @@
 
-- convert the "a" (and headings etc.) tag styling to a default style rule
+- add tests for css lexing and parsing (maybe first move them into 1 module?)
 
-- work on better automated testing, especially for the styling rules
-
-
+- make module setup better (move relevant files in folder as mod.rs, and maybe nest them, like css parsing, lexing and style)
 
 features still needed for 0.1 release:
        - build a cursor in the addressbar

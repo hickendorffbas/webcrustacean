@@ -1,5 +1,8 @@
-use crate::css_lexer::{CssToken, CssTokenWithLocation};
-use crate::style::{Selector, StyleRule};
+use crate::style::{
+    Selector,
+    StyleRule,
+    css_lexer::{CssToken, CssTokenWithLocation}
+};
 
 
 pub fn parse_css(css_tokens: &Vec<CssTokenWithLocation>) -> Vec<StyleRule> {

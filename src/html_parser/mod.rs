@@ -1,7 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use crate::{css_lexer, css_parser};
 use crate::debug::debug_log_warn;
 use crate::dom::{
     AttributeDomNode,
@@ -13,7 +12,13 @@ use crate::dom::{
     get_next_dom_node_interal_id,
 };
 use crate::html_lexer::{HtmlToken, HtmlTokenWithLocation};
-use crate::style::{StyleRule, StyleContext, get_user_agent_style_sheet};
+use crate::style::{
+    StyleRule,
+    StyleContext,
+    css_lexer,
+    css_parser,
+    get_user_agent_style_sheet,
+};
 
 
 #[cfg(test)]

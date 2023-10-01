@@ -21,8 +21,7 @@ use crate::style::{
 };
 
 
-#[cfg(test)]
-mod tests;
+#[cfg(test)] mod tests;
 
 
 const SELF_CLOSING_TAGS: [&str; 6] = ["br", "hr", "img", "input", "link", "meta"];

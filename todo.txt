@@ -1,7 +1,6 @@
 
-- add tests for css lexing and parsing (maybe first move them into 1 module?)
+- build something with a timer, so I can do basic animations (for now the blinking cursor)
 
-- make module setup better (move relevant files in folder as mod.rs, and maybe nest them, like css parsing, lexing and style)
 
 features still needed for 0.1 release:
        - build a cursor in the addressbar

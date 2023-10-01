@@ -3,8 +3,7 @@ use std::str::Chars;
 
 use crate::debug::debug_log_warn;
 
-#[cfg(test)]
-mod tests;
+#[cfg(test)] mod tests;
 
 
 const DOCTYPE_CHARS: [char; 7] = ['d', 'o', 'c', 't', 'y', 'p', 'e'];

@@ -61,7 +61,6 @@ fn lex_css_rule(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenWi
         tokens.push(CssTokenWithLocation { css_token: CssToken::BlockStart, line: css_iterator.current_line, character: css_iterator.current_char });
 
         lex_css_block(css_iterator, tokens);
-
     }
 }
 

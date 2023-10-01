@@ -10,8 +10,9 @@ use crate::color::Color;
 use crate::dom::DomNode;
 
 
-#[cfg(test)]
-mod tests;
+#[cfg(test)] mod tests;
+#[cfg(test)] mod test_lexer;
+#[cfg(test)] mod test_parser;
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]

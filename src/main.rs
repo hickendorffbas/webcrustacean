@@ -23,7 +23,7 @@ use crate::fonts::Font;
 use crate::layout::{FullLayout, LayoutNode};
 use crate::platform::Platform;
 use crate::renderer::render;
-use crate::ui::{CONTENT_HEIGHT, UIState};
+use crate::ui::{CONTENT_HEIGHT, UIState, AddressbarState};
 
 use sdl2::{
     event::Event as SdlEvent,
@@ -140,7 +140,9 @@ fn main() -> Result<(), String> {
     let current_page_height = full_layout_tree.root_node.rects.borrow().iter().next().unwrap().location.borrow().height();
 
     let mut mouse_state = MouseState { x: 0, y: 0, click_start_x: 0, click_start_y: 0, left_down: false, is_dragging_scrollblock: false };
-    let mut ui_state = UIState { addressbar_has_focus: false, addressbar_text: String::from(DEFAULT_LOCATION_TO_LOAD), current_scroll_y: 0.0 };
+    let addressbar_text = String::from(DEFAULT_LOCATION_TO_LOAD);
+    let addressbar_state = AddressbarState { has_focus: false, cursor_visible: false, cursor_text_position: addressbar_text.len(), text: addressbar_text };
+    let mut ui_state = UIState { addressbar: addressbar_state, current_scroll_y: 0.0 };
 
     let mut event_pump = platform.sdl_context.event_pump()?;
     'main_loop: loop {
@@ -200,14 +202,27 @@ fn main() -> Result<(), String> {
                     }
                 },
                 SdlEvent::KeyUp { keycode, .. } => {
+                    //TODO: this code is not generic enough, it happens to work because we enable/disable text input on focus, but won't work
+                    //      when we have other things then the addressbar to type in. This should become part of a component, that we give the
+                    //      events if it has focus, and otherwise not
                     if keycode.is_some() {
                         if keycode.unwrap().name() == "Backspace" {
                             ui::handle_keyboard_input(None, true, &mut ui_state);
                         }
                         if keycode.unwrap().name() == "Return" {
-                            url = ui_state.addressbar_text.clone();
+                            url = ui_state.addressbar.text.clone();
                             full_layout_tree = load_url(&mut platform, &url);
                             currently_loading_new_page = true;
+                        }
+                        if keycode.unwrap().name() == "Right" {
+                            if ui_state.addressbar.cursor_text_position < ui_state.addressbar.text.len() {
+                                ui_state.addressbar.cursor_text_position += 1;
+                            }
+                        }
+                        if keycode.unwrap().name() == "Left" {
+                            if ui_state.addressbar.cursor_text_position > 0 {
+                                ui_state.addressbar.cursor_text_position -= 1;
+                            }
                         }
                     }
                 },
@@ -218,7 +233,7 @@ fn main() -> Result<(), String> {
             }
         }
 
-        render(&mut platform, &full_layout_tree, &ui_state);
+        render(&mut platform, &full_layout_tree, &mut ui_state);
         frame_time_check(&start_instant, currently_loading_new_page);
         currently_loading_new_page = false;
     }

@@ -80,6 +80,10 @@ impl Platform<'_> {
     }
 
     pub fn get_text_dimension(&mut self, text: &String, font: &Font) -> (f32, f32) {
+        return self.get_text_dimension_str(text.as_str(), font);
+    }
+
+    pub fn get_text_dimension_str(&mut self, text: &str, font: &Font) -> (f32, f32) {
         let sdl_font = self.font_cache.get_font(font);
         let result = sdl_font.size_of(text);
         let (width, height) = result.expect("error measuring size of text");

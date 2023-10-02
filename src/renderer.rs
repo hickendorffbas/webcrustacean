@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::color::Color;
 use crate::layout::{
@@ -12,8 +13,12 @@ use crate::style::get_color_style_value;
 use crate::ui::{UIState, render_ui};
 
 
-pub fn render(platform: &mut Platform, full_layout: &FullLayout, ui_state: &UIState) {
+const CURSOR_BLINK_SPEED_MILLIS: u128 = 500;
+
+
+pub fn render(platform: &mut Platform, full_layout: &FullLayout, ui_state: &mut UIState) {
     platform.render_clear(Color::WHITE);
+    update_animation_state(ui_state);
 
     render_layout_node(platform, &full_layout.root_node, &full_layout.all_nodes, ui_state.current_scroll_y);
 
@@ -23,6 +28,14 @@ pub fn render(platform: &mut Platform, full_layout: &FullLayout, ui_state: &UISt
     render_ui(platform, ui_state, page_height);
 
     platform.present();
+}
+
+
+fn update_animation_state(ui_state: &mut UIState) {
+    let current_millis = SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards").as_millis();
+    let cursor_cycle_time = CURSOR_BLINK_SPEED_MILLIS * 2;
+    let point_in_cyle = current_millis % cursor_cycle_time;
+    ui_state.addressbar.cursor_visible = point_in_cyle > CURSOR_BLINK_SPEED_MILLIS;
 }
 
 

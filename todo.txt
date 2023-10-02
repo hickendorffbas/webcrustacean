@@ -1,9 +1,12 @@
 
-- build something with a timer, so I can do basic animations (for now the blinking cursor)
+
+- make more of a component of a text field (which is now used for the addressbar), so we can reuse it
+
+- put the cursor at the correct place in the text when clicking in an already selected textfield (should be easy, we already have the pixel mappings)
+
 
 
 features still needed for 0.1 release:
-       - build a cursor in the addressbar
        - load another image format besides PNG
        - test on mac / windows (document SDL install?)
        - add a readme

@@ -23,15 +23,23 @@ const ADDRESSBAR_X: f32 = 100.0;
 const ADDRESSBAR_Y: f32 = 10.0;
 const ADDRESSBAR_WIDTH: f32 = SCREEN_WIDTH - 200.0;
 const ADDRESSBAR_HEIGHT: f32 = 35.0;
+const TEXT_OFFSET_FROM_ADDRESS_BAR_BORDER: f32 = 5.0;
 
 const SCROLLBAR_HEIGHT: f32 = SCREEN_HEIGHT - HEADER_HEIGHT;
 const SCROLLBAR_X_POS: f32 = SCREEN_WIDTH - SIDE_SCROLLBAR_WIDTH;
 
 
 
+pub struct AddressbarState {
+    pub has_focus: bool,
+    pub cursor_visible: bool,
+    pub cursor_text_position: usize,
+    pub text: String,
+}
+
+
 pub struct UIState {
-    pub addressbar_has_focus: bool,
-    pub addressbar_text: String,
+    pub addressbar: AddressbarState,
     pub current_scroll_y: f32,
 }
 
@@ -51,30 +59,32 @@ pub fn mouse_on_scrollblock(mouse_state: &MouseState, current_scroll_y: f32, pag
 
 
 pub fn handle_keyboard_input(input: Option<&String>, is_backspace: bool, ui_state: &mut UIState) {
-    if ui_state.addressbar_has_focus {
+    if ui_state.addressbar.has_focus {
         if is_backspace {
-            let mut chars_iter = ui_state.addressbar_text.chars();
-            chars_iter.next_back();
-            ui_state.addressbar_text = chars_iter.collect::<String>()
+            if ui_state.addressbar.cursor_text_position > 0 {
+                ui_state.addressbar.text.remove(ui_state.addressbar.cursor_text_position - 1);
+                ui_state.addressbar.cursor_text_position -= 1;
+            }
         } else {
-            ui_state.addressbar_text.push_str(input.unwrap());
+            ui_state.addressbar.text.insert_str(ui_state.addressbar.cursor_text_position, input.unwrap());
+            ui_state.addressbar.cursor_text_position += 1;
         }
     }
 }
 
 
 pub fn handle_possible_ui_click(platform: &mut Platform, ui_state: &mut UIState, x: f32, y: f32) {
-    ui_state.addressbar_has_focus = false;
+    ui_state.addressbar.has_focus = false;
 
     //TODO: I think this should also handle the scrollbar, but we now handle that in main still
 
     if x > ADDRESSBAR_X && x < (ADDRESSBAR_X + ADDRESSBAR_WIDTH) {
         if y > ADDRESSBAR_Y && y < (ADDRESSBAR_Y + ADDRESSBAR_HEIGHT) {
-            ui_state.addressbar_has_focus = true;
+            ui_state.addressbar.has_focus = true;
         }
     }
 
-    if ui_state.addressbar_has_focus {
+    if ui_state.addressbar.has_focus {
         platform.enable_text_input();
     } else {
         platform.disable_text_input();
@@ -108,7 +118,33 @@ fn render_address_bar(platform: &mut Platform, ui_state: &UIState) {
     platform.draw_square(ADDRESSBAR_X, ADDRESSBAR_Y, ADDRESSBAR_WIDTH, ADDRESSBAR_HEIGHT, Color::BLACK);
 
     let font = Font::new(false, 18);
-    platform.render_text(&ui_state.addressbar_text, ADDRESSBAR_X + 5.0, ADDRESSBAR_Y + 5.0, &font, Color::BLACK);
+    platform.render_text(&ui_state.addressbar.text, ADDRESSBAR_X + TEXT_OFFSET_FROM_ADDRESS_BAR_BORDER,
+                         ADDRESSBAR_Y + TEXT_OFFSET_FROM_ADDRESS_BAR_BORDER, &font, Color::BLACK);
+
+    if ui_state.addressbar.cursor_visible && ui_state.addressbar.has_focus {
+        let char_position_mapping = compute_char_position_mapping(platform, &font, &ui_state.addressbar.text);
+        let cursor_position = char_position_mapping[ui_state.addressbar.cursor_text_position] + ADDRESSBAR_X + TEXT_OFFSET_FROM_ADDRESS_BAR_BORDER;
+
+        let cursor_top_bottom_margin = 2.0;
+        let cursor_bottom_pos = (ADDRESSBAR_Y + ADDRESSBAR_HEIGHT) - cursor_top_bottom_margin;
+        platform.draw_line(Position { x: cursor_position, y: ADDRESSBAR_Y + cursor_top_bottom_margin}, Position { x: cursor_position, y: cursor_bottom_pos },
+                           Color::BLACK);
+    }
+}
+
+
+fn compute_char_position_mapping(platform: &mut Platform, font: &Font, text: &String) -> Vec<f32> {
+    //TODO: we take a very slow approach here. Not sure if we can do this faster, but we should probably at least cache it....
+
+    let mut char_position_mapping = Vec::new();
+    char_position_mapping.push(0.0);
+
+    for i in 1..text.len()+1 {
+        let (x_pos, _) = platform.get_text_dimension_str(&text[0..i], font);
+        char_position_mapping.push(x_pos);
+    }
+
+    return char_position_mapping;
 }
 
 

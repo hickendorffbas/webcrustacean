@@ -32,6 +32,9 @@ pub fn render(platform: &mut Platform, full_layout: &FullLayout, ui_state: &mut 
 
 
 fn update_animation_state(ui_state: &mut UIState) {
+
+    //TODO: this code is ok, but should live in an update() method on TextField struct, and we should have a way to call updates on components
+    //      exactly once per frame from somewhere. This renderer module seems to be more about rendering web content, so I think it should move to ui.rs
     let current_millis = SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards").as_millis();
     let cursor_cycle_time = CURSOR_BLINK_SPEED_MILLIS * 2;
     let point_in_cyle = current_millis % cursor_cycle_time;

@@ -30,7 +30,7 @@ impl Color {
 
         //TODO: I still need to support hsl and rgb color values (as specified in html / css)
 
-        match color_name.as_str() {
+        return match color_name.as_str() {
             "aqua" => Some(Color::new(0, 255, 255)),
             "black" => Some(Color::BLACK),
             "blue" => Some(Color::new(0, 0, 255)),

@@ -6,6 +6,7 @@ use crate::{
 use crate::color::Color;
 use crate::fonts::Font;
 use crate::platform::{Platform, Position};
+use crate::ui_components::TextField;
 
 
 pub const HEADER_HEIGHT: f32 = 50.0;
@@ -13,33 +14,18 @@ pub const SIDE_SCROLLBAR_WIDTH: f32 = 20.0;
 const UI_BASIC_COLOR: Color = Color::new(212, 208, 200);
 const UI_BASIC_DARKER_COLOR: Color = Color::new(116, 107, 90);
 
-
 pub const CONTENT_HEIGHT: f32 = SCREEN_HEIGHT - HEADER_HEIGHT;
 pub const CONTENT_WIDTH: f32 = SCREEN_WIDTH - SIDE_SCROLLBAR_WIDTH;
 pub const CONTENT_TOP_LEFT_X: f32 = 0.0;
 pub const CONTENT_TOP_LEFT_Y: f32 = HEADER_HEIGHT;
-
-const ADDRESSBAR_X: f32 = 100.0;
-const ADDRESSBAR_Y: f32 = 10.0;
-const ADDRESSBAR_WIDTH: f32 = SCREEN_WIDTH - 200.0;
-const ADDRESSBAR_HEIGHT: f32 = 35.0;
-const TEXT_OFFSET_FROM_ADDRESS_BAR_BORDER: f32 = 5.0;
 
 const SCROLLBAR_HEIGHT: f32 = SCREEN_HEIGHT - HEADER_HEIGHT;
 const SCROLLBAR_X_POS: f32 = SCREEN_WIDTH - SIDE_SCROLLBAR_WIDTH;
 
 
 
-pub struct AddressbarState {
-    pub has_focus: bool,
-    pub cursor_visible: bool,
-    pub cursor_text_position: usize,
-    pub text: String,
-}
-
-
 pub struct UIState {
-    pub addressbar: AddressbarState,
+    pub addressbar: TextField,
     pub current_scroll_y: f32,
 }
 
@@ -60,6 +46,7 @@ pub fn mouse_on_scrollblock(mouse_state: &MouseState, current_scroll_y: f32, pag
 
 pub fn handle_keyboard_input(input: Option<&String>, is_backspace: bool, ui_state: &mut UIState) {
     if ui_state.addressbar.has_focus {
+        //TODO: this should delegate to the component
         if is_backspace {
             if ui_state.addressbar.cursor_text_position > 0 {
                 ui_state.addressbar.text.remove(ui_state.addressbar.cursor_text_position - 1);
@@ -74,21 +61,29 @@ pub fn handle_keyboard_input(input: Option<&String>, is_backspace: bool, ui_stat
 
 
 pub fn handle_possible_ui_click(platform: &mut Platform, ui_state: &mut UIState, x: f32, y: f32) {
-    ui_state.addressbar.has_focus = false;
 
     //TODO: I think this should also handle the scrollbar, but we now handle that in main still
 
-    if x > ADDRESSBAR_X && x < (ADDRESSBAR_X + ADDRESSBAR_WIDTH) {
-        if y > ADDRESSBAR_Y && y < (ADDRESSBAR_Y + ADDRESSBAR_HEIGHT) {
-            ui_state.addressbar.has_focus = true;
-        }
-    }
-
-    if ui_state.addressbar.has_focus {
+    if click_is_on_text_field(&ui_state.addressbar, x, y) {
+        ui_state.addressbar.has_focus = true;
         platform.enable_text_input();
     } else {
-        platform.disable_text_input();
+        ui_state.addressbar.has_focus = false;
+        platform.disable_text_input(); //TODO: this works as long as we have only 1 text field, because the click might be another text box, and
+                                       //      then it wil depend on the order we check the text fields if we enable or disable text input
     }
+
+}
+
+
+fn click_is_on_text_field(text_field: &TextField, x: f32, y: f32) -> bool {
+    //TODO: this check should move to the component
+    if x > text_field.x && x < (text_field.x + text_field.width) {
+        if y > text_field.y && y < (text_field.y + text_field.height) {
+            return true;
+        }
+    }
+    return false;
 }
 
 
@@ -110,41 +105,7 @@ fn render_header(platform: &mut Platform, ui_state: &UIState) {
                        Position { x: SCREEN_WIDTH, y: HEADER_HEIGHT - 1.0 },
                        Color::BLACK);
 
-    render_address_bar(platform, ui_state);
-}
-
-
-fn render_address_bar(platform: &mut Platform, ui_state: &UIState) {
-    platform.draw_square(ADDRESSBAR_X, ADDRESSBAR_Y, ADDRESSBAR_WIDTH, ADDRESSBAR_HEIGHT, Color::BLACK);
-
-    let font = Font::new(false, 18);
-    platform.render_text(&ui_state.addressbar.text, ADDRESSBAR_X + TEXT_OFFSET_FROM_ADDRESS_BAR_BORDER,
-                         ADDRESSBAR_Y + TEXT_OFFSET_FROM_ADDRESS_BAR_BORDER, &font, Color::BLACK);
-
-    if ui_state.addressbar.cursor_visible && ui_state.addressbar.has_focus {
-        let char_position_mapping = compute_char_position_mapping(platform, &font, &ui_state.addressbar.text);
-        let cursor_position = char_position_mapping[ui_state.addressbar.cursor_text_position] + ADDRESSBAR_X + TEXT_OFFSET_FROM_ADDRESS_BAR_BORDER;
-
-        let cursor_top_bottom_margin = 2.0;
-        let cursor_bottom_pos = (ADDRESSBAR_Y + ADDRESSBAR_HEIGHT) - cursor_top_bottom_margin;
-        platform.draw_line(Position { x: cursor_position, y: ADDRESSBAR_Y + cursor_top_bottom_margin}, Position { x: cursor_position, y: cursor_bottom_pos },
-                           Color::BLACK);
-    }
-}
-
-
-fn compute_char_position_mapping(platform: &mut Platform, font: &Font, text: &String) -> Vec<f32> {
-    //TODO: we take a very slow approach here. Not sure if we can do this faster, but we should probably at least cache it....
-
-    let mut char_position_mapping = Vec::new();
-    char_position_mapping.push(0.0);
-
-    for i in 1..text.len()+1 {
-        let (x_pos, _) = platform.get_text_dimension_str(&text[0..i], font);
-        char_position_mapping.push(x_pos);
-    }
-
-    return char_position_mapping;
+    ui_state.addressbar.render(platform);
 }
 
 

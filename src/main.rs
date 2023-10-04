@@ -12,6 +12,7 @@ mod renderer;
 mod resource_loader;
 mod style;
 mod ui;
+mod ui_components;
 #[cfg(test)] mod test_util; //TODO: is there a better (test-specific) place to define this?
 
 use std::{env, thread};
@@ -23,7 +24,8 @@ use crate::fonts::Font;
 use crate::layout::{FullLayout, LayoutNode};
 use crate::platform::Platform;
 use crate::renderer::render;
-use crate::ui::{CONTENT_HEIGHT, UIState, AddressbarState};
+use crate::ui::{CONTENT_HEIGHT, UIState};
+use crate::ui_components::TextField;
 
 use sdl2::{
     event::Event as SdlEvent,
@@ -141,8 +143,19 @@ fn main() -> Result<(), String> {
 
     let mut mouse_state = MouseState { x: 0, y: 0, click_start_x: 0, click_start_y: 0, left_down: false, is_dragging_scrollblock: false };
     let addressbar_text = String::from(DEFAULT_LOCATION_TO_LOAD);
-    let addressbar_state = AddressbarState { has_focus: false, cursor_visible: false, cursor_text_position: addressbar_text.len(), text: addressbar_text };
-    let mut ui_state = UIState { addressbar: addressbar_state, current_scroll_y: 0.0 };
+
+    let addressbar_text_field = TextField {
+        x: 100.0,
+        y: 10.0,
+        width: SCREEN_WIDTH - 200.0,
+        height: 35.0,
+        has_focus: false,
+        cursor_visible: false,
+        cursor_text_position: addressbar_text.len(),
+        text: addressbar_text,
+    };
+
+    let mut ui_state = UIState { addressbar: addressbar_text_field, current_scroll_y: 0.0 };
 
     let mut event_pump = platform.sdl_context.event_pump()?;
     'main_loop: loop {
@@ -210,16 +223,19 @@ fn main() -> Result<(), String> {
                             ui::handle_keyboard_input(None, true, &mut ui_state);
                         }
                         if keycode.unwrap().name() == "Return" {
+                            //TODO: this sould check for the focus (probably in handle_keyboard_input)
                             url = ui_state.addressbar.text.clone();
                             full_layout_tree = load_url(&mut platform, &url);
                             currently_loading_new_page = true;
                         }
                         if keycode.unwrap().name() == "Right" {
+                            //TODO: this sould check for the focus, and be handled in a method on the component (or in handle_keyboard_input first and then to the component)
                             if ui_state.addressbar.cursor_text_position < ui_state.addressbar.text.len() {
                                 ui_state.addressbar.cursor_text_position += 1;
                             }
                         }
                         if keycode.unwrap().name() == "Left" {
+                            //TODO: this sould check for the focus, and be handled in a method on the component (or in handle_keyboard_input first and then to the component)
                             if ui_state.addressbar.cursor_text_position > 0 {
                                 ui_state.addressbar.cursor_text_position -= 1;
                             }

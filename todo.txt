@@ -11,3 +11,4 @@ features still needed for 0.1 release:
        - test on mac / windows (document SDL install?)
        - add a readme
        - don't crash on non-closed tags (or out of order closed tags)
+       - don't crash on invalid url's

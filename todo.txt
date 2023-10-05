@@ -1,11 +1,5 @@
 
 
-- make more of a component of a text field (which is now used for the addressbar), so we can reuse it
-       - mostly setup now, but we need to move more stuff into the component (handling keyinput, and clicks etc.)
-
-- put the cursor at the correct place in the text when clicking in an already selected textfield (should be easy, we already have the pixel mappings)
-
-
 
 features still needed for 0.1 release:
        - load another image format besides PNG

@@ -144,16 +144,19 @@ fn main() -> Result<(), String> {
     let mut mouse_state = MouseState { x: 0, y: 0, click_start_x: 0, click_start_y: 0, left_down: false, is_dragging_scrollblock: false };
     let addressbar_text = String::from(DEFAULT_LOCATION_TO_LOAD);
 
-    let addressbar_text_field = TextField {
+    let mut addressbar_text_field = TextField {
         x: 100.0,
         y: 10.0,
         width: SCREEN_WIDTH - 200.0,
         height: 35.0,
         has_focus: false,
         cursor_visible: false,
-        cursor_text_position: addressbar_text.len(),
-        text: addressbar_text,
+        cursor_text_position: 0,
+        text: String::new(),
+        font: Font::new(false, 18),
+        char_position_mapping: Vec::new(),
     };
+    addressbar_text_field.set_text(&mut platform, addressbar_text);
 
     let mut ui_state = UIState { addressbar: addressbar_text_field, current_scroll_y: 0.0 };
 
@@ -215,35 +218,20 @@ fn main() -> Result<(), String> {
                     }
                 },
                 SdlEvent::KeyUp { keycode, .. } => {
-                    //TODO: this code is not generic enough, it happens to work because we enable/disable text input on focus, but won't work
-                    //      when we have other things then the addressbar to type in. This should become part of a component, that we give the
-                    //      events if it has focus, and otherwise not
                     if keycode.is_some() {
-                        if keycode.unwrap().name() == "Backspace" {
-                            ui::handle_keyboard_input(None, true, &mut ui_state);
-                        }
-                        if keycode.unwrap().name() == "Return" {
-                            //TODO: this sould check for the focus (probably in handle_keyboard_input)
+                        let key_code = platform.convert_key_code(&keycode.unwrap());
+                        ui::handle_keyboard_input(&mut platform, None, key_code, &mut ui_state);
+
+                        if ui_state.addressbar.has_focus && keycode.unwrap().name() == "Return" {
+                            //TODO: This is here for now because we need to load another page, not sure how to correctly trigger that from inside the component
                             url = ui_state.addressbar.text.clone();
                             full_layout_tree = load_url(&mut platform, &url);
                             currently_loading_new_page = true;
                         }
-                        if keycode.unwrap().name() == "Right" {
-                            //TODO: this sould check for the focus, and be handled in a method on the component (or in handle_keyboard_input first and then to the component)
-                            if ui_state.addressbar.cursor_text_position < ui_state.addressbar.text.len() {
-                                ui_state.addressbar.cursor_text_position += 1;
-                            }
-                        }
-                        if keycode.unwrap().name() == "Left" {
-                            //TODO: this sould check for the focus, and be handled in a method on the component (or in handle_keyboard_input first and then to the component)
-                            if ui_state.addressbar.cursor_text_position > 0 {
-                                ui_state.addressbar.cursor_text_position -= 1;
-                            }
-                        }
                     }
                 },
-                SdlEvent::TextInput { text, .. } =>  {
-                    ui::handle_keyboard_input(Some(&text), false, &mut ui_state);
+                SdlEvent::TextInput { text, .. } => {
+                    ui::handle_keyboard_input(&mut platform, Some(&text), None, &mut ui_state);
                 }
                 _ => {}
             }

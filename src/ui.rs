@@ -5,7 +5,7 @@ use crate::{
 };
 use crate::color::Color;
 use crate::fonts::Font;
-use crate::platform::{Platform, Position};
+use crate::platform::{Platform, Position, KeyCode};
 use crate::ui_components::TextField;
 
 
@@ -44,18 +44,9 @@ pub fn mouse_on_scrollblock(mouse_state: &MouseState, current_scroll_y: f32, pag
 }
 
 
-pub fn handle_keyboard_input(input: Option<&String>, is_backspace: bool, ui_state: &mut UIState) {
+pub fn handle_keyboard_input(platform: &mut Platform, input: Option<&String>, key_code: Option<KeyCode>, ui_state: &mut UIState) {
     if ui_state.addressbar.has_focus {
-        //TODO: this should delegate to the component
-        if is_backspace {
-            if ui_state.addressbar.cursor_text_position > 0 {
-                ui_state.addressbar.text.remove(ui_state.addressbar.cursor_text_position - 1);
-                ui_state.addressbar.cursor_text_position -= 1;
-            }
-        } else {
-            ui_state.addressbar.text.insert_str(ui_state.addressbar.cursor_text_position, input.unwrap());
-            ui_state.addressbar.cursor_text_position += 1;
-        }
+        ui_state.addressbar.handle_keyboard_input(platform, input, key_code);
     }
 }
 
@@ -64,26 +55,16 @@ pub fn handle_possible_ui_click(platform: &mut Platform, ui_state: &mut UIState,
 
     //TODO: I think this should also handle the scrollbar, but we now handle that in main still
 
-    if click_is_on_text_field(&ui_state.addressbar, x, y) {
-        ui_state.addressbar.has_focus = true;
+    ui_state.addressbar.click(x, y);
+
+    //The below code is currently a bit more generic than it needs to be, but this makes that the enable/disable doesn't break when we add other textfields...
+    let any_text_field_has_focus = ui_state.addressbar.has_focus;
+
+    if any_text_field_has_focus {
         platform.enable_text_input();
     } else {
-        ui_state.addressbar.has_focus = false;
-        platform.disable_text_input(); //TODO: this works as long as we have only 1 text field, because the click might be another text box, and
-                                       //      then it wil depend on the order we check the text fields if we enable or disable text input
+        platform.disable_text_input();
     }
-
-}
-
-
-fn click_is_on_text_field(text_field: &TextField, x: f32, y: f32) -> bool {
-    //TODO: this check should move to the component
-    if x > text_field.x && x < (text_field.x + text_field.width) {
-        if y > text_field.y && y < (text_field.y + text_field.height) {
-            return true;
-        }
-    }
-    return false;
 }
 
 

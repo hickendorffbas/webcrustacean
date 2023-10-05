@@ -4,6 +4,7 @@ use image::DynamicImage;
 
 use sdl2::{
     image::{self as SdlImage, Sdl2ImageContext},
+    keyboard::Keycode as SdlKeycode,
     pixels::{Color as SdlColor, PixelFormatEnum},
     rect::{Point as SdlPoint, Rect as SdlRect},
     render::{TextureQuery, TextureAccess, WindowCanvas},
@@ -27,6 +28,14 @@ impl Position {
     pub fn to_sdl_point(&self) -> SdlPoint {
         return SdlPoint::new(self.x as i32, self.y as i32);
     }
+}
+
+
+pub enum KeyCode {
+    BACKSPACE,
+    LEFT,
+    RETURN,
+    RIGHT
 }
 
 
@@ -122,6 +131,15 @@ impl Platform<'_> {
     }
     pub fn disable_text_input(&self) {
         self.video_subsystem.text_input().stop();
+    }
+    pub fn convert_key_code(&self, keycode: &SdlKeycode) -> Option<KeyCode> {
+        return match keycode.name().as_str() {
+            "Backspace" => Some(KeyCode::BACKSPACE),
+            "Left" => Some(KeyCode::LEFT),
+            "Return" => Some(KeyCode::RETURN),
+            "Right" => Some(KeyCode::RIGHT),
+            _ => None,
+        }
     }
 }
 

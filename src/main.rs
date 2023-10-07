@@ -143,7 +143,6 @@ fn main() -> Result<(), String> {
     let mut currently_loading_new_page = true;
 
     debug_assert!(full_layout_tree.root_node.rects.borrow().len() == 1);
-    let current_page_height = full_layout_tree.root_node.rects.borrow().iter().next().unwrap().location.borrow().height();
 
     let mut mouse_state = MouseState { x: 0, y: 0, click_start_x: 0, click_start_y: 0, left_down: false, is_dragging_scrollblock: false };
     let addressbar_text = String::from(DEFAULT_LOCATION_TO_LOAD);
@@ -179,8 +178,8 @@ fn main() -> Result<(), String> {
                     mouse_state.y = mouse_y;
 
                     if mouse_state.is_dragging_scrollblock {
-                        let page_scroll = ui::convert_block_drag_to_page_scroll(&mut ui_state, yrel as f32, current_page_height);
-                        ui_state.current_scroll_y = clamp_scroll_position(ui_state.current_scroll_y + page_scroll, current_page_height);
+                        let page_scroll = ui::convert_block_drag_to_page_scroll(&mut ui_state, yrel as f32, full_layout_tree.page_height());
+                        ui_state.current_scroll_y = clamp_scroll_position(ui_state.current_scroll_y + page_scroll, full_layout_tree.page_height());
                     }
                 },
                 SdlEvent::MouseButtonDown { mouse_btn: MouseButton::Left, x: mouse_x, y: mouse_y, .. } => {
@@ -191,7 +190,7 @@ fn main() -> Result<(), String> {
                     mouse_state.left_down = true;
 
                     //TODO: its probably nicer to call a generic method in UI, to check any drags and update the mouse state
-                    if ui::mouse_on_scrollblock(&mouse_state, ui_state.current_scroll_y, current_page_height) {
+                    if ui::mouse_on_scrollblock(&mouse_state, ui_state.current_scroll_y, full_layout_tree.page_height()) {
                         mouse_state.is_dragging_scrollblock = true;
                     } else {
                         mouse_state.is_dragging_scrollblock = false;
@@ -223,7 +222,7 @@ fn main() -> Result<(), String> {
                     match direction {
                         sdl2::mouse::MouseWheelDirection::Normal => {
                             //TODO: someday it might be nice to implement smooth scrolling (animate the movement over frames)
-                            ui_state.current_scroll_y = clamp_scroll_position(ui_state.current_scroll_y - (y * SCROLL_SPEED) as f32, current_page_height);
+                            ui_state.current_scroll_y = clamp_scroll_position(ui_state.current_scroll_y - (y * SCROLL_SPEED) as f32, full_layout_tree.page_height());
                         },
                         sdl2::mouse::MouseWheelDirection::Flipped => {},
                         sdl2::mouse::MouseWheelDirection::Unknown(_) => debug_log_warn("Unknown mousewheel direction unknown!"),

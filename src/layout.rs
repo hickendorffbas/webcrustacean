@@ -35,6 +35,11 @@ pub struct FullLayout {
     pub root_node: Rc<LayoutNode>,
     pub all_nodes: HashMap<usize, Rc<LayoutNode>>,
 }
+impl FullLayout {
+    pub fn page_height(&self) -> f32 {
+        return self.root_node.rects.borrow().iter().next().unwrap().location.borrow().height();
+    }
+}
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]

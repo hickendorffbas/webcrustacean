@@ -80,7 +80,7 @@ pub fn convert_block_drag_to_page_scroll(ui_state: &UIState, scroll_block_amount
 fn render_header(platform: &mut Platform, ui_state: &UIState) {
     platform.fill_rect(0.0, 0.0, SCREEN_WIDTH, HEADER_HEIGHT, Color::WHITE);
 
-    let font = Font::new(true, 14);
+    let font = Font::new(true, false, 14);
     platform.render_text(&"Bbrowser".to_owned(), 10.0, 10.0, &font, Color::BLACK);
     platform.draw_line(Position { x: 0.0, y: HEADER_HEIGHT - 1.0 },
                        Position { x: SCREEN_WIDTH, y: HEADER_HEIGHT - 1.0 },

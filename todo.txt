@@ -1,4 +1,6 @@
 
+- BUG: if you have a page with a lot of <br />, you can't scroll all the way to the bottom
+       - it also seems you can scroll when the page is short and the scrollbar does not look like its scrollable
 
 
 features still needed for 0.1 release:
@@ -7,5 +9,5 @@ features still needed for 0.1 release:
        - add a readme
        - don't crash on non-closed tags (or out of order closed tags)
        - don't crash on invalid url's
-       - make basic links work
+       - add back button (and very basic history, not viewable)
 

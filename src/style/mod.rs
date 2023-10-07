@@ -150,6 +150,9 @@ pub fn get_user_agent_style_sheet() -> Vec<StyleRule> {
 
         StyleRule { selector: Selector { nodes: Some(vec!["a".to_owned()]) },
                     property: "color".to_owned(), value: "blue".to_owned() },
+        StyleRule { selector: Selector { nodes: Some(vec!["a".to_owned()]) },
+                    property: "text-decoration".to_owned(), value: "underline".to_owned() },
+
     ];
 }
 

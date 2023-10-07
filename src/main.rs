@@ -70,31 +70,35 @@ fn frame_time_check(start_instant: &Instant, currently_loading_new_page: bool) {
 }
 
 
-fn handle_left_click(platform: &mut Platform, ui_state: &mut UIState, x: f32, y: f32, layout_tree: &FullLayout) {
+fn handle_left_click(platform: &mut Platform, ui_state: &mut UIState, x: f32, y: f32, layout_tree: &FullLayout) -> Option<String> {
 
-    fn check_left_click_for_layout_node(x: f32, y: f32, layout_node: &Rc<LayoutNode>) {
+    fn check_left_click_for_layout_node(x: f32, y: f32, layout_node: &Rc<LayoutNode>) -> Option<String> { //TODO: make and return a URL struct / type
 
         let any_inside = layout_node.rects.borrow().iter().any(|rect| -> bool {rect.location.borrow().is_inside(x, y)});
         if !any_inside {
-            return;
+            return None;
         }
 
         if layout_node.optional_link_url.is_some() {
-            println!("Link found: {}", layout_node.optional_link_url.as_ref().unwrap());
-            return;
+            let url = layout_node.optional_link_url.as_ref().unwrap();
+            return Some(url.clone());
         }
 
         if layout_node.children.is_some() {
             for child in layout_node.children.as_ref().unwrap() {
                 if child.visible {
-                    check_left_click_for_layout_node(x, y, &child);
+                    let optional_url = check_left_click_for_layout_node(x, y, &child);
+                    if optional_url.is_some() {
+                        return optional_url;
+                    }
                 }
             }
         }
+        return None;
     }
 
     ui::handle_possible_ui_click(platform, ui_state, x, y);
-    check_left_click_for_layout_node(x, y, &layout_tree.root_node);
+    return check_left_click_for_layout_node(x, y, &layout_tree.root_node);
 }
 
 
@@ -153,7 +157,7 @@ fn main() -> Result<(), String> {
         cursor_visible: false,
         cursor_text_position: 0,
         text: String::new(),
-        font: Font::new(false, 18),
+        font: Font::new(false, false, 18),
         char_position_mapping: Vec::new(),
     };
     addressbar_text_field.set_text(&mut platform, addressbar_text);
@@ -204,7 +208,15 @@ fn main() -> Result<(), String> {
 
                     if !was_dragging {
                         let new_mouse_y = mouse_y as f32 + ui_state.current_scroll_y;
-                        handle_left_click(&mut platform, &mut ui_state, mouse_x as f32, new_mouse_y, &full_layout_tree);
+                        let optional_url = handle_left_click(&mut platform, &mut ui_state, mouse_x as f32, new_mouse_y, &full_layout_tree);
+
+                        if optional_url.is_some() {
+                            //TODO: this should be done via a nicer "navigate" method or something (also below when pressing enter in the addressbar
+                            let addressbar_text = optional_url.clone();
+                            ui_state.addressbar.set_text(&mut platform, addressbar_text.unwrap());
+                            full_layout_tree = load_url(&mut platform, &optional_url.unwrap());
+                            currently_loading_new_page = true;
+                        }
                     }
                 },
                 SdlEvent::MouseWheel { y, direction, .. } => {

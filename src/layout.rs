@@ -242,12 +242,13 @@ fn compute_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>,
 
 pub fn get_font_given_styles(styles: &HashMap<String, String>) -> (Font, Color) {
     let font_bold = has_style_value(&styles, "font-weight", &"bold".to_owned());
+    let font_underline = has_style_value(&styles, "text-decoration", &"underline".to_owned());
     let font_size = get_numeric_style_value(&styles, "font-size")
                         .expect("No font-size found"); //font-size should be in the default styles, so this is a fatal error if not found
     let font_color = get_color_style_value(&styles, "color")
                         .expect(format!("Unkown color").as_str()); //TODO: we need to handle this in a graceful way, instead of crashing
 
-    return (Font::new(font_bold, font_size), font_color);
+    return (Font::new(font_bold, font_underline, font_size), font_color);
 }
 
 

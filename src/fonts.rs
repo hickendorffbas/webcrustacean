@@ -7,11 +7,12 @@ use sdl2::ttf::{Font as SdlFont, Sdl2TtfContext};
 #[derive(PartialEq, Eq, Hash, Clone)]
 pub struct Font {
     bold: bool,
+    underline: bool,
     font_size: u16
 }
 impl Font {
-    pub fn new(bold: bool, font_size: u16) -> Font {
-        return Font {bold, font_size};
+    pub fn new(bold: bool, underline: bool, font_size: u16) -> Font {
+        return Font {bold, underline, font_size};
     }
 }
 
@@ -38,6 +39,9 @@ fn build_font<'ttf_module, 'rwops>(ttf_context: &'ttf_module Sdl2TtfContext, fon
 
     if font.bold {
         sdl_font.set_style(sdl2::ttf::FontStyle::BOLD);
+    }
+    if font.underline {
+        sdl_font.set_style(sdl2::ttf::FontStyle::UNDERLINE);
     }
 
     return sdl_font;

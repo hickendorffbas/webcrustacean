@@ -7,15 +7,14 @@ use crate::style::{
 
 pub fn parse_css(css_tokens: &Vec<CssTokenWithLocation>) -> Vec<StyleRule> {
     let mut style_rules = Vec::new();
-    let mut current_context = vec![ Vec::new() ];
+    let mut current_context = Vec::new();
     let mut last_property = "";
 
     for token in css_tokens {
 
         match &token.css_token {
             CssToken::Selector(element) => {
-                let last_idx = current_context.len() - 1;
-                current_context[last_idx].push(element);
+                current_context.push(element);
             }
             CssToken::Property(property) => {
                 last_property = property;
@@ -25,12 +24,10 @@ pub fn parse_css(css_tokens: &Vec<CssTokenWithLocation>) -> Vec<StyleRule> {
                                               property: last_property.to_string(), value: value.to_string() } );
             },
             CssToken::BlockStart => {
-                current_context.push(Vec::new());
+                // currently we have no logic for a block start, since we push the context for each selector, assuming we start a block after...
             },
             CssToken::BlockEnd => {
-                current_context.pop(); //clear context(s) from inside the block
-                let last_idx = current_context.len() - 1;
-                current_context[last_idx].clear(); //reset the current context (the one parsed before entering the block)
+                current_context.pop();
             },
         }
     }
@@ -39,15 +36,13 @@ pub fn parse_css(css_tokens: &Vec<CssTokenWithLocation>) -> Vec<StyleRule> {
 }
 
 
-fn build_selector_from_context(context: &Vec<Vec<&String>>) -> Selector {
+fn build_selector_from_context(context: &Vec<&String>) -> Selector {
     //TODO: eventually we need to parse other things than just nodes here...
 
-    let mut all_nodes = Vec::new();
-    for nodes in context {
-        for node in nodes {
-            all_nodes.push((*node).clone())
-        }
+    let mut all_selectors = Vec::new();
+    for selector in context {
+        all_selectors.push((*selector).clone());
     }
 
-    return Selector { nodes: Some(all_nodes) }
+    return Selector { nodes: Some(all_selectors) }
 }

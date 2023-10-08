@@ -65,6 +65,7 @@ impl Url {
         full_string.push_str(&self.scheme);
         full_string.push_str("://");
         full_string.push_str(&self.domain);
+        full_string.push_str("/");
         full_string.push_str(&self.path);
 
         return full_string;

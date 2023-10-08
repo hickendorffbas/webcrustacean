@@ -133,12 +133,11 @@ fn main() -> Result<(), String> {
 
     let args: Vec<String> = env::args().collect();
 
-    let mut url: Url;
-    if args.len() < 2 {
-        url = Url::from(&DEFAULT_LOCATION_TO_LOAD.to_owned());
+    let mut url = if args.len() < 2 {
+        Url::from(&DEFAULT_LOCATION_TO_LOAD.to_owned())
     } else {
-        url = Url::from(&args[1]);
-    }
+        Url::from(&args[1])
+    };
 
     let mut full_layout_tree = load_url(&mut platform, &url);
     let mut currently_loading_new_page = true;

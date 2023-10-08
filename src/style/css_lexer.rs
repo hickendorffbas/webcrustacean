@@ -33,7 +33,7 @@ pub fn lex_css(document: &str, starting_line: u32, starting_char_idx: u32) -> Ve
     };
 
     while css_iterator.has_next() {
-        lex_css_rule(&mut css_iterator, &mut tokens);
+        lex_css_block(&mut css_iterator, &mut tokens);
         eat_whitespace(&mut css_iterator);
     }
 
@@ -41,68 +41,68 @@ pub fn lex_css(document: &str, starting_line: u32, starting_char_idx: u32) -> Ve
 }
 
 
-fn lex_css_rule(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenWithLocation>) {
-    eat_whitespace(css_iterator);
-
-    while css_iterator.has_next() && css_iterator.peek() != Some(&'{') {
-
-        let mut selector_data = String::new();
-        while css_iterator.has_next() && css_iterator.peek() != Some(&' ') && css_iterator.peek() != Some(&'{') {
-            selector_data.push(css_iterator.next());
-        }
-        let token = CssToken::Selector(selector_data);
-        tokens.push(CssTokenWithLocation { css_token: token, line: css_iterator.current_line, character: css_iterator.current_char });
-
-        eat_whitespace(css_iterator);
-    }
-
-    if css_iterator.peek() == Some(&'{') {
-        css_iterator.next(); //read the {
-        tokens.push(CssTokenWithLocation { css_token: CssToken::BlockStart, line: css_iterator.current_line, character: css_iterator.current_char });
-
-        lex_css_block(css_iterator, tokens);
-    }
-}
-
-
 fn lex_css_block(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenWithLocation>) {
-    eat_whitespace(css_iterator);
-
-    //TODO: this function is currently wrong, because new selectors might be nested in the block, and we assume everything is a property
-
-    while css_iterator.has_next() && css_iterator.peek() != Some(&'}') {
-
-        {
-            let mut property_data = String::new();
-            while css_iterator.has_next() && css_iterator.peek() != Some(&':') {
-                property_data.push(css_iterator.next());
-            }
-            tokens.push(CssTokenWithLocation { css_token: CssToken::Property(property_data),
-                                            line: css_iterator.current_line,
-                                            character: css_iterator.current_char });
-        }
-
-        css_iterator.next(); //read the ":"
+    'main_loop: loop  {
         eat_whitespace(css_iterator);
 
-        {
+        if css_iterator.peek() == Some(&'}') {
+            //this can happen if we have { } after a selector, or if the last property had a trailing ;
+            css_iterator.next(); //eat the }
+            tokens.push(CssTokenWithLocation { css_token: CssToken::BlockEnd, line: css_iterator.current_line, character: css_iterator.current_char });
+            break 'main_loop;
+        }
+
+        let mut selector_or_property_data = String::new();
+        while css_iterator.has_next() && css_iterator.peek() != Some(&'{') && css_iterator.peek() != Some(&':') {
+            selector_or_property_data.push(css_iterator.next());
+        }
+
+        if css_iterator.peek() == Some(&'{') {
+            //we have been reading a selector
+
+            css_iterator.next(); //eat the {
+
+            let token = CssToken::Selector(selector_or_property_data.trim().to_owned());
+            tokens.push(CssTokenWithLocation { css_token: token, line: css_iterator.current_line, character: css_iterator.current_char });
+            tokens.push(CssTokenWithLocation { css_token: CssToken::BlockStart,line: css_iterator.current_line, character: css_iterator.current_char });
+
+            lex_css_block(css_iterator, tokens);
+            eat_whitespace(css_iterator);
+            if !css_iterator.has_next() {
+                break 'main_loop;
+            }
+
+        } else if css_iterator.peek() == Some(&':') {
+            //we have been reading a property
+
+            css_iterator.next(); //eat the :
+
+            tokens.push(CssTokenWithLocation { css_token: CssToken::Property(selector_or_property_data.trim().to_owned()),
+                                               line: css_iterator.current_line,
+                                               character: css_iterator.current_char });
+
             let mut value_data = String::new();
-            while css_iterator.has_next() && css_iterator.peek() != Some(&';') {
+            while css_iterator.has_next() && css_iterator.peek() != Some(&';') && css_iterator.peek() != Some(&'}') {
                 value_data.push(css_iterator.next());
             }
-            tokens.push(CssTokenWithLocation { css_token: CssToken::Value(value_data),
-                                            line: css_iterator.current_line,
-                                            character: css_iterator.current_char });
+
+            tokens.push(CssTokenWithLocation { css_token: CssToken::Value(value_data.trim().to_owned()), line: css_iterator.current_line, character: css_iterator.current_char });
+
+            if css_iterator.peek() == Some(&';') {
+                //this was the rule, we might have another
+
+                css_iterator.next(); //eat the ;
+
+            } else if css_iterator.peek() == Some(&'}') {
+                //we are done with this block
+
+                css_iterator.next(); //eat the }
+
+                tokens.push(CssTokenWithLocation { css_token: CssToken::BlockEnd, line: css_iterator.current_line, character: css_iterator.current_char });
+
+                break 'main_loop;
+            }
         }
-
-        css_iterator.next(); //read the ";"
-        eat_whitespace(css_iterator);
-
-    }
-
-    if css_iterator.has_next() {
-        css_iterator.next(); //read the }
-        tokens.push(CssTokenWithLocation { css_token: CssToken::BlockEnd, line: css_iterator.current_line, character: css_iterator.current_char });
     }
 }
 

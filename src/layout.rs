@@ -5,11 +5,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use image::DynamicImage;
 
-use crate::ui::{
-    CONTENT_TOP_LEFT_X,
-    CONTENT_TOP_LEFT_Y,
-    CONTENT_WIDTH
-};
 use crate::{
     Font,
     resource_loader,
@@ -18,12 +13,19 @@ use crate::{
 use crate::color::Color;
 use crate::debug::debug_log_warn;
 use crate::dom::{Document, DomNode};
+use crate::network::Url;
 use crate::platform::Platform;
 use crate::style::{
+    StyleContext,
     get_color_style_value,
     get_numeric_style_value,
     has_style_value,
-    resolve_full_styles_for_layout_node, StyleContext,
+    resolve_full_styles_for_layout_node,
+};
+use crate::ui::{
+    CONTENT_TOP_LEFT_X,
+    CONTENT_TOP_LEFT_Y,
+    CONTENT_WIDTH
 };
 
 
@@ -51,7 +53,7 @@ pub struct LayoutNode {
     pub children: Option<Vec<Rc<LayoutNode>>>,
     pub parent_id: usize,
     pub styles: HashMap<String, String>,  //TODO: it would eventually be nice to have something stronger typed here
-    pub optional_link_url: Option<String>,
+    pub optional_link_url: Option<Url>,
     pub rects: RefCell<Vec<LayoutRect>>,
     pub from_dom_node: Option<Rc<DomNode>>,
 }
@@ -171,13 +173,13 @@ pub struct Rect {
 }
 
 
-pub fn build_full_layout(document: &Document, platform: &mut Platform) -> FullLayout {
+pub fn build_full_layout(document: &Document, platform: &mut Platform, main_url: &Url) -> FullLayout {
     let mut top_level_layout_nodes: Vec<Rc<LayoutNode>> = Vec::new();
     let mut all_nodes: HashMap<usize, Rc<LayoutNode>> = HashMap::new();
 
     let id_of_node_being_built = get_next_layout_node_interal_id();
 
-    let document_layout_node = build_layout_tree(&document.document_node, document, &mut all_nodes, id_of_node_being_built, platform);
+    let document_layout_node = build_layout_tree(&document.document_node, document, &mut all_nodes, id_of_node_being_built, platform, main_url);
     top_level_layout_nodes.push(document_layout_node);
 
     let root_node = LayoutNode {
@@ -467,7 +469,7 @@ fn wrap_text(layout_rect: &LayoutRect, max_width: f32, width_remaining_on_curren
 
 
 fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &mut HashMap<usize, Rc<LayoutNode>>,
-                     parent_id: usize, platform: &Platform) -> Rc<LayoutNode> {
+                     parent_id: usize, platform: &Platform, main_url: &Url) -> Rc<LayoutNode> {
     let mut partial_node_text = None;
     let mut partial_node_non_breaking_space_positions = None;
     let mut partial_node_visible = true;
@@ -488,7 +490,13 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
             match &node.name.as_ref().unwrap()[..] {
 
                 "a" => {
-                    partial_node_optional_link_url = node.get_attribute_value("href");
+                    let opt_href = node.get_attribute_value("href");
+                    if opt_href.is_some() {
+                        partial_node_optional_link_url = Some(Url::from_possible_relative_url(&main_url, &opt_href.unwrap()));
+                    } else {
+                        partial_node_optional_link_url = None;
+                    }
+
                     partial_node_display = Display::Inline;
                 }
 
@@ -523,7 +531,9 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
                 }
 
                 "img" => {
-                    let image_url = node.get_attribute_value("src").expect("can't handle img without src yet..."); //TODO: handle the un-expect'ed case
+                    let image_src = node.get_attribute_value("src").expect("can't handle img without src yet..."); //TODO: handle the un-expect'ed case
+                    let image_url = Url::from_possible_relative_url(&main_url, &image_src);
+
                     partial_node_optional_img = Some(resource_loader::load_image(&image_url));
                     partial_node_display = Display::Inline;
 
@@ -568,7 +578,7 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
         for child in children {
             match child.as_ref() { DomNode::Attribute(_) => { continue; }, _ => {} }
 
-            temp_children.push(build_layout_tree(child, document, all_nodes, id_of_node_being_built, platform));
+            temp_children.push(build_layout_tree(child, document, all_nodes, id_of_node_being_built, platform, main_url));
         }
 
         let all_display_types = temp_children.iter().map(|child| &child.display).collect::<Vec<&Display>>();

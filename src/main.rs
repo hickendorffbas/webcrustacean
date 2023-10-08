@@ -22,6 +22,7 @@ use std::time::{Duration, Instant};
 use crate::debug::debug_log_warn;
 use crate::fonts::Font;
 use crate::layout::{FullLayout, LayoutNode};
+use crate::network::Url;
 use crate::platform::Platform;
 use crate::renderer::render;
 use crate::ui::{CONTENT_HEIGHT, UIState};
@@ -38,7 +39,7 @@ use sdl2::{
 const TARGET_FPS: u32 = if cfg!(debug_assertions) { 30 } else { 60 };
 const SCREEN_WIDTH: f32 = 1000.0;
 const SCREEN_HEIGHT: f32 = 700.0;
-const DEFAULT_LOCATION_TO_LOAD: &str = "file://testinput/doc.html";
+const DEFAULT_LOCATION_TO_LOAD: &str = "file:///home/bas/bbrowser/testinput/doc.html";
 const SCROLL_SPEED: i32 = 25;
 
 
@@ -70,9 +71,9 @@ fn frame_time_check(start_instant: &Instant, currently_loading_new_page: bool) {
 }
 
 
-fn handle_left_click(platform: &mut Platform, ui_state: &mut UIState, x: f32, y: f32, layout_tree: &FullLayout) -> Option<String> {
+fn handle_left_click(platform: &mut Platform, ui_state: &mut UIState, x: f32, y: f32, layout_tree: &FullLayout) -> Option<Url> {
 
-    fn check_left_click_for_layout_node(x: f32, y: f32, layout_node: &Rc<LayoutNode>) -> Option<String> { //TODO: make and return a URL struct / type
+    fn check_left_click_for_layout_node(x: f32, y: f32, layout_node: &Rc<LayoutNode>) -> Option<Url> {
 
         let any_inside = layout_node.rects.borrow().iter().any(|rect| -> bool {rect.location.borrow().is_inside(x, y)});
         if !any_inside {
@@ -113,12 +114,12 @@ pub struct MouseState {
 }
 
 
-pub fn load_url(platform: &mut Platform, url: &String) -> FullLayout {
+pub fn load_url(platform: &mut Platform, url: &Url) -> FullLayout {
     let page_content = resource_loader::load_text(&url);
 
     let lex_result = html_lexer::lex_html(&page_content);
     let dom_tree = html_parser::parse(lex_result);
-    let full_layout_tree = layout::build_full_layout(&dom_tree, platform);
+    let full_layout_tree = layout::build_full_layout(&dom_tree, platform, url);
 
     return full_layout_tree;
 }
@@ -132,11 +133,11 @@ fn main() -> Result<(), String> {
 
     let args: Vec<String> = env::args().collect();
 
-    let mut url: String;
+    let mut url: Url;
     if args.len() < 2 {
-        url = String::from(DEFAULT_LOCATION_TO_LOAD);
+        url = Url::from(&DEFAULT_LOCATION_TO_LOAD.to_owned());
     } else {
-        url = args[1].clone();
+        url = Url::from(&args[1]);
     }
 
     let mut full_layout_tree = load_url(&mut platform, &url);
@@ -145,7 +146,7 @@ fn main() -> Result<(), String> {
     debug_assert!(full_layout_tree.root_node.rects.borrow().len() == 1);
 
     let mut mouse_state = MouseState { x: 0, y: 0, click_start_x: 0, click_start_y: 0, left_down: false, is_dragging_scrollblock: false };
-    let addressbar_text = String::from(DEFAULT_LOCATION_TO_LOAD);
+    let addressbar_text = url.to_string();
 
     let mut addressbar_text_field = TextField {
         x: 100.0,
@@ -210,10 +211,10 @@ fn main() -> Result<(), String> {
                         let optional_url = handle_left_click(&mut platform, &mut ui_state, mouse_x as f32, new_mouse_y, &full_layout_tree);
 
                         if optional_url.is_some() {
+                            let url = optional_url.unwrap();
                             //TODO: this should be done via a nicer "navigate" method or something (also below when pressing enter in the addressbar
-                            let addressbar_text = optional_url.clone();
-                            ui_state.addressbar.set_text(&mut platform, addressbar_text.unwrap());
-                            full_layout_tree = load_url(&mut platform, &optional_url.unwrap());
+                            ui_state.addressbar.set_text(&mut platform, url.to_string());
+                            full_layout_tree = load_url(&mut platform, &url);
                             currently_loading_new_page = true;
                         }
                     }
@@ -235,7 +236,7 @@ fn main() -> Result<(), String> {
 
                         if ui_state.addressbar.has_focus && keycode.unwrap().name() == "Return" {
                             //TODO: This is here for now because we need to load another page, not sure how to correctly trigger that from inside the component
-                            url = ui_state.addressbar.text.clone();
+                            url = Url::from(&ui_state.addressbar.text);
                             full_layout_tree = load_url(&mut platform, &url);
                             currently_loading_new_page = true;
                         }

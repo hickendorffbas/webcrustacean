@@ -1,7 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use crate::debug::debug_log_warn;
 use crate::dom::{
     AttributeDomNode,
     Document,
@@ -37,7 +36,8 @@ pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>) -> Document {
     let mut current_token_idx = 0;
 
     while current_token_idx < html_tokens.len() {
-        children.push(parse_node(&html_tokens, &mut current_token_idx, root_node_internal_id, &mut all_nodes, &mut document_style_rules));
+        let mut tag_stack = Vec::new();
+        children.push(parse_node(&html_tokens, &mut current_token_idx, root_node_internal_id, &mut all_nodes, &mut document_style_rules, &mut tag_stack));
         current_token_idx += 1;
     }
     let root_node = DomNode::Document(DocumentDomNode { internal_id: root_node_internal_id, children: Some(children)});
@@ -54,7 +54,7 @@ pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>) -> Document {
 
 
 fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut usize, parent_id: usize,
-              all_nodes: &mut HashMap<usize, Rc<DomNode>>, styles: &mut Vec<StyleRule>) -> Rc<DomNode> {
+              all_nodes: &mut HashMap<usize, Rc<DomNode>>, styles: &mut Vec<StyleRule>, tag_stack: &mut Vec<String>) -> Rc<DomNode> {
     let node_being_build_internal_id = get_next_dom_node_interal_id();
 
     let mut tag_being_parsed = None;
@@ -68,7 +68,8 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                 if tag_being_parsed.is_none() {
                     tag_being_parsed = Some(name.clone());
                 } else {
-                    let new_node = parse_node(html_tokens, current_token_idx, node_being_build_internal_id, all_nodes, styles);
+                    tag_stack.push(tag_being_parsed.clone().unwrap());
+                    let new_node = parse_node(html_tokens, current_token_idx, node_being_build_internal_id, all_nodes, styles, tag_stack);
                     children.push(new_node);
                 }
             },
@@ -113,15 +114,28 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                     continue;
                 }
 
+                let mut tag_to_close = tag_being_parsed.clone();
+
                 if tag_being_parsed.is_none() || name != tag_being_parsed.as_ref().unwrap() {
-                    //TODO: this is a case that can happen in the real world of course, figure out how to handle this...
-                    debug_log_warn(format!("We are not closing the tag we opened, something is wrong! ({}) ({}:{})", 
-                                           name, current_token.line, current_token.character));
+
+                    //TODO is tag_being_parsed the same as the last item in tag_stack? Do I need both?
+
+                    if tag_stack.contains(&name) {
+                        //we are trying to close a tag we know about, but not the one we are parsing now, so we close that one instead
+                        //and then we are setting the current token one back, so we will retry closing this tag one recursion level higher.
+                        tag_to_close = Some(tag_being_parsed.unwrap().clone());
+                        *current_token_idx -= 1;
+                    } else {
+                        //we are closing a tag whe have never opened, we should ignore it
+                        *current_token_idx += 1;
+                        continue;
+                    }
+
                 }
 
                 let new_node = DomNode::Element(ElementDomNode {
                     internal_id: node_being_build_internal_id,
-                    name: tag_being_parsed,
+                    name: tag_to_close,
                     children: Some(children),
                     parent_id,
                 });
@@ -157,7 +171,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
         *current_token_idx += 1;
     }
 
-    panic!("this should not happen");
+    panic!("this should not happen (leaving the parse loop without returning)");
 }
 
 

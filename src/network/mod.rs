@@ -71,6 +71,15 @@ impl Url {
         return full_string;
     }
 
+    pub fn file_extension(&self) -> Option<String> {
+        let dot_position = self.path.find('.');
+        if dot_position.is_none() {
+            return None;
+        }
+        let extension_start = dot_position.unwrap() + 1;
+        return Some(self.path[extension_start..].to_lowercase());
+    }
+
 }
 
 

@@ -535,6 +535,7 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
                     let image_url = Url::from_possible_relative_url(&main_url, &image_src);
 
                     partial_node_optional_img = Some(resource_loader::load_image(&image_url));
+
                     partial_node_display = Display::Inline;
 
                     childs_to_recurse_on = &None; //images should not have children (its a tag that does not have a close tag, formally)

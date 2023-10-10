@@ -33,22 +33,33 @@ pub fn load_text(url: &Url) -> String {
 
 
 pub fn load_image(url: &Url) -> DynamicImage {
-    let image: DynamicImage;
 
     if url.scheme == "file" {
         let read_result = ImageReader::open(&url.path);
         if read_result.is_err() {
             debug_log_warn(format!("Could not load image: {}", url.to_string()));
-            return DynamicImage::new_rgb32f(1, 1);
+            return fallback_image();
         }
 
         let file_data = read_result.unwrap();
-        image = file_data.decode().expect("decoding the image failed");
-
-    } else {
-        //TODO: this needs error handling
-        image = http_get_image(url);
+        return file_data.decode().expect("decoding the image failed");
     }
 
-    return image;
+    let extension = url.file_extension();
+    if extension.is_some() && extension.unwrap() == "svg".to_owned() {
+        //svg is currently not implemented
+        debug_log_warn(format!("Svg's are not supported currently: {}", url.to_string()));
+        return fallback_image();
+    }
+
+    println!("url: {}", url.to_string());
+
+    //TODO: this needs error handling
+    return http_get_image(url);
+}
+
+
+fn fallback_image() -> DynamicImage {
+    //TODO: this should become one of those "broken image"-images
+    return DynamicImage::new_rgb32f(1, 1);
 }

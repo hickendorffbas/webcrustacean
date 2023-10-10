@@ -93,7 +93,35 @@ fn test_not_closing_a_tag() {
 }
 
 
-//TODO: add a test for the case where we close a tag that we did not open
+#[test]
+fn test_closing_a_tag_we_did_not_open() {
+
+    let tokens = vec![
+        html_open("div"),
+        html_open_tag_end(),
+
+        html_open("b"),
+        html_open_tag_end(),
+
+        html_close("p"), //this one should be ignored
+
+        html_close("b"),
+
+        html_close("div"),
+    ];
+
+    let document = html_parser::parse(tokens);
+
+    let document_elements = get_ref_to_document_children(&document);
+    assert_eq!(document_elements.len(), 1);
+
+    assert_element_name_is(document_elements[0].as_ref(), "div");
+
+    let div_childs = get_children(document_elements[0].as_ref());
+    assert_eq!(div_childs.len(), 1);
+    assert_element_name_is(div_childs[0].as_ref(), "b");
+}
+
 
 
 fn get_ref_to_document_children(document: &Document) -> &Vec<Rc<DomNode>> {

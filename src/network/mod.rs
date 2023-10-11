@@ -16,15 +16,22 @@ impl Url {
     pub fn from(url_str: &String) -> Url {
         let mut url_to_parse = &url_str[..];
 
-        let opt_scheme_end = url_to_parse.find("://");
+        //note that below we search for // rather then :// to support scheme-relative url's
+        let opt_scheme_end = url_to_parse.find("//");
 
         let scheme = if opt_scheme_end.is_some() {
-            let domain_start = opt_scheme_end.unwrap() + 3;
-            let scheme_part = url_to_parse[..opt_scheme_end.unwrap()].to_lowercase();
+            let scheme_part = if opt_scheme_end.unwrap() == 0 {
+                //we have a scheme-relative url
+                String::new()
+            } else {
+                //we have a url with the scheme specified
+                url_to_parse[..opt_scheme_end.unwrap()-1].to_lowercase()  // we do -1 to remove the ":" after the scheme
+            };
+            let domain_start = opt_scheme_end.unwrap() + 2;
             url_to_parse = &url_to_parse[domain_start..];
             scheme_part
         } else {
-            String::from("http") //for now http is the default, not sure if that is always a good idea
+            String::from("http")
         };
 
         let domain = if scheme != "file" {
@@ -52,7 +59,13 @@ impl Url {
 
     pub fn from_possible_relative_url(main_url: &Url, maybe_relative_url: &String) -> Url {
         if maybe_relative_url.chars().next() == Some('/') {
-            Url { scheme: main_url.scheme.clone(), domain: main_url.domain.clone(), path: maybe_relative_url[1..].to_owned()}
+
+            if &maybe_relative_url[0..2] == "//" {
+                let partial_url = Url::from(maybe_relative_url);
+                Url { scheme: main_url.scheme.clone(), domain: partial_url.domain.clone(), path: partial_url.path}
+            } else {
+                Url { scheme: main_url.scheme.clone(), domain: main_url.domain.clone(), path: maybe_relative_url[1..].to_owned()}
+            }
         } else {
             //The url is not relative
             Url::from(maybe_relative_url)

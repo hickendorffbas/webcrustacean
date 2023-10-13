@@ -65,3 +65,8 @@ pub fn html_attribute_loc(name: &str, value: &str, line_nr: u32, character_nr: u
 }
 pub fn html_attribute(name: &str, value: &str) -> HtmlTokenWithLocation { return html_attribute_loc(name, value, 0, 0); }
 
+
+pub fn html_script_loc(value: &str, line_nr: u32, character_nr: u32) -> HtmlTokenWithLocation {
+    return HtmlTokenWithLocation { html_token: HtmlToken::Script(value.to_owned()), line: line_nr, character: character_nr };
+}
+pub fn html_script(value: &str) -> HtmlTokenWithLocation { return html_script_loc(value, 0, 0); }

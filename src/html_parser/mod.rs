@@ -166,6 +166,9 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                 let style_tokens = css_lexer::lex_css(content, current_token.line, current_token.character);
                 styles.append(&mut css_parser::parse_css(&style_tokens));
             },
+            HtmlToken::Script(_) => {
+                //for now we ignore this
+            },
         }
 
         *current_token_idx += 1;

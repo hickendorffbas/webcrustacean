@@ -31,6 +31,7 @@ pub enum HtmlToken {
     Doctype(String),
     Entity(String),
     Style(String),
+    Script(String),
 }
 
 
@@ -59,11 +60,40 @@ impl TrackingIterator<'_> {
         }
         return next_char;
     }
+
     pub fn peek(&mut self) -> Option<&char> {
         return self.iter.peek();
     }
+
     pub fn has_next(&mut self) -> bool {
         return self.iter.peek().is_some();
+    }
+
+    pub fn next_tokens_no_whitespace_are(&mut self, text_to_check: &str) -> bool {
+        let mut temp_html_iterator = self.iter.clone();
+        let mut expected_iterator = text_to_check.chars();
+
+        loop {
+            let mut next_expected = expected_iterator.next();
+            while next_expected.is_some() && next_expected.unwrap() == ' ' {
+                next_expected = expected_iterator.next();
+            }
+            if next_expected.is_none() {
+                return true;
+            }
+
+            let mut next_in_html = temp_html_iterator.next();
+            while next_in_html.is_some() && next_in_html.unwrap() == ' ' {
+                next_in_html = temp_html_iterator.next();
+            }
+            if next_in_html.is_none() {
+                return false;
+            }
+
+            if next_in_html.unwrap() != next_expected.unwrap() {
+                return false;
+            }
+        }
     }
 }
 
@@ -183,7 +213,7 @@ pub fn lex_html(document: &str) -> Vec<HtmlTokenWithLocation> {
                         if tag_name == "style" { //TODO: do we already lower() the tag names?
 
                             let mut css_data = String::new();
-                            while html_iterator.has_next() && html_iterator.peek().unwrap() != &'<' {  //TODO: this is wrong, we need to check for </style> in some form
+                            while html_iterator.has_next() && !html_iterator.next_tokens_no_whitespace_are("</style>") {
                                 css_data.push(html_iterator.next());
                             }
 
@@ -191,6 +221,25 @@ pub fn lex_html(document: &str) -> Vec<HtmlTokenWithLocation> {
                                                                 line: html_iterator.current_line, //TODO: line (and char below are wrong, should be start positions...)
                                                                 character: html_iterator.current_char });
                         }
+
+                        if tag_name == "script" { //TODO: do we already lower() the tag names?
+
+                            let mut in_quotes = false;
+                            let mut script_data = String::new();
+                            while html_iterator.has_next() && !(!in_quotes && html_iterator.next_tokens_no_whitespace_are("</script>")) {
+
+                                let next_char = html_iterator.next();
+                                if next_char == '"' {
+                                    in_quotes = !in_quotes;
+                                }
+                                script_data.push(next_char);
+                            }
+
+                            tokens.push(HtmlTokenWithLocation { html_token: HtmlToken::Script(script_data),
+                                                                line: html_iterator.current_line, //TODO: line (and char below are wrong, should be start positions...)
+                                                                character: html_iterator.current_char });
+                        }
+
 
                     } else {
                         //Given the while loop above, this should not be reachable

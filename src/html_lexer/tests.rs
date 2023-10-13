@@ -147,3 +147,35 @@ fn test_tag_with_namespace() {
     let tokens = html_lexer::lex_html(html);
     assert!(tokens_equal_ignoring_location(tokens, expected_tokens));
 }
+
+
+#[test]
+fn test_tag_with_script_1() {
+    let html = "<script>x = \"<\";</script>";
+
+    let expected_tokens = vec![
+        html_open("script"),
+        html_open_tag_end(),
+        html_script("x = \"<\";"),
+        html_close("script"),
+    ];
+
+    let tokens = html_lexer::lex_html(html);
+    assert!(tokens_equal_ignoring_location(tokens, expected_tokens));
+}
+
+
+#[test]
+fn test_tag_with_script_2() {
+    let html = "<script>x = \"</script>\";</script>";
+
+    let expected_tokens = vec![
+        html_open("script"),
+        html_open_tag_end(),
+        html_script("x = \"</script>\";"),
+        html_close("script"),
+    ];
+
+    let tokens = html_lexer::lex_html(html);
+    assert!(tokens_equal_ignoring_location(tokens, expected_tokens));
+}

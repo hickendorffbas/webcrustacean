@@ -31,6 +31,8 @@ fn test_technically_invalid_url_parsing() {
 #[test]
 fn test_file_url_parsing() {
     assert_eq!(Url::from(&String::from("file://some/good/file.html")), build_url("file", "", "some/good/file.html"));
+    assert_eq!(Url::from(&String::from("file:///root_folder/file.txt")), build_url("file", "", "/root_folder/file.txt"));
+    assert_eq!(Url::from(&String::from("file:///root_folder/file.txt")).to_string(), "file:///root_folder/file.txt");
 }
 
 

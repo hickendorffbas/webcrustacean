@@ -1,7 +1,8 @@
 
+- we should probably load resources (images) when building the DOM tree, not while building the layout tree
+
 
 features still needed for 0.1 release:
-       - don't crash on non-closed tags (or out of order closed tags)
        - load another image format besides PNG
        - test on mac / windows (document SDL install?)
        - add a readme

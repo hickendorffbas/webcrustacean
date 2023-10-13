@@ -52,8 +52,6 @@ pub fn load_image(url: &Url) -> DynamicImage {
         return fallback_image();
     }
 
-    println!("url: {}", url.to_string());
-
     //TODO: this needs error handling
     return http_get_image(url);
 }

@@ -71,6 +71,23 @@ impl LayoutNode {
     pub fn can_wrap(&self) -> bool {
         return self.rects.borrow().iter().any(|rect| { rect.text.is_some()});
     }
+    pub fn get_size_of_bounding_box(&self) -> (f32, f32) {
+        let mut lowest_x = f32::MAX;
+        let mut lowest_y = f32::MAX;
+        let mut max_x: f32 = 0.0;
+        let mut max_y: f32 = 0.0;
+
+        for rect in self.rects.borrow().iter() {
+            let rect_loc = rect.location.borrow();
+            lowest_x = lowest_x.min(rect_loc.x());
+            lowest_y = lowest_y.min(rect_loc.y());
+            max_x = max_x.max(rect_loc.x() + rect_loc.width());
+            max_y = max_y.max(rect_loc.y() + rect_loc.height());
+        }
+        let bounding_box_width = max_x - lowest_x;
+        let bounding_box_height = max_y - lowest_y;
+        return (bounding_box_width, bounding_box_height);
+    }
 }
 
 
@@ -198,7 +215,8 @@ pub fn build_full_layout(document: &Document, platform: &mut Platform, main_url:
     let rc_root_node = Rc::new(root_node);
     all_nodes.insert(id_of_node_being_built, Rc::clone(&rc_root_node));
 
-    let (root_width, root_height) = compute_layout(&rc_root_node, &all_nodes, &document.style_context, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y, platform);
+    compute_layout(&rc_root_node, &all_nodes, &document.style_context, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y, platform);
+    let (root_width, root_height) = rc_root_node.get_size_of_bounding_box();
     let root_location = ComputedLocation::Computed(
         Rect { x: CONTENT_TOP_LEFT_X, y: CONTENT_TOP_LEFT_Y, width: root_width, height: root_height }
     );
@@ -209,16 +227,15 @@ pub fn build_full_layout(document: &Document, platform: &mut Platform, main_url:
 
 
 //This function is responsible for setting the location rects on the node, and all its children.
-//TODO: need to find a way to make good tests for this
+//TODO: need to find a way to make good tests for this (maybe just reftests?)
 fn compute_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>, style_context: &StyleContext,
-                  top_left_x: f32, top_left_y: f32, platform: &mut Platform) -> (f32, f32) {
+                  top_left_x: f32, top_left_y: f32, platform: &mut Platform) {
 
     if !node.visible {
         let node_location = ComputedLocation::Computed(
             Rect { x: top_left_x, y: top_left_y, width: 0.0, height: 0.0 }
         );
         node.update_single_rect_location(node_location);
-        return (0.0, 0.0);
     }
 
     if node.children.is_some() {
@@ -235,15 +252,13 @@ fn compute_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>,
         panic!("Not all children are either inline or block, earlier in the process this should already have been fixed with anonymous blocks");
     }
 
-    debug_assert!(node.rects.borrow().len() == 1);
-
-    let (node_width, node_height) = compute_size_for_rect(node.rects.borrow().iter().next().unwrap(), &node.styles, platform);
-    let node_location = ComputedLocation::Computed(
-        Rect { x: top_left_x, y: top_left_y, width: node_width, height: node_height }
-    );
-    node.update_single_rect_location(node_location);
-
-    return (node_width, node_height);
+    for rect in node.rects.borrow().iter() {
+        let (rect_width, rect_height) = compute_size_for_rect(rect, &node.styles, platform);
+        let rect_location = ComputedLocation::Computed(
+            Rect { x: top_left_x, y: top_left_y, width: rect_width, height: rect_height }
+        );
+        rect.location.replace(rect_location);
+    }
 }
 
 
@@ -260,14 +275,16 @@ pub fn get_font_given_styles(styles: &HashMap<String, String>) -> (Font, Color) 
 
 
 fn apply_block_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>, style_context: &StyleContext,
-                      top_left_x: f32, top_left_y: f32, platform: &mut Platform) -> (f32, f32) {
+                      top_left_x: f32, top_left_y: f32, platform: &mut Platform) {
     let mut cursor_y = top_left_y;
     let mut max_width: f32 = 0.0;
 
     for child in node.children.as_ref().unwrap() {
-        let (child_width, child_height) = compute_layout(child, all_nodes, style_context, top_left_x, cursor_y, platform);
-        cursor_y += child_height;
-        max_width = max_width.max(child_width);
+        compute_layout(child, all_nodes, style_context, top_left_x, cursor_y, platform);
+        let (bounding_box_width, bounding_box_height) = child.get_size_of_bounding_box();
+
+        cursor_y += bounding_box_height;
+        max_width = max_width.max(bounding_box_width);
     }
 
     let our_height = cursor_y - top_left_y;
@@ -275,13 +292,11 @@ fn apply_block_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNod
         Rect { x: top_left_x, y: top_left_y, width: max_width, height: our_height }
     );
     node.update_single_rect_location(node_location);
-
-    return (max_width, our_height);
 }
 
 
 fn apply_inline_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>, style_context: &StyleContext, top_left_x: f32, top_left_y: f32,
-                       max_allowed_width: f32, platform: &mut Platform) -> (f32, f32) {
+                       max_allowed_width: f32, platform: &mut Platform) {
     let mut cursor_x = top_left_x;
     let mut cursor_y = top_left_y;
     let mut max_width: f32 = 0.0;
@@ -289,7 +304,7 @@ fn apply_inline_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNo
 
     for child in node.children.as_ref().unwrap() {
 
-        let (child_width, child_height) = compute_layout(child, all_nodes, style_context, cursor_x, cursor_y, platform);
+        compute_layout(child, all_nodes, style_context, cursor_x, cursor_y, platform);
 
         if child.line_break {
             let child_height;
@@ -314,6 +329,8 @@ fn apply_inline_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNo
 
             continue;
         }
+
+        let (child_width, child_height) = child.get_size_of_bounding_box();
 
         if (cursor_x - top_left_x + child_width) > max_allowed_width {
 
@@ -365,7 +382,8 @@ fn apply_inline_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNo
                     cursor_x = top_left_x;
                     cursor_y += max_height_of_line;
 
-                    let (child_width, child_height) = compute_layout(child, all_nodes, style_context, cursor_x, cursor_y, platform);
+                    compute_layout(child, all_nodes, style_context, cursor_x, cursor_y, platform);
+                    let (child_width, child_height) = child.get_size_of_bounding_box();
 
                     cursor_x += child_width;
                     max_width = max_width.max(cursor_x);
@@ -395,8 +413,6 @@ fn apply_inline_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNo
         Rect { x: top_left_x, y: top_left_y, width: max_width, height: our_height }
     );
     node.update_single_rect_location(node_location);
-
-    return (max_width, our_height);
 }
 
 

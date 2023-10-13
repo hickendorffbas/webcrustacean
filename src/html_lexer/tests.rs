@@ -130,3 +130,20 @@ fn test_attribute_with_dash() {
     let tokens = html_lexer::lex_html(html);
     assert!(tokens_equal_ignoring_location(tokens, expected_tokens));
 }
+
+
+#[test]
+fn test_tag_with_namespace() {
+    let html = "<div namespace:att=\"3\">bla</div>";
+
+    let expected_tokens = vec![
+        html_open("div"),
+        html_attribute("namespace:att", "3"),
+        html_open_tag_end(),
+        html_text("bla"),
+        html_close("div"),
+    ];
+
+    let tokens = html_lexer::lex_html(html);
+    assert!(tokens_equal_ignoring_location(tokens, expected_tokens));
+}

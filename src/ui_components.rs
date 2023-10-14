@@ -100,6 +100,37 @@ impl TextField {
 }
 
 
+pub struct NavigationButton {
+    pub x: f32,
+    pub y: f32,
+    pub forward: bool, //false means its back
+    pub enabled: bool, //TODO: this one is not yet set based on the history, needs to be fixed
+}
+impl NavigationButton {
+    pub fn render(&self, platform: &mut Platform) {
+
+        if self.forward {
+            //The forward button
+            let color = if self.enabled { Color::BLACK } else { Color::GRAY };
+            let center_point = Position {x: self.x + 25.0, y: self.y + 10.0 };
+            platform.draw_line(Position {x: self.x + 0.0, y: self.y + 10.0 }, center_point,  color);
+            platform.draw_line(center_point, Position {x: self.x + 15.0, y: self.y + 20.0 }, color);
+            platform.draw_line(center_point, Position {x: self.x + 15.0, y: self.y + 0.0 },  color);
+        } else {
+            //The back button
+            let color = if self.enabled { Color::BLACK } else { Color::GRAY };
+            let center_point = Position {x: self.x + 0.0, y: self.y + 10.0 };
+            platform.draw_line(center_point, Position {x: self.x + 25.0, y: self.y + 10.0 }, color);
+            platform.draw_line(center_point, Position {x: self.x + 10.0, y: self.y + 20.0 }, color);
+            platform.draw_line(center_point, Position {x: self.x + 10.0, y: self.y + 0.0  }, color);
+        }
+
+    }
+    //TODO: handle mouseover (make some mouseover background change color or something to make clearer that its a button)
+    //TODO: handle click
+}
+
+
 fn compute_char_position_mapping(platform: &mut Platform, font: &Font, text: &String) -> Vec<f32> {
     //TODO: we take a very slow approach here. Not sure if we can do this faster.
 

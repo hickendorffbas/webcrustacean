@@ -26,7 +26,7 @@ use crate::network::Url;
 use crate::platform::Platform;
 use crate::renderer::render;
 use crate::ui::{CONTENT_HEIGHT, UIState};
-use crate::ui_components::TextField;
+use crate::ui_components::{TextField, NavigationButton};
 
 use sdl2::{
     event::Event as SdlEvent,
@@ -161,7 +161,12 @@ fn main() -> Result<(), String> {
     };
     addressbar_text_field.set_text(&mut platform, addressbar_text);
 
-    let mut ui_state = UIState { addressbar: addressbar_text_field, current_scroll_y: 0.0 };
+    let mut ui_state = UIState {
+        addressbar: addressbar_text_field,
+        current_scroll_y: 0.0,
+        back_button: NavigationButton { x: 15.0, y: 15.0, forward: false, enabled: false },
+        forward_button: NavigationButton { x: 55.0, y: 15.0, forward: true, enabled: false },
+    };
 
     let mut event_pump = platform.sdl_context.event_pump()?;
     'main_loop: loop {

@@ -4,9 +4,8 @@ use crate::{
     SCREEN_WIDTH,
 };
 use crate::color::Color;
-use crate::fonts::Font;
 use crate::platform::{Platform, Position, KeyCode};
-use crate::ui_components::TextField;
+use crate::ui_components::{TextField, NavigationButton};
 
 
 pub const HEADER_HEIGHT: f32 = 50.0;
@@ -27,6 +26,8 @@ const SCROLLBAR_X_POS: f32 = SCREEN_WIDTH - SIDE_SCROLLBAR_WIDTH;
 pub struct UIState {
     pub addressbar: TextField,
     pub current_scroll_y: f32,
+    pub back_button: NavigationButton,
+    pub forward_button: NavigationButton,
 }
 
 
@@ -80,12 +81,12 @@ pub fn convert_block_drag_to_page_scroll(ui_state: &UIState, scroll_block_amount
 fn render_header(platform: &mut Platform, ui_state: &UIState) {
     platform.fill_rect(0.0, 0.0, SCREEN_WIDTH, HEADER_HEIGHT, Color::WHITE);
 
-    let font = Font::new(true, false, 14);
-    platform.render_text(&"Bbrowser".to_owned(), 10.0, 10.0, &font, Color::BLACK);
     platform.draw_line(Position { x: 0.0, y: HEADER_HEIGHT - 1.0 },
                        Position { x: SCREEN_WIDTH, y: HEADER_HEIGHT - 1.0 },
                        Color::BLACK);
 
+    ui_state.back_button.render(platform);
+    ui_state.forward_button.render(platform);
     ui_state.addressbar.render(platform);
 }
 

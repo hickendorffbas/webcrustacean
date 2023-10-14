@@ -6,4 +6,4 @@ features still needed for 0.1 release:
        - load another image format besides PNG
        - test on mac / windows (document SDL install?)
        - add a readme
-       - add back button (and very basic history, not viewable)
+       - very basic history (not viewable), and integrate with back and forward buttons

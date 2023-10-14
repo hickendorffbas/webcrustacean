@@ -53,5 +53,6 @@ impl Color {
 
     //Below we only define Colors we use in other parts of the code in a hardcoded way:
     pub const BLACK: Color = Color::new(0, 0, 0);
+    pub const GRAY: Color = Color::new(128, 128, 128);
     pub const WHITE: Color = Color::new(255, 255, 255);
 }

@@ -12,8 +12,6 @@ use crate::network::{
 
 
 pub fn load_text(url: &Url) -> String {
-    let file_contents: String;
-
     if url.scheme == "file" {
         let read_result = fs::read_to_string(&url.path);
         if read_result.is_err() {
@@ -21,19 +19,21 @@ pub fn load_text(url: &Url) -> String {
             return String::new();
         }
 
-        file_contents = read_result.unwrap();
-
-    } else {
-        //TODO: this needs error handling
-        file_contents = http_get_text(url);
+        return read_result.unwrap();
     }
 
-    return file_contents;
+    let file_content_result = http_get_text(url);
+
+    if file_content_result.is_err() {
+        debug_log_warn(format!("Could not load text: {}", url.to_string()));
+        return String::new();
+    }
+
+    return file_content_result.unwrap();
 }
 
 
 pub fn load_image(url: &Url) -> DynamicImage {
-
     if url.scheme == "file" {
         let read_result = ImageReader::open(&url.path);
         if read_result.is_err() {
@@ -52,8 +52,13 @@ pub fn load_image(url: &Url) -> DynamicImage {
         return fallback_image();
     }
 
-    //TODO: this needs error handling
-    return http_get_image(url);
+    let image_result = http_get_image(url);
+    if image_result.is_err() {
+        debug_log_warn(format!("Could not load image: {}", url.to_string()));
+        return fallback_image();
+    }
+
+    return image_result.unwrap();
 }
 
 

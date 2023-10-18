@@ -13,7 +13,7 @@ use crate::{
 use crate::color::Color;
 use crate::debug::debug_log_warn;
 use crate::dom::{Document, DomNode};
-use crate::network::Url;
+use crate::network::url::Url;
 use crate::platform::Platform;
 use crate::style::{
     StyleContext,

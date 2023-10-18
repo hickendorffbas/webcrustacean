@@ -4,8 +4,8 @@ use image::DynamicImage;
 use image::io::Reader as ImageReader;
 
 use crate::debug::debug_log_warn;
+use crate::network::url::Url;
 use crate::network::{
-    Url,
     http_get_image,
     http_get_text,
 };

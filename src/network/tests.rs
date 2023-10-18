@@ -1,5 +1,4 @@
-use crate::network::Url;
-
+use crate::network::url::Url;
 
 
 #[test]

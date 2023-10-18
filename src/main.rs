@@ -22,7 +22,7 @@ use std::time::{Duration, Instant};
 use crate::debug::debug_log_warn;
 use crate::fonts::Font;
 use crate::layout::{FullLayout, LayoutNode};
-use crate::network::Url;
+use crate::network::url::Url;
 use crate::platform::Platform;
 use crate::renderer::render;
 use crate::ui::{CONTENT_HEIGHT, UIState};

@@ -13,7 +13,9 @@ use crate::network::{
 
 pub fn load_text(url: &Url) -> String {
     if url.scheme == "file" {
-        let read_result = fs::read_to_string(&url.path);
+        let mut local_path = String::from("//");
+        local_path.push_str(&url.path.join("/"));
+        let read_result = fs::read_to_string(local_path);
         if read_result.is_err() {
             debug_log_warn(format!("Could not load text: {}", url.to_string()));
             return String::new();
@@ -35,7 +37,9 @@ pub fn load_text(url: &Url) -> String {
 
 pub fn load_image(url: &Url) -> DynamicImage {
     if url.scheme == "file" {
-        let read_result = ImageReader::open(&url.path);
+        let mut local_path = String::from("//");
+        local_path.push_str(&url.path.join("/"));
+        let read_result = ImageReader::open(local_path);
         if read_result.is_err() {
             debug_log_warn(format!("Could not load image: {}", url.to_string()));
             return fallback_image();
@@ -51,6 +55,13 @@ pub fn load_image(url: &Url) -> DynamicImage {
         debug_log_warn(format!("Svg's are not supported currently: {}", url.to_string()));
         return fallback_image();
     }
+    if url.scheme == "data".to_owned() {
+        //data scheme is currently not implemented
+        debug_log_warn(format!("the data: scheme is not supported currently: {}", url.to_string()));
+        return fallback_image();
+    }
+
+    println!("loading {}", url.to_string());
 
     let image_result = http_get_image(url);
     if image_result.is_err() {

@@ -508,7 +508,7 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
                 "a" => {
                     let opt_href = node.get_attribute_value("href");
                     if opt_href.is_some() {
-                        partial_node_optional_link_url = Some(Url::from_possible_relative_url(&main_url, &opt_href.unwrap()));
+                        partial_node_optional_link_url = Some(Url::from_base_url(&opt_href.unwrap(), Some(main_url)));
                     } else {
                         partial_node_optional_link_url = None;
                     }
@@ -548,8 +548,7 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
 
                 "img" => {
                     let image_src = node.get_attribute_value("src").expect("can't handle img without src yet..."); //TODO: handle the un-expect'ed case
-                    let image_url = Url::from_possible_relative_url(&main_url, &image_src);
-
+                    let image_url = Url::from_base_url(&image_src, Some(main_url));
                     partial_node_optional_img = Some(resource_loader::load_image(&image_url));
 
                     partial_node_display = Display::Inline;

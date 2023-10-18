@@ -1,3 +1,4 @@
+use std::cmp::max;
 use std::fmt;
 
 use image::DynamicImage;
@@ -18,71 +19,332 @@ impl fmt::Display for ResourceNotLoadedError {
 }
 
 
+//TODO: move all this url stuff to its own file
+#[derive(Debug)]
+enum UrlParsingState {
+    SchemeStartState,
+    SchemeState,
+    NoSchemeState,
+    //SpecialRelativeOrAuthorityState, //present in the spec, but not currently implemented
+    //PathOrAuthorityState, //present in the spec, but not currently implemented
+    RelativeState,
+    RelativeSlashState,
+    SpecialAuthoritySlashesState,
+    SpecialAuthorityIgnoreSlashesState,
+    AuthorityState,
+    HostState,
+    //HostnameState, //present in the spec, but not currently implemented
+    PortState,
+    FileState,
+    FileSlashState,
+    FileHostState,
+    PathStartState,
+    PathState,
+    OpaquePathState,
+    QueryState,
+    FragmentState,
+}
+
+
+
 #[derive(PartialEq, Debug, Clone)]
 pub struct Url {
+    //implementation of https://url.spec.whatwg.org/
     pub scheme: String,
-    pub domain: String,
-    pub path: String,
-    //TODO: eventually should contain query params, port and fragment
+    pub username: String,
+    pub password: String,
+    pub host: String,
+    pub port: String,
+    pub path: Vec<String>,
+    pub query: String,
+    pub fragment: String,
+    pub blob: String,
 }
 impl Url {
     pub fn from(url_str: &String) -> Url {
-        let mut url_to_parse = &url_str[..];
-
-        //note that below we search for // rather then :// to support scheme-relative url's
-        let opt_scheme_end = url_to_parse.find("//");
-
-        let scheme = if opt_scheme_end.is_some() {
-            let scheme_part = if opt_scheme_end.unwrap() == 0 {
-                //we have a scheme-relative url
-                String::new()
-            } else {
-                //we have a url with the scheme specified
-                url_to_parse[..opt_scheme_end.unwrap()-1].to_lowercase()  // we do -1 to remove the ":" after the scheme
-            };
-            let domain_start = opt_scheme_end.unwrap() + 2;
-            url_to_parse = &url_to_parse[domain_start..];
-            scheme_part
-        } else {
-            String::from("http")
-        };
-
-        let domain = if scheme != "file" {
-            let opt_path_start = url_to_parse.find("/");
-
-            let domain = if opt_path_start.is_some() {
-                let domain_part = url_to_parse[..opt_path_start.unwrap()].to_owned();
-                url_to_parse = &url_to_parse[opt_path_start.unwrap()+1..];
-                domain_part
-            } else {
-                let domain_part = url_to_parse.to_owned();
-                url_to_parse = &url_to_parse[url_to_parse.len()..];
-                domain_part
-            };
-            domain
-        } else {
-            String::new()
-        };
-
-        //TODO: the below is not correct, but we don't parse query params, ports and fragments yet
-        let path = url_to_parse.to_owned();
-
-        return Url {scheme, domain, path};
+        Url::from_base_url(url_str, None)
     }
 
-    pub fn from_possible_relative_url(main_url: &Url, maybe_relative_url: &String) -> Url {
-        if maybe_relative_url.chars().next() == Some('/') {
+    pub fn from_base_url(url_str: &String, base_url: Option<&Url>) -> Url {
+        let mut state = UrlParsingState::SchemeStartState;
+        let mut buffer = String::new();
+        let mut pointer: i32 = 0; // the pointer schould point in the string, so normally won't be negative, but we need to decrease it
+                                  // in the loop sometimes so it can later be increased to 0 again at the end of the loop. So we need it signed here.
+        let mut previous_pointer: i32 = 0;
+        let mut url_str_iter = url_str.chars().peekable();
 
-            if &maybe_relative_url[0..2] == "//" {
-                let partial_url = Url::from(maybe_relative_url);
-                Url { scheme: main_url.scheme.clone(), domain: partial_url.domain.clone(), path: partial_url.path}
-            } else {
-                Url { scheme: main_url.scheme.clone(), domain: main_url.domain.clone(), path: maybe_relative_url[1..].to_owned()}
+        let mut scheme = String::new();
+        let mut username = String::new();
+        let mut password = String::new();
+        let mut host = String::new();
+        let mut port = String::new();
+        let mut path = Vec::new();
+        let mut query = String::new();
+        let mut fragment = String::new();
+        let blob = String::new();
+
+        let mut next_char = url_str_iter.next();
+
+        loop {
+            match state {
+                UrlParsingState::SchemeStartState => {
+                    if next_char.is_some() && next_char.unwrap().is_ascii_alphanumeric() {
+                        buffer.push(next_char.unwrap().to_ascii_lowercase());
+                        state = UrlParsingState::SchemeState;
+                    } else {
+                        state = UrlParsingState::NoSchemeState;
+                        pointer = max(pointer - 1, -1);
+                    }
+                },
+
+                UrlParsingState::SchemeState => {
+                    if next_char.is_some() && next_char.unwrap().is_ascii_alphanumeric() {
+                        buffer.push(next_char.unwrap().to_ascii_lowercase());
+                    } else if next_char == Some(':') {
+                        scheme = buffer;
+                        buffer = String::new();
+
+                        if scheme == "file" {
+                            state = UrlParsingState::FileState;
+                        } else if Url::scheme_is_special(&scheme) {
+                            state = UrlParsingState::SpecialAuthoritySlashesState;
+                        } else {
+                            state = UrlParsingState::OpaquePathState;
+                        }
+                    } else {
+                        return Url { scheme, username, password, host, port, path, query, fragment, blob }; //This is actually failure, but for now I don't return them
+                    }
+                },
+
+                UrlParsingState::FileState => {
+                    host = String::new();
+                    if next_char == Some('/') {
+                        state = UrlParsingState::FileSlashState;
+                    } else {
+                        // in the spec here is a case about base, I've now added that to the signature
+                        todo!();
+                    }
+                }
+
+                UrlParsingState::FileSlashState => {
+                    if next_char == Some('/') {
+                        state = UrlParsingState::FileHostState;
+                    } else {
+                        // in the spec here is a case about base, I've now added that to the signature
+                        todo!();
+                    }
+                },
+
+                UrlParsingState::FileHostState => {
+                    if next_char == None || next_char == Some('/') || next_char == Some('\\') || next_char == Some('?') || next_char == Some('#') {
+                        pointer = max(pointer - 1, -1);
+
+                        if buffer == "" {
+                            host = String::new();
+                            state = UrlParsingState::PathStartState;
+                        } else {
+                            host = Url::parse_host(&buffer);
+                            if host == "localhost" {
+                                host = String::new();
+                            }
+                            buffer = String::new();
+                            state = UrlParsingState::PathStartState;
+                        }
+
+                    } else {
+                        buffer.push(next_char.unwrap());
+                    }
+                },
+
+                UrlParsingState::PathStartState => {
+                    if Url::scheme_is_special(&scheme) {
+                        state = UrlParsingState::PathState;
+                        if next_char != Some('/') {
+                            pointer = max(pointer - 1, -1);
+                        }
+                    } else if next_char == Some('?') {
+                        state = UrlParsingState::QueryState;
+                    } else if next_char == Some('#') {
+                        state = UrlParsingState::FragmentState;
+                    } else if next_char.is_some() {
+                        state = UrlParsingState::PathState;
+                        if next_char != Some('/') {
+                            pointer = max(pointer - 1, -1);
+                        }
+                    }
+                },
+
+                UrlParsingState::SpecialAuthorityIgnoreSlashesState => {
+                    if next_char != Some('/') && next_char != Some('\\') {
+                        state = UrlParsingState::AuthorityState;
+                        pointer = max(pointer - 1, -1);
+                    } else {
+                        todo!(); //this should be an error
+                    }
+                },
+
+                UrlParsingState::SpecialAuthoritySlashesState =>  {
+                    if next_char == Some('/') && url_str_iter.peek() == Some(&'/') {
+                        state = UrlParsingState::SpecialAuthorityIgnoreSlashesState;
+                        pointer = pointer + 1;
+                    } else {
+                        todo!(); //this should be an error (but it also moves to a new state?)
+                    }
+                },
+
+                UrlParsingState::AuthorityState => {
+                    if next_char == Some('@') {
+                        todo!(); //Auth url's are not yet implemented
+                    } else if next_char == None || next_char == Some('/') || next_char == Some('?') || next_char == Some('#') {
+                        let buffer_length_plus_one = buffer.len() + 1;
+                        pointer = pointer - buffer_length_plus_one as i32;
+                        pointer = max(pointer, -1);
+                        buffer = String::new();
+                        state = UrlParsingState::HostState;
+                    } else {
+                        buffer.push(next_char.unwrap());
+                    }
+                },
+
+                UrlParsingState::PathState =>  {
+                    if next_char == None || next_char == Some('/') || next_char == Some('?') || next_char == Some('#') {
+                        //TODO: check single and double dot path segment
+                        path.push(buffer);
+                        buffer = String::new();
+                        if next_char == Some('?') {
+                            state = UrlParsingState::QueryState;
+                        } else if next_char == Some('#') {
+                            state = UrlParsingState::FragmentState;
+                        }
+                    } else {
+                        buffer.push(next_char.unwrap());
+                    }
+                },
+
+                UrlParsingState::OpaquePathState => {
+                    if next_char == Some('?') {
+                        query = String::new();
+                        state = UrlParsingState::QueryState;
+                    } else if next_char == Some('#') {
+                        fragment = String::new();
+                        state = UrlParsingState::FragmentState;
+                    } else if next_char != None {
+                        //TODO: there is something about encoding in the spec that we don't do yet
+                        if path.is_empty() {
+                            path.push(String::new());
+                        }
+                        path.last_mut().unwrap().push(next_char.unwrap());
+                    }
+                },
+
+                UrlParsingState::HostState => {
+                    if next_char == Some(':') {
+                        host = buffer;
+                        buffer = String::new();
+                        state = UrlParsingState::PortState;
+                    } else if next_char == None || next_char == Some('/') || next_char == Some('?') || next_char == Some('#') {
+                        host = buffer;
+                        buffer = String::new();
+                        state = UrlParsingState::PathStartState;
+                    } else {
+                        buffer.push(next_char.unwrap());
+                    }
+                },
+
+                UrlParsingState::NoSchemeState => {
+                    if next_char == Some('#') && base_url.is_some() && !base_url.unwrap().path.is_empty() {
+                        let base_url = base_url.unwrap();
+                        scheme = base_url.scheme.clone();
+                        path = base_url.path.clone();
+                        query = base_url.query.clone();
+                        fragment = base_url.fragment.clone();
+                        state = UrlParsingState::FragmentState;
+                    } else if base_url.is_some() && base_url.unwrap().scheme != "file" {
+                        pointer = max(pointer - 1, -1);
+                        state = UrlParsingState::RelativeState;
+                    } else {
+                        pointer = max(pointer - 1, -1);
+                        state = UrlParsingState::FileState;
+                    }
+                },
+
+                UrlParsingState::RelativeState =>  {
+                    scheme = base_url.unwrap().scheme.clone();
+                    if next_char == Some('/') {
+                        state = UrlParsingState::RelativeSlashState;
+                    } else {
+                        let base_url = base_url.unwrap();
+                        username = base_url.username.clone();
+                        password = base_url.password.clone();
+                        host = base_url.host.clone();
+                        port = base_url.port.clone();
+                        path = base_url.path.clone();
+                        query = base_url.query.clone();
+                        if next_char == Some('?') {
+                            query = String::new();
+                            state = UrlParsingState::QueryState;
+                        } else if next_char == Some('#') {
+                            fragment = String::new();
+                            state = UrlParsingState::FragmentState;
+                        } else if next_char != None {
+                            query = String::new();
+                            if !path.is_empty() {
+                                path.remove(path.len() - 1);
+                            }
+                            state = UrlParsingState::PathState;
+                            pointer = max(pointer - 1, -1);
+                        }
+                    }
+
+                },
+
+                UrlParsingState::RelativeSlashState => {
+                    if Url::scheme_is_special(&scheme) && next_char == Some('/') {
+                        state = UrlParsingState::SpecialAuthorityIgnoreSlashesState;
+                    } else if next_char == Some('/') {
+                        state = UrlParsingState::AuthorityState;
+                    } else {
+                        let base_url = base_url.unwrap();
+                        username = base_url.username.clone();
+                        password = base_url.password.clone();
+                        host = base_url.host.clone();
+                        port = base_url.port.clone();
+                        state = UrlParsingState::PathState;
+                        pointer = max(pointer - 1, -1);
+                    }
+                },
+
+                UrlParsingState::PortState => todo!(), //TODO: add test and implement
+                UrlParsingState::QueryState => todo!(), //TODO: add test and implement
+                UrlParsingState::FragmentState => todo!(), //TODO: add test and implement
             }
-        } else {
-            //The url is not relative
-            Url::from(maybe_relative_url)
+
+            if pointer >= url_str.len() as i32 {
+                //we don't check next_char, because we still need to update it to pointer, but we don't do that first because we still need to
+                //increas pointer, and if it then points to EOF, we still need to do 1 loop...
+                break;
+            }
+
+            pointer += 1;
+
+            //we sometimes need to make pointer go back, iterators can't do that, so here we just reset the iterator and skip to the correct point
+            //when that happens:
+            next_char = if pointer == previous_pointer + 1 {
+                previous_pointer = pointer;
+                url_str_iter.next()
+            } else {
+                previous_pointer = pointer;
+                url_str_iter = url_str.chars().peekable();
+                url_str_iter.nth(pointer as usize)
+            };
         }
+
+        return Url { scheme, username, password, host, port, path, query, fragment, blob }
+    }
+
+    fn parse_host(host_text: &String) -> String {
+        //TODO: this should actually implement https://url.spec.whatwg.org/#concept-host-parser
+        return host_text.clone();
     }
 
     pub fn to_string(&self) -> String {
@@ -90,24 +352,33 @@ impl Url {
 
         full_string.push_str(&self.scheme);
         full_string.push_str("://");
-        full_string.push_str(&self.domain);
-        if !self.domain.is_empty() {
+        full_string.push_str(&self.host);
+        if !self.host.is_empty() {
             full_string.push_str("/");
         }
-        full_string.push_str(&self.path);
+        full_string.push_str(self.path.join("/").as_str());
 
         return full_string;
     }
 
     pub fn file_extension(&self) -> Option<String> {
-        let dot_position = self.path.find('.');
+        let last_path_part = self.path.last();
+        if last_path_part.is_none() {
+            return None;
+        }
+        let dot_position = last_path_part.unwrap().find('.');
         if dot_position.is_none() {
             return None;
         }
         let extension_start = dot_position.unwrap() + 1;
-        return Some(self.path[extension_start..].to_lowercase());
+        return Some(last_path_part.unwrap()[extension_start..].to_lowercase());
     }
 
+    fn scheme_is_special(scheme: &str) -> bool {
+        //Special is meant in the definition of https://url.spec.whatwg.org/#is-special
+        // the spec also checks for ws and wss, but we are not implementing those
+        return scheme == "http" || scheme == "https" || scheme == "ftp" || scheme == "file";
+    }
 }
 
 

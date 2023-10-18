@@ -299,9 +299,27 @@ impl Url {
                     }
                 },
 
+                UrlParsingState::QueryState => {
+                    //TODO: we are currently ignoring a lot of percentage encoding here that the spec requires
+                    if next_char == Some('#') || next_char == None {
+                        query.push_str(&buffer);
+                        buffer = String::new();
+                        if next_char == Some('#') {
+                            state = UrlParsingState::FragmentState;
+                        }
+                    } else {
+                        buffer.push(next_char.unwrap());
+                    }
+                },
+
+                UrlParsingState::FragmentState => {
+                    if next_char != None {
+                        fragment.push(next_char.unwrap());
+                    }
+                },
+
                 UrlParsingState::PortState => todo!(), //TODO: add test and implement
-                UrlParsingState::QueryState => todo!(), //TODO: add test and implement
-                UrlParsingState::FragmentState => todo!(), //TODO: add test and implement
+
             }
 
             if pointer >= url_str.len() as i32 {

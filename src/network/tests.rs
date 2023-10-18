@@ -33,6 +33,13 @@ fn test_file_url_parsing() {
 
 
 #[test]
+fn test_query_parsing() {
+    assert_eq!(Url::from(&String::from("http://website.com/page/index.php?question=something&x=3")),
+               build_url_with_query("http", "website.com", &vec![String::from("page"), String::from("index.php")], String::from("question=something&x=3")));
+}
+
+
+#[test]
 fn test_data_url_parsing() {
     assert_eq!(Url::from(&String::from("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4A")),
                build_url("data", "", &vec!["image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4A".to_owned()]));
@@ -42,4 +49,10 @@ fn test_data_url_parsing() {
 fn build_url(scheme: &str, host: &str, path: &Vec<String>) -> Url {
     return Url { scheme: scheme.to_owned(), host: host.to_owned(), path: path.clone(),
                  username: String::new(), password: String::new(), port: String::new(), query: String::new(), fragment: String::new(), blob: String::new() };
+}
+
+
+fn build_url_with_query(scheme: &str, host: &str, path: &Vec<String>, query: String) -> Url {
+    return Url { scheme: scheme.to_owned(), host: host.to_owned(), path: path.clone(), query,
+                 username: String::new(), password: String::new(), port: String::new(), fragment: String::new(), blob: String::new() };
 }

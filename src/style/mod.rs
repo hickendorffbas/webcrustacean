@@ -187,7 +187,7 @@ fn compare_style_rules(rule_a: &ActiveStyleRule, rule_b: &ActiveStyleRule) -> Or
 }
 
 
-pub fn get_property_from_computed_styles(property: &str, styles: &HashMap<String, String>) -> Option<String> {
+pub fn get_property_from_computed_styles(styles: &HashMap<String, String>, property: &str) -> Option<String> {
     let computed_prop = styles.get(property);
     if computed_prop.is_some() {
         //TODO: not great that we clone here, but we seem to need to because we also could return new strings (for defaults), could we
@@ -221,7 +221,7 @@ fn does_style_rule_apply(style_rule: &StyleRule, dom_node: &DomNode) -> bool {
 
 
 pub fn has_style_value(styles: &HashMap<String, String>, style_name: &str, style_value: &String) -> bool {
-    let item = get_property_from_computed_styles(style_name, styles);
+    let item = get_property_from_computed_styles(styles, style_name);
     if item.is_none() {
         return false;
     }
@@ -229,17 +229,8 @@ pub fn has_style_value(styles: &HashMap<String, String>, style_name: &str, style
 }
 
 
-pub fn get_numeric_style_value(styles: &HashMap<String, String>, style_name: &str) -> Option<u16> {
-    let item = get_property_from_computed_styles(style_name, styles);
-    if item.is_none() {
-        return None;
-    }
-    return item.unwrap().parse::<u16>().ok();
-}
-
-
 pub fn get_color_style_value(styles: &HashMap<String, String>, style_name: &str) -> Option<Color> {
-    let item = get_property_from_computed_styles(style_name, styles);
+    let item = get_property_from_computed_styles(styles, style_name);
     if item.is_none() {
         return None;
     }

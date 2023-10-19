@@ -73,7 +73,7 @@ pub fn load_image(url: &Url) -> DynamicImage {
 }
 
 
-fn fallback_image() -> DynamicImage {
+pub fn fallback_image() -> DynamicImage {
     //TODO: this should become one of those "broken image"-images
     return DynamicImage::new_rgb32f(1, 1);
 }

@@ -68,8 +68,6 @@ impl Url {
         let mut next_char = url_str_iter.next();
 
 
-        println!("parsing {}", url_str);
-
         loop {
             match state {
                 UrlParsingState::SchemeStartState => {

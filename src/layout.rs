@@ -18,9 +18,8 @@ use crate::platform::Platform;
 use crate::style::{
     StyleContext,
     get_color_style_value,
-    get_numeric_style_value,
     has_style_value,
-    resolve_full_styles_for_layout_node,
+    resolve_full_styles_for_layout_node, get_property_from_computed_styles,
 };
 use crate::ui::{
     CONTENT_TOP_LEFT_X,
@@ -265,8 +264,20 @@ fn compute_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>,
 pub fn get_font_given_styles(styles: &HashMap<String, String>) -> (Font, Color) {
     let font_bold = has_style_value(&styles, "font-weight", &"bold".to_owned());
     let font_underline = has_style_value(&styles, "text-decoration", &"underline".to_owned());
-    let font_size = get_numeric_style_value(&styles, "font-size")
-                        .expect("No font-size found"); //font-size should be in the default styles, so this is a fatal error if not found
+    let opt_font_size = get_property_from_computed_styles(&styles, "font-size");
+    let font_size = if opt_font_size.is_some() {
+        let unwrapped = opt_font_size.unwrap();
+        if unwrapped.chars().last() == Some('%') {
+            //TODO: I need to think about a good way of parsing this and applying it (should be in the styles module), for now we use a fallback:
+            18
+        } else {
+            unwrapped.parse::<u16>().ok().unwrap()
+        }
+    } else {
+        //font-size should be in the default styles, so this is a fatal error if not found
+        panic!("font-size not found");
+    };
+
     let font_color = get_color_style_value(&styles, "color")
                         .expect(format!("Unkown color").as_str()); //TODO: we need to handle this in a graceful way, instead of crashing
 
@@ -547,9 +558,14 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
                 }
 
                 "img" => {
-                    let image_src = node.get_attribute_value("src").expect("can't handle img without src yet..."); //TODO: handle the un-expect'ed case
-                    let image_url = Url::from_base_url(&image_src, Some(main_url));
-                    partial_node_optional_img = Some(resource_loader::load_image(&image_url));
+                    let image_src = node.get_attribute_value("src");
+
+                    if image_src.is_some() {
+                        let image_url = Url::from_base_url(&image_src.unwrap(), Some(main_url));
+                        partial_node_optional_img = Some(resource_loader::load_image(&image_url));
+                    } else {
+                        partial_node_optional_img = Some(resource_loader::fallback_image());
+                    }
 
                     partial_node_display = Display::Inline;
 

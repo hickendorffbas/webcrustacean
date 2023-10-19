@@ -1,13 +1,15 @@
 use std::fmt;
 
 use image::DynamicImage;
-use reqwest::blocking::Client;
 
 use crate::debug::debug_log_warn;
 use crate::network::url::Url;
 
 pub mod url;
 #[cfg(test)] mod tests;
+
+
+const UA_FIREFOX_WINDOWS: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/118.0";
 
 
 #[derive(Clone)]
@@ -25,7 +27,10 @@ pub fn http_get_text(url: &Url) -> Result<String, ResourceNotLoadedError>  {
     //      and just decode myself based on the situation?
     //TODO: in any case we need to de-duplicate between http_get_text() and http_get_image()
 
-    let client = Client::new();  //TODO: should I cache the client somewhere for performance?
+    //TODO: should I cache the client somewhere for performance?
+    let client = reqwest::blocking::Client::builder()
+        .user_agent(UA_FIREFOX_WINDOWS)  //TODO: make this configurable, and use an actual bbrowser useragent normally
+        .build().unwrap();
 
     let bytes_result = client.get(url.to_string()).send();
 
@@ -48,7 +53,11 @@ pub fn http_get_text(url: &Url) -> Result<String, ResourceNotLoadedError>  {
 //TODO: eventually this should be a http_get_binary, and the image stuff should be seperated out, because we will load other binary resources.
 pub fn http_get_image(url: &Url) -> Result<DynamicImage, ResourceNotLoadedError> {
 
-    let client = Client::new();  //TODO: should I cache the client somewhere for performance?
+    //TODO: should I cache the client somewhere for performance?
+    let client = reqwest::blocking::Client::builder()
+        .user_agent(UA_FIREFOX_WINDOWS)  //TODO: make this configurable, and use an actual bbrowser useragent normally
+        .build().unwrap();
+
     let response = client.get(url.to_string()).send().unwrap();
 
     let bytes_result = response.bytes();

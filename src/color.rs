@@ -17,15 +17,36 @@ impl Color {
         }
 
         if first_char.unwrap() == '#' {
-            let r = u8::from_str_radix(&color_name[1..3], 16).ok();
-            let g = u8::from_str_radix(&color_name[3..5], 16).ok();
-            let b = u8::from_str_radix(&color_name[5..7], 16).ok();
 
-            if r.is_none() || g.is_none() || b.is_none() {
-                return None;
+            if color_name.len() == 4 {
+                let r = u8::from_str_radix(&color_name[1..2], 16).ok();
+                let g = u8::from_str_radix(&color_name[2..3], 16).ok();
+                let b = u8::from_str_radix(&color_name[3..4], 16).ok();
+
+                if r.is_none() || g.is_none() || b.is_none() {
+                    return None;
+                }
+
+                let r = r.unwrap() + (16 * r.unwrap());
+                let g = g.unwrap() + (16 * g.unwrap());
+                let b = b.unwrap() + (16 * b.unwrap());
+
+                return Some(Color {r, g, b})
             }
 
-            return Some(Color {r: r.unwrap(), g: g.unwrap(), b: b.unwrap() })
+            if color_name.len() == 7 {
+                let r = u8::from_str_radix(&color_name[1..3], 16).ok();
+                let g = u8::from_str_radix(&color_name[3..5], 16).ok();
+                let b = u8::from_str_radix(&color_name[5..7], 16).ok();
+
+                if r.is_none() || g.is_none() || b.is_none() {
+                    return None;
+                }
+
+                return Some(Color {r: r.unwrap(), g: g.unwrap(), b: b.unwrap() })
+            }
+
+            return None;
         }
 
         //TODO: I still need to support hsl and rgb color values (as specified in html / css)
@@ -35,7 +56,7 @@ impl Color {
             "black" => Some(Color::BLACK),
             "blue" => Some(Color::new(0, 0, 255)),
             "fuchsia" => Some(Color::new(255, 0, 255)),
-            "gray" => Some(Color::new(128, 128, 128)),
+            "gray" => Some(Color::GRAY),
             "green" => Some(Color::new(0, 255, 0)),
             "lime" => Some(Color::new(0, 255, 0)),
             "maroon" => Some(Color::new(128, 0, 0)),

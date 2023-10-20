@@ -265,10 +265,15 @@ pub fn get_font_given_styles(styles: &HashMap<String, String>) -> (Font, Color) 
     let font_bold = has_style_value(&styles, "font-weight", &"bold".to_owned());
     let font_underline = has_style_value(&styles, "text-decoration", &"underline".to_owned());
     let opt_font_size = get_property_from_computed_styles(&styles, "font-size");
+
     let font_size = if opt_font_size.is_some() {
         let unwrapped = opt_font_size.unwrap();
         if unwrapped.chars().last() == Some('%') {
             //TODO: I need to think about a good way of parsing this and applying it (should be in the styles module), for now we use a fallback:
+            debug_log_warn("css percent font size not implemented, falling back to default");
+            18
+        } else if unwrapped.len() > 3 && &unwrapped.as_str()[unwrapped.len() - 3..] == "rem" {
+            debug_log_warn("css rem font size not implemented, falling back to default");
             18
         } else {
             unwrapped.parse::<u16>().ok().unwrap()

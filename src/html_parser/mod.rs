@@ -174,6 +174,20 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
         *current_token_idx += 1;
     }
 
+    if tag_being_parsed.is_some() {
+        let new_node = DomNode::Element(ElementDomNode {
+            internal_id: node_being_build_internal_id,
+            name: tag_being_parsed,
+            children: Some(children),
+            parent_id,
+        });
+
+        let rc_node = Rc::new(new_node);
+        all_nodes.insert(node_being_build_internal_id, Rc::clone(&rc_node));
+
+        return rc_node;
+    }
+
     panic!("this should not happen (leaving the parse loop without returning)");
 }
 

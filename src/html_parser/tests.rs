@@ -123,6 +123,34 @@ fn test_closing_a_tag_we_did_not_open() {
 }
 
 
+#[test]
+fn test_missing_last_closing_tag() {
+
+    let tokens = vec![
+        html_open("html"),
+        html_open_tag_end(),
+
+        html_open("body"),
+        html_open_tag_end(),
+
+        html_close("body"), 
+    ];
+
+    let document = html_parser::parse(tokens);
+
+    let document_elements = get_ref_to_document_children(&document);
+    assert_eq!(document_elements.len(), 1);
+
+    assert_element_name_is(document_elements[0].as_ref(), "html");
+
+    let html_childs = get_children(document_elements[0].as_ref());
+    assert_eq!(html_childs.len(), 1);
+    assert_element_name_is(html_childs[0].as_ref(), "body");
+
+    let body_childs = get_children(html_childs[0].as_ref());
+    assert_eq!(body_childs.len(), 0);
+}
+
 
 fn get_ref_to_document_children(document: &Document) -> &Vec<Rc<DomNode>> {
     return enum_as_variant!(document.document_node.as_ref(), DomNode::Document).children.as_ref().unwrap();

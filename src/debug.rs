@@ -52,7 +52,7 @@ fn debug_print_dom_node_tree_with_indent(dom_node: &Rc<DomNode>, indent_cnt: u32
             println!("{}ATTR: ({} = {}) ({}) (parent: {})", indent, node.name, node.value, node.internal_id, node.parent_id);
         }
         DomNode::Text(node) => {
-            println!("{}TEXT: {} ({}) (parent: {})", indent, node.text_content, node.internal_id, node.parent_id);
+            println!("{}TEXT: \"{}\" ({}) (parent: {})", indent, node.text_content, node.internal_id, node.parent_id);
         }
     }
 }
@@ -108,7 +108,13 @@ fn debug_print_layout_tree_with_indent(node: &Rc<LayoutNode>, indent_cnt: u32) {
         rect_str.push_str(format!("LayoutRect({:?} {:?} {})", rect.location, rect.text, if rect.image.is_some() {"IMG"} else {""}, ).as_str());
     }
 
-    println!("{}{:?} ({}) (parent: {}) {:?}", indent, rect_str, node.internal_id, node.parent_id, node.styles);
+    let visible = if node.visible {
+        ""
+    } else {
+        "!visible"
+    };
+
+    println!("{}{:?} ({}) (parent: {}) {:?} {}", indent, rect_str, node.internal_id, node.parent_id, node.styles, visible);
 
     if node.children.is_some() {
         for child in node.children.clone().unwrap() {

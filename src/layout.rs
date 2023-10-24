@@ -500,6 +500,29 @@ fn wrap_text(layout_rect: &LayoutRect, max_width: f32, width_remaining_on_curren
 }
 
 
+fn get_display_type(node: &Rc<DomNode>) -> Display {
+    //TODO: eventually this needs the resolved styles as well, because that can influence the display type...
+
+    match node.as_ref() {
+        DomNode::Document(_) => return Display::Block,
+        DomNode::Element(node) => {
+            let node_name = node.name.as_ref().unwrap().as_str();
+            //TODO: its probably nicer to check against an const array of str here.
+            if node_name == "a" ||
+            node_name == "b" ||
+            node_name == "br" ||
+            node_name == "img" ||
+            node_name == "span" {
+                    return Display::Inline;
+                }
+            return Display::Block;
+        },
+        DomNode::Attribute(_) => panic!("Should not happen"),
+        DomNode::Text(_) => return Display::Inline,
+    }
+}
+
+
 fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &mut HashMap<usize, Rc<LayoutNode>>,
                      parent_id: usize, platform: &Platform, main_url: &Url) -> Rc<LayoutNode> {
     let mut partial_node_text = None;
@@ -510,6 +533,7 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
     let mut partial_node_line_break = false;
     let mut partial_node_display = Display::Block;
     let mut partial_node_styles = resolve_full_styles_for_layout_node(&Rc::clone(main_node), &document.all_nodes, &document.style_context);
+    let mut partial_node_children = None;
 
     let mut childs_to_recurse_on: &Option<Vec<Rc<DomNode>>> = &None;
     match main_node.as_ref() {
@@ -518,6 +542,7 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
         },
         DomNode::Element(node) => {
             childs_to_recurse_on = &node.children;
+            partial_node_display = get_display_type(main_node);
 
             match &node.name.as_ref().unwrap()[..] {
 
@@ -528,18 +553,14 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
                     } else {
                         partial_node_optional_link_url = None;
                     }
-
-                    partial_node_display = Display::Inline;
                 }
 
                 "b" => {
                     partial_node_styles.insert("font-weight".to_owned(), "bold".to_owned());
-                    partial_node_display = Display::Inline;
                 }
 
                 "br" => {
                     partial_node_line_break = true;
-                    partial_node_display = Display::Inline;
                 }
 
                 "body" => {
@@ -572,17 +593,19 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
                         partial_node_optional_img = Some(resource_loader::fallback_image());
                     }
 
-                    partial_node_display = Display::Inline;
-
                     childs_to_recurse_on = &None; //images should not have children (its a tag that does not have a close tag, formally)
                 }
 
                 "p" =>  {
-
+                    //for now this needs the default for all fields
                 }
 
                 //TODO: this one might not be neccesary any more after we fix our html parser to not try to parse the javascript
                 "script" => { partial_node_visible = false; }
+
+                "span" => {
+                    //for now this needs the default for all fields
+                }
 
                 //TODO: same as for "script", do these need nodes in the DOM? probably not
                 "style" => { partial_node_visible = false; }
@@ -609,51 +632,70 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
 
     let id_of_node_being_built = get_next_layout_node_interal_id();
 
-    let new_childeren = if let Some(ref children) = childs_to_recurse_on {
-        let mut temp_children = Vec::new();
+    let mixed_inline_and_block = {
+        let mut mixed_inline_and_block = false;
 
-        for child in children {
-            match child.as_ref() { DomNode::Attribute(_) => { continue; }, _ => {} }
+        if childs_to_recurse_on.is_some() {
+            let mut block_seen = false;
+            let mut inline_seen = false;
 
-            temp_children.push(build_layout_tree(child, document, all_nodes, id_of_node_being_built, platform, main_url));
-        }
-
-        let all_display_types = temp_children.iter().map(|child| &child.display).collect::<Vec<&Display>>();
-
-        if all_display_types.contains(&&Display::Inline) && all_display_types.contains(&&Display::Block) {
-            let mut temp_children_with_anonymous_blocks = Vec::new();
-            let mut temp_buffer_for_inline_children = Vec::new();
-
-            for child in temp_children {
-                match child.display {
+            for child in childs_to_recurse_on.as_ref().unwrap() {
+                match get_display_type(&child) {
                     Display::Block => {
-                        if temp_buffer_for_inline_children.len() > 0 {
-                            let anonymous_block_node = build_anonymous_block_layout_node(partial_node_visible, id_of_node_being_built,
-                                                                                         temp_buffer_for_inline_children, all_nodes, &partial_node_styles);
-
-                            temp_children_with_anonymous_blocks.push(anonymous_block_node);
-                            temp_buffer_for_inline_children = Vec::new();
+                        if inline_seen {
+                            mixed_inline_and_block = true;
+                            break
                         }
-
-                        temp_children_with_anonymous_blocks.push(child);
+                        block_seen = true;
                     },
-                    Display::Inline => { temp_buffer_for_inline_children.push(child); },
+                    Display::Inline => {
+                        if block_seen {
+                            mixed_inline_and_block = true;
+                            break
+                        }
+                        inline_seen = true;
+                    },
                 }
             }
-
-            if temp_buffer_for_inline_children.len() > 0 {
-                let anonymous_block_node = build_anonymous_block_layout_node(partial_node_visible, id_of_node_being_built,
-                                                                             temp_buffer_for_inline_children, all_nodes, &partial_node_styles);
-                temp_children_with_anonymous_blocks.push(anonymous_block_node);
-            }
-
-            Some(temp_children_with_anonymous_blocks)
-        } else {
-            Some(temp_children)
         }
-    } else {
-        None
+
+        mixed_inline_and_block
     };
+
+    if childs_to_recurse_on.is_some() {
+        let mut temp_child_buffer = Vec::new();
+        let mut inner_partial_node_children = Vec::new();
+
+        for child in childs_to_recurse_on.as_ref().unwrap() {
+            let layout_child = build_layout_tree(child, document, all_nodes, id_of_node_being_built, platform, main_url);
+
+            if mixed_inline_and_block {
+                let display_type = get_display_type(child);
+
+                if display_type == Display::Block {
+                    let anonymous_block_node = build_anonymous_block_layout_node(partial_node_visible, id_of_node_being_built,
+                                                                                 temp_child_buffer, all_nodes, &partial_node_styles);
+                    temp_child_buffer = Vec::new();
+                    inner_partial_node_children.push(anonymous_block_node);
+
+                    inner_partial_node_children.push(layout_child);
+                } else {
+                    temp_child_buffer.push(layout_child);
+                }
+            } else {
+                inner_partial_node_children.push(layout_child);
+            }
+        }
+
+        if !temp_child_buffer.is_empty() {
+            let anonymous_block_node = build_anonymous_block_layout_node(partial_node_visible, id_of_node_being_built,
+                                                                         temp_child_buffer, all_nodes, &partial_node_styles);
+            inner_partial_node_children.push(anonymous_block_node);
+        }
+
+        partial_node_children = Some(inner_partial_node_children);
+    }
+
 
     let layout_rect = LayoutRect {
         text: partial_node_text,
@@ -667,7 +709,7 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
         display: partial_node_display,
         visible: partial_node_visible,
         line_break: partial_node_line_break,
-        children: new_childeren,
+        children: partial_node_children,
         parent_id: parent_id,
         styles: partial_node_styles,
         optional_link_url: partial_node_optional_link_url,

@@ -189,13 +189,22 @@ pub struct Rect {
 }
 
 
+struct LayoutBuildState {
+    last_char_was_space: bool,
+}
+
+
 pub fn build_full_layout(document: &Document, platform: &mut Platform, main_url: &Url) -> FullLayout {
     let mut top_level_layout_nodes: Vec<Rc<LayoutNode>> = Vec::new();
     let mut all_nodes: HashMap<usize, Rc<LayoutNode>> = HashMap::new();
 
     let id_of_node_being_built = get_next_layout_node_interal_id();
 
-    let document_layout_node = build_layout_tree(&document.document_node, document, &mut all_nodes, id_of_node_being_built, platform, main_url);
+
+    let mut state = LayoutBuildState { last_char_was_space: false };
+
+    let document_layout_node = build_layout_tree(&document.document_node, document, &mut all_nodes, id_of_node_being_built, platform,
+                                                 main_url, &mut state, None);
     top_level_layout_nodes.push(document_layout_node);
 
     let root_node = LayoutNode {
@@ -523,7 +532,7 @@ fn get_display_type(node: &Rc<DomNode>) -> Display {
 
 
 fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &mut HashMap<usize, Rc<LayoutNode>>,
-                     parent_id: usize, platform: &Platform, main_url: &Url) -> Rc<LayoutNode> {
+                     parent_id: usize, platform: &Platform, main_url: &Url, state: &mut LayoutBuildState, optional_new_text: Option<String>) -> Rc<LayoutNode> {
     let mut partial_node_text = None;
     let mut partial_node_non_breaking_space_positions = None;
     let mut partial_node_visible = true;
@@ -537,9 +546,11 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
     let mut childs_to_recurse_on: &Option<Vec<Rc<DomNode>>> = &None;
     match main_node.as_ref() {
         DomNode::Document(node) => {
+            debug_assert!(optional_new_text.is_none());
             childs_to_recurse_on = &node.children;
         },
         DomNode::Element(node) => {
+            debug_assert!(optional_new_text.is_none());
             childs_to_recurse_on = &node.children;
             partial_node_display = get_display_type(main_node);
 
@@ -622,7 +633,13 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
             panic!("We should never have to handle attributes by themselves")
         },
         DomNode::Text(node) => {
-            partial_node_text = Option::Some(node.text_content.to_string());
+
+            if optional_new_text.is_some() {
+                partial_node_text = optional_new_text;
+            } else {
+                partial_node_text = Option::Some(node.text_content.to_string());
+            }
+
             partial_node_non_breaking_space_positions = node.non_breaking_space_positions.clone();
             partial_node_display = Display::Inline;
         }
@@ -674,7 +691,7 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
                 if get_display_type(&child) == Display::Block {
                     if !temp_inline_child_buffer.is_empty() {
                         let layout_childs = build_layout_for_inline_nodes(&temp_inline_child_buffer, document, all_nodes, id_of_node_being_built,
-                                                                          platform, main_url);
+                                                                          platform, main_url, state);
 
                         //TODO: am I passing the right styles into the anonymous block?
                         let anon_block = build_anonymous_block_layout_node(true, id_of_node_being_built, layout_childs, all_nodes, &partial_node_styles);
@@ -683,7 +700,8 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
                         temp_inline_child_buffer = Vec::new();
                     }
 
-                    let layout_child = build_layout_tree(child, document, all_nodes, id_of_node_being_built, platform, main_url);
+                    state.last_char_was_space = false;
+                    let layout_child = build_layout_tree(child, document, all_nodes, id_of_node_being_built, platform, main_url, state, None);
                     partial_node_children.as_mut().unwrap().push(layout_child);
 
                 } else {
@@ -694,7 +712,7 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
 
             if !temp_inline_child_buffer.is_empty() {
                 let layout_childs = build_layout_for_inline_nodes(&temp_inline_child_buffer, document, all_nodes, id_of_node_being_built,
-                                                                  platform, main_url);
+                                                                  platform, main_url, state);
 
                 //TODO: am I passing the right styles into the anonymous block?
                 let anon_block = build_anonymous_block_layout_node(true, id_of_node_being_built, layout_childs, all_nodes, &partial_node_styles);
@@ -708,7 +726,7 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
                 inline_nodes_to_layout.push(child);
             }
             let layout_childs = build_layout_for_inline_nodes(&inline_nodes_to_layout, document, all_nodes, id_of_node_being_built,
-                                                              platform, main_url);
+                                                              platform, main_url, state);
 
             for layout_child in layout_childs {
                 partial_node_children.as_mut().unwrap().push(layout_child);
@@ -717,7 +735,8 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
         } else { //This means all childs are Display::Block
 
             for child in childs_to_recurse_on.as_ref().unwrap() {
-                let layout_child = build_layout_tree(child, document, all_nodes, id_of_node_being_built, platform, main_url);
+                state.last_char_was_space = false;
+                let layout_child = build_layout_tree(child, document, all_nodes, id_of_node_being_built, platform, main_url, state, None);
                 partial_node_children.as_mut().unwrap().push(layout_child);
             }
         }
@@ -753,14 +772,34 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
 
 
 fn build_layout_for_inline_nodes(inline_nodes: &Vec<&Rc<DomNode>>, document: &Document, all_nodes: &mut HashMap<usize, Rc<LayoutNode>>,
-                                 parent_id: usize, platform: &Platform, main_url: &Url) -> Vec<Rc<LayoutNode>> {
+                                 parent_id: usize, platform: &Platform, main_url: &Url, state: &mut LayoutBuildState) -> Vec<Rc<LayoutNode>> {
 
-    //TODO: add whitespace processing
-    // we need to preseve the whitespace status across calls to this (for nesting) and reset on block scope
-
+    let mut optional_new_text;
     let mut layout_nodes = Vec::new();
+
     for node in inline_nodes {
-        let layout_child = build_layout_tree(node, document, all_nodes, parent_id, platform, main_url);
+
+        if node.is_text_node() {
+            let node_text = node.get_text().unwrap();
+            let mut new_text = String::new();
+            for c in node_text.chars() {
+                if c == ' ' {
+                    if !state.last_char_was_space {
+                        new_text.push(c);
+                    }
+                    state.last_char_was_space = true;
+                } else {
+                    state.last_char_was_space = false;
+                    new_text.push(c);
+                }
+            }
+
+            optional_new_text = Some(new_text);
+        } else {
+            optional_new_text = None;
+        }
+
+        let layout_child = build_layout_tree(node, document, all_nodes, parent_id, platform, main_url, state, optional_new_text);
         layout_nodes.push(layout_child);
     }
 

@@ -41,6 +41,18 @@ impl DomNode {
             DomNode::Text(node) => { node.internal_id },
         }
     }
+    pub fn is_text_node(&self) -> bool {
+        match self {
+            DomNode::Text(_) => { true },
+            _ => { false }
+        }
+    }
+    pub fn get_text(&self) -> Option<&String> {
+        match self {
+            DomNode::Text(node) => Some(&node.text_content),
+            _ => todo!(),
+        }
+    }
 }
 
 

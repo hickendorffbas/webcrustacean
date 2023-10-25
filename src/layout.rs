@@ -445,8 +445,7 @@ fn compute_size_for_rect(layout_rect: &LayoutRect, styles: &HashMap<String, Stri
         return (img.width() as f32, img.height() as f32);
     }
 
-    //we panic here, because we only expect to be this this method for rects of layoutnodes that don't have children, otherwise we should compute via the sizes of the children:
-    panic!("We don't know how to compute the size of rects without content, they should be computed via their children")
+    return (0.0, 0.0);
 }
 
 
@@ -662,38 +661,67 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
         mixed_inline_and_block
     };
 
-    if childs_to_recurse_on.is_some() {
-        let mut temp_child_buffer = Vec::new();
-        let mut inner_partial_node_children = Vec::new();
 
-        for child in childs_to_recurse_on.as_ref().unwrap() {
-            let layout_child = build_layout_tree(child, document, all_nodes, id_of_node_being_built, platform, main_url);
+    if childs_to_recurse_on.is_some() && childs_to_recurse_on.as_ref().unwrap().len() > 0 {
+        partial_node_children = Some(Vec::new());
+        let first_child = childs_to_recurse_on.as_ref().unwrap().iter().next().unwrap();
 
-            if mixed_inline_and_block {
-                let display_type = get_display_type(child);
+        if mixed_inline_and_block {
+            let mut temp_inline_child_buffer = Vec::new();
 
-                if display_type == Display::Block {
-                    let anonymous_block_node = build_anonymous_block_layout_node(partial_node_visible, id_of_node_being_built,
-                                                                                 temp_child_buffer, all_nodes, &partial_node_styles);
-                    temp_child_buffer = Vec::new();
-                    inner_partial_node_children.push(anonymous_block_node);
+            for child in childs_to_recurse_on.as_ref().unwrap() {
 
-                    inner_partial_node_children.push(layout_child);
+                if get_display_type(&child) == Display::Block {
+                    if !temp_inline_child_buffer.is_empty() {
+                        let layout_childs = build_layout_for_inline_nodes(&temp_inline_child_buffer, document, all_nodes, id_of_node_being_built,
+                                                                          platform, main_url);
+
+                        //TODO: am I passing the right styles into the anonymous block?
+                        let anon_block = build_anonymous_block_layout_node(true, id_of_node_being_built, layout_childs, all_nodes, &partial_node_styles);
+                        partial_node_children.as_mut().unwrap().push(anon_block);
+
+                        temp_inline_child_buffer = Vec::new();
+                    }
+
+                    let layout_child = build_layout_tree(child, document, all_nodes, id_of_node_being_built, platform, main_url);
+                    partial_node_children.as_mut().unwrap().push(layout_child);
+
                 } else {
-                    temp_child_buffer.push(layout_child);
+                    temp_inline_child_buffer.push(child);
                 }
-            } else {
-                inner_partial_node_children.push(layout_child);
+
+            }
+
+            if !temp_inline_child_buffer.is_empty() {
+                let layout_childs = build_layout_for_inline_nodes(&temp_inline_child_buffer, document, all_nodes, id_of_node_being_built,
+                                                                  platform, main_url);
+
+                //TODO: am I passing the right styles into the anonymous block?
+                let anon_block = build_anonymous_block_layout_node(true, id_of_node_being_built, layout_childs, all_nodes, &partial_node_styles);
+                partial_node_children.as_mut().unwrap().push(anon_block);
+            }
+
+        } else if get_display_type(&first_child) == Display::Inline {
+
+            let mut inline_nodes_to_layout = Vec::new();
+            for child in childs_to_recurse_on.as_ref().unwrap() {
+                inline_nodes_to_layout.push(child);
+            }
+            let layout_childs = build_layout_for_inline_nodes(&inline_nodes_to_layout, document, all_nodes, id_of_node_being_built,
+                                                              platform, main_url);
+
+            for layout_child in layout_childs {
+                partial_node_children.as_mut().unwrap().push(layout_child);
+            }
+
+        } else { //This means all childs are Display::Block
+
+            for child in childs_to_recurse_on.as_ref().unwrap() {
+                let layout_child = build_layout_tree(child, document, all_nodes, id_of_node_being_built, platform, main_url);
+                partial_node_children.as_mut().unwrap().push(layout_child);
             }
         }
 
-        if !temp_child_buffer.is_empty() {
-            let anonymous_block_node = build_anonymous_block_layout_node(partial_node_visible, id_of_node_being_built,
-                                                                         temp_child_buffer, all_nodes, &partial_node_styles);
-            inner_partial_node_children.push(anonymous_block_node);
-        }
-
-        partial_node_children = Some(inner_partial_node_children);
     }
 
 
@@ -721,6 +749,22 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
     all_nodes.insert(id_of_node_being_built, Rc::clone(&rc_new_node));
 
     return rc_new_node;
+}
+
+
+fn build_layout_for_inline_nodes(inline_nodes: &Vec<&Rc<DomNode>>, document: &Document, all_nodes: &mut HashMap<usize, Rc<LayoutNode>>,
+                                 parent_id: usize, platform: &Platform, main_url: &Url) -> Vec<Rc<LayoutNode>> {
+
+    //TODO: add whitespace processing
+    // we need to preseve the whitespace status across calls to this (for nesting) and reset on block scope
+
+    let mut layout_nodes = Vec::new();
+    for node in inline_nodes {
+        let layout_child = build_layout_tree(node, document, all_nodes, parent_id, platform, main_url);
+        layout_nodes.push(layout_child);
+    }
+
+    return layout_nodes;
 }
 
 

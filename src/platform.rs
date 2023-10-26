@@ -89,6 +89,9 @@ impl Platform<'_> {
     }
 
     pub fn get_text_dimension(&mut self, text: &String, font: &Font) -> (f32, f32) {
+        if text == "" {
+            return (0.0, 0.0);
+        }
         return self.get_text_dimension_str(text.as_str(), font);
     }
 

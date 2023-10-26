@@ -776,15 +776,22 @@ fn build_layout_for_inline_nodes(inline_nodes: &Vec<&Rc<DomNode>>, document: &Do
 
     let mut optional_new_text;
     let mut layout_nodes = Vec::new();
+    let last_node_idx = inline_nodes.len();
 
-    for node in inline_nodes {
+    for (node_idx, node) in inline_nodes.iter().enumerate() {
 
         if node.is_text_node() {
             let node_text = node.get_text().unwrap();
             let mut new_text = String::new();
-            for c in node_text.chars() {
+            for (char_idx, c) in node_text.chars().enumerate() {
                 if c == ' ' {
-                    if !state.last_char_was_space {
+
+                    //TODO: is_on_edge_of_inline_context is not actually correct, I need to strip _all_ leading and trailing whitespace. I think it currently
+                    //      works because of the way we build the DOM, but we should actually preserve all whitespace in there...
+                    //      maybe I can just fix this by keeping on state whether I have seen a non-space already?, and the idx of the last non-space?
+                    let is_on_edge_of_inline_context = (node_idx == 0 && char_idx == 0) || (node_idx == last_node_idx && char_idx == node_text.len());
+
+                    if (!state.last_char_was_space) && (!is_on_edge_of_inline_context) {
                         new_text.push(c);
                     }
                     state.last_char_was_space = true;

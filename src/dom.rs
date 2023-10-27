@@ -47,6 +47,12 @@ impl DomNode {
             _ => { false }
         }
     }
+    pub fn is_attribute_node(&self) -> bool {
+        match self {
+            DomNode::Attribute(_) => { true },
+            _ => { false }
+        }
+    }
     pub fn get_text(&self) -> Option<&String> {
         match self {
             DomNode::Text(node) => Some(&node.text_content),

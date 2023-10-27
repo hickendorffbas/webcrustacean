@@ -648,6 +648,18 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
 
     let id_of_node_being_built = get_next_layout_node_interal_id();
 
+    let childs_to_recurse_on = if childs_to_recurse_on.is_some() {
+        let mut result = Vec::new();
+        for child in childs_to_recurse_on.as_ref().unwrap() {
+            if !child.is_attribute_node() {
+                result.push(child.clone());
+            }
+        }
+        Some(result)
+    } else {
+        None
+    };
+
     let mixed_inline_and_block = {
         let mut mixed_inline_and_block = false;
 

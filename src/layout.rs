@@ -12,7 +12,7 @@ use crate::{
 };
 use crate::color::Color;
 use crate::debug::debug_log_warn;
-use crate::dom::{Document, DomNode};
+use crate::dom::{Document, ElementDomNode};
 use crate::network::url::Url;
 use crate::platform::Platform;
 use crate::style::{
@@ -54,7 +54,7 @@ pub struct LayoutNode {
     pub styles: HashMap<String, String>,  //TODO: it would eventually be nice to have something stronger typed here
     pub optional_link_url: Option<Url>,
     pub rects: RefCell<Vec<LayoutRect>>,
-    pub from_dom_node: Option<Rc<DomNode>>,
+    pub from_dom_node: Option<Rc<ElementDomNode>>,
 }
 impl LayoutNode {
     pub fn all_childnodes_have_given_display(&self, display: Display) -> bool {
@@ -200,12 +200,11 @@ pub fn build_full_layout(document: &Document, platform: &mut Platform, main_url:
 
     let id_of_node_being_built = get_next_layout_node_interal_id();
 
-
     let mut state = LayoutBuildState { last_char_was_space: false };
 
-    let document_layout_node = build_layout_tree(&document.document_node, document, &mut all_nodes, id_of_node_being_built, platform,
-                                                 main_url, &mut state, None);
-    top_level_layout_nodes.push(document_layout_node);
+    let layout_node = build_layout_tree(&document.document_node, document, &mut all_nodes, id_of_node_being_built, platform, 
+                                        main_url, &mut state, None);
+    top_level_layout_nodes.push(layout_node);
 
     let root_node = LayoutNode {
         internal_id: id_of_node_being_built,
@@ -214,10 +213,10 @@ pub fn build_full_layout(document: &Document, platform: &mut Platform, main_url:
         line_break: false,
         children: Some(top_level_layout_nodes),
         parent_id: id_of_node_being_built,  //this is the top node, so it does not really have a parent, we set it to ourselves,
-        styles: resolve_full_styles_for_layout_node(&Rc::clone(&document.document_node), &document.all_nodes, &document.style_context),
+        styles: HashMap::new(), //TODO: we need to compute styles also for document, but we need special code for it, since we don't have an ElementDomNode for it
         optional_link_url: None,
         rects: RefCell::new(vec![LayoutRect::get_default_non_computed_rect()]),
-        from_dom_node: Some(Rc::clone(&document.document_node)),
+        from_dom_node: None,
     };
 
     let rc_root_node = Rc::new(root_node);
@@ -508,30 +507,34 @@ fn wrap_text(layout_rect: &LayoutRect, max_width: f32, width_remaining_on_curren
 }
 
 
-fn get_display_type(node: &Rc<DomNode>) -> Display {
+fn get_display_type(node: &Rc<ElementDomNode>) -> Display {
     //TODO: eventually this needs the resolved styles as well, because that can influence the display type...
 
-    match node.as_ref() {
-        DomNode::Document(_) => return Display::Block,
-        DomNode::Element(node) => {
-            let node_name = node.name.as_ref().unwrap().as_str();
-            //TODO: its probably nicer to check against an const array of str here.
-            if node_name == "a" ||
-            node_name == "b" ||
-            node_name == "br" ||
-            node_name == "img" ||
-            node_name == "span" {
-                    return Display::Inline;
-                }
-            return Display::Block;
-        },
-        DomNode::Attribute(_) => panic!("Should not happen"),
-        DomNode::Text(_) => return Display::Inline,
+    if node.name.is_some() {
+        let node_name = node.name.as_ref().unwrap();
+
+        if node_name == "a" ||  //TODO: should we check a static array of str here?
+        node_name == "b" ||
+        node_name == "br" ||
+        node_name == "img" ||
+        node_name == "span" {
+                return Display::Inline;
+            }
+        return Display::Block;
+
     }
+    if node.text.is_some() {
+        return Display::Inline;
+    }
+    if node.is_document_node {
+        return Display::Block;
+    }
+
+    panic!("Node type not recognized");
 }
 
 
-fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &mut HashMap<usize, Rc<LayoutNode>>,
+fn build_layout_tree(main_node: &Rc<ElementDomNode>, document: &Document, all_nodes: &mut HashMap<usize, Rc<LayoutNode>>,
                      parent_id: usize, platform: &Platform, main_url: &Url, state: &mut LayoutBuildState, optional_new_text: Option<String>) -> Rc<LayoutNode> {
     let mut partial_node_text = None;
     let mut partial_node_non_breaking_space_positions = None;
@@ -539,126 +542,89 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
     let mut partial_node_optional_link_url = None;
     let mut partial_node_optional_img = None;
     let mut partial_node_line_break = false;
-    let mut partial_node_display = Display::Block;
     let mut partial_node_styles = resolve_full_styles_for_layout_node(&Rc::clone(main_node), &document.all_nodes, &document.style_context);
     let mut partial_node_children = None;
 
-    let mut childs_to_recurse_on: &Option<Vec<Rc<DomNode>>> = &None;
-    match main_node.as_ref() {
-        DomNode::Document(node) => {
-            debug_assert!(optional_new_text.is_none());
-            childs_to_recurse_on = &node.children;
-        },
-        DomNode::Element(node) => {
-            debug_assert!(optional_new_text.is_none());
-            childs_to_recurse_on = &node.children;
-            partial_node_display = get_display_type(main_node);
+    let mut childs_to_recurse_on: &Option<Vec<Rc<ElementDomNode>>> = &None;
 
-            match &node.name.as_ref().unwrap()[..] {
-
-                "a" => {
-                    let opt_href = node.get_attribute_value("href");
-                    if opt_href.is_some() {
-                        partial_node_optional_link_url = Some(Url::from_base_url(&opt_href.unwrap(), Some(main_url)));
-                    } else {
-                        partial_node_optional_link_url = None;
-                    }
-                }
-
-                "b" => {
-                    partial_node_styles.insert("font-weight".to_owned(), "bold".to_owned());
-                }
-
-                "br" => {
-                    partial_node_line_break = true;
-                }
-
-                "body" => {
-                    //for now this needs the default for all fields
-                }
-
-                "div" =>  {
-                    //for now this needs the default for all fields
-                }
-
-                "h1"|"h2"|"h3"|"h4"|"h5"|"h6" => {
-                    //for now this needs the default for all fields
-                }
-
-                "head" => {
-                    //for now this needs the default for all fields
-                }
-
-                "html" => {
-                    //for now this needs the default for all fields
-                }
-
-                "img" => {
-                    let image_src = node.get_attribute_value("src");
-
-                    if image_src.is_some() {
-                        let image_url = Url::from_base_url(&image_src.unwrap(), Some(main_url));
-                        partial_node_optional_img = Some(resource_loader::load_image(&image_url));
-                    } else {
-                        partial_node_optional_img = Some(resource_loader::fallback_image());
-                    }
-
-                    childs_to_recurse_on = &None; //images should not have children (its a tag that does not have a close tag, formally)
-                }
-
-                "p" =>  {
-                    //for now this needs the default for all fields
-                }
-
-                //TODO: this one might not be neccesary any more after we fix our html parser to not try to parse the javascript
-                "script" => { partial_node_visible = false; }
-
-                "span" => {
-                    //for now this needs the default for all fields
-                }
-
-                //TODO: same as for "script", do these need nodes in the DOM? probably not
-                "style" => { partial_node_visible = false; }
-
-                //TODO: eventually we want to do something else with the title (update the window title or so)
-                "title" => { partial_node_visible = false; }
-
-                default => {
-                    debug_log_warn(format!("unknown tag: {}", default));
-                }
-            }
-        }
-        DomNode::Attribute(_) => {
-            //We should always handle these in their parents nodes
-            panic!("We should never have to handle attributes by themselves")
-        },
-        DomNode::Text(node) => {
-
-            if optional_new_text.is_some() {
-                partial_node_text = optional_new_text;
-            } else {
-                partial_node_text = Option::Some(node.text_content.to_string());
-            }
-
-            partial_node_non_breaking_space_positions = node.non_breaking_space_positions.clone();
-            partial_node_display = Display::Inline;
+    if main_node.text.is_some() {
+        if optional_new_text.is_some() {
+            partial_node_text = optional_new_text;
+        } else {
+            partial_node_text = Option::Some(main_node.text.as_ref().unwrap().text_content.clone());
         }
 
+        partial_node_non_breaking_space_positions = main_node.text.as_ref().unwrap().non_breaking_space_positions.clone();
+
+    } else if main_node.name.is_some() {
+        debug_assert!(optional_new_text.is_none());
+
+        childs_to_recurse_on = &main_node.children;
+
+        match &main_node.name.as_ref().unwrap()[..] {
+            "a" => {
+                let opt_href = main_node.get_attribute_value("href");
+                if opt_href.is_some() {
+                    partial_node_optional_link_url = Some(Url::from_base_url(&opt_href.unwrap(), Some(main_url)));
+                } else {
+                    partial_node_optional_link_url = None;
+                }
+            }
+
+            "b" => {
+                partial_node_styles.insert("font-weight".to_owned(), "bold".to_owned());
+            }
+
+            "br" => {
+                partial_node_line_break = true;
+            }
+
+            "body" => { /* this needs the default for all fields */ }
+
+            "div" =>  { /* this needs the default for all fields */ }
+
+            "h1"|"h2"|"h3"|"h4"|"h5"|"h6" => { /* this needs the default for all fields */ }
+
+            "head" => { /* this needs the default for all fields */ }
+
+            "html" => { /* this needs the default for all fields */ }
+
+            "img" => {
+                let image_src = main_node.get_attribute_value("src");
+
+                if image_src.is_some() {
+                    let image_url = Url::from_base_url(&image_src.unwrap(), Some(main_url));
+                    partial_node_optional_img = Some(resource_loader::load_image(&image_url));
+                } else {
+                    partial_node_optional_img = Some(resource_loader::fallback_image());
+                }
+
+                childs_to_recurse_on = &None; //images should not have children (its a tag that does not have a close tag, formally)
+            }
+
+            "p" => { /* this needs the default for all fields */ }
+
+            //TODO: this one might not be neccesary any more after we fix our html parser to not try to parse the javascript
+            "script" => { partial_node_visible = false; }
+
+            "span" => { /* this needs the default for all fields */ }
+
+            //TODO: same as for "script", do these need nodes in the DOM? probably not
+            "style" => { partial_node_visible = false; }
+
+            //TODO: eventually we want to do something else with the title (update the window title or so)
+            "title" => { partial_node_visible = false; }
+
+            default => {
+                debug_log_warn(format!("unknown tag: {}", default));
+            }
+        }
+    } else if main_node.is_document_node {
+        childs_to_recurse_on = &main_node.children;
     }
 
-    let id_of_node_being_built = get_next_layout_node_interal_id();
 
-    let childs_to_recurse_on = if childs_to_recurse_on.is_some() {
-        let mut result = Vec::new();
-        for child in childs_to_recurse_on.as_ref().unwrap() {
-            if !child.is_attribute_node() {
-                result.push(child.clone());
-            }
-        }
-        Some(result)
-    } else {
-        None
-    };
+    let id_of_node_being_built = get_next_layout_node_interal_id();
 
     let mixed_inline_and_block = {
         let mut mixed_inline_and_block = false;
@@ -705,7 +671,7 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
                         let layout_childs = build_layout_for_inline_nodes(&temp_inline_child_buffer, document, all_nodes, id_of_node_being_built,
                                                                           platform, main_url, state);
 
-                        //TODO: am I passing the right styles into the anonymous block?
+                        //TODO: are we passing the right styles into the anonymous block?
                         let anon_block = build_anonymous_block_layout_node(true, id_of_node_being_built, layout_childs, all_nodes, &partial_node_styles);
                         partial_node_children.as_mut().unwrap().push(anon_block);
 
@@ -726,7 +692,7 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
                 let layout_childs = build_layout_for_inline_nodes(&temp_inline_child_buffer, document, all_nodes, id_of_node_being_built,
                                                                   platform, main_url, state);
 
-                //TODO: am I passing the right styles into the anonymous block?
+                //TODO: are we passing the right styles into the anonymous block?
                 let anon_block = build_anonymous_block_layout_node(true, id_of_node_being_built, layout_childs, all_nodes, &partial_node_styles);
                 partial_node_children.as_mut().unwrap().push(anon_block);
             }
@@ -765,7 +731,7 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
 
     let new_node = LayoutNode {
         internal_id: id_of_node_being_built,
-        display: partial_node_display,
+        display: get_display_type(main_node),
         visible: partial_node_visible,
         line_break: partial_node_line_break,
         children: partial_node_children,
@@ -783,7 +749,7 @@ fn build_layout_tree(main_node: &Rc<DomNode>, document: &Document, all_nodes: &m
 }
 
 
-fn build_layout_for_inline_nodes(inline_nodes: &Vec<&Rc<DomNode>>, document: &Document, all_nodes: &mut HashMap<usize, Rc<LayoutNode>>,
+fn build_layout_for_inline_nodes(inline_nodes: &Vec<&Rc<ElementDomNode>>, document: &Document, all_nodes: &mut HashMap<usize, Rc<LayoutNode>>,
                                  parent_id: usize, platform: &Platform, main_url: &Url, state: &mut LayoutBuildState) -> Vec<Rc<LayoutNode>> {
 
     let mut optional_new_text;
@@ -792,8 +758,8 @@ fn build_layout_for_inline_nodes(inline_nodes: &Vec<&Rc<DomNode>>, document: &Do
 
     for (node_idx, node) in inline_nodes.iter().enumerate() {
 
-        if node.is_text_node() {
-            let node_text = node.get_text().unwrap();
+        if node.text.is_some() {
+            let node_text = &node.text.as_ref().unwrap().text_content;
             let mut new_text = String::new();
             for (char_idx, c) in node_text.chars().enumerate() {
                 if c == ' ' {

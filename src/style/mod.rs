@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::color::Color;
-use crate::dom::DomNode;
+use crate::dom::ElementDomNode;
 
 
 #[cfg(test)] mod tests;
@@ -59,7 +59,7 @@ struct ActiveStyleRule<'a> {
 
 
 //TODO: we are now doing this when rendering. It might make more sense to do this earlier, cache the result on the node, and recompute only when needed
-pub fn resolve_full_styles_for_layout_node<'a>(dom_node: &'a Rc<DomNode>, all_dom_nodes: &'a HashMap<usize, Rc<DomNode>>,
+pub fn resolve_full_styles_for_layout_node<'a>(dom_node: &'a Rc<ElementDomNode>, all_dom_nodes: &'a HashMap<usize, Rc<ElementDomNode>>,
                                                style_context: &StyleContext) -> HashMap<String, String> {
 
     //TODO: we are doing the cascade here by first doing the ua sheet, and then the author sheet. We need to make this more general in cascades
@@ -69,7 +69,7 @@ pub fn resolve_full_styles_for_layout_node<'a>(dom_node: &'a Rc<DomNode>, all_do
 
     let mut active_style_rules = Vec::new();
     for style_rule in &style_context.user_agent_sheet {
-        if does_style_rule_apply(&style_rule, dom_node) {
+        if style_rule_does_apply(&style_rule, dom_node) {
             active_style_rules.push(
                 ActiveStyleRule {
                     property: &style_rule.property,
@@ -87,7 +87,7 @@ pub fn resolve_full_styles_for_layout_node<'a>(dom_node: &'a Rc<DomNode>, all_do
     }
 
     for style_rule in &style_context.author_sheet {
-        if does_style_rule_apply(&style_rule, dom_node) {
+        if style_rule_does_apply(&style_rule, dom_node) {
             active_style_rules.push(
                 ActiveStyleRule {
                     property: &style_rule.property,
@@ -111,9 +111,8 @@ pub fn resolve_full_styles_for_layout_node<'a>(dom_node: &'a Rc<DomNode>, all_do
         resolved_styles.insert((*active_style_rule.property).clone(), (*active_style_rule.property_value).clone());
     }
 
-    let parent_id = dom_node.get_parent_id();
-    if parent_id.is_some() {
-        let parent_node = all_dom_nodes.get(&parent_id.unwrap()).expect(format!("id {} not present in all nodes", parent_id.unwrap()).as_str());
+    if dom_node.parent_id != 0 {
+        let parent_node = all_dom_nodes.get(&dom_node.parent_id).expect(format!("id {} not present in all nodes", dom_node.parent_id).as_str());
 
         //TODO: not all properties should be inherited: https://developer.mozilla.org/en-US/docs/Web/CSS/Inheritance
 
@@ -206,17 +205,14 @@ pub fn get_property_from_computed_styles(styles: &HashMap<String, String>, prope
 }
 
 
-fn does_style_rule_apply(style_rule: &StyleRule, dom_node: &DomNode) -> bool {
-    match dom_node {
-        DomNode::Element(element_node) => {
-            //TODO: currently this matches if any of the nodes matches, I'm not sure if this is correct, do they all need to match?
-            if style_rule.selector.nodes.is_some() && style_rule.selector.nodes.as_ref().unwrap().contains(&element_node.name.as_ref().unwrap()) {
-                return true;
-            }
-            return false;
-        },
-        _ => { return false; },
+fn style_rule_does_apply(style_rule: &StyleRule, element_dom_node: &ElementDomNode) -> bool {
+    if element_dom_node.name.is_none() {
+        return false;
     }
+
+    //TODO: currently this matches if any of the nodes matches, I'm not sure if this is correct, do they all need to match?
+    return style_rule.selector.nodes.is_some() &&
+           style_rule.selector.nodes.as_ref().unwrap().contains(&element_dom_node.name.as_ref().unwrap());
 }
 
 

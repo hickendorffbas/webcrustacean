@@ -4,11 +4,8 @@ use std::rc::Rc;
 use crate::dom::{
     AttributeDomNode,
     Document,
-    DocumentDomNode,
-    DomNode,
     ElementDomNode,
-    TextDomNode,
-    get_next_dom_node_interal_id,
+    get_next_dom_node_interal_id, DomText,
 };
 use crate::html_lexer::{HtmlToken, HtmlTokenWithLocation};
 use crate::style::{
@@ -30,35 +27,45 @@ pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>) -> Document {
     let mut all_nodes = HashMap::new();
     let mut document_style_rules = Vec::new();
 
-    let mut children = Vec::new();
-    let root_node_internal_id = get_next_dom_node_interal_id();
-
+    let mut document_children = Vec::new();
     let mut current_token_idx = 0;
+
+    let document_node_id = get_next_dom_node_interal_id();
 
     while current_token_idx < html_tokens.len() {
         let mut tag_stack = Vec::new();
-        children.push(parse_node(&html_tokens, &mut current_token_idx, root_node_internal_id, &mut all_nodes, &mut document_style_rules, &mut tag_stack));
+        document_children.push(parse_node(&html_tokens, &mut current_token_idx, document_node_id, &mut all_nodes, &mut document_style_rules, &mut tag_stack));
         current_token_idx += 1;
     }
-    let root_node = DomNode::Document(DocumentDomNode { internal_id: root_node_internal_id, children: Some(children)});
 
-    let rc_root_node = Rc::new(root_node);
-    all_nodes.insert(root_node_internal_id, Rc::clone(&rc_root_node));
+    let document_node = ElementDomNode {
+        internal_id: document_node_id,
+        parent_id: 0,
+        is_document_node: true,
+        text: None,
+        name: None,
+        children: Some(document_children),
+        attributes: None,
+    };
+    let rc_doc_node = Rc::new(document_node);
+    let rc_doc_node_clone = Rc::clone(&rc_doc_node);
+    all_nodes.insert(document_node_id, rc_doc_node);
 
     let style_context = StyleContext {
         user_agent_sheet: get_user_agent_style_sheet(),
         author_sheet: document_style_rules,
     };
-    return Document { document_node: rc_root_node, all_nodes, style_context };
+    return Document { all_nodes, style_context, document_node: rc_doc_node_clone };
 }
 
 
 fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut usize, parent_id: usize,
-              all_nodes: &mut HashMap<usize, Rc<DomNode>>, styles: &mut Vec<StyleRule>, tag_stack: &mut Vec<String>) -> Rc<DomNode> {
+              all_nodes: &mut HashMap<usize, Rc<ElementDomNode>>, styles: &mut Vec<StyleRule>, tag_stack: &mut Vec<String>) -> Rc<ElementDomNode> {
     let node_being_build_internal_id = get_next_dom_node_interal_id();
 
     let mut tag_being_parsed = None;
     let mut children = Vec::new();
+    let mut attributes = Vec::new();
 
     while *current_token_idx < html_tokens.len() {
         let current_token = html_tokens.get(*current_token_idx).unwrap();
@@ -78,12 +85,15 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
 
                 //TODO: did I handle uppercase tags already? (needs to happen in the lexer)
                 if tag_being_parsed.is_some() && SELF_CLOSING_TAGS.contains(&tag_being_parsed.as_ref().unwrap().as_str()) {
-                    let new_node = DomNode::Element(ElementDomNode {
+                    let new_node = ElementDomNode {
                         internal_id: node_being_build_internal_id,
                         name: tag_being_parsed,
                         children: Some(children),
                         parent_id,
-                    });
+                        text: None,
+                        attributes: Some(attributes),
+                        is_document_node: false,
+                    };
 
                     let rc_node = Rc::new(new_node);
                     all_nodes.insert(node_being_build_internal_id, Rc::clone(&rc_node));
@@ -91,19 +101,12 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                 }
             },
             HtmlToken::Attribute(token) => {
-                let id_of_attr_node = get_next_dom_node_interal_id();
-
-                let new_node = DomNode::Attribute(AttributeDomNode {
-                    internal_id: id_of_attr_node,
+                let attribute = AttributeDomNode {
                     name: token.name.clone(),
                     value: token.value.clone(),
                     parent_id: node_being_build_internal_id,
-                });
-
-                let rc_node = Rc::new(new_node);
-                let rc_clone_node = Rc::clone(&rc_node);
-                children.push(rc_node);
-                all_nodes.insert(id_of_attr_node, rc_clone_node);
+                };
+                attributes.push(Rc::new(attribute));
 
             },
             HtmlToken::CloseTag { name } => {
@@ -133,12 +136,15 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
 
                 }
 
-                let new_node = DomNode::Element(ElementDomNode {
+                let new_node = ElementDomNode {
                     internal_id: node_being_build_internal_id,
                     name: tag_to_close,
                     children: Some(children),
                     parent_id,
-                });
+                    text: None,
+                    attributes: Some(attributes),
+                    is_document_node: false,
+                };
 
                 let rc_node = Rc::new(new_node);
                 all_nodes.insert(node_being_build_internal_id, Rc::clone(&rc_node));
@@ -146,16 +152,12 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
             },
             HtmlToken::Text(_) | HtmlToken::Whitespace(_) | HtmlToken::Entity(_) => {
                 let parent_for_node = if tag_being_parsed.is_some() { node_being_build_internal_id } else { parent_id };
-                let new_node = read_all_text_for_text_node(html_tokens, current_token_idx, parent_for_node);
-                let id_for_text_node = new_node.get_internal_id();
-
-                let rc_node = Rc::new(new_node);
-                all_nodes.insert(id_for_text_node, Rc::clone(&rc_node));
+                let text_node = read_all_text_for_text_node(html_tokens, current_token_idx, parent_for_node);
 
                 if tag_being_parsed.is_some() {
-                    children.push(rc_node);
+                    children.push(Rc::new(text_node));
                 } else {
-                    return rc_node;
+                    return Rc::new(text_node);
                 }
             },
             HtmlToken::Comment(_) => {},
@@ -175,12 +177,15 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
     }
 
     if tag_being_parsed.is_some() {
-        let new_node = DomNode::Element(ElementDomNode {
+        let new_node = ElementDomNode {
             internal_id: node_being_build_internal_id,
             name: tag_being_parsed,
             children: Some(children),
             parent_id,
-        });
+            text: None,
+            attributes: Some(attributes),
+            is_document_node: false,
+        };
 
         let rc_node = Rc::new(new_node);
         all_nodes.insert(node_being_build_internal_id, Rc::clone(&rc_node));
@@ -192,8 +197,8 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
 }
 
 
-fn read_all_text_for_text_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut usize, parent_id: usize) -> DomNode {
-    let mut text_for_node = String::new();
+fn read_all_text_for_text_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut usize, parent_id: usize) -> ElementDomNode {
+    let mut text_content = String::new();
     let mut non_breaking_space_positions: Option<HashSet<usize>> = None;
 
     'text_token_loop: while *current_token_idx < html_tokens.len() {
@@ -201,21 +206,21 @@ fn read_all_text_for_text_node(html_tokens: &Vec<HtmlTokenWithLocation>, current
 
         match &current_token.html_token {
             HtmlToken::Text(text) => {
-                text_for_node.push_str(text);
+                text_content.push_str(text);
             },
             HtmlToken::Whitespace(_) => {
-                text_for_node.push_str(" ");
+                text_content.push_str(" ");
             },
             HtmlToken::Entity(entity) => {
                 match entity.as_str() {
-                    "amp" => { text_for_node.push('&'); }
-                    "apos" => { text_for_node.push('\'') }
-                    "gt" => { text_for_node.push('>'); }
-                    "lt" => { text_for_node.push('<'); }
-                    "quot" => { text_for_node.push('"') }
+                    "amp" => { text_content.push('&'); }
+                    "apos" => { text_content.push('\'') }
+                    "gt" => { text_content.push('>'); }
+                    "lt" => { text_content.push('<'); }
+                    "quot" => { text_content.push('"') }
 
                     "nbsp" => {
-                        let position = text_for_node.len();
+                        let position = text_content.len();
                         non_breaking_space_positions = match non_breaking_space_positions {
                             Some(mut set) => {
                                 set.insert(position);
@@ -231,7 +236,7 @@ fn read_all_text_for_text_node(html_tokens: &Vec<HtmlTokenWithLocation>, current
 
                     _ => {
                         //unknown entity, just use as text
-                        text_for_node.push_str(entity);
+                        text_content.push_str(entity);
                     }
                 }
             }
@@ -244,11 +249,15 @@ fn read_all_text_for_text_node(html_tokens: &Vec<HtmlTokenWithLocation>, current
     //we now subtract one from the idx, because we break from the above loop because we should not handle that char yet and the main loop will increment it:
     *current_token_idx -= 1;
 
+    let dom_text = DomText { text_content, non_breaking_space_positions };
 
-    return DomNode::Text(TextDomNode {
+    return ElementDomNode {
         internal_id: get_next_dom_node_interal_id(),
-        text_content: text_for_node,
         parent_id: parent_id,
-        non_breaking_space_positions: non_breaking_space_positions
-    });
+        text: Some(dom_text),
+        name: None,
+        children: None,
+        attributes: None,
+        is_document_node: false,
+    };
 }

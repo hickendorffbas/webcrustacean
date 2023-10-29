@@ -1,7 +1,5 @@
-use std::rc::Rc;
 
-use crate::dom::{Document, DomNode};
-use crate::enum_as_variant;
+use crate::dom::ElementDomNode;
 use crate::html_parser;
 use crate::test_util::*;
 
@@ -18,14 +16,12 @@ fn test_basic_parsing_1() {
     ];
 
     let document = html_parser::parse(tokens);
+    assert_eq!(document.document_node.children.as_ref().unwrap().len(), 2);
 
-    let document_elements = get_ref_to_document_children(&document);
-    assert_eq!(document_elements.len(), 2);
-
-    let generic_a_node = document_elements[0].as_ref();
+    let generic_a_node = document.document_node.children.as_ref().unwrap()[0].as_ref();
     assert_element_name_is(generic_a_node, "a");
 
-    let a_children = get_children(generic_a_node);
+    let a_children = generic_a_node.children.as_ref().unwrap();
     assert_eq!(a_children.len(), 1);
 
     assert_text_on_node_is(a_children[0].as_ref(), "text");
@@ -45,12 +41,11 @@ fn test_text_concatenation() {
     ];
 
     let document = html_parser::parse(tokens);
+    assert_eq!(document.document_node.children.as_ref().unwrap().len(), 1);
 
-    let document_elements = get_ref_to_document_children(&document);
-    assert_eq!(document_elements.len(), 1);
-
-    let div_node = get_children(document_elements[0].as_ref());
-    assert_text_on_node_is(div_node[0].as_ref(), "two words");
+    let div_node = document.document_node.children.as_ref().unwrap()[0].as_ref();
+    let text_node = div_node.children.as_ref().unwrap()[0].as_ref();
+    assert_text_on_node_is(text_node, "two words");
 }
 
 
@@ -75,19 +70,17 @@ fn test_not_closing_a_tag() {
     ];
 
     let document = html_parser::parse(tokens);
-
-    let document_elements = get_ref_to_document_children(&document);
-    assert_eq!(document_elements.len(), 1);
+    assert_eq!(document.document_node.children.as_ref().unwrap().len(), 1);
 
     //TODO: it would be much nicer if we can just compare with a tree of nodes here, that we layout like in json, or just with tabs
 
-    assert_element_name_is(document_elements[0].as_ref(), "div");
+    assert_element_name_is(document.document_node.children.as_ref().unwrap()[0].as_ref(), "div");
 
-    let div_childs = get_children(document_elements[0].as_ref());
+    let div_childs = document.document_node.children.as_ref().unwrap()[0].as_ref().children.as_ref().unwrap();
     assert_eq!(div_childs.len(), 1);
     assert_element_name_is(div_childs[0].as_ref(), "b");
 
-    let b_childs = get_children(div_childs[0].as_ref());
+    let b_childs = div_childs[0].as_ref().children.as_ref().unwrap();
     assert_eq!(b_childs.len(), 1);
     assert_element_name_is(b_childs[0].as_ref(), "p");
 }
@@ -111,13 +104,11 @@ fn test_closing_a_tag_we_did_not_open() {
     ];
 
     let document = html_parser::parse(tokens);
+    assert_eq!(document.document_node.children.as_ref().unwrap().len(), 1);
 
-    let document_elements = get_ref_to_document_children(&document);
-    assert_eq!(document_elements.len(), 1);
+    assert_element_name_is(document.document_node.children.as_ref().unwrap()[0].as_ref(), "div");
 
-    assert_element_name_is(document_elements[0].as_ref(), "div");
-
-    let div_childs = get_children(document_elements[0].as_ref());
+    let div_childs = document.document_node.children.as_ref().unwrap()[0].as_ref().children.as_ref().unwrap();
     assert_eq!(div_childs.len(), 1);
     assert_element_name_is(div_childs[0].as_ref(), "b");
 }
@@ -137,35 +128,26 @@ fn test_missing_last_closing_tag() {
     ];
 
     let document = html_parser::parse(tokens);
+    assert_eq!(document.document_node.children.as_ref().unwrap().len(), 1);
 
-    let document_elements = get_ref_to_document_children(&document);
-    assert_eq!(document_elements.len(), 1);
+    assert_element_name_is(document.document_node.children.as_ref().unwrap()[0].as_ref(), "html");
 
-    assert_element_name_is(document_elements[0].as_ref(), "html");
-
-    let html_childs = get_children(document_elements[0].as_ref());
+    let html_childs = document.document_node.children.as_ref().unwrap()[0].as_ref().children.as_ref().unwrap();
     assert_eq!(html_childs.len(), 1);
     assert_element_name_is(html_childs[0].as_ref(), "body");
 
-    let body_childs = get_children(html_childs[0].as_ref());
+    let body_childs = html_childs[0].as_ref().children.as_ref().unwrap();
     assert_eq!(body_childs.len(), 0);
 }
 
 
-fn get_ref_to_document_children(document: &Document) -> &Vec<Rc<DomNode>> {
-    return enum_as_variant!(document.document_node.as_ref(), DomNode::Document).children.as_ref().unwrap();
+fn assert_element_name_is(node: &ElementDomNode, name: &str) {
+    assert!(node.name.is_some());
+    assert_eq!(node.name.as_ref().unwrap(), name);
 }
 
-fn get_children(node: &DomNode) -> &Vec<Rc<DomNode>> {
-    enum_as_variant!(node, DomNode::Element).children.as_ref().unwrap()
-}
 
-fn assert_element_name_is(node: &DomNode, name: &str) {
-    let element_node = enum_as_variant!(node, DomNode::Element);
-    assert_eq!(element_node.name.as_ref().unwrap(), name);
-}
-
-fn assert_text_on_node_is(node: &DomNode, text: &str) {
-    let text_node = enum_as_variant!(node, DomNode::Text);
-    assert_eq!(text_node.text_content, text);
+fn assert_text_on_node_is(node: &ElementDomNode, text: &str) {
+    assert!(node.text.is_some());
+    assert_eq!(node.text.as_ref().unwrap().text_content, text);
 }

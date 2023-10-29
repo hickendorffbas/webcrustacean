@@ -118,7 +118,7 @@ pub fn load_url(platform: &mut Platform, url: &Url) -> FullLayout {
     let page_content = resource_loader::load_text(&url);
 
     let lex_result = html_lexer::lex_html(&page_content);
-    let dom_tree = html_parser::parse(lex_result);
+    let dom_tree = html_parser::parse(lex_result, url);
     let full_layout_tree = layout::build_full_layout(&dom_tree, platform, url);
 
     return full_layout_tree;

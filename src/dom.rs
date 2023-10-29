@@ -2,6 +2,10 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use image::DynamicImage;
+
+use crate::network::url::Url;
+use crate::resource_loader;
 use crate::style::StyleContext;
 
 
@@ -27,6 +31,8 @@ pub struct ElementDomNode {
     pub name: Option<String>,
     pub children: Option<Vec<Rc<ElementDomNode>>>,
     pub attributes: Option<Vec<Rc<AttributeDomNode>>>,
+
+    pub image: Option<DynamicImage>,
 }
 impl ElementDomNode {
     pub fn get_attribute_value(&self, attribute_name: &str) -> Option<String> {
@@ -38,6 +44,17 @@ impl ElementDomNode {
             }
         }
         return None;
+    }
+    pub fn update(&mut self, main_url: &Url) {
+
+        let image_src = self.get_attribute_value("src");
+        if image_src.is_some() {
+            let image_url = Url::from_base_url(&image_src.unwrap(), Some(main_url));
+            self.image = Some(resource_loader::load_image(&image_url));
+        } else {
+            self.image = Some(resource_loader::fallback_image());
+        }
+
     }
 }
 

@@ -10,14 +10,16 @@
               1) we should make the different dom nodes explicit, I think (combine text and element into one?)
                      -> DONE
 
-              2) the DOM should probably be mutable always (no refcell'ing, just mut object).
+              2) The layout rect can possibly keep an rc<> to the image, instead of using a link to the dom node
+                     -> do I then still need the linked dom node for other stuff? I think so, I already had it.... but check that
+
+              3) the DOM should probably be mutable always (no refcell'ing, just mut object).
                      -> something like resolving the image should happen when we "build" the dom node that has an image
 
-              3) The layoutNodes should be immutable and produced from the DOM
+              4) The layoutNodes should be immutable and produced from the DOM
                      -> checken of dat kan?
 
-              4) The layout rect can possibly keep an rc<> to the image, instead of using a link to the dom node
-                     -> do I then still need the linked dom node for other stuff? I think so, I already had it.... but check that
+
 
 
 

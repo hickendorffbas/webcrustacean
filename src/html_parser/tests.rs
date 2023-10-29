@@ -1,6 +1,7 @@
 
 use crate::dom::ElementDomNode;
 use crate::html_parser;
+use crate::network::url::Url;
 use crate::test_util::*;
 
 
@@ -15,7 +16,8 @@ fn test_basic_parsing_1() {
         html_whitespace(" "),
     ];
 
-    let document = html_parser::parse(tokens);
+    let main_url = Url::from(&String::from("http://www.google.com")); //TODO: would be nice if we can define these as (lazy?) consts?
+    let document = html_parser::parse(tokens, &main_url);
     assert_eq!(document.document_node.children.as_ref().unwrap().len(), 2);
 
     let generic_a_node = document.document_node.children.as_ref().unwrap()[0].as_ref();
@@ -40,7 +42,8 @@ fn test_text_concatenation() {
         html_close("div"),
     ];
 
-    let document = html_parser::parse(tokens);
+    let main_url = Url::from(&String::from("http://www.google.com"));
+    let document = html_parser::parse(tokens, &main_url);
     assert_eq!(document.document_node.children.as_ref().unwrap().len(), 1);
 
     let div_node = document.document_node.children.as_ref().unwrap()[0].as_ref();
@@ -69,7 +72,8 @@ fn test_not_closing_a_tag() {
         html_close("div"),
     ];
 
-    let document = html_parser::parse(tokens);
+    let main_url = Url::from(&String::from("http://www.google.com"));
+    let document = html_parser::parse(tokens, &main_url);
     assert_eq!(document.document_node.children.as_ref().unwrap().len(), 1);
 
     //TODO: it would be much nicer if we can just compare with a tree of nodes here, that we layout like in json, or just with tabs
@@ -103,7 +107,8 @@ fn test_closing_a_tag_we_did_not_open() {
         html_close("div"),
     ];
 
-    let document = html_parser::parse(tokens);
+    let main_url = Url::from(&String::from("http://www.google.com"));
+    let document = html_parser::parse(tokens, &main_url);
     assert_eq!(document.document_node.children.as_ref().unwrap().len(), 1);
 
     assert_element_name_is(document.document_node.children.as_ref().unwrap()[0].as_ref(), "div");
@@ -127,7 +132,8 @@ fn test_missing_last_closing_tag() {
         html_close("body"), 
     ];
 
-    let document = html_parser::parse(tokens);
+    let main_url = Url::from(&String::from("http://www.google.com"));
+    let document = html_parser::parse(tokens, &main_url);
     assert_eq!(document.document_node.children.as_ref().unwrap().len(), 1);
 
     assert_element_name_is(document.document_node.children.as_ref().unwrap()[0].as_ref(), "html");

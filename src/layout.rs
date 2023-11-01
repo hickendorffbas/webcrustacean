@@ -141,18 +141,6 @@ impl ComputedLocation {
             ComputedLocation::Computed(loc) => { loc.height },
         }
     }
-    pub fn is_inside(&self, x: f32, y: f32) -> bool {
-        //TODO: for now we use this to check pixel values, but we actually should convert units properly somewhere (before the renderer, I guess)
-        //      in general we need to do a pass on using correct units everywhere
-        return match self {
-            ComputedLocation::NotYetComputed => panic!("Node has not yet been computed"),
-            ComputedLocation::Computed(loc) => {
-                x >= loc.x && x <= loc.x + loc.width
-                &&
-                y >= loc.y && y <= loc.y + loc.height
-            },
-        }
-    }
     pub fn is_visible_on_y_location(&self, y: f32) -> bool {
         return match self {
             ComputedLocation::NotYetComputed => panic!("Node has not yet been computed"),

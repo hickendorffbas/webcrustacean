@@ -4,6 +4,13 @@ version = "0.1.0"
 authors = ["Bas Hickendorff <hickendorffbas@gmail.com>"]
 edition = "2018"
 
+[features]
+default = [
+    #"timings",
+]
+timings = []
+
+
 [dependencies.sdl2]
 version = "0.34.2"
 default-features = false

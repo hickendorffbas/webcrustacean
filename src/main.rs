@@ -17,13 +17,12 @@ mod ui_components;
 
 use std::cell::RefCell;
 use std::{env, thread};
-use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use crate::debug::debug_log_warn;
 use crate::dom::Document;
 use crate::fonts::Font;
-use crate::layout::{ClickMapEntry, LayoutNode};
+use crate::layout::ClickMapEntry;
 use crate::network::url::Url;
 use crate::platform::Platform;
 use crate::renderer::render;
@@ -155,14 +154,17 @@ fn main() -> Result<(), String> {
 
     let mut event_pump = platform.sdl_context.event_pump()?;
     'main_loop: loop {
-        let start_instant = Instant::now();
+        let start_loop_instant = Instant::now();
 
         if should_reload_from_url {
+            #[cfg(feature="timings")] let start_page_load_instant = Instant::now();
             currently_loading_new_page = true;
             document = load_url(&url);
             should_reload_from_url = false;
+            #[cfg(feature="timings")] println!("page load elapsed millis: {}", start_page_load_instant.elapsed().as_millis());
         }
 
+        #[cfg(feature="timings")] let start_event_pump_instant = Instant::now();
         for event in event_pump.poll_iter() {
             match event {
                 SdlEvent::Quit {..} | SdlEvent::KeyDown { keycode: Some(Keycode::Escape), .. } => {
@@ -242,16 +244,22 @@ fn main() -> Result<(), String> {
                 _ => {}
             }
         }
+        #[cfg(feature="timings")] println!("event pump elapsed millis: {}", start_event_pump_instant.elapsed().as_millis());
 
         /*** below we should not have any mutable ref to the DOM any more (because we take references in the layout tree) ***/
 
+        #[cfg(feature="timings")] let start_layout_instant = Instant::now();
         let full_layout_tree = layout::build_full_layout(&document.borrow(), &mut platform, &url);
         debug_assert!(full_layout_tree.root_node.rects.borrow().len() == 1);
         previous_frame_page_height = full_layout_tree.page_height();
         previous_frame_click_map = layout::compute_click_map(&full_layout_tree, ui_state.current_scroll_y);
+        #[cfg(feature="timings")] println!("layout elapsed millis: {}", start_layout_instant.elapsed().as_millis());
 
+        #[cfg(feature="timings")] let start_render_instant = Instant::now();
         render(&mut platform, &full_layout_tree, &mut ui_state);
-        frame_time_check(&start_instant, currently_loading_new_page);
+        #[cfg(feature="timings")] println!("render elapsed millis: {}", start_render_instant.elapsed().as_millis());
+
+        frame_time_check(&start_loop_instant, currently_loading_new_page);
         currently_loading_new_page = false;
     }
 

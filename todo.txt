@@ -11,3 +11,8 @@ features still needed for 0.1 release:
 other things:
        - move to rust 2021
 
+
+there is still some thinking to do on the layout tree. its now immutable, and created from scratch each frame. That does make sharing refs to
+(for example) images in the DOM easier (because we can't have those around when the DOM changes). So we want to push as much computation to the DOM
+side as possible, but styles are still resolved after the DOM. We might need to keep a copy of the active styles on the DOM or something.
+       -> that _might_ actually be a good idea, think more about it.... we could also cache other things on the DOM!

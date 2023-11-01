@@ -18,9 +18,10 @@ fn test_basic_parsing_1() {
 
     let main_url = Url::from(&String::from("http://www.google.com")); //TODO: would be nice if we can define these as (lazy?) consts?
     let document = html_parser::parse(tokens, &main_url);
-    assert_eq!(document.document_node.children.as_ref().unwrap().len(), 2);
+    let doc_node = &document.borrow().document_node;
+    assert_eq!(doc_node.children.as_ref().unwrap().len(), 2);
 
-    let generic_a_node = document.document_node.children.as_ref().unwrap()[0].as_ref();
+    let generic_a_node = doc_node.children.as_ref().unwrap()[0].as_ref();
     assert_element_name_is(generic_a_node, "a");
 
     let a_children = generic_a_node.children.as_ref().unwrap();
@@ -44,9 +45,10 @@ fn test_text_concatenation() {
 
     let main_url = Url::from(&String::from("http://www.google.com"));
     let document = html_parser::parse(tokens, &main_url);
-    assert_eq!(document.document_node.children.as_ref().unwrap().len(), 1);
+    let doc_node = &document.borrow().document_node;
+    assert_eq!(doc_node.children.as_ref().unwrap().len(), 1);
 
-    let div_node = document.document_node.children.as_ref().unwrap()[0].as_ref();
+    let div_node = doc_node.children.as_ref().unwrap()[0].as_ref();
     let text_node = div_node.children.as_ref().unwrap()[0].as_ref();
     assert_text_on_node_is(text_node, "two words");
 }
@@ -74,13 +76,14 @@ fn test_not_closing_a_tag() {
 
     let main_url = Url::from(&String::from("http://www.google.com"));
     let document = html_parser::parse(tokens, &main_url);
-    assert_eq!(document.document_node.children.as_ref().unwrap().len(), 1);
+    let doc_node = &document.borrow().document_node;
+    assert_eq!(doc_node.children.as_ref().unwrap().len(), 1);
 
     //TODO: it would be much nicer if we can just compare with a tree of nodes here, that we layout like in json, or just with tabs
 
-    assert_element_name_is(document.document_node.children.as_ref().unwrap()[0].as_ref(), "div");
+    assert_element_name_is(doc_node.children.as_ref().unwrap()[0].as_ref(), "div");
 
-    let div_childs = document.document_node.children.as_ref().unwrap()[0].as_ref().children.as_ref().unwrap();
+    let div_childs = doc_node.children.as_ref().unwrap()[0].as_ref().children.as_ref().unwrap();
     assert_eq!(div_childs.len(), 1);
     assert_element_name_is(div_childs[0].as_ref(), "b");
 
@@ -109,11 +112,12 @@ fn test_closing_a_tag_we_did_not_open() {
 
     let main_url = Url::from(&String::from("http://www.google.com"));
     let document = html_parser::parse(tokens, &main_url);
-    assert_eq!(document.document_node.children.as_ref().unwrap().len(), 1);
+    let doc_node = &document.borrow().document_node;
+    assert_eq!(doc_node.children.as_ref().unwrap().len(), 1);
 
-    assert_element_name_is(document.document_node.children.as_ref().unwrap()[0].as_ref(), "div");
+    assert_element_name_is(doc_node.children.as_ref().unwrap()[0].as_ref(), "div");
 
-    let div_childs = document.document_node.children.as_ref().unwrap()[0].as_ref().children.as_ref().unwrap();
+    let div_childs = doc_node.children.as_ref().unwrap()[0].as_ref().children.as_ref().unwrap();
     assert_eq!(div_childs.len(), 1);
     assert_element_name_is(div_childs[0].as_ref(), "b");
 }
@@ -132,13 +136,15 @@ fn test_missing_last_closing_tag() {
         html_close("body"), 
     ];
 
+
     let main_url = Url::from(&String::from("http://www.google.com"));
     let document = html_parser::parse(tokens, &main_url);
-    assert_eq!(document.document_node.children.as_ref().unwrap().len(), 1);
+    let doc_node = &document.borrow().document_node;
+    assert_eq!(doc_node.children.as_ref().unwrap().len(), 1);
 
-    assert_element_name_is(document.document_node.children.as_ref().unwrap()[0].as_ref(), "html");
+    assert_element_name_is(doc_node.children.as_ref().unwrap()[0].as_ref(), "html");
 
-    let html_childs = document.document_node.children.as_ref().unwrap()[0].as_ref().children.as_ref().unwrap();
+    let html_childs = doc_node.children.as_ref().unwrap()[0].as_ref().children.as_ref().unwrap();
     assert_eq!(html_childs.len(), 1);
     assert_element_name_is(html_childs[0].as_ref(), "body");
 

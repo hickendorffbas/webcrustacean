@@ -32,7 +32,7 @@ pub struct ElementDomNode {
     pub children: Option<Vec<Rc<ElementDomNode>>>,
     pub attributes: Option<Vec<Rc<AttributeDomNode>>>,
 
-    pub image: Option<DynamicImage>,
+    pub image: Option<Rc<DynamicImage>>,
 }
 impl ElementDomNode {
     pub fn get_attribute_value(&self, attribute_name: &str) -> Option<String> {
@@ -50,11 +50,10 @@ impl ElementDomNode {
         let image_src = self.get_attribute_value("src");
         if image_src.is_some() {
             let image_url = Url::from_base_url(&image_src.unwrap(), Some(main_url));
-            self.image = Some(resource_loader::load_image(&image_url));
+            self.image = Some(Rc::from(resource_loader::load_image(&image_url)));
         } else {
-            self.image = Some(resource_loader::fallback_image());
+            self.image = Some(Rc::from(resource_loader::fallback_image()));
         }
-
     }
 }
 

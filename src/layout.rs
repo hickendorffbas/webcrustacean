@@ -5,16 +5,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use image::DynamicImage;
 
-use crate::{
-    Font,
-    resource_loader,
-    SCREEN_HEIGHT
-};
 use crate::color::Color;
 use crate::debug::debug_log_warn;
 use crate::dom::{Document, ElementDomNode};
+use crate::Font;
 use crate::network::url::Url;
 use crate::platform::Platform;
+use crate::SCREEN_HEIGHT;
 use crate::style::{
     StyleContext,
     get_color_style_value,
@@ -94,7 +91,7 @@ impl LayoutNode {
 pub struct LayoutRect {
     pub text: Option<String>,
     pub non_breaking_space_positions: Option<HashSet<usize>>, //TODO: might be nice to combine this with text_content in a text struct
-    pub image: Option<DynamicImage>,
+    pub image: Option<Rc<DynamicImage>>,
     pub location: RefCell<ComputedLocation>,
 }
 impl LayoutRect {
@@ -186,6 +183,13 @@ pub struct Rect {
     pub y: f32,
     pub width: f32,
     pub height: f32,
+}
+impl Rect {
+    pub fn is_inside(&self, x: f32, y: f32) -> bool {
+        x >= self.x && x <= self.x + self.width
+        &&
+        y >= self.y && y <= self.y + self.height
+    }
 }
 
 
@@ -590,15 +594,9 @@ fn build_layout_tree(main_node: &Rc<ElementDomNode>, document: &Document, all_no
             "html" => { /* this needs the default for all fields */ }
 
             "img" => {
-                let image_src = main_node.get_attribute_value("src");
-
-                if image_src.is_some() {
-                    let image_url = Url::from_base_url(&image_src.unwrap(), Some(main_url));
-                    partial_node_optional_img = Some(resource_loader::load_image(&image_url));
-                } else {
-                    partial_node_optional_img = Some(resource_loader::fallback_image());
+                if main_node.image.is_some() {
+                    partial_node_optional_img = Some(Rc::clone(&main_node.image.as_ref().unwrap()));
                 }
-
                 childs_to_recurse_on = &None; //images should not have children (its a tag that does not have a close tag, formally)
             }
 
@@ -812,4 +810,48 @@ fn build_anonymous_block_layout_node(visible: bool, parent_id: usize, inline_chi
     let anon_rc = Rc::new(anonymous_node);
     all_nodes.insert(anon_rc.internal_id, Rc::clone(&anon_rc));
     return anon_rc;
+}
+
+
+pub struct ClickMapEntry {
+    pub region: Rect,
+    pub optional_link_url: Option<Url>,
+}
+
+
+pub fn compute_click_map(full_layout_tree: &FullLayout, current_scroll_y: f32) -> Vec<ClickMapEntry> {
+    let mut click_map = Vec::new();
+
+    fn compute_click_map_entries_from_layout(layout_node: &Rc<LayoutNode>, click_map: &mut Vec<ClickMapEntry>, current_scroll_y: f32) {
+
+        let any_visible = layout_node.rects.borrow().iter().any(|rect| -> bool {rect.location.borrow().is_visible_on_y_location(current_scroll_y)});
+        if !any_visible {
+            return;
+        }
+
+        if layout_node.optional_link_url.is_some() {
+            for rect in layout_node.rects.borrow().iter() {
+                let rect_location = rect.location.borrow();
+                let new_rect = Rect { x: rect_location.x(), y: rect_location.y() + current_scroll_y,
+                                      width: rect_location.width(), height: rect_location.height() };
+                click_map.push(
+                    ClickMapEntry { region: new_rect, optional_link_url: layout_node.optional_link_url.clone() }
+                );
+            }
+
+            return;
+        }
+
+        if layout_node.children.is_some() {
+            for child in layout_node.children.as_ref().unwrap() {
+                if child.visible {
+                    compute_click_map_entries_from_layout(&child, click_map, current_scroll_y);
+                }
+            }
+        }
+    }
+
+    compute_click_map_entries_from_layout(&full_layout_tree.root_node, &mut click_map, current_scroll_y);
+
+    return click_map;
 }

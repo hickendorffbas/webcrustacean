@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
@@ -24,7 +25,7 @@ use crate::style::{
 const SELF_CLOSING_TAGS: [&str; 6] = ["br", "hr", "img", "input", "link", "meta"];
 
 
-pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>, main_url: &Url) -> Document {
+pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>, main_url: &Url) -> RefCell<Document> {
     let mut all_nodes = HashMap::new();
     let mut document_style_rules = Vec::new();
 
@@ -60,7 +61,7 @@ pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>, main_url: &Url) -> Documen
         user_agent_sheet: get_user_agent_style_sheet(),
         author_sheet: document_style_rules,
     };
-    return Document { all_nodes, style_context, document_node: rc_doc_node_clone };
+    return RefCell::new(Document { all_nodes, style_context, document_node: rc_doc_node_clone });
 }
 
 

@@ -15,13 +15,15 @@ mod ui;
 mod ui_components;
 #[cfg(test)] mod test_util; //TODO: is there a better (test-specific) place to define this?
 
+use std::cell::RefCell;
 use std::{env, thread};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use crate::debug::debug_log_warn;
+use crate::dom::Document;
 use crate::fonts::Font;
-use crate::layout::{FullLayout, LayoutNode};
+use crate::layout::{ClickMapEntry, LayoutNode};
 use crate::network::url::Url;
 use crate::platform::Platform;
 use crate::renderer::render;
@@ -71,35 +73,19 @@ fn frame_time_check(start_instant: &Instant, currently_loading_new_page: bool) {
 }
 
 
-fn handle_left_click(platform: &mut Platform, ui_state: &mut UIState, x: f32, y: f32, layout_tree: &FullLayout) -> Option<Url> {
-
-    fn check_left_click_for_layout_node(x: f32, y: f32, layout_node: &Rc<LayoutNode>) -> Option<Url> {
-
-        let any_inside = layout_node.rects.borrow().iter().any(|rect| -> bool {rect.location.borrow().is_inside(x, y)});
-        if !any_inside {
-            return None;
-        }
-
-        if layout_node.optional_link_url.is_some() {
-            let url = layout_node.optional_link_url.as_ref().unwrap();
-            return Some(url.clone());
-        }
-
-        if layout_node.children.is_some() {
-            for child in layout_node.children.as_ref().unwrap() {
-                if child.visible {
-                    let optional_url = check_left_click_for_layout_node(x, y, &child);
-                    if optional_url.is_some() {
-                        return optional_url;
-                    }
-                }
-            }
-        }
-        return None;
-    }
+fn handle_left_click(platform: &mut Platform, ui_state: &mut UIState, x: f32, y: f32, click_map: &Vec<ClickMapEntry>) -> Option<Url> {
 
     ui::handle_possible_ui_click(platform, ui_state, x, y);
-    return check_left_click_for_layout_node(x, y, &layout_tree.root_node);
+
+    for click_map_entry in click_map {
+        if click_map_entry.region.is_inside(x, y) {
+            if click_map_entry.optional_link_url.is_some() {
+                return click_map_entry.optional_link_url.clone();
+            }
+        }
+    }
+
+    return None;
 }
 
 
@@ -114,14 +100,11 @@ pub struct MouseState {
 }
 
 
-pub fn load_url(platform: &mut Platform, url: &Url) -> FullLayout {
+pub fn load_url(url: &Url) -> RefCell<Document> {
     let page_content = resource_loader::load_text(&url);
-
     let lex_result = html_lexer::lex_html(&page_content);
     let dom_tree = html_parser::parse(lex_result, url);
-    let full_layout_tree = layout::build_full_layout(&dom_tree, platform, url);
-
-    return full_layout_tree;
+    return dom_tree;
 }
 
 
@@ -138,11 +121,6 @@ fn main() -> Result<(), String> {
     } else {
         Url::from(&args[1])
     };
-
-    let mut full_layout_tree = load_url(&mut platform, &url);
-    let mut currently_loading_new_page = true;
-
-    debug_assert!(full_layout_tree.root_node.rects.borrow().len() == 1);
 
     let mut mouse_state = MouseState { x: 0, y: 0, click_start_x: 0, click_start_y: 0, left_down: false, is_dragging_scrollblock: false };
     let addressbar_text = url.to_string();
@@ -168,14 +146,26 @@ fn main() -> Result<(), String> {
         forward_button: NavigationButton { x: 55.0, y: 15.0, forward: true, enabled: false },
     };
 
+    let mut should_reload_from_url = false;
+    let mut document = load_url(&url);
+    let mut currently_loading_new_page = true;
+
+    let mut previous_frame_page_height = 0.0;
+    let mut previous_frame_click_map = Vec::new();
+
     let mut event_pump = platform.sdl_context.event_pump()?;
     'main_loop: loop {
         let start_instant = Instant::now();
 
+        if should_reload_from_url {
+            currently_loading_new_page = true;
+            document = load_url(&url);
+            should_reload_from_url = false;
+        }
+
         for event in event_pump.poll_iter() {
             match event {
-                SdlEvent::Quit {..} |
-                SdlEvent::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+                SdlEvent::Quit {..} | SdlEvent::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     break 'main_loop;
                 },
                 SdlEvent::MouseMotion { x: mouse_x, y: mouse_y, yrel, .. } => {
@@ -183,8 +173,8 @@ fn main() -> Result<(), String> {
                     mouse_state.y = mouse_y;
 
                     if mouse_state.is_dragging_scrollblock {
-                        let page_scroll = ui::convert_block_drag_to_page_scroll(&mut ui_state, yrel as f32, full_layout_tree.page_height());
-                        ui_state.current_scroll_y = clamp_scroll_position(ui_state.current_scroll_y + page_scroll, full_layout_tree.page_height());
+                        let page_scroll = ui::convert_block_drag_to_page_scroll(&mut ui_state, yrel as f32, previous_frame_page_height);
+                        ui_state.current_scroll_y = clamp_scroll_position(ui_state.current_scroll_y + page_scroll, previous_frame_page_height);
                     }
                 },
                 SdlEvent::MouseButtonDown { mouse_btn: MouseButton::Left, x: mouse_x, y: mouse_y, .. } => {
@@ -195,7 +185,7 @@ fn main() -> Result<(), String> {
                     mouse_state.left_down = true;
 
                     //TODO: its probably nicer to call a generic method in UI, to check any drags and update the mouse state
-                    if ui::mouse_on_scrollblock(&mouse_state, ui_state.current_scroll_y, full_layout_tree.page_height()) {
+                    if ui::mouse_on_scrollblock(&mouse_state, ui_state.current_scroll_y, previous_frame_page_height) {
                         mouse_state.is_dragging_scrollblock = true;
                     } else {
                         mouse_state.is_dragging_scrollblock = false;
@@ -212,13 +202,13 @@ fn main() -> Result<(), String> {
 
                     if !was_dragging {
                         let new_mouse_y = mouse_y as f32 + ui_state.current_scroll_y;
-                        let optional_url = handle_left_click(&mut platform, &mut ui_state, mouse_x as f32, new_mouse_y, &full_layout_tree);
+                        let optional_url = handle_left_click(&mut platform, &mut ui_state, mouse_x as f32, new_mouse_y, &previous_frame_click_map);
 
                         if optional_url.is_some() {
                             let url = optional_url.unwrap();
                             //TODO: this should be done via a nicer "navigate" method or something (also below when pressing enter in the addressbar
                             ui_state.addressbar.set_text(&mut platform, url.to_string());
-                            full_layout_tree = load_url(&mut platform, &url);
+                            document = load_url(&url);  // we should do this above in the next loop, just schedule the url for reload
                             currently_loading_new_page = true;
                         }
                     }
@@ -227,7 +217,7 @@ fn main() -> Result<(), String> {
                     match direction {
                         sdl2::mouse::MouseWheelDirection::Normal => {
                             //TODO: someday it might be nice to implement smooth scrolling (animate the movement over frames)
-                            ui_state.current_scroll_y = clamp_scroll_position(ui_state.current_scroll_y - (y * SCROLL_SPEED) as f32, full_layout_tree.page_height());
+                            ui_state.current_scroll_y = clamp_scroll_position(ui_state.current_scroll_y - (y * SCROLL_SPEED) as f32, previous_frame_page_height);
                         },
                         sdl2::mouse::MouseWheelDirection::Flipped => {},
                         sdl2::mouse::MouseWheelDirection::Unknown(_) => debug_log_warn("Unknown mousewheel direction unknown!"),
@@ -241,7 +231,7 @@ fn main() -> Result<(), String> {
                         if ui_state.addressbar.has_focus && keycode.unwrap().name() == "Return" {
                             //TODO: This is here for now because we need to load another page, not sure how to correctly trigger that from inside the component
                             url = Url::from(&ui_state.addressbar.text);
-                            full_layout_tree = load_url(&mut platform, &url);
+                            document = load_url(&url); // we should do this above in the next loop, just schedule the url for reload
                             currently_loading_new_page = true;
                         }
                     }
@@ -252,6 +242,13 @@ fn main() -> Result<(), String> {
                 _ => {}
             }
         }
+
+        /*** below we should not have any mutable ref to the DOM any more (because we take references in the layout tree) ***/
+
+        let full_layout_tree = layout::build_full_layout(&document.borrow(), &mut platform, &url);
+        debug_assert!(full_layout_tree.root_node.rects.borrow().len() == 1);
+        previous_frame_page_height = full_layout_tree.page_height();
+        previous_frame_click_map = layout::compute_click_map(&full_layout_tree, ui_state.current_scroll_y);
 
         render(&mut platform, &full_layout_tree, &mut ui_state);
         frame_time_check(&start_instant, currently_loading_new_page);

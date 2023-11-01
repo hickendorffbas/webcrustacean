@@ -1,29 +1,6 @@
 
-- we should probably load resources (images) when building the DOM tree, not while building the layout tree
-       -> where would we store in the image? (not the downloaded resource, but the decoded image). On the DOM is indeed probably more correct, but we
-          don't want to copy it to the layout nodes. Which is probably fine, since we have from_dom_node or something
-       -> would be nice as a seperate pass, but then I need to make things mutable again. Or should we parse to an intermediate format first?
-              -> we want the DOM mutable anyway (because of JS). We do need to make sure we build nodes in a nice way (first parse the tree, then process them)
-
-
-
-              1) we should make the different dom nodes explicit, I think (combine text and element into one?)
-                     -> DONE
-
-              2) The layout rect can possibly keep an rc<> to the image, instead of using a link to the dom node
-                     -> do I then still need the linked dom node for other stuff? I think so, I already had it.... but check that
-
-              3) the DOM should probably be mutable always (no refcell'ing, just mut object).
-                     -> something like resolving the image should happen when we "build" the dom node that has an image
-
-              4) The layoutNodes should be immutable and produced from the DOM
-                     -> checken of dat kan?
-
-
-
-
-
-
+-> add some performance metrics (enabled optionally) for parts of the render loop
+       -> like event polling / rendering / building layout etc.
 
 
 features still needed for 0.1 release:

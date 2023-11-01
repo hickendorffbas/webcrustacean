@@ -6,7 +6,7 @@ use crate::dom::{
     AttributeDomNode,
     Document,
     ElementDomNode,
-    get_next_dom_node_interal_id, DomText,
+    get_next_dom_node_interal_id, DomText, TagName,
 };
 use crate::html_lexer::{HtmlToken, HtmlTokenWithLocation};
 use crate::network::url::Url;
@@ -47,6 +47,7 @@ pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>, main_url: &Url) -> RefCell
         is_document_node: true,
         text: None,
         name: None,
+        name_for_layout: TagName::Other,
         children: Some(document_children),
         attributes: None,
         image: None,
@@ -93,6 +94,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                 if tag_being_parsed.is_some() && SELF_CLOSING_TAGS.contains(&tag_being_parsed.as_ref().unwrap().as_str()) {
                     let mut new_node = ElementDomNode {
                         internal_id: node_being_build_internal_id,
+                        name_for_layout: TagName::from_string(&tag_being_parsed.as_ref().unwrap()),
                         name: tag_being_parsed,
                         children: Some(children),
                         parent_id,
@@ -146,6 +148,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
 
                 let mut new_node = ElementDomNode {
                     internal_id: node_being_build_internal_id,
+                    name_for_layout: TagName::from_string(&tag_to_close.as_ref().unwrap()),
                     name: tag_to_close,
                     children: Some(children),
                     parent_id,
@@ -190,6 +193,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
         let mut new_node = ElementDomNode { //TODO: I probably want a ::new() function, because I'm going to have a lot of fields that
                                             //      are constructed on :update()
             internal_id: node_being_build_internal_id,
+            name_for_layout: TagName::from_string(&tag_being_parsed.as_ref().unwrap()),
             name: tag_being_parsed,
             children: Some(children),
             parent_id,
@@ -269,6 +273,7 @@ fn read_all_text_for_text_node(html_tokens: &Vec<HtmlTokenWithLocation>, current
         parent_id: parent_id,
         text: Some(dom_text),
         name: None,
+        name_for_layout: TagName::Other,
         children: None,
         attributes: None,
         is_document_node: false,

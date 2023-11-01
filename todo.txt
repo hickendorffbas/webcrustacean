@@ -1,8 +1,4 @@
 
--> add some performance metrics (enabled optionally) for parts of the render loop
-       -> like event polling / rendering / building layout etc.
-
-
 features still needed for 0.1 release:
        - load another image format besides PNG
        - test on mac / windows (document SDL install?)
@@ -10,3 +6,8 @@ features still needed for 0.1 release:
        - very basic history (not viewable), and integrate with back and forward buttons
        - don't crash or hang on complex webpages (its fine if they don't render correctly)
        - make parse tests nicer by comparing json
+
+
+other things:
+       - move to rust 2021
+

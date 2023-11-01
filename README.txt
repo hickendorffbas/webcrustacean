@@ -23,3 +23,15 @@ brew install sdl2_gfx
 ## If linking with SDL2 fails, run:
 
 export LIBRARY_PATH="$LIBRARY_PATH:$(brew --prefix)/lib"
+
+
+
+
+# Profiling (on Linux)
+
+
+TODO: test and describe how to export debug symbols in release mode
+
+
+perf record --call-graph=dwarf ./target/debug/bbrowser
+perf report

@@ -22,6 +22,39 @@ pub struct Document {
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]
+pub enum TagName {
+    A,
+    B,
+    Br,
+    Img,
+    Script,
+    Style,
+    Title,
+
+    Other,
+}
+impl TagName {
+    pub fn from_string(tag_being_parsed: &String) -> TagName {
+        return match tag_being_parsed.as_str() {
+
+            "a" => TagName::A,
+            "b" => TagName::B,
+            "br" => TagName::Br,
+            "img" => TagName::Img,
+            "script" => TagName::Script,
+            "style" => TagName::Style,
+            "title" => TagName::Title,
+
+            _ => {
+                //this is not an error, since we only translate tags that we need to do something for in the layout tree
+                TagName::Other
+            }
+        }
+    }
+}
+
+
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct ElementDomNode {
     pub internal_id: usize,
     pub parent_id: usize,
@@ -29,6 +62,7 @@ pub struct ElementDomNode {
     pub is_document_node: bool,
     pub text: Option<DomText>,
     pub name: Option<String>,
+    pub name_for_layout: TagName,
     pub children: Option<Vec<Rc<ElementDomNode>>>,
     pub attributes: Option<Vec<Rc<AttributeDomNode>>>,
 

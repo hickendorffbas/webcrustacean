@@ -7,7 +7,7 @@ use image::DynamicImage;
 
 use crate::color::Color;
 use crate::debug::debug_log_warn;
-use crate::dom::{Document, ElementDomNode};
+use crate::dom::{Document, ElementDomNode, TagName};
 use crate::Font;
 use crate::network::url::Url;
 use crate::platform::Platform;
@@ -553,8 +553,8 @@ fn build_layout_tree(main_node: &Rc<ElementDomNode>, document: &Document, all_no
 
         childs_to_recurse_on = &main_node.children;
 
-        match &main_node.name.as_ref().unwrap()[..] {
-            "a" => {
+        match &main_node.name_for_layout {
+            TagName::A => {
                 let opt_href = main_node.get_attribute_value("href");
                 if opt_href.is_some() {
                     partial_node_optional_link_url = Some(Url::from_base_url(&opt_href.unwrap(), Some(main_url)));
@@ -563,47 +563,32 @@ fn build_layout_tree(main_node: &Rc<ElementDomNode>, document: &Document, all_no
                 }
             }
 
-            "b" => {
+            TagName::B => {
+                //TODO: can this style not be in the general stylesheet?
                 partial_node_styles.insert("font-weight".to_owned(), "bold".to_owned());
             }
 
-            "br" => {
+            TagName::Br => {
                 partial_node_line_break = true;
             }
 
-            "body" => { /* this needs the default for all fields */ }
-
-            "div" =>  { /* this needs the default for all fields */ }
-
-            "h1"|"h2"|"h3"|"h4"|"h5"|"h6" => { /* this needs the default for all fields */ }
-
-            "head" => { /* this needs the default for all fields */ }
-
-            "html" => { /* this needs the default for all fields */ }
-
-            "img" => {
+            TagName::Img => {
                 if main_node.image.is_some() {
                     partial_node_optional_img = Some(Rc::clone(&main_node.image.as_ref().unwrap()));
                 }
                 childs_to_recurse_on = &None; //images should not have children (its a tag that does not have a close tag, formally)
             }
 
-            "p" => { /* this needs the default for all fields */ }
-
             //TODO: this one might not be neccesary any more after we fix our html parser to not try to parse the javascript
-            "script" => { partial_node_visible = false; }
-
-            "span" => { /* this needs the default for all fields */ }
+            TagName::Script => { partial_node_visible = false; }
 
             //TODO: same as for "script", do these need nodes in the DOM? probably not
-            "style" => { partial_node_visible = false; }
+            TagName::Style => { partial_node_visible = false; }
 
             //TODO: eventually we want to do something else with the title (update the window title or so)
-            "title" => { partial_node_visible = false; }
+            TagName::Title => { partial_node_visible = false; }
 
-            default => {
-                debug_log_warn(format!("unknown tag: {}", default));
-            }
+            TagName::Other => {}
         }
     } else if main_node.is_document_node {
         childs_to_recurse_on = &main_node.children;

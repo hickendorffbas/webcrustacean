@@ -8,8 +8,9 @@ features still needed for 0.1 release:
        - make parse tests nicer by comparing json
 
 
-other things:
+other things (later versions?):
        - move to rust 2021
+
 
 
 there is still some thinking to do on the layout tree. its now immutable, and created from scratch each frame. That does make sharing refs to

@@ -7,7 +7,7 @@ use sdl2::{
     keyboard::Keycode as SdlKeycode,
     pixels::{Color as SdlColor, PixelFormatEnum},
     rect::{Point as SdlPoint, Rect as SdlRect},
-    render::{TextureQuery, TextureAccess, WindowCanvas},
+    render::{TextureAccess, TextureQuery, WindowCanvas},
     Sdl,
     ttf::Sdl2TtfContext,
     VideoSubsystem,
@@ -117,15 +117,14 @@ impl Platform<'_> {
     }
 
     pub fn render_image(&mut self, image: &DynamicImage, x: f32, y: f32) {
-
         let texture_creator = self.canvas.texture_creator(); //TODO: reuse the texture creator for the canvas by storing it on the context?
 
-        //TODO: the pixel format below is not always correct, derive it from the image
-        let mut texture = texture_creator.create_texture(PixelFormatEnum::RGB24, TextureAccess::Target, image.width(), image.height()).unwrap();
+        let mut texture = texture_creator.create_texture(find_pixel_format(image), TextureAccess::Target, image.width(), image.height()).unwrap();
 
-        let bytes_per_pixel = 3; //TODO: not always correct, can we derive this from the img object? Probably based on the pixel type
+        let bytes_per_pixel = image.color().bytes_per_pixel();
+        texture.update(None, image.as_bytes(), image.width() as usize * bytes_per_pixel as usize).unwrap();
 
-        texture.update(None, image.as_bytes(), image.width() as usize * bytes_per_pixel).unwrap();
+        //self.canvas.set_blend_mode(BlendMode::Blend); //TODO: this does not work, but we need to fix blending somehow (for png alpha)
 
         self.canvas.copy(&texture, None, Some(SdlRect::new(x as i32, y as i32, image.width(), image.height()))).expect("error rendering image");
     }
@@ -143,6 +142,23 @@ impl Platform<'_> {
             "Right" => Some(KeyCode::RIGHT),
             _ => None,
         }
+    }
+}
+
+
+pub fn find_pixel_format(image: &DynamicImage) -> PixelFormatEnum {
+    match image {
+        DynamicImage::ImageLuma8(_) => todo!(),
+        DynamicImage::ImageLumaA8(_) => todo!(),
+        DynamicImage::ImageRgb8(_) => PixelFormatEnum::RGB24,
+        DynamicImage::ImageRgba8(_) => PixelFormatEnum::ABGR8888,
+        DynamicImage::ImageLuma16(_) => todo!(),
+        DynamicImage::ImageLumaA16(_) => todo!(),
+        DynamicImage::ImageRgb16(_) => todo!(),
+        DynamicImage::ImageRgba16(_) => todo!(),
+        DynamicImage::ImageRgb32F(_) => todo!(),
+        DynamicImage::ImageRgba32F(_) => todo!(),
+        _ => panic!("unexpect image"), //TODO: what case is this describing?
     }
 }
 

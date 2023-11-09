@@ -1,16 +1,15 @@
 
 features still needed for 0.1 release:
-       - load another image format besides PNG
        - test on mac / windows (document SDL install?)
        - add a readme
        - very basic history (not viewable), and integrate with back and forward buttons
        - don't crash or hang on complex webpages (its fine if they don't render correctly)
-       - make parse tests nicer by comparing json
 
 
 other things (later versions?):
        - move to rust 2021
-
+       - make parse tests nicer by comparing json
+       - fix transparancy in png's (loading works, rendering in SDL does not)
 
 
 there is still some thinking to do on the layout tree. its now immutable, and created from scratch each frame. That does make sharing refs to

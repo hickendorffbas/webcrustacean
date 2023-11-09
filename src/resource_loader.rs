@@ -46,7 +46,13 @@ pub fn load_image(url: &Url) -> DynamicImage {
         }
 
         let file_data = read_result.unwrap();
-        return file_data.decode().expect("decoding the image failed");
+        let format_guess_result = file_data.with_guessed_format();
+
+        if format_guess_result.is_ok() {
+            return format_guess_result.ok().unwrap().decode().expect("decoding the image failed"); //TODO: we need to handle this in a better way
+        } else {
+            panic!("decoding the image failed"); //TODO: we need to handle this in a better way
+        }
     }
 
     let extension = url.file_extension();

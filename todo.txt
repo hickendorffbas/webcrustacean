@@ -1,7 +1,7 @@
 
 features still needed for 0.1 release:
+       - come up with a slightly less stupid name
        - test on mac / windows (document SDL install?)
-       - add a readme
        - very basic history (not viewable), and integrate with back and forward buttons
        - don't crash or hang on complex webpages (its fine if they don't render correctly)
 

@@ -1,12 +1,12 @@
+# BBrowser
+
+This is a very basic start of a browser. A lot is not implemented, but its is functional for viewing very basic webpages.
 
 
 
+## Installation
 
-# Installation
-
-
-
-## Install SDL on mac:
+### Install SDL on mac:
 
 brew install sdl2
 (optionally) brew link sdl2
@@ -20,18 +20,15 @@ brew install sdl2_gfx
 (optionally) brew link sdl2_gfx
 
 
-## If linking with SDL2 fails, run:
+### If linking with SDL2 fails, run:
 
 export LIBRARY_PATH="$LIBRARY_PATH:$(brew --prefix)/lib"
 
 
 
-
-# Profiling (on Linux)
-
+## Profiling (on Linux)
 
 TODO: test and describe how to export debug symbols in release mode
-
 
 perf record --call-graph=dwarf ./target/debug/bbrowser
 perf report

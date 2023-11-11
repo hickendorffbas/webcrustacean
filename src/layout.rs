@@ -478,7 +478,7 @@ fn wrap_text(layout_rect: &LayoutRect, max_width: f32, width_remaining_on_curren
                 str_buffers.push(String::new());
 
                 //TODO: this is ugly and slow, but for now we need to not have all new lines start with a space:
-                if str_buffer_undecided.chars().next().unwrap() == ' ' {
+                if str_buffer_undecided.chars().next().is_some() && str_buffer_undecided.chars().next().unwrap() == ' ' {
                     str_buffer_undecided.remove(0);
                 }
 

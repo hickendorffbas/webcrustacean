@@ -1,3 +1,6 @@
+- fix having a "/page.html" link in a local document (case is not implemented in the url object)
+
+
 
 features still needed for 0.1 release:
        - come up with a slightly less stupid name

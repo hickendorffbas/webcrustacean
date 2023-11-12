@@ -34,6 +34,7 @@ use sdl2::{
     keyboard::Keycode,
     mouse::MouseButton,
 };
+use ui::History;
 
 
 //Config:
@@ -74,7 +75,10 @@ fn frame_time_check(start_instant: &Instant, currently_loading_new_page: bool) {
 
 fn handle_left_click(platform: &mut Platform, ui_state: &mut UIState, x: f32, y: f32, click_map: &Vec<ClickMapEntry>) -> Option<Url> {
 
-    ui::handle_possible_ui_click(platform, ui_state, x, y);
+    let possible_url = ui::handle_possible_ui_click(platform, ui_state, x, y);
+    if possible_url.is_some() {
+        return possible_url;
+    }
 
     for click_map_entry in click_map {
         if click_map_entry.region.is_inside(x, y) {
@@ -99,7 +103,28 @@ pub struct MouseState {
 }
 
 
-pub fn load_url(url: &Url) -> RefCell<Document> {
+pub fn navigate(url: &Url, ui_state: &mut UIState) -> RefCell<Document> {
+    //TODO: we should wrap the history logic in a function or module somewhere...
+    if !ui_state.history.currently_navigating_from_history {
+        if ui_state.history.list.len() > (ui_state.history.position + 1) {
+            let last_idx_to_keep = ui_state.history.position;
+            for idx in ((last_idx_to_keep + 1)..ui_state.history.list.len()).rev() {
+                ui_state.history.list.remove(idx);
+            }
+        }
+        ui_state.history.list.push(url.clone());
+        ui_state.history.position = ui_state.history.list.len() - 1;
+        if ui_state.history.position > 0 {
+            ui_state.back_button.enabled = true;
+        }
+    }
+
+    //TODO: this code belongs in a history module somewhere as well...
+    ui_state.forward_button.enabled = ui_state.history.list.len() > ui_state.history.position + 1;
+    ui_state.back_button.enabled = ui_state.history.position > 0;
+
+
+    ui_state.history.currently_navigating_from_history = false;
     let page_content = resource_loader::load_text(&url);
     let lex_result = html_lexer::lex_html(&page_content);
     let dom_tree = html_parser::parse(lex_result, url);
@@ -143,10 +168,11 @@ fn main() -> Result<(), String> {
         current_scroll_y: 0.0,
         back_button: NavigationButton { x: 15.0, y: 15.0, forward: false, enabled: false },
         forward_button: NavigationButton { x: 55.0, y: 15.0, forward: true, enabled: false },
+        history: History { list: Vec::new(), position: 0, currently_navigating_from_history: false },
     };
 
     let mut should_reload_from_url = false;
-    let mut document = load_url(&url);
+    let mut document = navigate(&url, &mut ui_state);
     let mut currently_loading_new_page = true;
 
     let mut previous_frame_page_height = 0.0;
@@ -159,7 +185,7 @@ fn main() -> Result<(), String> {
         if should_reload_from_url {
             #[cfg(feature="timings")] let start_page_load_instant = Instant::now();
             currently_loading_new_page = true;
-            document = load_url(&url);
+            document = navigate(&url, &mut ui_state);
             should_reload_from_url = false;
             #[cfg(feature="timings")] println!("page load elapsed millis: {}", start_page_load_instant.elapsed().as_millis());
         }
@@ -210,7 +236,7 @@ fn main() -> Result<(), String> {
                             let url = optional_url.unwrap();
                             //TODO: this should be done via a nicer "navigate" method or something (also below when pressing enter in the addressbar
                             ui_state.addressbar.set_text(&mut platform, url.to_string());
-                            document = load_url(&url);  // we should do this above in the next loop, just schedule the url for reload
+                            document = navigate(&url, &mut ui_state);  // we should do this above in the next loop, just schedule the url for reload
                             currently_loading_new_page = true;
                         }
                     }
@@ -233,7 +259,7 @@ fn main() -> Result<(), String> {
                         if ui_state.addressbar.has_focus && keycode.unwrap().name() == "Return" {
                             //TODO: This is here for now because we need to load another page, not sure how to correctly trigger that from inside the component
                             url = Url::from(&ui_state.addressbar.text);
-                            document = load_url(&url); // we should do this above in the next loop, just schedule the url for reload
+                            document = navigate(&url, &mut ui_state); // we should do this above in the next loop, just schedule the url for reload
                             currently_loading_new_page = true;
                         }
                     }

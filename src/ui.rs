@@ -1,3 +1,4 @@
+use crate::network::url::Url;
 use crate::{
     MouseState,
     SCREEN_HEIGHT,
@@ -23,11 +24,19 @@ const SCROLLBAR_X_POS: f32 = SCREEN_WIDTH - SIDE_SCROLLBAR_WIDTH;
 
 
 
+pub struct History {
+    pub list: Vec<Url>,
+    pub position: usize,
+    pub currently_navigating_from_history: bool,
+}
+
+
 pub struct UIState {
     pub addressbar: TextField,
     pub current_scroll_y: f32,
     pub back_button: NavigationButton,
     pub forward_button: NavigationButton,
+    pub history: History,
 }
 
 
@@ -52,11 +61,19 @@ pub fn handle_keyboard_input(platform: &mut Platform, input: Option<&String>, ke
 }
 
 
-pub fn handle_possible_ui_click(platform: &mut Platform, ui_state: &mut UIState, x: f32, y: f32) {
+pub fn handle_possible_ui_click(platform: &mut Platform, ui_state: &mut UIState, x: f32, y: f32) -> Option<Url> {
 
     //TODO: I think this should also handle the scrollbar, but we now handle that in main still
 
     ui_state.addressbar.click(x, y);
+    let possible_url = ui_state.back_button.click(x, y, &mut ui_state.history);
+    if possible_url.is_some() {
+        return possible_url;
+    }
+    let possible_url = ui_state.forward_button.click(x, y, &mut ui_state.history);
+    if possible_url.is_some() {
+        return possible_url;
+    }
 
     //The below code is currently a bit more generic than it needs to be, but this makes that the enable/disable doesn't break when we add other textfields...
     let any_text_field_has_focus = ui_state.addressbar.has_focus;
@@ -66,6 +83,8 @@ pub fn handle_possible_ui_click(platform: &mut Platform, ui_state: &mut UIState,
     } else {
         platform.disable_text_input();
     }
+
+    return None;
 }
 
 

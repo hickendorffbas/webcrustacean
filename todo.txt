@@ -1,11 +1,10 @@
 - fix having a "/page.html" link in a local document (case is not implemented in the url object)
-
+- pressing enter on a local url that loaded via a link, does not link from url bar.
 
 
 features still needed for 0.1 release:
        - come up with a slightly less stupid name
        - test on mac / windows (document SDL install?)
-       - very basic history (not viewable), and integrate with back and forward buttons
        - don't crash or hang on complex webpages (its fine if they don't render correctly)
 
 
@@ -13,6 +12,7 @@ other things (later versions?):
        - move to rust 2021
        - make parse tests nicer by comparing json
        - fix transparancy in png's (loading works, rendering in SDL does not)
+       - integration tests by exporting json for the layout tree, so I can test all the way from HTML to layout
 
 
 there is still some thinking to do on the layout tree. its now immutable, and created from scratch each frame. That does make sharing refs to

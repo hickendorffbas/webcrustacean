@@ -1,4 +1,14 @@
-use crate::{platform::{Platform, Position, KeyCode}, fonts::Font, color::Color};
+use crate::color::Color;
+use crate::debug::debug_log_warn;
+use crate::fonts::Font;
+use crate::network::url::Url;
+use crate::platform::{
+    KeyCode,
+    Platform,
+    Position
+};
+use crate::ui::History;
+
 
 pub struct TextField {
     pub x: f32,
@@ -127,7 +137,37 @@ impl NavigationButton {
 
     }
     //TODO: handle mouseover (make some mouseover background change color or something to make clearer that its a button)
-    //TODO: handle click
+
+    pub fn click(&mut self, x: f32, y: f32, history: &mut History) -> Option<Url> {
+        //TODO: the x and y are now starting where we draw the arrow. We should make the component bigger so it covers the whole click region
+        //      but then we also need to change the co-ordinates we use to draw
+        let is_inside = x > (self.x - 10.0) && x < (self.x + 30.0) &&
+                        y > (self.y - 10.0) && y < (self.y + 30.0);
+
+        if is_inside && self.enabled {
+            if self.forward {
+                if history.list.len() > (history.position + 1) {
+                    history.currently_navigating_from_history = true;
+                    history.position = history.position + 1;
+                    return Some(history.list.get(history.position).unwrap().clone());
+                } else {
+                    debug_log_warn("history button should have been disabled")
+                }
+
+            } else {
+                if history.position > 0 {
+                    history.currently_navigating_from_history = true;
+                    history.position = history.position - 1;
+                    return Some(history.list.get(history.position).unwrap().clone());
+                } else {
+                    debug_log_warn("history button should have been disabled")
+                }
+
+            }
+        }
+
+        return None;
+    }
 }
 
 

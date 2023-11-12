@@ -227,3 +227,19 @@ fn test_non_quoted_comma() {
     let tokens = html_lexer::lex_html(html);
     assert!(tokens_equal_ignoring_location(tokens, expected_tokens));
 }
+
+
+#[test]
+fn test_newline_in_tag() {
+    let html = "<a\nhref=\"1\"></a>";
+
+    let expected_tokens = vec![
+        html_open("a"),
+        html_attribute("href", "1"),
+        html_open_tag_end(),
+        html_close("a"),
+    ];
+
+    let tokens = html_lexer::lex_html(html);
+    assert!(tokens_equal_ignoring_location(tokens, expected_tokens));
+}

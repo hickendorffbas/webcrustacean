@@ -353,6 +353,7 @@ fn lex_comment(html_iterator: &mut TrackingIterator) -> String {
     return buffer;
 }
 
+
 fn consume_full_name(iterator: &mut TrackingIterator) -> String {
     let mut str_buffer = String::new();
     loop {
@@ -362,7 +363,7 @@ fn consume_full_name(iterator: &mut TrackingIterator) -> String {
         }
 
         let peek = *opt_peek.unwrap();
-        if peek != ' ' && peek != '\t' && peek != '=' && peek != '<' && peek != '>'  {
+        if !is_whitespace(peek) && peek != '=' && peek != '<' && peek != '>'  {
             str_buffer.push(iterator.next());
         } else {
             return str_buffer

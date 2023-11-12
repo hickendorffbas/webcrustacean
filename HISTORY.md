@@ -4,4 +4,5 @@
 - basic page loading and display
 - basic css color parsing
 - basic image loading
+- basic history navigation
 

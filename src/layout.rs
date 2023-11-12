@@ -226,7 +226,7 @@ pub fn build_full_layout(document: &Document, platform: &mut Platform, main_url:
 
 
 //This function is responsible for setting the location rects on the node, and all its children.
-//TODO: need to find a way to make good tests for this (maybe just reftests?)
+//TODO: need to find a way to make good tests for this (probably via exporting the layout in JSON)
 fn compute_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>, style_context: &StyleContext,
                   top_left_x: f32, top_left_y: f32, platform: &mut Platform) {
 

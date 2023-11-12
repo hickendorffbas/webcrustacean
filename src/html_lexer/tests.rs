@@ -195,3 +195,19 @@ fn test_non_quoted_underscore_attribute() {
     let tokens = html_lexer::lex_html(html);
     assert!(tokens_equal_ignoring_location(tokens, expected_tokens));
 }
+
+
+#[test]
+fn test_non_quoted_anchor() {
+    let html = "<a href=#></a>";
+
+    let expected_tokens = vec![
+        html_open("a"),
+        html_attribute("href", "#"),
+        html_open_tag_end(),
+        html_close("a"),
+    ];
+
+    let tokens = html_lexer::lex_html(html);
+    assert!(tokens_equal_ignoring_location(tokens, expected_tokens));
+}

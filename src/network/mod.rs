@@ -71,7 +71,6 @@ pub fn http_get_image(url: &Url) -> Result<DynamicImage, ResourceNotLoadedError>
     if image_result.is_ok() {
         return Ok(image_result.unwrap());
     } else {
-        debug_log_warn(format!("Could not load image: {}", url.to_string()));
         return Err(ResourceNotLoadedError(url.to_string()));
     }
 

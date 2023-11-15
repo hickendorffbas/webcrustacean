@@ -81,12 +81,14 @@ impl ElementDomNode {
     }
     pub fn update(&mut self, main_url: &Url) {
 
-        let image_src = self.get_attribute_value("src");
-        if image_src.is_some() {
-            let image_url = Url::from_base_url(&image_src.unwrap(), Some(main_url));
-            self.image = Some(Rc::from(resource_loader::load_image(&image_url)));
-        } else {
-            self.image = Some(Rc::from(resource_loader::fallback_image()));
+        if self.image.is_none() && self.name.is_some() && self.name.as_ref().unwrap() == "img" {
+            let image_src = self.get_attribute_value("src");
+            if image_src.is_some() {
+                let image_url = Url::from_base_url(&image_src.unwrap(), Some(main_url));
+                self.image = Some(Rc::from(resource_loader::load_image(&image_url)));
+            } else {
+                self.image = Some(Rc::from(resource_loader::fallback_image()));
+            }
         }
     }
 }

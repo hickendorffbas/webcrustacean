@@ -67,7 +67,7 @@ pub fn load_image(url: &Url) -> DynamicImage {
         return fallback_image();
     }
 
-    println!("loading {}", url.to_string());
+    #[cfg(debug_assertions)] println!("loading {}", url.to_string());
 
     let image_result = http_get_image(url);
     if image_result.is_err() {

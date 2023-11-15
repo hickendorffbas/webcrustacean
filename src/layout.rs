@@ -276,15 +276,25 @@ pub fn get_font_given_styles(styles: &HashMap<String, String>) -> (Font, Color) 
             debug_log_warn("css rem font size not implemented, falling back to default");
             18
         } else {
-            unwrapped.parse::<u16>().ok().unwrap()
+            let parsed_unwrapped = unwrapped.parse::<u16>();
+            if parsed_unwrapped.is_err() {
+                debug_log_warn(format!("could not parse css value: {:}", unwrapped));
+                18
+            } else {
+                parsed_unwrapped.ok().unwrap()
+            }
         }
     } else {
         //font-size should be in the default styles, so this is a fatal error if not found
         panic!("font-size not found");
     };
 
-    let font_color = get_color_style_value(&styles, "color")
-                        .expect(format!("Unkown color").as_str()); //TODO: we need to handle this in a graceful way, instead of crashing
+    let font_color_option = get_color_style_value(&styles, "color");
+    let font_color = if font_color_option.is_some() {
+        font_color_option.unwrap()
+    } else {
+        Color::BLACK
+    };
 
     return (Font::new(font_bold, font_underline, font_size), font_color);
 }

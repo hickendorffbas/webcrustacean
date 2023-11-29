@@ -100,12 +100,33 @@ impl Url {
                 },
 
                 UrlParsingState::FileState => {
+                    scheme = String::from("file");
                     host = String::new();
                     if next_char == Some('/') {
                         state = UrlParsingState::FileSlashState;
+                    } else if base_url.is_some() && base_url.unwrap().scheme == "file" {
+                        host = base_url.unwrap().host.clone();
+                        path = base_url.unwrap().path.clone();
+                        query = base_url.unwrap().query.clone();
+                        if next_char == Some('?') {
+                            query = String::new();
+                            state = UrlParsingState::QueryState;
+                        } else if next_char == Some('#') {
+                            fragment = String::new();
+                            state = UrlParsingState::FragmentState;
+                        } else {
+                            if next_char.is_some() {
+                                query = String::new();
+                                if path.len() > 0 {
+                                    path.remove(path.len() - 1);
+                                }
+                                state = UrlParsingState::PathState;
+                                pointer = max(pointer - 1, -1);
+                            }
+                        }
                     } else {
-                        // in the spec here is a case about base, I've now added that to the signature
-                        todo!();
+                        state = UrlParsingState::PathState;
+                        pointer = max(pointer - 1, -1);
                     }
                 }
 
@@ -113,8 +134,11 @@ impl Url {
                     if next_char == Some('/') {
                         state = UrlParsingState::FileHostState;
                     } else {
-                        // in the spec here is a case about base, I've now added that to the signature
-                        todo!();
+                        if base_url.is_some() && base_url.unwrap().scheme == "file" {
+                            host = base_url.unwrap().host.clone();
+                        }
+                        state = UrlParsingState::FileState;
+                        pointer = max(pointer - 1, -1);
                     }
                 },
 

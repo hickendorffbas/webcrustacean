@@ -46,6 +46,13 @@ fn test_data_url_parsing() {
 }
 
 
+#[test]
+fn test_file_url_with_slash() {
+    assert_eq!(Url::from_base_url(&String::from("/doc2.html"), Some(&Url::from(&String::from("file:///doc1.html")))),
+               build_url("file", "", &vec!["doc2.html".to_owned()]));
+}
+
+
 fn build_url(scheme: &str, host: &str, path: &Vec<String>) -> Url {
     return Url { scheme: scheme.to_owned(), host: host.to_owned(), path: path.clone(),
                  username: String::new(), password: String::new(), port: String::new(), query: String::new(), fragment: String::new(), blob: String::new() };

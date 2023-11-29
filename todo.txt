@@ -1,9 +1,8 @@
-- fix having a "/page.html" link in a local document (case is not implemented in the url object)
-- pressing enter on a local url that loaded via a link, does not link from url bar.
+- pressing enter on a local url that loaded via a link, page does not load from url bar.
 
 
 features still needed for 0.1 release:
-       - come up with a slightly less stupid name
+       - come up with a slightly less stupid name -> "crabrowse" or "webcrab" or "intercrab" or "webcrustacean"
        - test on mac / windows (document SDL install?)
        - don't crash or hang on complex webpages (its fine if they don't render correctly)
 

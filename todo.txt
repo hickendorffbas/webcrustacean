@@ -1,8 +1,6 @@
-it seems when you scroll down you can not click links anymore (maybe the click rect is in the wrong place?)
-
 
 features still needed for 0.1 release:
-       - come up with a slightly less stupid name -> "crabrowse" or "webcrab" or "intercrab" or "webcrustacean"
+       - come up with a slightly less stupid name -> "webcrustacean"
        - test on mac / windows (document SDL install?)
        - don't crash or hang on complex webpages (its fine if they don't render correctly)
 

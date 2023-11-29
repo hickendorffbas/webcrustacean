@@ -815,7 +815,7 @@ pub fn compute_click_map(full_layout_tree: &FullLayout, current_scroll_y: f32) -
         if layout_node.optional_link_url.is_some() {
             for rect in layout_node.rects.borrow().iter() {
                 let rect_location = rect.location.borrow();
-                let new_rect = Rect { x: rect_location.x(), y: rect_location.y() + current_scroll_y,
+                let new_rect = Rect { x: rect_location.x(), y: rect_location.y(),
                                       width: rect_location.width(), height: rect_location.height() };
                 click_map.push(
                     ClickMapEntry { region: new_rect, optional_link_url: layout_node.optional_link_url.clone() }

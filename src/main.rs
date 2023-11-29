@@ -123,6 +123,7 @@ pub fn navigate(url: &Url, ui_state: &mut UIState) -> RefCell<Document> {
     ui_state.forward_button.enabled = ui_state.history.list.len() > ui_state.history.position + 1;
     ui_state.back_button.enabled = ui_state.history.position > 0;
 
+    ui_state.current_scroll_y = 0.0;
 
     ui_state.history.currently_navigating_from_history = false;
     let page_content = resource_loader::load_text(&url);

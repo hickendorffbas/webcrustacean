@@ -10,6 +10,16 @@ fn test_basic_url_parsing() {
 
 
 #[test]
+fn test_to_string_is_symmetrical() {
+    let url_str = "http://www.google.com/page";
+    assert_eq!(Url::from(&String::from(url_str)).to_string(), url_str);
+
+    let url_str = "file:///some/path/to/file.txt";
+    assert_eq!(Url::from(&String::from(url_str)).to_string(), url_str);
+}
+
+
+#[test]
 fn test_from_possible_relative_url() {
     let current_url = Url::from(&String::from("http://www.google.com/page1"));
 

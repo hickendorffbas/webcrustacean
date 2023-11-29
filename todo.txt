@@ -1,4 +1,4 @@
-- pressing enter on a local url that loaded via a link, page does not load from url bar.
+it seems when you scroll down you can not click links anymore (maybe the click rect is in the wrong place?)
 
 
 features still needed for 0.1 release:

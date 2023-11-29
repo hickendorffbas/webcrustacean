@@ -378,9 +378,7 @@ impl Url {
         full_string.push_str(&self.scheme);
         full_string.push_str("://");
         full_string.push_str(&self.host);
-        if !self.host.is_empty() {
-            full_string.push_str("/");
-        }
+        full_string.push_str("/");
         full_string.push_str(self.path.join("/").as_str());
 
         return full_string;

@@ -41,7 +41,7 @@ use ui::History;
 const TARGET_FPS: u32 = if cfg!(debug_assertions) { 30 } else { 60 };
 const SCREEN_WIDTH: f32 = 1000.0;
 const SCREEN_HEIGHT: f32 = 700.0;
-const DEFAULT_LOCATION_TO_LOAD: &str = "file:///home/bas/bbrowser/testinput/doc.html";
+const DEFAULT_LOCATION_TO_LOAD: &str = "file:///home/bas/webcrustacean/testinput/doc.html";
 const SCROLL_SPEED: i32 = 25;
 
 

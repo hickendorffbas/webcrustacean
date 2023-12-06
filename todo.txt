@@ -1,6 +1,5 @@
 
 features still needed for 0.1 release:
-       - come up with a slightly less stupid name -> "webcrustacean"
        - test on mac / windows (document SDL install?)
        - don't crash or hang on complex webpages (its fine if they don't render correctly)
 

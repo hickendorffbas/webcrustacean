@@ -5,4 +5,4 @@
 - basic css color parsing
 - basic image loading
 - basic history navigation
-
+- renamed to webcrustacean

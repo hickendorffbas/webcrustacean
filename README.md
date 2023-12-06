@@ -1,4 +1,4 @@
-# BBrowser
+# Webcrustacean
 
 This is a very basic start of a browser. A lot is not implemented, but its is functional for viewing very basic webpages.
 
@@ -30,5 +30,5 @@ export LIBRARY_PATH="$LIBRARY_PATH:$(brew --prefix)/lib"
 
 TODO: test and describe how to export debug symbols in release mode
 
-perf record --call-graph=dwarf ./target/debug/bbrowser
+perf record --call-graph=dwarf ./target/debug/webcrustacean
 perf report

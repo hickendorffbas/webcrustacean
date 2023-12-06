@@ -28,7 +28,7 @@ pub fn http_get_text(url: &Url) -> Result<String, ResourceNotLoadedError>  {
 
     //TODO: should I cache the client somewhere for performance?
     let client = reqwest::blocking::Client::builder()
-        .user_agent(UA_FIREFOX_WINDOWS)  //TODO: make this configurable, and use an actual bbrowser useragent normally
+        .user_agent(UA_FIREFOX_WINDOWS)  //TODO: make this configurable, and use an actual webcrustacean useragent normally
         .build().unwrap();
 
     let bytes_result = client.get(url.to_string()).send();
@@ -54,7 +54,7 @@ pub fn http_get_image(url: &Url) -> Result<DynamicImage, ResourceNotLoadedError>
 
     //TODO: should I cache the client somewhere for performance?
     let client = reqwest::blocking::Client::builder()
-        .user_agent(UA_FIREFOX_WINDOWS)  //TODO: make this configurable, and use an actual bbrowser useragent normally
+        .user_agent(UA_FIREFOX_WINDOWS)  //TODO: make this configurable, and use an actual webcrustacean useragent normally
         .build().unwrap();
 
     let response = client.get(url.to_string()).send().unwrap();

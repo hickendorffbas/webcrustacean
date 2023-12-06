@@ -45,15 +45,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "604178f6c5c21f02dc555784810edfb88d34ac2c73b2eae109655649ee73ce3d"
 
 [[package]]
-name = "bbrowser"
-version = "0.1.0-alpha"
-dependencies = [
- "image",
- "reqwest",
- "sdl2",
-]
-
-[[package]]
 name = "bit_field"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1348,6 +1339,15 @@ checksum = "9b85cbef8c220a6abc02aefd892dfc0fc23afb1c6a426316ec33253a3877249b"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "webcrustacean"
+version = "0.1.0-alpha"
+dependencies = [
+ "image",
+ "reqwest",
+ "sdl2",
 ]
 
 [[package]]

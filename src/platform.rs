@@ -174,7 +174,7 @@ pub fn init_platform<'a>(sdl_context: Sdl, ttf_context: &Sdl2TtfContext) -> Resu
 
     let image_context = SdlImage::init(SdlImage::InitFlag::PNG | SdlImage::InitFlag::JPG)?;
 
-    let window = video_subsystem.window("BBrowser", SCREEN_WIDTH as u32, SCREEN_HEIGHT as u32)
+    let window = video_subsystem.window("Webcrustacean", SCREEN_WIDTH as u32, SCREEN_HEIGHT as u32)
         .position_centered()
         .build()
         .expect("could not initialize video subsystem");

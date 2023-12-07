@@ -1,10 +1,8 @@
-
-features still needed for 0.1 release:
-       - test on mac / windows (document SDL install?)
-       - don't crash or hang on complex webpages (its fine if they don't render correctly)
+goals for 0.2.0:
+       - test on linux / mac / windows (document SDL install on each)
 
 
-other things (later versions?):
+other things (later versions):
        - move to rust 2021
        - make parse tests nicer by comparing json
        - fix transparancy in png's (loading works, rendering in SDL does not)

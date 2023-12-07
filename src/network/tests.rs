@@ -57,6 +57,13 @@ fn test_data_url_parsing() {
 
 
 #[test]
+fn test_simple_html_file_url() {
+    assert_eq!(Url::from_base_url(&String::from("new_page.html"), Some(&Url::from(&String::from("http://www.website.com/folder/page.html")))),
+               build_url("http", "www.website.com", &vec!["folder".to_owned(), "new_page.html".to_owned()]));
+}
+
+
+#[test]
 fn test_file_url_with_slash() {
     assert_eq!(Url::from_base_url(&String::from("/doc2.html"), Some(&Url::from(&String::from("file:///doc1.html")))),
                build_url("file", "", &vec!["doc2.html".to_owned()]));

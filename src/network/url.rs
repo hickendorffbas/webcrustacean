@@ -95,7 +95,9 @@ impl Url {
                             state = UrlParsingState::OpaquePathState;
                         }
                     } else {
-                        return Url { scheme, username, password, host, port, path, query, fragment, blob }; //This is actually failure, but for now I don't return them
+                        buffer = String::new();
+                        state = UrlParsingState::NoSchemeState;
+                        pointer = -1;
                     }
                 },
 
@@ -346,7 +348,7 @@ impl Url {
 
             if pointer >= url_str.len() as i32 {
                 //we don't check next_char, because we still need to update it to pointer, but we don't do that first because we still need to
-                //increas pointer, and if it then points to EOF, we still need to do 1 loop...
+                //increase the pointer, and if it then points to EOF, we still need to do 1 loop...
                 break;
             }
 

@@ -9,6 +9,7 @@ other things (later versions?):
        - make parse tests nicer by comparing json
        - fix transparancy in png's (loading works, rendering in SDL does not)
        - integration tests by exporting json for the layout tree, so I can test all the way from HTML to layout
+       - look into threads for UI, network etc. (https://doc.rust-lang.org/book/ch16-01-threads.html)
 
 
 there is still some thinking to do on the layout tree. its now immutable, and created from scratch each frame. That does make sharing refs to

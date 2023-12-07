@@ -39,6 +39,14 @@ brew install sdl2_ttf
 
 
 
+### Windows
+
+#### install SDL
+
+see <https://github.com/Rust-SDL2/rust-sdl2#windows-msvc>
+
+
+
 ## Profiling (on Linux)
 
 TODO: test and describe how to export debug symbols in release mode

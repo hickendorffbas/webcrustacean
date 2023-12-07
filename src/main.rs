@@ -38,20 +38,16 @@ use ui::History;
 
 
 //Config:
-const TARGET_FPS: u32 = if cfg!(debug_assertions) { 30 } else { 60 };
+const TARGET_FPS: u32 = if cfg!(debug_assertions) { 20 } else { 60 };
 const SCREEN_WIDTH: f32 = 1400.0;
 const SCREEN_HEIGHT: f32 = 800.0;
 const DEFAULT_LOCATION_TO_LOAD: &str = "file:///home/bas/webcrustacean/testinput/doc.html";
 const SCROLL_SPEED: i32 = 25;
 
-
-//TODO: detect OS automatically (compile time, using cfg) and set constants automatically
-//Config for macOS:
-//const FONT_PATH: &str = "/Library/Fonts/Managed/OpenSans-Light_744839258.ttf";
-
-
-//Config for Linux
-const FONT_PATH: &str = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf";
+//TODO: we probably should include the font files in the repo / build, since these paths might be different on different systems
+#[cfg(target_os = "macos")] const FONT_PATH: &str = "/Library/Fonts/Managed/OpenSans-Light_744839258.ttf";
+#[cfg(target_os = "linux")] const FONT_PATH: &str = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf";
+#[cfg(target_os = "windows")] const FONT_PATH: &str = "C:/Windows/Fonts/arial.ttf";
 
 
 //Non-config constants:

@@ -23,6 +23,7 @@ use crate::ui::{
     CONTENT_TOP_LEFT_Y,
     CONTENT_WIDTH
 };
+use crate::ui_components::compute_char_position_mapping;
 
 
 static NEXT_LAYOUT_NODE_INTERNAL: AtomicUsize = AtomicUsize::new(1);
@@ -90,7 +91,8 @@ impl LayoutNode {
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct LayoutRect {
     pub text: Option<String>,
-    pub non_breaking_space_positions: Option<HashSet<usize>>, //TODO: might be nice to combine this with text_content in a text struct
+    pub char_position_mapping: Option<Vec<f32>>, //TODO: might be nice to combine this with text in a struct
+    pub non_breaking_space_positions: Option<HashSet<usize>>, //TODO: might be nice to combine this with text in a struct
     pub image: Option<Rc<DynamicImage>>,
     pub location: RefCell<ComputedLocation>,
 }
@@ -98,6 +100,7 @@ impl LayoutRect {
     pub fn get_default_non_computed_rect() -> LayoutRect {
         return LayoutRect {
             text: None,
+            char_position_mapping: None,
             non_breaking_space_positions: None,
             image: None,
             location: RefCell::new(ComputedLocation::NotYetComputed),
@@ -373,8 +376,9 @@ fn apply_inline_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNo
                 for text in wrapped_text {
 
                     let new_rect = LayoutRect {
-                        text: Some(text),
+                        char_position_mapping: Some(compute_char_position_mapping(platform, &font.0, &text)),
                         non_breaking_space_positions: None, //For now not computing these, although it would be more correct to update them after wrapping
+                        text: Some(text),
                         image: None,
                         location: RefCell::new(ComputedLocation::NotYetComputed),
                     };
@@ -537,8 +541,9 @@ fn get_display_type(node: &Rc<ElementDomNode>) -> Display {
 
 
 fn build_layout_tree(main_node: &Rc<ElementDomNode>, document: &Document, all_nodes: &mut HashMap<usize, Rc<LayoutNode>>,
-                     parent_id: usize, platform: &Platform, main_url: &Url, state: &mut LayoutBuildState, optional_new_text: Option<String>) -> Rc<LayoutNode> {
+                     parent_id: usize, platform: &mut Platform, main_url: &Url, state: &mut LayoutBuildState, optional_new_text: Option<String>) -> Rc<LayoutNode> {
     let mut partial_node_text = None;
+    let mut partial_char_position_mapping = None;
     let mut partial_node_non_breaking_space_positions = None;
     let mut partial_node_visible = true;
     let mut partial_node_optional_link_url = None;
@@ -557,6 +562,8 @@ fn build_layout_tree(main_node: &Rc<ElementDomNode>, document: &Document, all_no
         }
 
         partial_node_non_breaking_space_positions = main_node.text.as_ref().unwrap().non_breaking_space_positions.clone();
+        let font = get_font_given_styles(&partial_node_styles);
+        partial_char_position_mapping = Some(compute_char_position_mapping(platform, &font.0, partial_node_text.as_ref().unwrap()));
 
     } else if main_node.name.is_some() {
         debug_assert!(optional_new_text.is_none());
@@ -705,6 +712,7 @@ fn build_layout_tree(main_node: &Rc<ElementDomNode>, document: &Document, all_no
 
     let layout_rect = LayoutRect {
         text: partial_node_text,
+        char_position_mapping: partial_char_position_mapping,
         non_breaking_space_positions: partial_node_non_breaking_space_positions,
         image: partial_node_optional_img,
         location: RefCell::new(ComputedLocation::NotYetComputed),
@@ -731,7 +739,7 @@ fn build_layout_tree(main_node: &Rc<ElementDomNode>, document: &Document, all_no
 
 
 fn build_layout_for_inline_nodes(inline_nodes: &Vec<&Rc<ElementDomNode>>, document: &Document, all_nodes: &mut HashMap<usize, Rc<LayoutNode>>,
-                                 parent_id: usize, platform: &Platform, main_url: &Url, state: &mut LayoutBuildState) -> Vec<Rc<LayoutNode>> {
+                                 parent_id: usize, platform: &mut Platform, main_url: &Url, state: &mut LayoutBuildState) -> Vec<Rc<LayoutNode>> {
 
     let mut optional_new_text;
     let mut layout_nodes = Vec::new();

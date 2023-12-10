@@ -2,6 +2,7 @@ goals for 0.2.0:
        - test on mac
        - test on windows (document SDL install)
        - get a proper system for parsing CSS values (are they always numbers?)
+       - make selecting text work (start with a naive implementation storing all text coordinates)
        - make pasting an url in the url bar work
 
 

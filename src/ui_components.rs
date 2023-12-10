@@ -171,14 +171,16 @@ impl NavigationButton {
 }
 
 
-fn compute_char_position_mapping(platform: &mut Platform, font: &Font, text: &String) -> Vec<f32> {
+//TODO: this should not be public, but we use it in layout now as well, so we should move this to a general place, maybe platform?
+pub fn compute_char_position_mapping(platform: &mut Platform, font: &Font, text: &String) -> Vec<f32> {
     //TODO: we take a very slow approach here. Not sure if we can do this faster.
 
     let mut char_position_mapping = Vec::new();
     char_position_mapping.push(0.0);
 
-    for i in 1..text.len()+1 {
-        let (x_pos, _) = platform.get_text_dimension_str(&text[0..i], font);
+    for (idx, _) in text.char_indices() { //taking indices, because we need to iterate chars, but index by byte. We do want to use the slice, to
+                                          //prevent allocating a new string for each iteration of the loop.
+        let (x_pos, _) = platform.get_text_dimension_str(&text[0..idx], font);
         char_position_mapping.push(x_pos);
     }
 

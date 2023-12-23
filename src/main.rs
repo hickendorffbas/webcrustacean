@@ -273,7 +273,7 @@ fn main() -> Result<(), String> {
 
         #[cfg(feature="timings")] let start_layout_instant = Instant::now();
         let full_layout_tree = layout::build_full_layout(&document.borrow(), &mut platform, &url);
-        debug_assert!(full_layout_tree.root_node.rects.borrow().len() == 1);
+        debug_assert!(full_layout_tree.root_node.borrow().rects.borrow().len() == 1);
         previous_frame_page_height = full_layout_tree.page_height();
         previous_frame_click_map = layout::compute_click_map(&full_layout_tree, ui_state.current_scroll_y);
         #[cfg(feature="timings")] println!("layout elapsed millis: {}", start_layout_instant.elapsed().as_millis());

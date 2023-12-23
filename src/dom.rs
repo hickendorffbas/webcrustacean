@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -15,8 +16,8 @@ pub fn get_next_dom_node_interal_id() -> usize { NEXT_DOM_NODE_INTERNAL.fetch_ad
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Document {
-    pub document_node: Rc<ElementDomNode>,
-    pub all_nodes: HashMap<usize, Rc<ElementDomNode>>,
+    pub document_node: Rc<RefCell<ElementDomNode>>,
+    pub all_nodes: HashMap<usize, Rc<RefCell<ElementDomNode>>>,
     pub style_context: StyleContext,
 }
 
@@ -63,8 +64,8 @@ pub struct ElementDomNode {
     pub text: Option<DomText>,
     pub name: Option<String>,
     pub name_for_layout: TagName,
-    pub children: Option<Vec<Rc<ElementDomNode>>>,
-    pub attributes: Option<Vec<Rc<AttributeDomNode>>>,
+    pub children: Option<Vec<Rc<RefCell<ElementDomNode>>>>,
+    pub attributes: Option<Vec<Rc<RefCell<AttributeDomNode>>>>,
 
     pub image: Option<Rc<DynamicImage>>,
 }
@@ -72,8 +73,8 @@ impl ElementDomNode {
     pub fn get_attribute_value(&self, attribute_name: &str) -> Option<String> {
         if self.attributes.is_some() {
             for att in self.attributes.as_ref().unwrap() {
-                if att.name == attribute_name {
-                    return Some(att.value.clone());
+                if att.borrow().name == attribute_name {
+                    return Some(att.borrow().value.clone());
                 }
             }
         }

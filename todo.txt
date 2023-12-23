@@ -1,10 +1,22 @@
+
+steps towards an updating layout tree, instead of building a new one each frame:
+
+       - DONE: check the Rc's and add refcell's where needed (see minimal example)
+       - stop referencing from layout into DOM, clone() the content in there
+              - for text, and for now for images too, but add a todo that we need to make those an index into a cache or something
+       - keep the layout tree alive for multiple frames
+       - consider getting rid of the clickmap, if I keep the layout tree, I should know where things are
+       - change to relative positions in layout node, this will help with only recomputing what we need
+
+===================================
+
 goals for 0.2.0:
        - test on mac
        - test on windows (document SDL install)
        - get a proper system for parsing CSS values (are they always numbers?)
        - make selecting text work (start with a naive implementation storing all text coordinates)
        - make pasting an url in the url bar work
-
+       - add something about scope to readme (it not being a chrome wrapper, but using SDL / reqwest)
 
 other things (later versions):
        - move to rust 2021
@@ -13,9 +25,3 @@ other things (later versions):
        - integration tests by exporting json for the layout tree, so I can test all the way from HTML to layout
        - look into threads for UI, network etc. (https://doc.rust-lang.org/book/ch16-01-threads.html)
        - figure out how do build standalone binaries
-
-
-there is still some thinking to do on the layout tree. its now immutable, and created from scratch each frame. That does make sharing refs to
-(for example) images in the DOM easier (because we can't have those around when the DOM changes). So we want to push as much computation to the DOM
-side as possible, but styles are still resolved after the DOM. We might need to keep a copy of the active styles on the DOM or something.
-       -> that _might_ actually be a good idea, think more about it.... we could also cache other things on the DOM!

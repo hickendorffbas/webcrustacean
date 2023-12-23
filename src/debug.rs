@@ -1,8 +1,10 @@
+use std::rc::Rc;
+use std::cell::RefCell;
+
 use crate::dom::Document;
 use crate::html_lexer::HtmlTokenWithLocation;
 use crate::layout::LayoutNode;
 
-#[cfg(debug_assertions)] use std::rc::Rc;
 #[cfg(debug_assertions)] use crate::dom::ElementDomNode;
 
 #[cfg(debug_assertions)] const INDENT_AMOUNT: u32 = 2;
@@ -22,7 +24,8 @@ pub fn debug_print_dom_tree(document: &Document) {
 
 
 #[cfg(debug_assertions)]
-fn debug_print_dom_node_tree_with_indent(dom_node: &Rc<ElementDomNode>, indent_cnt: u32) {
+fn debug_print_dom_node_tree_with_indent(dom_node: &Rc<RefCell<ElementDomNode>>, indent_cnt: u32) {
+    let dom_node = dom_node.borrow();
 
     let mut indent = String::new();
     for _ in 0..indent_cnt {
@@ -42,6 +45,7 @@ fn debug_print_dom_node_tree_with_indent(dom_node: &Rc<ElementDomNode>, indent_c
 
         if dom_node.attributes.is_some() {
             for att in dom_node.attributes.as_ref().unwrap() {
+                let att = att.borrow();
                 println!("{}ATTR: ({} = {}) (parent: {})", indent, att.name, att.value, att.parent_id);
             }
         }
@@ -83,10 +87,10 @@ pub fn debug_print_html_tokens(tokens: &Vec<HtmlTokenWithLocation>) {
 
 #[allow(dead_code)]
 #[cfg(not(debug_assertions))]
-pub fn debug_print_layout_tree(_: &LayoutNode) {}
+pub fn debug_print_layout_tree(_: &Rc<RefCell<LayoutNode>>) {}
 #[allow(dead_code)]
 #[cfg(debug_assertions)]
-pub fn debug_print_layout_tree(node: &Rc<LayoutNode>) {
+pub fn debug_print_layout_tree(node: &Rc<RefCell<LayoutNode>>) {
     println!("== dumping layout tree");
     debug_print_layout_tree_with_indent(node, 0);
     println!("== done dumping layout tree");
@@ -94,11 +98,13 @@ pub fn debug_print_layout_tree(node: &Rc<LayoutNode>) {
 
 
 #[cfg(debug_assertions)]
-fn debug_print_layout_tree_with_indent(node: &Rc<LayoutNode>, indent_cnt: u32) {
+fn debug_print_layout_tree_with_indent(node: &Rc<RefCell<LayoutNode>>, indent_cnt: u32) {
     let mut indent = String::new();
     for _ in 0..indent_cnt {
         indent.push(' ');
     }
+
+    let node = node.borrow();
 
     let mut rect_str = String::new();
     for rect in node.rects.borrow().iter() {

@@ -54,7 +54,7 @@ pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>, main_url: &Url) -> RefCell
     };
     document_node.update(main_url);
 
-    let rc_doc_node = Rc::new(document_node);
+    let rc_doc_node = Rc::new(RefCell::from(document_node));
     let rc_doc_node_clone = Rc::clone(&rc_doc_node);
     all_nodes.insert(document_node_id, rc_doc_node);
 
@@ -67,7 +67,7 @@ pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>, main_url: &Url) -> RefCell
 
 
 fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut usize, parent_id: usize, main_url: &Url,
-              all_nodes: &mut HashMap<usize, Rc<ElementDomNode>>, styles: &mut Vec<StyleRule>, tag_stack: &mut Vec<String>) -> Rc<ElementDomNode> {
+              all_nodes: &mut HashMap<usize, Rc<RefCell<ElementDomNode>>>, styles: &mut Vec<StyleRule>, tag_stack: &mut Vec<String>) -> Rc<RefCell<ElementDomNode>> {
     let node_being_build_internal_id = get_next_dom_node_interal_id();
 
     let mut tag_being_parsed = None;
@@ -105,7 +105,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                     };
                     new_node.update(main_url);
 
-                    let rc_node = Rc::new(new_node);
+                    let rc_node = Rc::new(RefCell::from(new_node));
                     all_nodes.insert(node_being_build_internal_id, Rc::clone(&rc_node));
                     return rc_node;
                 }
@@ -116,7 +116,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                     value: token.value.clone(),
                     parent_id: node_being_build_internal_id,
                 };
-                attributes.push(Rc::new(attribute));
+                attributes.push(Rc::new(RefCell::from(attribute)));
 
             },
             HtmlToken::CloseTag { name } => {
@@ -159,7 +159,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                 };
                 new_node.update(main_url);
 
-                let rc_node = Rc::new(new_node);
+                let rc_node = Rc::new(RefCell::from(new_node));
                 all_nodes.insert(node_being_build_internal_id, Rc::clone(&rc_node));
                 return rc_node;
             },
@@ -168,9 +168,9 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                 let text_node = read_all_text_for_text_node(html_tokens, current_token_idx, parent_for_node, main_url);
 
                 if tag_being_parsed.is_some() {
-                    children.push(Rc::new(text_node));
+                    children.push(Rc::new(RefCell::from(text_node)));
                 } else {
-                    return Rc::new(text_node);
+                    return Rc::new(RefCell::from(text_node));
                 }
             },
             HtmlToken::Comment(_) => {},
@@ -204,7 +204,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
         };
         new_node.update(main_url);
 
-        let rc_node = Rc::new(new_node);
+        let rc_node = Rc::new(RefCell::from(new_node));
         all_nodes.insert(node_being_build_internal_id, Rc::clone(&rc_node));
 
         return rc_node;

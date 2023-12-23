@@ -2,6 +2,7 @@ pub mod css_lexer;
 pub mod css_parser;
 
 
+use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -59,17 +60,19 @@ struct ActiveStyleRule<'a> {
 
 
 //TODO: we are now doing this when rendering. It might make more sense to do this earlier, cache the result on the node, and recompute only when needed
-pub fn resolve_full_styles_for_layout_node<'a>(dom_node: &'a Rc<ElementDomNode>, all_dom_nodes: &'a HashMap<usize, Rc<ElementDomNode>>,
+pub fn resolve_full_styles_for_layout_node<'a>(dom_node: &'a Rc<RefCell<ElementDomNode>>, all_dom_nodes: &'a HashMap<usize, Rc<RefCell<ElementDomNode>>>,
                                                style_context: &StyleContext) -> HashMap<String, String> {
 
     //TODO: we are doing the cascade here by first doing the ua sheet, and then the author sheet. We need to make this more general in cascades
     //      because we need to support @layer, which adds an arbitrary amount of cascades
 
+    let dom_node = dom_node.borrow();
+
     let mut rule_idx = 1;
 
     let mut active_style_rules = Vec::new();
     for style_rule in &style_context.user_agent_sheet {
-        if style_rule_does_apply(&style_rule, dom_node) {
+        if style_rule_does_apply(&style_rule, &dom_node) {
             active_style_rules.push(
                 ActiveStyleRule {
                     property: &style_rule.property,
@@ -87,7 +90,7 @@ pub fn resolve_full_styles_for_layout_node<'a>(dom_node: &'a Rc<ElementDomNode>,
     }
 
     for style_rule in &style_context.author_sheet {
-        if style_rule_does_apply(&style_rule, dom_node) {
+        if style_rule_does_apply(&style_rule, &dom_node) {
             active_style_rules.push(
                 ActiveStyleRule {
                     property: &style_rule.property,

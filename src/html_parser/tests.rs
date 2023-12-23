@@ -1,4 +1,3 @@
-
 use crate::dom::ElementDomNode;
 use crate::html_parser;
 use crate::network::url::Url;
@@ -17,17 +16,18 @@ fn test_basic_parsing_1() {
     ];
 
     let main_url = Url::from(&String::from("http://www.google.com")); //TODO: would be nice if we can define these as (lazy?) consts?
-    let document = html_parser::parse(tokens, &main_url);
-    let doc_node = &document.borrow().document_node;
+    let parse_result = html_parser::parse(tokens, &main_url);
+    let document = parse_result.borrow();
+    let doc_node = &document.document_node.borrow();
     assert_eq!(doc_node.children.as_ref().unwrap().len(), 2);
 
-    let generic_a_node = doc_node.children.as_ref().unwrap()[0].as_ref();
-    assert_element_name_is(generic_a_node, "a");
+    let generic_a_node = doc_node.children.as_ref().unwrap()[0].borrow();
+    assert_element_name_is(&generic_a_node, "a");
 
     let a_children = generic_a_node.children.as_ref().unwrap();
     assert_eq!(a_children.len(), 1);
 
-    assert_text_on_node_is(a_children[0].as_ref(), "text");
+    assert_text_on_node_is(&a_children[0].borrow(), "text");
 }
 
 
@@ -44,13 +44,14 @@ fn test_text_concatenation() {
     ];
 
     let main_url = Url::from(&String::from("http://www.google.com"));
-    let document = html_parser::parse(tokens, &main_url);
-    let doc_node = &document.borrow().document_node;
+    let parse_result = html_parser::parse(tokens, &main_url);
+    let document = parse_result.borrow();
+    let doc_node = &document.document_node.borrow();
     assert_eq!(doc_node.children.as_ref().unwrap().len(), 1);
 
-    let div_node = doc_node.children.as_ref().unwrap()[0].as_ref();
-    let text_node = div_node.children.as_ref().unwrap()[0].as_ref();
-    assert_text_on_node_is(text_node, "two words");
+    let div_node = doc_node.children.as_ref().unwrap()[0].borrow();
+    let text_node = div_node.children.as_ref().unwrap()[0].borrow();
+    assert_text_on_node_is(&text_node, "two words");
 }
 
 
@@ -75,21 +76,24 @@ fn test_not_closing_a_tag() {
     ];
 
     let main_url = Url::from(&String::from("http://www.google.com"));
-    let document = html_parser::parse(tokens, &main_url);
-    let doc_node = &document.borrow().document_node;
+    let parse_result = html_parser::parse(tokens, &main_url);
+    let document = parse_result.borrow();
+    let doc_node = &document.document_node.borrow();
     assert_eq!(doc_node.children.as_ref().unwrap().len(), 1);
 
     //TODO: it would be much nicer if we can just compare with a tree of nodes here, that we layout like in json, or just with tabs
 
-    assert_element_name_is(doc_node.children.as_ref().unwrap()[0].as_ref(), "div");
+    assert_element_name_is(&doc_node.children.as_ref().unwrap()[0].borrow(), "div");
 
-    let div_childs = doc_node.children.as_ref().unwrap()[0].as_ref().children.as_ref().unwrap();
+    let div_node = doc_node.children.as_ref().unwrap()[0].borrow();
+    let div_childs = div_node.children.as_ref().unwrap();
     assert_eq!(div_childs.len(), 1);
-    assert_element_name_is(div_childs[0].as_ref(), "b");
+    assert_element_name_is(&div_childs[0].borrow(), "b");
 
-    let b_childs = div_childs[0].as_ref().children.as_ref().unwrap();
+    let b_node = div_childs[0].borrow();
+    let b_childs = b_node.children.as_ref().unwrap();
     assert_eq!(b_childs.len(), 1);
-    assert_element_name_is(b_childs[0].as_ref(), "p");
+    assert_element_name_is(&b_childs[0].borrow(), "p");
 }
 
 
@@ -111,15 +115,17 @@ fn test_closing_a_tag_we_did_not_open() {
     ];
 
     let main_url = Url::from(&String::from("http://www.google.com"));
-    let document = html_parser::parse(tokens, &main_url);
-    let doc_node = &document.borrow().document_node;
+    let parse_result = html_parser::parse(tokens, &main_url);
+    let document = parse_result.borrow();
+    let doc_node = &document.document_node.borrow();
     assert_eq!(doc_node.children.as_ref().unwrap().len(), 1);
 
-    assert_element_name_is(doc_node.children.as_ref().unwrap()[0].as_ref(), "div");
+    assert_element_name_is(&doc_node.children.as_ref().unwrap()[0].borrow(), "div");
 
-    let div_childs = doc_node.children.as_ref().unwrap()[0].as_ref().children.as_ref().unwrap();
+    let div_node = doc_node.children.as_ref().unwrap()[0].borrow();
+    let div_childs = div_node.children.as_ref().unwrap();
     assert_eq!(div_childs.len(), 1);
-    assert_element_name_is(div_childs[0].as_ref(), "b");
+    assert_element_name_is(&div_childs[0].borrow(), "b");
 }
 
 
@@ -138,17 +144,20 @@ fn test_missing_last_closing_tag() {
 
 
     let main_url = Url::from(&String::from("http://www.google.com"));
-    let document = html_parser::parse(tokens, &main_url);
-    let doc_node = &document.borrow().document_node;
+    let parse_result = html_parser::parse(tokens, &main_url);
+    let document = parse_result.borrow();
+    let doc_node = &document.document_node.borrow();
     assert_eq!(doc_node.children.as_ref().unwrap().len(), 1);
 
-    assert_element_name_is(doc_node.children.as_ref().unwrap()[0].as_ref(), "html");
+    assert_element_name_is(&doc_node.children.as_ref().unwrap()[0].borrow(), "html");
 
-    let html_childs = doc_node.children.as_ref().unwrap()[0].as_ref().children.as_ref().unwrap();
+    let html_node = doc_node.children.as_ref().unwrap()[0].borrow();
+    let html_childs = html_node.children.as_ref().unwrap();
     assert_eq!(html_childs.len(), 1);
-    assert_element_name_is(html_childs[0].as_ref(), "body");
+    assert_element_name_is(&html_childs[0].borrow(), "body");
 
-    let body_childs = html_childs[0].as_ref().children.as_ref().unwrap();
+    let body_node = html_childs[0].borrow();
+    let body_childs = body_node.children.as_ref().unwrap();
     assert_eq!(body_childs.len(), 0);
 }
 

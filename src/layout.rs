@@ -31,12 +31,12 @@ pub fn get_next_layout_node_interal_id() -> usize { NEXT_LAYOUT_NODE_INTERNAL.fe
 
 
 pub struct FullLayout {
-    pub root_node: Rc<LayoutNode>,
-    pub all_nodes: HashMap<usize, Rc<LayoutNode>>,
+    pub root_node: Rc<RefCell<LayoutNode>>,
+    pub all_nodes: HashMap<usize, Rc<RefCell<LayoutNode>>>,
 }
 impl FullLayout {
     pub fn page_height(&self) -> f32 {
-        return self.root_node.rects.borrow().iter().next().unwrap().location.borrow().height();
+        return self.root_node.borrow().rects.borrow().iter().next().unwrap().location.borrow().height();
     }
 }
 
@@ -47,19 +47,19 @@ pub struct LayoutNode {
     pub display: Display, //TODO: eventually we don't want every css construct as a member on this struct ofcourse (TODO: we have the styles member now, use that)
     pub visible: bool,
     pub line_break: bool,
-    pub children: Option<Vec<Rc<LayoutNode>>>,
+    pub children: Option<Vec<Rc<RefCell<LayoutNode>>>>,
     pub parent_id: usize,
     pub styles: HashMap<String, String>,  //TODO: it would eventually be nice to have something stronger typed here
     pub optional_link_url: Option<Url>,
     pub rects: RefCell<Vec<LayoutRect>>,
-    pub from_dom_node: Option<Rc<ElementDomNode>>,
+    pub from_dom_node: Option<Rc<RefCell<ElementDomNode>>>,
 }
 impl LayoutNode {
     pub fn all_childnodes_have_given_display(&self, display: Display) -> bool {
         if self.children.is_none() {
             return true;
         }
-        return self.children.as_ref().unwrap().iter().all(|node| node.display == display);
+        return self.children.as_ref().unwrap().iter().all(|node| node.borrow().display == display);
     }
     pub fn update_single_rect_location(&self, new_location: ComputedLocation) {
         debug_assert!(self.rects.borrow().len() == 1);
@@ -190,8 +190,8 @@ struct LayoutBuildState {
 
 
 pub fn build_full_layout(document: &Document, platform: &mut Platform, main_url: &Url) -> FullLayout {
-    let mut top_level_layout_nodes: Vec<Rc<LayoutNode>> = Vec::new();
-    let mut all_nodes: HashMap<usize, Rc<LayoutNode>> = HashMap::new();
+    let mut top_level_layout_nodes: Vec<Rc<RefCell<LayoutNode>>> = Vec::new();
+    let mut all_nodes: HashMap<usize, Rc<RefCell<LayoutNode>>> = HashMap::new();
 
     let id_of_node_being_built = get_next_layout_node_interal_id();
 
@@ -214,15 +214,15 @@ pub fn build_full_layout(document: &Document, platform: &mut Platform, main_url:
         from_dom_node: None,
     };
 
-    let rc_root_node = Rc::new(root_node);
+    let rc_root_node = Rc::new(RefCell::from(root_node));
     all_nodes.insert(id_of_node_being_built, Rc::clone(&rc_root_node));
 
-    compute_layout(&rc_root_node, &all_nodes, &document.style_context, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y, platform);
-    let (root_width, root_height) = rc_root_node.get_size_of_bounding_box();
+    compute_layout(&rc_root_node.borrow(), &all_nodes, &document.style_context, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y, platform);
+    let (root_width, root_height) = rc_root_node.borrow().get_size_of_bounding_box();
     let root_location = ComputedLocation::Computed(
         Rect { x: CONTENT_TOP_LEFT_X, y: CONTENT_TOP_LEFT_Y, width: root_width, height: root_height }
     );
-    rc_root_node.update_single_rect_location(root_location);
+    rc_root_node.borrow().update_single_rect_location(root_location);
 
     return FullLayout { root_node: rc_root_node, all_nodes }
 }
@@ -230,7 +230,7 @@ pub fn build_full_layout(document: &Document, platform: &mut Platform, main_url:
 
 //This function is responsible for setting the location rects on the node, and all its children.
 //TODO: need to find a way to make good tests for this (probably via exporting the layout in JSON)
-fn compute_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>, style_context: &StyleContext,
+fn compute_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<RefCell<LayoutNode>>>, style_context: &StyleContext,
                   top_left_x: f32, top_left_y: f32, platform: &mut Platform) {
 
     if !node.visible {
@@ -245,10 +245,10 @@ fn compute_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>,
         let all_inline = node.all_childnodes_have_given_display(Display::Inline);
 
         if all_block {
-            return apply_block_layout(node, all_nodes, style_context, top_left_x, top_left_y, platform);
+            return apply_block_layout(&node, all_nodes, style_context, top_left_x, top_left_y, platform);
         }
         if all_inline {
-            return apply_inline_layout(node, all_nodes, style_context, top_left_x, top_left_y, CONTENT_WIDTH - top_left_x, platform);
+            return apply_inline_layout(&node, all_nodes, style_context, top_left_x, top_left_y, CONTENT_WIDTH - top_left_x, platform);
         }
 
         panic!("Not all children are either inline or block, earlier in the process this should already have been fixed with anonymous blocks");
@@ -303,14 +303,14 @@ pub fn get_font_given_styles(styles: &HashMap<String, String>) -> (Font, Color) 
 }
 
 
-fn apply_block_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>, style_context: &StyleContext,
+fn apply_block_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<RefCell<LayoutNode>>>, style_context: &StyleContext,
                       top_left_x: f32, top_left_y: f32, platform: &mut Platform) {
     let mut cursor_y = top_left_y;
     let mut max_width: f32 = 0.0;
 
     for child in node.children.as_ref().unwrap() {
-        compute_layout(child, all_nodes, style_context, top_left_x, cursor_y, platform);
-        let (bounding_box_width, bounding_box_height) = child.get_size_of_bounding_box();
+        compute_layout(&child.borrow(), all_nodes, style_context, top_left_x, cursor_y, platform);
+        let (bounding_box_width, bounding_box_height) = child.borrow().get_size_of_bounding_box();
 
         cursor_y += bounding_box_height;
         max_width = max_width.max(bounding_box_width);
@@ -324,16 +324,17 @@ fn apply_block_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNod
 }
 
 
-fn apply_inline_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>, style_context: &StyleContext, top_left_x: f32, top_left_y: f32,
-                       max_allowed_width: f32, platform: &mut Platform) {
+fn apply_inline_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<RefCell<LayoutNode>>>, style_context: &StyleContext, top_left_x: f32,
+                       top_left_y: f32, max_allowed_width: f32, platform: &mut Platform) {
     let mut cursor_x = top_left_x;
     let mut cursor_y = top_left_y;
     let mut max_width: f32 = 0.0;
     let mut max_height_of_line: f32 = 0.0;
 
     for child in node.children.as_ref().unwrap() {
+        let child = child.borrow();
 
-        compute_layout(child, all_nodes, style_context, cursor_x, cursor_y, platform);
+        compute_layout(&child, all_nodes, style_context, cursor_x, cursor_y, platform);
 
         if child.line_break {
             let child_height;
@@ -412,7 +413,7 @@ fn apply_inline_layout(node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNo
                     cursor_x = top_left_x;
                     cursor_y += max_height_of_line;
 
-                    compute_layout(child, all_nodes, style_context, cursor_x, cursor_y, platform);
+                    compute_layout(&child, all_nodes, style_context, cursor_x, cursor_y, platform);
                     let (child_width, child_height) = child.get_size_of_bounding_box();
 
                     cursor_x += child_width;
@@ -513,8 +514,10 @@ fn wrap_text(layout_rect: &LayoutRect, max_width: f32, width_remaining_on_curren
 }
 
 
-fn get_display_type(node: &Rc<ElementDomNode>) -> Display {
+fn get_display_type(node: &Rc<RefCell<ElementDomNode>>) -> Display {
     //TODO: eventually this needs the resolved styles as well, because that can influence the display type...
+
+    let node = node.borrow();
 
     if node.name.is_some() {
         let node_name = node.name.as_ref().unwrap();
@@ -540,8 +543,8 @@ fn get_display_type(node: &Rc<ElementDomNode>) -> Display {
 }
 
 
-fn build_layout_tree(main_node: &Rc<ElementDomNode>, document: &Document, all_nodes: &mut HashMap<usize, Rc<LayoutNode>>,
-                     parent_id: usize, platform: &mut Platform, main_url: &Url, state: &mut LayoutBuildState, optional_new_text: Option<String>) -> Rc<LayoutNode> {
+fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Document, all_nodes: &mut HashMap<usize, Rc<RefCell<LayoutNode>>>,
+                     parent_id: usize, platform: &mut Platform, main_url: &Url, state: &mut LayoutBuildState, optional_new_text: Option<String>) -> Rc<RefCell<LayoutNode>> {
     let mut partial_node_text = None;
     let mut partial_char_position_mapping = None;
     let mut partial_node_non_breaking_space_positions = None;
@@ -552,7 +555,10 @@ fn build_layout_tree(main_node: &Rc<ElementDomNode>, document: &Document, all_no
     let mut partial_node_styles = resolve_full_styles_for_layout_node(&Rc::clone(main_node), &document.all_nodes, &document.style_context);
     let mut partial_node_children = None;
 
-    let mut childs_to_recurse_on: &Option<Vec<Rc<ElementDomNode>>> = &None;
+    let mut childs_to_recurse_on: &Option<Vec<Rc<RefCell<ElementDomNode>>>> = &None;
+
+    let main_node_refcell = main_node;
+    let main_node = main_node.borrow();
 
     if main_node.text.is_some() {
         if optional_new_text.is_some() {
@@ -720,7 +726,7 @@ fn build_layout_tree(main_node: &Rc<ElementDomNode>, document: &Document, all_no
 
     let new_node = LayoutNode {
         internal_id: id_of_node_being_built,
-        display: get_display_type(main_node),
+        display: get_display_type(main_node_refcell),
         visible: partial_node_visible,
         line_break: partial_node_line_break,
         children: partial_node_children,
@@ -728,18 +734,18 @@ fn build_layout_tree(main_node: &Rc<ElementDomNode>, document: &Document, all_no
         styles: partial_node_styles,
         optional_link_url: partial_node_optional_link_url,
         rects: RefCell::new(vec![layout_rect]),
-        from_dom_node: Some(Rc::clone(main_node)),
+        from_dom_node: Some(Rc::clone(&main_node_refcell)),
     };
 
-    let rc_new_node = Rc::new(new_node);
+    let rc_new_node = Rc::new(RefCell::from(new_node));
     all_nodes.insert(id_of_node_being_built, Rc::clone(&rc_new_node));
 
     return rc_new_node;
 }
 
 
-fn build_layout_for_inline_nodes(inline_nodes: &Vec<&Rc<ElementDomNode>>, document: &Document, all_nodes: &mut HashMap<usize, Rc<LayoutNode>>,
-                                 parent_id: usize, platform: &mut Platform, main_url: &Url, state: &mut LayoutBuildState) -> Vec<Rc<LayoutNode>> {
+fn build_layout_for_inline_nodes(inline_nodes: &Vec<&Rc<RefCell<ElementDomNode>>>, document: &Document, all_nodes: &mut HashMap<usize, Rc<RefCell<LayoutNode>>>,
+                                 parent_id: usize, platform: &mut Platform, main_url: &Url, state: &mut LayoutBuildState) -> Vec<Rc<RefCell<LayoutNode>>> {
 
     let mut optional_new_text;
     let mut layout_nodes = Vec::new();
@@ -747,7 +753,9 @@ fn build_layout_for_inline_nodes(inline_nodes: &Vec<&Rc<ElementDomNode>>, docume
 
     for (node_idx, node) in inline_nodes.iter().enumerate() {
 
-        if node.text.is_some() {
+        if node.borrow().text.is_some() {
+            let node = node.borrow();
+
             let node_text = &node.text.as_ref().unwrap().text_content;
             let mut new_text = String::new();
             for (char_idx, c) in node_text.chars().enumerate() {
@@ -781,8 +789,8 @@ fn build_layout_for_inline_nodes(inline_nodes: &Vec<&Rc<ElementDomNode>>, docume
 }
 
 
-fn build_anonymous_block_layout_node(visible: bool, parent_id: usize, inline_children: Vec<Rc<LayoutNode>>,
-                                     all_nodes: &mut HashMap<usize, Rc<LayoutNode>>, styles: &HashMap<String, String>) -> Rc<LayoutNode> {
+fn build_anonymous_block_layout_node(visible: bool, parent_id: usize, inline_children: Vec<Rc<RefCell<LayoutNode>>>,
+                                     all_nodes: &mut HashMap<usize, Rc<RefCell<LayoutNode>>>, styles: &HashMap<String, String>) -> Rc<RefCell<LayoutNode>> {
     let id_of_node_being_built = get_next_layout_node_interal_id();
 
     let anonymous_node = LayoutNode {
@@ -798,8 +806,9 @@ fn build_anonymous_block_layout_node(visible: bool, parent_id: usize, inline_chi
         from_dom_node: None,
     };
 
-    let anon_rc = Rc::new(anonymous_node);
-    all_nodes.insert(anon_rc.internal_id, Rc::clone(&anon_rc));
+    let internal_id = anonymous_node.internal_id;
+    let anon_rc = Rc::new(RefCell::from(anonymous_node));
+    all_nodes.insert(internal_id, Rc::clone(&anon_rc));
     return anon_rc;
 }
 
@@ -813,7 +822,8 @@ pub struct ClickMapEntry {
 pub fn compute_click_map(full_layout_tree: &FullLayout, current_scroll_y: f32) -> Vec<ClickMapEntry> {
     let mut click_map = Vec::new();
 
-    fn compute_click_map_entries_from_layout(layout_node: &Rc<LayoutNode>, click_map: &mut Vec<ClickMapEntry>, current_scroll_y: f32) {
+    fn compute_click_map_entries_from_layout(layout_node: &Rc<RefCell<LayoutNode>>, click_map: &mut Vec<ClickMapEntry>, current_scroll_y: f32) {
+        let layout_node = layout_node.borrow();
 
         let any_visible = layout_node.rects.borrow().iter().any(|rect| -> bool {rect.location.borrow().is_visible_on_y_location(current_scroll_y)});
         if !any_visible {
@@ -835,7 +845,7 @@ pub fn compute_click_map(full_layout_tree: &FullLayout, current_scroll_y: f32) -
 
         if layout_node.children.is_some() {
             for child in layout_node.children.as_ref().unwrap() {
-                if child.visible {
+                if child.borrow().visible {
                     compute_click_map_entries_from_layout(&child, click_map, current_scroll_y);
                 }
             }

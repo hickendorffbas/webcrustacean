@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -22,8 +23,9 @@ fn check_style(resolved_styles: &HashMap<String, String>, property: &str, value:
 fn test_basic_style_resolving() {
     let document_node_id = 0;
     let dom_node_id = get_next_test_id();
-    let dom_node = Rc::new(ElementDomNode { internal_id: dom_node_id, parent_id: document_node_id, text: None, is_document_node: false,
-                                            name: Some("a".to_owned()), name_for_layout: TagName::A, children: Some(Vec::new()), attributes: None, image: None });
+    let dom_node = Rc::new(RefCell::from(ElementDomNode { internal_id: dom_node_id, parent_id: document_node_id, text: None, is_document_node: false,
+                                                          name: Some("a".to_owned()), name_for_layout: TagName::A, children: Some(Vec::new()),
+                                                          attributes: None, image: None }));
 
     let mut all_dom_nodes = HashMap::new();
     all_dom_nodes.insert(dom_node_id, Rc::clone(&dom_node));
@@ -43,11 +45,12 @@ fn test_inherit_style_from_parent() {
     let document_node_id = 0;
     let main_node_id = get_next_test_id();
     let parent_node_id = get_next_test_id();
-    let main_node = Rc::new(ElementDomNode { internal_id: main_node_id, parent_id: parent_node_id, text: None, is_document_node: false,
-                                             name: Some("a".to_owned()), name_for_layout: TagName::A, children: Some(Vec::new()), attributes: None, image: None  });
-    let parent_node = Rc::new(ElementDomNode { internal_id: parent_node_id, parent_id: document_node_id, text: None, is_document_node: false,
-                                               name: Some("h3".to_owned()), name_for_layout: TagName::Other, children: Some(vec![Rc::clone(&main_node)]), attributes: None,
-                                               image: None  });
+    let main_node = Rc::new(RefCell::from(ElementDomNode { internal_id: main_node_id, parent_id: parent_node_id, text: None, is_document_node: false,
+                                                           name: Some("a".to_owned()), name_for_layout: TagName::A, children: Some(Vec::new()),
+                                                           attributes: None, image: None }));
+    let parent_node = Rc::new(RefCell::from(ElementDomNode { internal_id: parent_node_id, parent_id: document_node_id, text: None,
+                                                             is_document_node: false, name: Some("h3".to_owned()), name_for_layout: TagName::Other,
+                                                             children: Some(vec![Rc::clone(&main_node)]), attributes: None, image: None }));
 
     let mut all_dom_nodes = HashMap::new();
     all_dom_nodes.insert(main_node_id, Rc::clone(&main_node));
@@ -68,8 +71,9 @@ fn test_inherit_style_from_parent() {
 fn test_cascade() {
     let document_node_id = 0;
     let dom_node_id = get_next_test_id();
-    let dom_node = Rc::new(ElementDomNode { internal_id: dom_node_id, parent_id: document_node_id, text: None, is_document_node: false,
-                                               name: Some("a".to_owned()), name_for_layout: TagName::A, children: Some(Vec::new()), attributes: None, image: None });
+    let dom_node = Rc::new(RefCell::from(ElementDomNode { internal_id: dom_node_id, parent_id: document_node_id, text: None, is_document_node: false,
+                                                          name: Some("a".to_owned()), name_for_layout: TagName::A, children: Some(Vec::new()),
+                                                          attributes: None, image: None }));
 
     let mut all_dom_nodes = HashMap::new();
     all_dom_nodes.insert(dom_node_id, Rc::clone(&dom_node));

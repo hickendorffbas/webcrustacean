@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -20,10 +21,10 @@ pub fn render(platform: &mut Platform, full_layout: &FullLayout, ui_state: &mut 
     platform.render_clear(Color::WHITE);
     update_animation_state(ui_state);
 
-    render_layout_node(platform, &full_layout.root_node, &full_layout.all_nodes, ui_state.current_scroll_y);
+    render_layout_node(platform, &full_layout.root_node.borrow(), &full_layout.all_nodes, ui_state.current_scroll_y);
 
-    debug_assert!(full_layout.root_node.rects.borrow().len() == 1);
-    let page_height = full_layout.root_node.rects.borrow().first().unwrap().location.borrow().height();
+    debug_assert!(full_layout.root_node.borrow().rects.borrow().len() == 1);
+    let page_height = full_layout.root_node.borrow().rects.borrow().first().unwrap().location.borrow().height();
 
     render_ui(platform, ui_state, page_height);
 
@@ -42,7 +43,7 @@ fn update_animation_state(ui_state: &mut UIState) {
 }
 
 
-fn render_layout_node(platform: &mut Platform, layout_node: &LayoutNode, all_nodes: &HashMap<usize, Rc<LayoutNode>>, current_scroll_y: f32) {
+fn render_layout_node(platform: &mut Platform, layout_node: &LayoutNode, all_nodes: &HashMap<usize, Rc<RefCell<LayoutNode>>>, current_scroll_y: f32) {
 
     if !layout_node.rects.borrow().iter().any(|rect| -> bool { rect.location.borrow().is_visible_on_y_location(current_scroll_y) }) {
         return;
@@ -81,8 +82,8 @@ fn render_layout_node(platform: &mut Platform, layout_node: &LayoutNode, all_nod
 
     if layout_node.children.is_some() {
         for child in layout_node.children.as_ref().unwrap() {
-            if child.visible {
-                render_layout_node(platform, &child, all_nodes, current_scroll_y);
+            if child.borrow().visible {
+                render_layout_node(platform, &child.borrow(), all_nodes, current_scroll_y);
             }
         }
     }

@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
+use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -93,7 +94,7 @@ pub struct LayoutRect {
     pub text: Option<String>,
     pub char_position_mapping: Option<Vec<f32>>, //TODO: might be nice to combine this with text in a struct
     pub non_breaking_space_positions: Option<HashSet<usize>>, //TODO: might be nice to combine this with text in a struct
-    pub image: Option<Rc<DynamicImage>>,
+    pub image: Option<DynamicImage>,
     pub location: RefCell<ComputedLocation>,
 }
 impl LayoutRect {
@@ -597,7 +598,9 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
             TagName::Img => {
                 if main_node.image.is_some() {
-                    partial_node_optional_img = Some(Rc::clone(&main_node.image.as_ref().unwrap()));
+                    //TODO: eventually it would be nice to point in some cache of resources somewhere (possibly indirectly via an id if
+                    //      ownership causes issues). For now we just clone every time we built the layout node.
+                    partial_node_optional_img = Some(main_node.image.as_ref().unwrap().deref().clone());
                 }
                 childs_to_recurse_on = &None; //images should not have children (its a tag that does not have a close tag, formally)
             }
@@ -620,8 +623,8 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
     let id_of_node_being_built = get_next_layout_node_interal_id();
 
-    let mixed_inline_and_block = {
-        let mut mixed_inline_and_block = false;
+    let has_mixed_inline_and_block = {
+        let mut has_mixed_inline_and_block = false;
 
         if childs_to_recurse_on.is_some() {
             let mut block_seen = false;
@@ -631,14 +634,14 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
                 match get_display_type(&child) {
                     Display::Block => {
                         if inline_seen {
-                            mixed_inline_and_block = true;
+                            has_mixed_inline_and_block = true;
                             break
                         }
                         block_seen = true;
                     },
                     Display::Inline => {
                         if block_seen {
-                            mixed_inline_and_block = true;
+                            has_mixed_inline_and_block = true;
                             break
                         }
                         inline_seen = true;
@@ -647,7 +650,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
             }
         }
 
-        mixed_inline_and_block
+        has_mixed_inline_and_block
     };
 
 
@@ -655,7 +658,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
         partial_node_children = Some(Vec::new());
         let first_child = childs_to_recurse_on.as_ref().unwrap().iter().next().unwrap();
 
-        if mixed_inline_and_block {
+        if has_mixed_inline_and_block {
             let mut temp_inline_child_buffer = Vec::new();
 
             for child in childs_to_recurse_on.as_ref().unwrap() {

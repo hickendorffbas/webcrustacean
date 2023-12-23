@@ -2,11 +2,14 @@
 steps towards an updating layout tree, instead of building a new one each frame:
 
        - DONE: check the Rc's and add refcell's where needed (see minimal example)
-       - stop referencing from layout into DOM, clone() the content in there
-              - for text, and for now for images too, but add a todo that we need to make those an index into a cache or something
+       - DONE: stop referencing from layout into DOM, clone() the content in there
        - keep the layout tree alive for multiple frames
        - consider getting rid of the clickmap, if I keep the layout tree, I should know where things are
        - change to relative positions in layout node, this will help with only recomputing what we need
+
+       - TODO: we had some refcell on the locations or rects somewhere, so we still need that when the above points are done? I think not, since
+               the whole tree is now mutable
+               -> its seems we should be able to change RefCell<ComputedLocation> into just a ComputedLocation indeed
 
 ===================================
 

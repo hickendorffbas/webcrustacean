@@ -20,6 +20,12 @@ pub struct Document {
     pub all_nodes: HashMap<usize, Rc<RefCell<ElementDomNode>>>,
     pub style_context: StyleContext,
 }
+impl Document {
+    pub fn new_empty() -> Document {
+        return Document { document_node: Rc::from(RefCell::from(ElementDomNode::new_empty())),
+            all_nodes: HashMap::new(), style_context: StyleContext { user_agent_sheet: vec![], author_sheet: vec![] } };
+    }
+}
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -91,6 +97,19 @@ impl ElementDomNode {
                 self.image = Some(Rc::from(resource_loader::fallback_image()));
             }
         }
+    }
+    pub fn new_empty() -> ElementDomNode {
+        return ElementDomNode {
+            internal_id: 0,
+            parent_id: 0,
+            is_document_node: true,
+            text: None,
+            name: None,
+            name_for_layout: TagName::Other,
+            children: None,
+            attributes: None,
+            image: None
+        };
     }
 }
 

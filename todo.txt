@@ -3,8 +3,10 @@ steps towards an updating layout tree, instead of building a new one each frame:
 
        - DONE: check the Rc's and add refcell's where needed (see minimal example)
        - DONE: stop referencing from layout into DOM, clone() the content in there
-       - keep the layout tree alive for multiple frames
-       - consider getting rid of the clickmap, if I keep the layout tree, I should know where things are
+       - DONE: keep the layout tree alive for multiple frames
+              - DONE: I think we should do the layout build (overwrite var) in navigate, and update it in other places
+              - DONE: variable should not be mut, but on navigate we should refcell::replace (this also needs to be done for document)
+       - DONE: consider getting rid of the clickmap, if I keep the layout tree, I should know where things are
        - change to relative positions in layout node, this will help with only recomputing what we need
 
        - TODO: we had some refcell on the locations or rects somewhere, so we still need that when the above points are done? I think not, since
@@ -20,6 +22,7 @@ goals for 0.2.0:
        - make selecting text work (start with a naive implementation storing all text coordinates)
        - make pasting an url in the url bar work
        - add something about scope to readme (it not being a chrome wrapper, but using SDL / reqwest)
+       - show something when loading a new page, so the user knows we are not hanging
 
 other things (later versions):
        - move to rust 2021

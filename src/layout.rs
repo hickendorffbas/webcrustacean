@@ -16,8 +16,9 @@ use crate::SCREEN_HEIGHT;
 use crate::style::{
     StyleContext,
     get_color_style_value,
+    get_property_from_computed_styles,
     has_style_value,
-    resolve_full_styles_for_layout_node, get_property_from_computed_styles,
+    resolve_full_styles_for_layout_node,
 };
 use crate::ui::{
     CONTENT_TOP_LEFT_X,
@@ -38,6 +39,9 @@ pub struct FullLayout {
 impl FullLayout {
     pub fn page_height(&self) -> f32 {
         return self.root_node.borrow().rects.borrow().iter().next().unwrap().location.borrow().height();
+    }
+    pub fn new_empty() -> FullLayout {
+        return FullLayout { root_node: Rc::from(RefCell::from(LayoutNode::new_empty())), all_nodes: HashMap::new() };
     }
 }
 
@@ -85,6 +89,50 @@ impl LayoutNode {
         let bounding_box_width = max_x - lowest_x;
         let bounding_box_height = max_y - lowest_y;
         return (bounding_box_width, bounding_box_height);
+    }
+    pub fn find_clickable(&self, x: f32, y: f32, current_scroll_y: f32) -> Option<Url> {
+        let any_visible = self.rects.borrow().iter().any(|rect| -> bool {rect.location.borrow().is_visible_on_y_location(current_scroll_y)});
+        if !any_visible {
+            return None;
+        }
+
+        if self.optional_link_url.is_some() {
+            for rect in self.rects.borrow().iter() {
+                let rect_location = rect.location.borrow();
+
+                if x >= rect_location.x() && x <= rect_location.x() + rect_location.width() &&
+                   y >= rect_location.y() && y <= rect_location.y() + rect_location.height() {
+                    return self.optional_link_url.clone();
+                }
+            }
+        }
+
+        if self.children.is_some() {
+            for child in self.children.as_ref().unwrap() {
+                if child.borrow().visible {
+                    let opt_url = child.borrow().find_clickable(x, y, current_scroll_y);
+                    if opt_url.is_some() {
+                        return opt_url;
+                    }
+                }
+            }
+        }
+
+        return None;
+    }
+    pub fn new_empty() -> LayoutNode {
+        return LayoutNode {
+            internal_id: 0,
+            display: Display::Block,
+            visible: true,
+            line_break: false,
+            children: None,
+            parent_id: 0,
+            styles: HashMap::new(),
+            optional_link_url: None,
+            rects: RefCell::from(vec![]),
+            from_dom_node: None
+        };
     }
 }
 
@@ -813,49 +861,4 @@ fn build_anonymous_block_layout_node(visible: bool, parent_id: usize, inline_chi
     let anon_rc = Rc::new(RefCell::from(anonymous_node));
     all_nodes.insert(internal_id, Rc::clone(&anon_rc));
     return anon_rc;
-}
-
-
-pub struct ClickMapEntry {
-    pub region: Rect,
-    pub optional_link_url: Option<Url>,
-}
-
-
-pub fn compute_click_map(full_layout_tree: &FullLayout, current_scroll_y: f32) -> Vec<ClickMapEntry> {
-    let mut click_map = Vec::new();
-
-    fn compute_click_map_entries_from_layout(layout_node: &Rc<RefCell<LayoutNode>>, click_map: &mut Vec<ClickMapEntry>, current_scroll_y: f32) {
-        let layout_node = layout_node.borrow();
-
-        let any_visible = layout_node.rects.borrow().iter().any(|rect| -> bool {rect.location.borrow().is_visible_on_y_location(current_scroll_y)});
-        if !any_visible {
-            return;
-        }
-
-        if layout_node.optional_link_url.is_some() {
-            for rect in layout_node.rects.borrow().iter() {
-                let rect_location = rect.location.borrow();
-                let new_rect = Rect { x: rect_location.x(), y: rect_location.y(),
-                                      width: rect_location.width(), height: rect_location.height() };
-                click_map.push(
-                    ClickMapEntry { region: new_rect, optional_link_url: layout_node.optional_link_url.clone() }
-                );
-            }
-
-            return;
-        }
-
-        if layout_node.children.is_some() {
-            for child in layout_node.children.as_ref().unwrap() {
-                if child.borrow().visible {
-                    compute_click_map_entries_from_layout(&child, click_map, current_scroll_y);
-                }
-            }
-        }
-    }
-
-    compute_click_map_entries_from_layout(&full_layout_tree.root_node, &mut click_map, current_scroll_y);
-
-    return click_map;
 }

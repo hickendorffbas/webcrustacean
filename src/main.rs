@@ -120,7 +120,7 @@ pub fn navigate(url: &Url, ui_state: &mut UIState, platform: &mut Platform, docu
 
     #[cfg(feature="timings")] let start_layout_instant = Instant::now();
     full_layout.replace(layout::build_full_layout(&document.borrow(), platform, &url));
-    debug_assert!(full_layout.borrow().root_node.borrow().rects.borrow().len() == 1);
+    debug_assert!(full_layout.borrow().root_node.borrow().rects.len() == 1);
     #[cfg(feature="timings")] println!("layout elapsed millis: {}", start_layout_instant.elapsed().as_millis());
 }
 

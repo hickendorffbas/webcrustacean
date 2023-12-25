@@ -7,11 +7,12 @@ steps towards an updating layout tree, instead of building a new one each frame:
               - DONE: I think we should do the layout build (overwrite var) in navigate, and update it in other places
               - DONE: variable should not be mut, but on navigate we should refcell::replace (this also needs to be done for document)
        - DONE: consider getting rid of the clickmap, if I keep the layout tree, I should know where things are
-       - change to relative positions in layout node, this will help with only recomputing what we need
+       - TODO: change to relative positions in layout node, this will help with only recomputing what we need
 
-       - TODO: we had some refcell on the locations or rects somewhere, so we still need that when the above points are done? I think not, since
+       - DONE: we had some refcell on the locations or rects somewhere, so we still need that when the above points are done? I think not, since
                the whole tree is now mutable
-               -> its seems we should be able to change RefCell<ComputedLocation> into just a ComputedLocation indeed
+
+       - TODO: just make positions default to (0, 0, 0, 0) instead of NotYetComputed, so I can get rid of another enum layer
 
 ===================================
 

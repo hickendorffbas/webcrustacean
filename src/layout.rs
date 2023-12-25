@@ -38,7 +38,7 @@ pub struct FullLayout {
 }
 impl FullLayout {
     pub fn page_height(&self) -> f32 {
-        return self.root_node.borrow().rects.iter().next().unwrap().location.height();
+        return self.root_node.borrow().rects.iter().next().unwrap().location.height;
     }
     pub fn new_empty() -> FullLayout {
         return FullLayout { root_node: Rc::from(RefCell::from(LayoutNode::new_empty())), all_nodes: HashMap::new() };
@@ -66,7 +66,7 @@ impl LayoutNode {
         }
         return self.children.as_ref().unwrap().iter().all(|node| node.borrow().display == display);
     }
-    pub fn update_single_rect_location(&mut self, new_location: ComputedLocation) {
+    pub fn update_single_rect_location(&mut self, new_location: Rect) {
         debug_assert!(self.rects.len() == 1);
         self.rects[0].location = new_location;
     }
@@ -80,10 +80,10 @@ impl LayoutNode {
         let mut max_y: f32 = 0.0;
 
         for rect in self.rects.iter() {
-            lowest_x = lowest_x.min(rect.location.x());
-            lowest_y = lowest_y.min(rect.location.y());
-            max_x = max_x.max(rect.location.x() + rect.location.width());
-            max_y = max_y.max(rect.location.y() + rect.location.height());
+            lowest_x = lowest_x.min(rect.location.x);
+            lowest_y = lowest_y.min(rect.location.y);
+            max_x = max_x.max(rect.location.x + rect.location.width);
+            max_y = max_y.max(rect.location.y + rect.location.height);
         }
 
         let bounding_box_width = max_x - lowest_x;
@@ -98,8 +98,8 @@ impl LayoutNode {
 
         if self.optional_link_url.is_some() {
             for rect in self.rects.iter() {
-                if x >= rect.location.x() && x <= rect.location.x() + rect.location.width() &&
-                   y >= rect.location.y() && y <= rect.location.y() + rect.location.height() {
+                if x >= rect.location.x && x <= rect.location.x + rect.location.width &&
+                   y >= rect.location.y && y <= rect.location.y + rect.location.height {
                     return self.optional_link_url.clone();
                 }
             }
@@ -141,7 +141,7 @@ pub struct LayoutRect {
     pub char_position_mapping: Option<Vec<f32>>, //TODO: might be nice to combine this with text in a struct
     pub non_breaking_space_positions: Option<HashSet<usize>>, //TODO: might be nice to combine this with text in a struct
     pub image: Option<DynamicImage>,
-    pub location: ComputedLocation,
+    pub location: Rect,
 }
 impl LayoutRect {
     pub fn get_default_non_computed_rect() -> LayoutRect {
@@ -150,59 +150,8 @@ impl LayoutRect {
             char_position_mapping: None,
             non_breaking_space_positions: None,
             image: None,
-            location: ComputedLocation::NotYetComputed,
+            location: Rect::empty(),
         };
-    }
-}
-
-#[cfg_attr(debug_assertions, derive(Debug))]
-pub enum ComputedLocation {
-    NotYetComputed,
-    Computed(Rect)
-}
-impl ComputedLocation {
-    pub fn x_y(&self) -> (f32, f32) {
-        return match self {
-            ComputedLocation::NotYetComputed => panic!("Node has not yet been computed"),
-            ComputedLocation::Computed(loc) => { (loc.x, loc.y) },
-        }
-    }
-    pub fn x(&self) -> f32 {
-        return match self {
-            ComputedLocation::NotYetComputed => panic!("Node has not yet been computed"),
-            ComputedLocation::Computed(loc) => { loc.x },
-        }
-    }
-    pub fn y(&self) -> f32 {
-        return match self {
-            ComputedLocation::NotYetComputed => panic!("Node has not yet been computed"),
-            ComputedLocation::Computed(loc) => { loc.y },
-        }
-    }
-    pub fn width(&self) -> f32 {
-        return match self {
-            ComputedLocation::NotYetComputed => panic!("Node has not yet been computed"),
-            ComputedLocation::Computed(loc) => { loc.width },
-        }
-    }
-    pub fn height(&self) -> f32 {
-        return match self {
-            ComputedLocation::NotYetComputed => panic!("Node has not yet been computed"),
-            ComputedLocation::Computed(loc) => { loc.height },
-        }
-    }
-    pub fn is_visible_on_y_location(&self, y: f32) -> bool {
-        return match self {
-            ComputedLocation::NotYetComputed => panic!("Node has not yet been computed"),
-            ComputedLocation::Computed(loc) => {
-                let top_of_node = loc.y;
-                let top_of_view = y;
-                let bottom_of_node = top_of_node + loc.height;
-                let bottom_of_view = top_of_view + SCREEN_HEIGHT;
-
-                !(top_of_node > bottom_of_view || bottom_of_node < top_of_view)
-            }
-        }
     }
 }
 
@@ -227,6 +176,17 @@ impl Rect {
         x >= self.x && x <= self.x + self.width
         &&
         y >= self.y && y <= self.y + self.height
+    }
+    pub fn empty() -> Rect {
+        return Rect { x: 0.0, y: 0.0, width: 0.0, height: 0.0 };
+    }
+    pub fn is_visible_on_y_location(&self, y: f32) -> bool {
+        let top_of_node = self.y;
+        let top_of_view = y;
+        let bottom_of_node = top_of_node + self.height;
+        let bottom_of_view = top_of_view + SCREEN_HEIGHT;
+
+        return !(top_of_node > bottom_of_view || bottom_of_node < top_of_view);
     }
 }
 
@@ -266,9 +226,7 @@ pub fn build_full_layout(document: &Document, platform: &mut Platform, main_url:
 
     compute_layout(&rc_root_node, &all_nodes, &document.style_context, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y, platform);
     let (root_width, root_height) = rc_root_node.borrow().get_size_of_bounding_box();
-    let root_location = ComputedLocation::Computed(
-        Rect { x: CONTENT_TOP_LEFT_X, y: CONTENT_TOP_LEFT_Y, width: root_width, height: root_height }
-    );
+    let root_location = Rect { x: CONTENT_TOP_LEFT_X, y: CONTENT_TOP_LEFT_Y, width: root_width, height: root_height };
     rc_root_node.borrow_mut().update_single_rect_location(root_location);
 
     return FullLayout { root_node: rc_root_node, all_nodes }
@@ -283,10 +241,7 @@ fn compute_layout(node: &Rc<RefCell<LayoutNode>>, all_nodes: &HashMap<usize, Rc<
     let mut mut_node = node.borrow_mut();
 
     if !mut_node.visible {
-        let node_location = ComputedLocation::Computed(
-            Rect { x: top_left_x, y: top_left_y, width: 0.0, height: 0.0 }
-        );
-        mut_node.update_single_rect_location(node_location);
+        mut_node.update_single_rect_location(Rect { x: top_left_x, y: top_left_y, width: 0.0, height: 0.0 });
     }
 
     if mut_node.children.is_some() {
@@ -307,10 +262,7 @@ fn compute_layout(node: &Rc<RefCell<LayoutNode>>, all_nodes: &HashMap<usize, Rc<
 
     for rect in mut_node.rects.iter_mut() {
         let (rect_width, rect_height) = compute_size_for_rect(rect, &styles, platform);
-        let rect_location = ComputedLocation::Computed(
-            Rect { x: top_left_x, y: top_left_y, width: rect_width, height: rect_height }
-        );
-        rect.location = rect_location;
+        rect.location = Rect { x: top_left_x, y: top_left_y, width: rect_width, height: rect_height };
     }
 }
 
@@ -368,10 +320,7 @@ fn apply_block_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefCe
     }
 
     let our_height = cursor_y - top_left_y;
-    let node_location = ComputedLocation::Computed(
-        Rect { x: top_left_x, y: top_left_y, width: max_width, height: our_height }
-    );
-    node.update_single_rect_location(node_location);
+    node.update_single_rect_location(Rect { x: top_left_x, y: top_left_y, width: max_width, height: our_height });
 }
 
 
@@ -401,10 +350,7 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
                 child_height = random_char_height;
             }
 
-            let child_location = ComputedLocation::Computed(
-                Rect { x: top_left_x, y: top_left_y, width: max_width, height: child_height }
-            );
-            child.borrow_mut().update_single_rect_location(child_location);
+            child.borrow_mut().update_single_rect_location(Rect { x: top_left_x, y: top_left_y, width: max_width, height: child_height });
 
             continue;
         }
@@ -429,7 +375,7 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
                         non_breaking_space_positions: None, //For now not computing these, although it would be more correct to update them after wrapping
                         text: Some(text),
                         image: None,
-                        location: ComputedLocation::NotYetComputed,
+                        location: Rect::empty(),
                     };
 
                     let (rect_width, rect_height) = compute_size_for_rect(&new_rect, &child.borrow().styles, platform);
@@ -442,9 +388,7 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
                         }
                     }
 
-                    new_rect.location = ComputedLocation::Computed(
-                        Rect { x: cursor_x, y: cursor_y, width: rect_width, height: rect_height }
-                    );
+                    new_rect.location = Rect { x: cursor_x, y: cursor_y, width: rect_width, height: rect_height };
                     rects_for_child.push(new_rect);
 
                     cursor_x += rect_width;
@@ -487,11 +431,7 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
 
     }
     let our_height = (cursor_y - top_left_y) + max_height_of_line;
-
-    let node_location = ComputedLocation::Computed(
-        Rect { x: top_left_x, y: top_left_y, width: max_width, height: our_height }
-    );
-    node.update_single_rect_location(node_location);
+    node.update_single_rect_location(Rect { x: top_left_x, y: top_left_y, width: max_width, height: our_height });
 }
 
 
@@ -771,7 +711,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
         char_position_mapping: partial_char_position_mapping,
         non_breaking_space_positions: partial_node_non_breaking_space_positions,
         image: partial_node_optional_img,
-        location: ComputedLocation::NotYetComputed,
+        location: Rect::empty(),
     };
 
     let new_node = LayoutNode {

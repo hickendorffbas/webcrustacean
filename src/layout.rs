@@ -242,27 +242,23 @@ fn compute_layout(node: &Rc<RefCell<LayoutNode>>, all_nodes: &HashMap<usize, Rc<
 
     if !mut_node.visible {
         mut_node.update_single_rect_location(Rect { x: top_left_x, y: top_left_y, width: 0.0, height: 0.0 });
-    }
 
-    if mut_node.children.is_some() {
-        let all_block = mut_node.all_childnodes_have_given_display(Display::Block);
-        let all_inline = mut_node.all_childnodes_have_given_display(Display::Inline);
-
-        if all_block {
-            return apply_block_layout(&mut mut_node, all_nodes, style_context, top_left_x, top_left_y, platform);
-        }
-        if all_inline {
-            return apply_inline_layout(&mut mut_node, all_nodes, style_context, top_left_x, top_left_y, CONTENT_WIDTH - top_left_x, platform);
+    } else if mut_node.children.is_some() {
+        if mut_node.all_childnodes_have_given_display(Display::Block) {
+            apply_block_layout(&mut mut_node, all_nodes, style_context, top_left_x, top_left_y, platform);
+        } else if mut_node.all_childnodes_have_given_display(Display::Inline) {
+            apply_inline_layout(&mut mut_node, all_nodes, style_context, top_left_x, top_left_y, CONTENT_WIDTH - top_left_x, platform);
+        } else {
+            panic!("Not all children are either inline or block, earlier in the process this should already have been fixed with anonymous blocks");
         }
 
-        panic!("Not all children are either inline or block, earlier in the process this should already have been fixed with anonymous blocks");
-    }
+    } else {
+        let styles = mut_node.styles.clone();
 
-    let styles = mut_node.styles.clone();
-
-    for rect in mut_node.rects.iter_mut() {
-        let (rect_width, rect_height) = compute_size_for_rect(rect, &styles, platform);
-        rect.location = Rect { x: top_left_x, y: top_left_y, width: rect_width, height: rect_height };
+        for rect in mut_node.rects.iter_mut() {
+            let (rect_width, rect_height) = compute_size_for_rect(rect, &styles, platform);
+            rect.location = Rect { x: top_left_x, y: top_left_y, width: rect_width, height: rect_height };
+        }
     }
 }
 

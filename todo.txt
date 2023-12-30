@@ -1,20 +1,4 @@
 
-steps towards an updating layout tree, instead of building a new one each frame:
-
-       - DONE: check the Rc's and add refcell's where needed (see minimal example)
-       - DONE: stop referencing from layout into DOM, clone() the content in there
-       - DONE: keep the layout tree alive for multiple frames
-              - DONE: I think we should do the layout build (overwrite var) in navigate, and update it in other places
-              - DONE: variable should not be mut, but on navigate we should refcell::replace (this also needs to be done for document)
-       - DONE: consider getting rid of the clickmap, if I keep the layout tree, I should know where things are
-       - DONE: we had some refcell on the locations or rects somewhere, so we still need that when the above points are done? I think not, since
-               the whole tree is now mutable
-       - DONE: just make positions default to (0, 0, 0, 0) instead of NotYetComputed, so I can get rid of another enum layer
-
-       - TODO: change to relative positions in layout node, this will help with only recomputing what we need
-
-===================================
-
 goals for 0.2.0:
        - test on mac
        - test on windows (document SDL install)
@@ -31,3 +15,12 @@ other things (later versions):
        - integration tests by exporting json for the layout tree, so I can test all the way from HTML to layout
        - look into threads for UI, network etc. (https://doc.rust-lang.org/book/ch16-01-threads.html)
        - figure out how do build standalone binaries
+
+
+specific goals:
+       make https://html.duckduckgo.com/html/ usable:
+              - be able to render the page
+              - be able to render the result page (via direct link)
+              - make text input work
+              - make form submission work
+

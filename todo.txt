@@ -1,4 +1,13 @@
 
+text selection:
+       -> we do need to store selection indexes on the rect itself, because we also need to invert the color of the text eventually
+              -> maybe not, for now, just draw the selection box in a color slightly darker (or lighter) than the background  DONE
+              -> maybe for now just split the text rendering in 2 (or 3) with the different colors, to keep it simple
+       -> selecting images does not work, the code does assume char indexes in some places still
+       -> first selection line is not always correct
+       -> scrolling and selecting does not work nice together
+
+
 goals for 0.2.0:
        - test on mac
        - test on windows (document SDL install)

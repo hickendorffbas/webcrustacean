@@ -35,13 +35,14 @@ pub fn get_next_layout_node_interal_id() -> usize { NEXT_LAYOUT_NODE_INTERNAL.fe
 pub struct FullLayout {
     pub root_node: Rc<RefCell<LayoutNode>>,
     pub all_nodes: HashMap<usize, Rc<RefCell<LayoutNode>>>,
+    pub nodes_in_selection_order: Vec<Rc<RefCell<LayoutNode>>>,
 }
 impl FullLayout {
     pub fn page_height(&self) -> f32 {
         return self.root_node.borrow().rects.iter().next().unwrap().location.height;
     }
     pub fn new_empty() -> FullLayout {
-        return FullLayout { root_node: Rc::from(RefCell::from(LayoutNode::new_empty())), all_nodes: HashMap::new() };
+        return FullLayout { root_node: Rc::from(RefCell::from(LayoutNode::new_empty())), all_nodes: HashMap::new(), nodes_in_selection_order: Vec::new() };
     }
 }
 
@@ -132,6 +133,16 @@ impl LayoutNode {
             from_dom_node: None
         };
     }
+    pub fn reset_selection(&mut self) {
+        for rect in self.rects.iter_mut() {
+            rect.selection_rect = None;
+        }
+        if self.children.is_some() {
+            for child in self.children.as_ref().unwrap() {
+                child.borrow_mut().reset_selection();
+            }
+        }
+    }
 }
 
 
@@ -142,6 +153,7 @@ pub struct LayoutRect {
     pub non_breaking_space_positions: Option<HashSet<usize>>, //TODO: might be nice to combine this with text in a struct
     pub image: Option<DynamicImage>,
     pub location: Rect,
+    pub selection_rect: Option<Rect>,
 }
 impl LayoutRect {
     pub fn get_default_non_computed_rect() -> LayoutRect {
@@ -151,6 +163,7 @@ impl LayoutRect {
             non_breaking_space_positions: None,
             image: None,
             location: Rect::empty(),
+            selection_rect: None,
         };
     }
 }
@@ -229,7 +242,25 @@ pub fn build_full_layout(document: &Document, platform: &mut Platform, main_url:
     let root_location = Rect { x: CONTENT_TOP_LEFT_X, y: CONTENT_TOP_LEFT_Y, width: root_width, height: root_height };
     rc_root_node.borrow_mut().update_single_rect_location(root_location);
 
-    return FullLayout { root_node: rc_root_node, all_nodes }
+    let mut nodes_in_selection_order = Vec::new();
+    collect_content_nodes_in_walk_order(&rc_root_node, &mut nodes_in_selection_order);
+
+    return FullLayout { root_node: rc_root_node, all_nodes, nodes_in_selection_order };
+}
+
+
+fn collect_content_nodes_in_walk_order(node: &Rc<RefCell<LayoutNode>>, result: &mut Vec<Rc<RefCell<LayoutNode>>>) {
+
+    let any_content = node.borrow().rects.iter().any(|rect| -> bool { rect.image.is_some() || rect.text.is_some() } );
+    if any_content {
+        result.push(Rc::clone(&node));
+    }
+
+    if node.borrow().children.as_ref().is_some() {
+        for child in node.borrow().children.as_ref().unwrap() {
+            collect_content_nodes_in_walk_order(&child, result);
+        }
+    }
 }
 
 
@@ -372,6 +403,7 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
                         text: Some(text),
                         image: None,
                         location: Rect::empty(),
+                        selection_rect: None,
                     };
 
                     let (rect_width, rect_height) = compute_size_for_rect(&new_rect, &child.borrow().styles, platform);
@@ -708,6 +740,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
         non_breaking_space_positions: partial_node_non_breaking_space_positions,
         image: partial_node_optional_img,
         location: Rect::empty(),
+        selection_rect: None,
     };
 
     let new_node = LayoutNode {

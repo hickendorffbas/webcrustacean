@@ -16,13 +16,16 @@ mod ui_components;
 #[cfg(test)] mod test_util; //TODO: is there a better (test-specific) place to define this?
 
 use std::cell::RefCell;
+use std::cmp;
 use std::env;
+use std::rc::Rc;
 use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::debug::debug_log_warn;
 use crate::dom::Document;
 use crate::fonts::Font;
+use crate::layout::{LayoutNode, Rect};
 use crate::network::url::Url;
 use crate::platform::Platform;
 use crate::renderer::render;
@@ -30,6 +33,7 @@ use crate::ui::{CONTENT_HEIGHT, UIState};
 use crate::ui_components::{TextField, NavigationButton};
 
 use layout::FullLayout;
+use layout::LayoutRect;
 use sdl2::{
     event::Event as SdlEvent,
     keyboard::Keycode,
@@ -125,6 +129,125 @@ pub fn navigate(url: &Url, ui_state: &mut UIState, platform: &mut Platform, docu
 }
 
 
+fn build_selection_rect_on_layout_rect(layout_rect: &mut LayoutRect, selection_rect: &Rect, start_for_selection_rect_on_layout_rect: f32) {
+    let mut matching_offset = layout_rect.location.width;
+
+    if layout_rect.text.is_some() {
+
+        for (_idx, offset) in layout_rect.char_position_mapping.as_ref().unwrap().iter().enumerate() {
+            //TODO: use _idx to store the position eventually also on the rect, so we can invert color if needed (and use it to copy to clipboard)
+            if layout_rect.location.x + offset > selection_rect.x + selection_rect.width {
+                matching_offset = *offset;
+                break;
+            }
+        }
+
+        let selection_rect_for_layout_rect = Rect { x: start_for_selection_rect_on_layout_rect,
+                    y: layout_rect.location.y,
+                    width: (layout_rect.location.x + matching_offset) - start_for_selection_rect_on_layout_rect,
+                    height: layout_rect.location.height };
+        layout_rect.selection_rect = Some(selection_rect_for_layout_rect);
+
+    } else if layout_rect.image.is_some() {
+        //TODO: implement selection for pictures (or don't ?)
+    } else {
+        panic!("We should not get in this method with a rect without content");
+    }
+}
+
+
+fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_rect: &Rect, current_scroll_y: f32, nodes_in_selection_order: &Vec<Rc<RefCell<LayoutNode>>>) {
+    let any_visible = layout_node.borrow().rects.iter().any(|rect| -> bool { rect.location.is_visible_on_y_location(current_scroll_y) });
+    if !any_visible {
+        return;
+    }
+
+    let any_rects_with_content = layout_node.borrow().rects.iter().any(|rect| -> bool { rect.text.is_some() || rect.image.is_some() });
+    if any_rects_with_content {
+
+        let selection_end_x = selection_rect.x + selection_rect.width;
+        let selection_end_y = selection_rect.y + selection_rect.height;
+
+        let mut selection_start_found = false;
+        let mut start_for_selection_rect_on_layout_rect = 0.0;
+        for mut layout_rect in RefCell::borrow_mut(layout_node).rects.iter_mut() {
+            if layout_rect.location.is_inside(selection_rect.x, selection_rect.y) {
+                selection_start_found = true;
+
+                let mut previous_offset = 0.0;
+                for (_idx, offset) in layout_rect.char_position_mapping.as_ref().unwrap().iter().enumerate() {
+                    //TODO: use _idx to store the position eventually also on the rect, so we can invert color if needed
+
+                    if layout_rect.location.x + offset > selection_rect.x {
+                        start_for_selection_rect_on_layout_rect = layout_rect.location.x + previous_offset;
+                        break;
+                    }
+
+                    previous_offset = *offset;
+                }
+
+                //Handle the special case where both the top left and the bottom right of the selection rect are in the same layout rect:
+                if layout_rect.location.is_inside(selection_end_x, selection_end_y) {
+                    build_selection_rect_on_layout_rect(&mut layout_rect, selection_rect, start_for_selection_rect_on_layout_rect);
+                    return;
+                } else {
+                    let selection_rect_for_layout_rect = Rect { x: start_for_selection_rect_on_layout_rect,
+                                                                y: layout_rect.location.y,
+                                                                width: layout_rect.location.width - start_for_selection_rect_on_layout_rect,
+                                                                height: layout_rect.location.height };
+                    layout_rect.selection_rect = Some(selection_rect_for_layout_rect);
+                }
+            } else if selection_start_found {
+                // Now we check for other rects on the same layout node that might contain the bottom right point:
+                if layout_rect.location.is_inside(selection_end_x, selection_end_y) {
+                    let start_selection_pos = layout_rect.location.x;
+                    build_selection_rect_on_layout_rect(&mut layout_rect, selection_rect, start_selection_pos);
+                    return;
+                } else {
+                    //This rect is in between the start and end node, so we fully set it as selected:
+                    let selection_rect_for_layout_rect = Rect { x: layout_rect.location.x, y: layout_rect.location.y,
+                                                                width: layout_rect.location.width, height: layout_rect.location.height };
+                    layout_rect.selection_rect = Some(selection_rect_for_layout_rect);
+                }
+            }
+        }
+        if selection_start_found {
+
+            let mut starting_node_found = false;
+            for next_selection_node in nodes_in_selection_order {
+
+                if !starting_node_found {
+                    if next_selection_node.borrow().internal_id == layout_node.borrow().internal_id {
+                        starting_node_found = true;
+                    }
+                    continue;
+                } else {
+                    for mut layout_rect in RefCell::borrow_mut(next_selection_node).rects.iter_mut() {
+                        if layout_rect.location.is_inside(selection_end_x, selection_end_y) {
+                            let start_selection_pos = layout_rect.location.x;
+                            build_selection_rect_on_layout_rect(&mut layout_rect, selection_rect, start_selection_pos);
+                            return;
+                        } else {
+                            //This node is in between the start and end node, so we fully set it as selected:
+                            let selection_rect_for_layout_rect = Rect { x: layout_rect.location.x, y: layout_rect.location.y,
+                                                                        width: layout_rect.location.width, height: layout_rect.location.height };
+                            layout_rect.selection_rect = Some(selection_rect_for_layout_rect);
+                        }
+                    }
+                }
+            }
+        }
+
+    } else {
+        if layout_node.borrow().children.is_some() {
+            for child in layout_node.borrow().children.as_ref().unwrap() {
+                compute_selection_regions(&child, selection_rect, current_scroll_y, nodes_in_selection_order);
+            }
+        }
+    }
+}
+
+
 fn main() -> Result<(), String> {
     let sdl_context = sdl2::init()?;
     let ttf_context = sdl2::ttf::init()
@@ -198,6 +321,19 @@ fn main() -> Result<(), String> {
                         let page_scroll = ui::convert_block_drag_to_page_scroll(&mut ui_state, yrel as f32, full_layout_tree.borrow().page_height());
                         ui_state.current_scroll_y = clamp_scroll_position(ui_state.current_scroll_y + page_scroll, full_layout_tree.borrow().page_height());
                     }
+
+                    else if mouse_state.left_down {
+                        let top_left_x = cmp::min(mouse_state.click_start_x, mouse_x) as f32;
+                        let top_left_y = cmp::min(mouse_state.click_start_y, mouse_y) as f32 + ui_state.current_scroll_y;
+                        let bottom_right_x = cmp::max(mouse_state.click_start_x, mouse_x) as f32;
+                        let bottom_right_y = cmp::max(mouse_state.click_start_y, mouse_y) as f32 + ui_state.current_scroll_y;
+                        let selection_rect = Rect { x: top_left_x, y: top_left_y, width: bottom_right_x - top_left_x, height: bottom_right_y - top_left_y };
+
+                        RefCell::borrow_mut(&full_layout_tree.borrow_mut().root_node).reset_selection();
+                        let full_layout_tree = full_layout_tree.borrow();
+                        compute_selection_regions(&full_layout_tree.root_node, &selection_rect, ui_state.current_scroll_y, &full_layout_tree.nodes_in_selection_order);
+                    }
+
                 },
                 SdlEvent::MouseButtonDown { mouse_btn: MouseButton::Left, x: mouse_x, y: mouse_y, .. } => {
                     mouse_state.x = mouse_x;
@@ -205,6 +341,8 @@ fn main() -> Result<(), String> {
                     mouse_state.click_start_x = mouse_x;
                     mouse_state.click_start_y = mouse_y;
                     mouse_state.left_down = true;
+
+                    RefCell::borrow_mut(&full_layout_tree.borrow_mut().root_node).reset_selection();
 
                     //TODO: its probably nicer to call a generic method in UI, to check any drags and update the mouse state
                     if ui::mouse_on_scrollblock(&mouse_state, ui_state.current_scroll_y, full_layout_tree.borrow().page_height()) {

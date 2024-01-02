@@ -4,7 +4,6 @@ text selection:
               -> maybe not, for now, just draw the selection box in a color slightly darker (or lighter) than the background  DONE
               -> maybe for now just split the text rendering in 2 (or 3) with the different colors, to keep it simple
        -> first selection line is not always correct
-       -> scrolling and selecting does not work nice together
 
 
 goals for 0.2.0:

@@ -174,16 +174,24 @@ fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_re
             if layout_rect.location.is_inside(selection_rect.x, selection_rect.y) {
                 selection_start_found = true;
 
-                let mut previous_offset = 0.0;
-                for (_idx, offset) in layout_rect.char_position_mapping.as_ref().unwrap().iter().enumerate() {
-                    //TODO: use _idx to store the position eventually also on the rect, so we can invert color if needed
+                if layout_rect.text.is_some() {
 
-                    if layout_rect.location.x + offset > selection_rect.x {
-                        start_for_selection_rect_on_layout_rect = layout_rect.location.x + previous_offset;
-                        break;
+                    let mut previous_offset = 0.0;
+                    for (_idx, offset) in layout_rect.char_position_mapping.as_ref().unwrap().iter().enumerate() {
+                        //TODO: use _idx to store the position eventually also on the rect, so we can invert color if needed
+
+                        if layout_rect.location.x + offset > selection_rect.x {
+                            start_for_selection_rect_on_layout_rect = layout_rect.location.x + previous_offset;
+                            break;
+                        }
+
+                        previous_offset = *offset;
                     }
 
-                    previous_offset = *offset;
+                } else if layout_rect.image.is_some() {
+                    start_for_selection_rect_on_layout_rect = layout_rect.location.x;
+                } else {
+                    panic!("We should not get here with a rect without content");
                 }
 
                 //Handle the special case where both the top left and the bottom right of the selection rect are in the same layout rect:

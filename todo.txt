@@ -1,16 +1,8 @@
 
-text selection:
-       -> we do need to store selection indexes on the rect itself, because we also need to invert the color of the text eventually
-              -> maybe not, for now, just draw the selection box in a color slightly darker (or lighter) than the background  DONE
-              -> maybe for now just split the text rendering in 2 (or 3) with the different colors, to keep it simple
-       -> first selection line is not always correct
-
-
 goals for 0.2.0:
        - test on mac
        - test on windows (document SDL install)
        - get a proper system for parsing CSS values (are they always numbers?)
-       - make selecting text work (start with a naive implementation storing all text coordinates)
        - make pasting an url in the url bar work
        - add something about scope to readme (it not being a chrome wrapper, but using SDL / reqwest)
        - show something when loading a new page, so the user knows we are not hanging

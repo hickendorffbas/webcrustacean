@@ -36,7 +36,10 @@ fn update_animation_state(ui_state: &mut UIState) {
 
     //TODO: this code is ok, but should live in an update() method on TextField struct, and we should have a way to call updates on components
     //      exactly once per frame from somewhere. This renderer module seems to be more about rendering web content, so I think it should move to ui.rs
-    let current_millis = SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards").as_millis();
+
+    //TODO: also we need to make sure we reset the cycle whenever the cursor is moved, so it stays visible while using the arrow keys quickly
+
+    let current_millis = SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards, please check if you entered a wormhole").as_millis();
     let cursor_cycle_time = CURSOR_BLINK_SPEED_MILLIS * 2;
     let point_in_cyle = current_millis % cursor_cycle_time;
     ui_state.addressbar.cursor_visible = point_in_cyle > CURSOR_BLINK_SPEED_MILLIS;
@@ -52,6 +55,7 @@ fn render_layout_node(platform: &mut Platform, layout_node: &LayoutNode, all_nod
     for layout_rect in layout_node.rects.iter() {
         if layout_rect.text.is_some() {
             if layout_rect.selection_rect.is_some() {
+                println!("{} {}", layout_rect.selection_char_range.unwrap().0, layout_rect.selection_char_range.unwrap().1);
                 let selection_rect = layout_rect.selection_rect.as_ref().unwrap();
                 platform.fill_rect(selection_rect.x, selection_rect.y - current_scroll_y, selection_rect.width, selection_rect.height, Color::new(180, 213, 255));
             }

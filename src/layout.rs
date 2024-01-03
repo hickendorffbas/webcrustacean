@@ -136,10 +136,25 @@ impl LayoutNode {
     pub fn reset_selection(&mut self) {
         for rect in self.rects.iter_mut() {
             rect.selection_rect = None;
+            rect.selection_char_range = None;
         }
         if self.children.is_some() {
             for child in self.children.as_ref().unwrap() {
                 child.borrow_mut().reset_selection();
+            }
+        }
+    }
+    pub fn get_selected_text(&self, result: &mut String) {
+        for rect in &self.rects {
+            if rect.selection_char_range.is_some() {
+                let (start_idx, end_idx) = rect.selection_char_range.unwrap();
+                result.push_str(rect.text.as_ref().unwrap().chars().skip(start_idx).take(end_idx - start_idx + 1).collect::<String>().as_str());
+            }
+        }
+
+        if self.children.is_some() {
+            for child in self.children.as_ref().unwrap() {
+                child.borrow_mut().get_selected_text(result);
             }
         }
     }
@@ -154,6 +169,7 @@ pub struct LayoutRect {
     pub image: Option<DynamicImage>,
     pub location: Rect,
     pub selection_rect: Option<Rect>,
+    pub selection_char_range: Option<(usize, usize)>,
 }
 impl LayoutRect {
     pub fn get_default_non_computed_rect() -> LayoutRect {
@@ -164,6 +180,7 @@ impl LayoutRect {
             image: None,
             location: Rect::empty(),
             selection_rect: None,
+            selection_char_range: None,
         };
     }
 }
@@ -404,6 +421,7 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
                         image: None,
                         location: Rect::empty(),
                         selection_rect: None,
+                        selection_char_range: None,
                     };
 
                     let (rect_width, rect_height) = compute_size_for_rect(&new_rect, &child.borrow().styles, platform);
@@ -741,6 +759,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
         image: partial_node_optional_img,
         location: Rect::empty(),
         selection_rect: None,
+        selection_char_range: None,
     };
 
     let new_node = LayoutNode {

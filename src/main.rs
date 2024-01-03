@@ -22,23 +22,30 @@ use std::rc::Rc;
 use std::thread;
 use std::time::{Duration, Instant};
 
+use arboard::Clipboard;
+use sdl2::keyboard::Mod as SdlKeyMod;
+use sdl2::{
+    event::Event as SdlEvent,
+    keyboard::Keycode,
+    mouse::MouseButton,
+};
+
 use crate::debug::debug_log_warn;
 use crate::dom::Document;
 use crate::fonts::Font;
-use crate::layout::{LayoutNode, Rect};
+use crate::layout::{
+    FullLayout,
+    LayoutNode,
+    LayoutRect,
+    Rect,
+};
 use crate::network::url::Url;
 use crate::platform::Platform;
 use crate::renderer::render;
 use crate::ui::{CONTENT_HEIGHT, UIState};
 use crate::ui_components::{TextField, NavigationButton};
 
-use layout::FullLayout;
-use layout::LayoutRect;
-use sdl2::{
-    event::Event as SdlEvent,
-    keyboard::Keycode,
-    mouse::MouseButton,
-};
+
 use ui::History;
 
 
@@ -129,15 +136,16 @@ pub fn navigate(url: &Url, ui_state: &mut UIState, platform: &mut Platform, docu
 }
 
 
-fn build_selection_rect_on_layout_rect(layout_rect: &mut LayoutRect, selection_rect: &Rect, start_for_selection_rect_on_layout_rect: f32) {
+fn build_selection_rect_on_layout_rect(layout_rect: &mut LayoutRect, selection_rect: &Rect, start_for_selection_rect_on_layout_rect: f32, start_idx_for_selection: usize) {
     let mut matching_offset = layout_rect.location.width;
 
     if layout_rect.text.is_some() {
 
-        for (_idx, offset) in layout_rect.char_position_mapping.as_ref().unwrap().iter().enumerate() {
-            //TODO: use _idx to store the position eventually also on the rect, so we can invert color if needed (and use it to copy to clipboard)
+        let mut end_idx_for_selection = 0;
+        for (idx, offset) in layout_rect.char_position_mapping.as_ref().unwrap().iter().enumerate() {
             if layout_rect.location.x + offset > selection_rect.x + selection_rect.width {
                 matching_offset = *offset;
+                end_idx_for_selection = idx;
                 break;
             }
         }
@@ -147,9 +155,11 @@ fn build_selection_rect_on_layout_rect(layout_rect: &mut LayoutRect, selection_r
                     width: (layout_rect.location.x + matching_offset) - start_for_selection_rect_on_layout_rect,
                     height: layout_rect.location.height };
         layout_rect.selection_rect = Some(selection_rect_for_layout_rect);
+        layout_rect.selection_char_range = Some( (start_idx_for_selection, end_idx_for_selection) );
+        println!("UU: {start_idx_for_selection}, {end_idx_for_selection}")
 
     } else if layout_rect.image.is_some() {
-        //TODO: implement selection for pictures (or don't ?)
+        //Currently no selection is implemented for images
     } else {
         panic!("We should not get in this method with a rect without content");
     }
@@ -170,6 +180,7 @@ fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_re
 
         let mut selection_start_found = false;
         let mut start_for_selection_rect_on_layout_rect = 0.0;
+        let mut start_idx_for_selection = 0;
         for mut layout_rect in RefCell::borrow_mut(layout_node).rects.iter_mut() {
             if layout_rect.location.is_inside(selection_rect.x, selection_rect.y) {
                 selection_start_found = true;
@@ -177,11 +188,10 @@ fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_re
                 if layout_rect.text.is_some() {
 
                     let mut previous_offset = 0.0;
-                    for (_idx, offset) in layout_rect.char_position_mapping.as_ref().unwrap().iter().enumerate() {
-                        //TODO: use _idx to store the position eventually also on the rect, so we can invert color if needed
-
+                    for (idx, offset) in layout_rect.char_position_mapping.as_ref().unwrap().iter().enumerate() {
                         if layout_rect.location.x + offset > selection_rect.x {
                             start_for_selection_rect_on_layout_rect = layout_rect.location.x + previous_offset;
+                            start_idx_for_selection = idx - 1;
                             break;
                         }
 
@@ -190,13 +200,14 @@ fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_re
 
                 } else if layout_rect.image.is_some() {
                     start_for_selection_rect_on_layout_rect = layout_rect.location.x;
+                    start_idx_for_selection = 0;
                 } else {
                     panic!("We should not get here with a rect without content");
                 }
 
                 //Handle the special case where both the top left and the bottom right of the selection rect are in the same layout rect:
                 if layout_rect.location.is_inside(selection_end_x, selection_end_y) {
-                    build_selection_rect_on_layout_rect(&mut layout_rect, selection_rect, start_for_selection_rect_on_layout_rect);
+                    build_selection_rect_on_layout_rect(&mut layout_rect, selection_rect, start_for_selection_rect_on_layout_rect, start_idx_for_selection);
                     return;
                 } else {
                     let selection_rect_for_layout_rect = Rect { x: start_for_selection_rect_on_layout_rect,
@@ -204,22 +215,27 @@ fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_re
                                                                 width: layout_rect.location.width - start_for_selection_rect_on_layout_rect,
                                                                 height: layout_rect.location.height };
                     layout_rect.selection_rect = Some(selection_rect_for_layout_rect);
+                    if layout_rect.text.is_some() {
+                        layout_rect.selection_char_range = Some( (start_idx_for_selection, layout_rect.text.as_ref().unwrap().len()) );
+                    }
                 }
             } else if selection_start_found {
                 // Now we check for other rects on the same layout node that might contain the bottom right point:
                 if layout_rect.location.is_inside(selection_end_x, selection_end_y) {
                     let start_selection_pos = layout_rect.location.x;
-                    build_selection_rect_on_layout_rect(&mut layout_rect, selection_rect, start_selection_pos);
+                    build_selection_rect_on_layout_rect(&mut layout_rect, selection_rect, start_selection_pos, 0);
                     return;
                 } else {
                     //This rect is in between the start and end node, so we fully set it as selected:
                     let selection_rect_for_layout_rect = Rect { x: layout_rect.location.x, y: layout_rect.location.y,
                                                                 width: layout_rect.location.width, height: layout_rect.location.height };
                     layout_rect.selection_rect = Some(selection_rect_for_layout_rect);
+                    layout_rect.selection_char_range = Some( (0, layout_rect.text.as_ref().unwrap().len()) );
                 }
             }
         }
         if selection_start_found {
+            //Now we are going to walk the layout nodes to find the node where the selection ends, and all nodes in between
 
             let mut starting_node_found = false;
             for next_selection_node in nodes_in_selection_order {
@@ -233,13 +249,17 @@ fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_re
                     for mut layout_rect in RefCell::borrow_mut(next_selection_node).rects.iter_mut() {
                         if layout_rect.location.is_inside(selection_end_x, selection_end_y) {
                             let start_selection_pos = layout_rect.location.x;
-                            build_selection_rect_on_layout_rect(&mut layout_rect, selection_rect, start_selection_pos);
+                            build_selection_rect_on_layout_rect(&mut layout_rect, selection_rect, start_selection_pos, 0);
                             return;
                         } else {
                             //This node is in between the start and end node, so we fully set it as selected:
                             let selection_rect_for_layout_rect = Rect { x: layout_rect.location.x, y: layout_rect.location.y,
                                                                         width: layout_rect.location.width, height: layout_rect.location.height };
                             layout_rect.selection_rect = Some(selection_rect_for_layout_rect);
+
+                            if layout_rect.text.is_some() {
+                                layout_rect.selection_char_range = Some( (0, layout_rect.text.as_ref().unwrap().len()) );
+                            }
                         }
                     }
                 }
@@ -391,7 +411,7 @@ fn main() -> Result<(), String> {
                         sdl2::mouse::MouseWheelDirection::Unknown(_) => debug_log_warn("Unknown mousewheel direction!"),
                     }
                 },
-                SdlEvent::KeyUp { keycode, .. } => {
+                SdlEvent::KeyUp { keycode, keymod, .. } => {
                     if keycode.is_some() {
                         let key_code = platform.convert_key_code(&keycode.unwrap());
                         ui::handle_keyboard_input(&mut platform, None, key_code, &mut ui_state);
@@ -401,6 +421,15 @@ fn main() -> Result<(), String> {
                             url = Url::from(&ui_state.addressbar.text);
                             navigate(&url, &mut ui_state, &mut platform, &document, &full_layout_tree); // we should do this above in the next loop, just schedule the url for reload
                             currently_loading_new_page = true;
+                        }
+
+                        if keymod.contains(SdlKeyMod::LCTRLMOD) && keycode.unwrap().name() == "C" {
+                            let mut text_for_clipboard = String::new();
+                            full_layout_tree.borrow().root_node.borrow().get_selected_text(&mut text_for_clipboard);
+                            if !text_for_clipboard.is_empty() {
+                                let mut clipboard = Clipboard::new().unwrap();
+                                clipboard.set_text(text_for_clipboard).expect("Unhandled clipboard error");
+                            }
                         }
                     }
                 },

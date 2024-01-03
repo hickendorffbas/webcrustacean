@@ -1,6 +1,6 @@
 0.2.0 [unreleased]
 ===================
-
+- Added ability to select and copy text
 
 
 0.1.0

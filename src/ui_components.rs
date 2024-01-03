@@ -10,6 +10,8 @@ use crate::platform::{
 use crate::ui::History;
 
 
+const TEXT_FIELD_OFFSET_FROM_BORDER: f32 = 5.0;
+
 pub struct TextField {
     pub x: f32,
     pub y: f32,
@@ -18,7 +20,7 @@ pub struct TextField {
 
     pub has_focus: bool,
     pub cursor_visible: bool,
-    pub cursor_text_position: usize,
+    pub cursor_text_position: usize, //this position means the string index it is _before_, so starts at 0, and is max string.len()  //TODO: make sure that this becomes true
     pub text: String,
 
     pub font: Font,
@@ -26,14 +28,17 @@ pub struct TextField {
 }
 impl TextField {
     pub fn render(&self, platform: &mut Platform) {
-        let text_offset_from_border = 5.0;
-
         platform.draw_square(self.x, self.y, self.width, self.height, Color::BLACK);
-        platform.render_text(&self.text, self.x + text_offset_from_border, self.y + text_offset_from_border, &self.font, Color::BLACK);
+        platform.render_text(&self.text, self.x + TEXT_FIELD_OFFSET_FROM_BORDER, self.y + TEXT_FIELD_OFFSET_FROM_BORDER, &self.font, Color::BLACK);
 
         if self.cursor_visible && self.has_focus {
+            let relative_cursor_position = if self.cursor_text_position == 0 {
+                0.0
+            } else {
+                self.char_position_mapping[self.cursor_text_position - 1]
+            };
 
-            let cursor_position = self.char_position_mapping[self.cursor_text_position] + self.x + text_offset_from_border;
+            let cursor_position = relative_cursor_position + self.x + TEXT_FIELD_OFFSET_FROM_BORDER;
             let cursor_top_bottom_margin = 2.0;
             let cursor_bottom_pos = (self.y + self.height) - cursor_top_bottom_margin;
             platform.draw_line(Position { x: cursor_position, y: self.y + cursor_top_bottom_margin},
@@ -58,8 +63,8 @@ impl TextField {
         if is_inside {
             let mut found = false;
             for (idx, x_position) in self.char_position_mapping.iter().enumerate() {
-                if x_position + self.x > x {
-                    self.cursor_text_position = idx - 1;
+                if x_position + self.x + TEXT_FIELD_OFFSET_FROM_BORDER > x {
+                    self.cursor_text_position = idx;
                     found = true;
                     break;
                 }
@@ -82,7 +87,7 @@ impl TextField {
             match key_code.unwrap() {
                 KeyCode::BACKSPACE => {
                     if self.cursor_text_position > 0 {
-                        self.text.remove(self.cursor_text_position - 1);
+                        self.text.remove(self.cursor_text_position - 1);  //TODO: this does not work with unicode, but we probably have many more places here that don't
                         self.cursor_text_position -= 1;
                     }
                     text_changed = true;
@@ -94,6 +99,7 @@ impl TextField {
                 },
                 KeyCode::RETURN => {
                     //This is currently handled outside of the component
+                    //TODO: (but shouldn't I think)
                 },
                 KeyCode::RIGHT => {
                     if self.cursor_text_position < self.text.len() {
@@ -173,16 +179,28 @@ impl NavigationButton {
 
 //TODO: this should not be public, but we use it in layout now as well, so we should move this to a general place, maybe platform?
 pub fn compute_char_position_mapping(platform: &mut Platform, font: &Font, text: &String) -> Vec<f32> {
+    //This returns the relative ending x positions of each character in the text
     //TODO: we take a very slow approach here. Not sure if we can do this faster.
 
     let mut char_position_mapping = Vec::new();
-    char_position_mapping.push(0.0);
 
     for (idx, _) in text.char_indices() { //taking indices, because we need to iterate chars, but index by byte. We do want to use the slice, to
                                           //prevent allocating a new string for each iteration of the loop.
+
+        if idx == 0 {
+            //0 will be produced in the iterator, but the substring [0..0] should not be in the result, since it doesn't contain a character
+            continue;
+        }
+
         let (x_pos, _) = platform.get_text_dimension_str(&text[0..idx], font);
         char_position_mapping.push(x_pos);
     }
 
+    if text.len() > 0 {
+        let (x_pos, _) = platform.get_text_dimension_str(&text, font);
+        char_position_mapping.push(x_pos);
+    }
+
+    debug_assert!(text.len() == char_position_mapping.len());
     return char_position_mapping;
 }

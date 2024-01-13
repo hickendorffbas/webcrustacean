@@ -423,14 +423,25 @@ fn main() -> Result<(), String> {
                             currently_loading_new_page = true;
                         }
 
-                        if keymod.contains(SdlKeyMod::LCTRLMOD) && keycode.unwrap().name() == "C" {
-                            let mut text_for_clipboard = String::new();
-                            full_layout_tree.borrow().root_node.borrow().get_selected_text(&mut text_for_clipboard);
-                            if !text_for_clipboard.is_empty() {
-                                let mut clipboard = Clipboard::new().unwrap();
-                                clipboard.set_text(text_for_clipboard).expect("Unhandled clipboard error");
+                        if keymod.contains(SdlKeyMod::LCTRLMOD) {
+                            if keycode.unwrap().name() == "C" {
+                                let mut text_for_clipboard = String::new();
+                                full_layout_tree.borrow().root_node.borrow().get_selected_text(&mut text_for_clipboard);
+                                if !text_for_clipboard.is_empty() {
+                                    let mut clipboard = Clipboard::new().unwrap();
+                                    clipboard.set_text(text_for_clipboard).expect("Unhandled clipboard error");
+                                }
+                            }
+
+                            if keycode.unwrap().name() == "V" {
+                                if ui::current_focus_can_receive_text(&ui_state) {
+                                    let clipboard_text = Clipboard::new().unwrap().get_text().expect("Unhandled clipboard error");
+                                    ui::insert_text(&mut platform, &mut ui_state, &clipboard_text);
+                                }
                             }
                         }
+
+
                     }
                 },
                 SdlEvent::TextInput { text, .. } => {

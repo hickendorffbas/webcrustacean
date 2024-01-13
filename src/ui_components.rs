@@ -46,6 +46,7 @@ impl TextField {
                                Color::BLACK);
         }
     }
+
     pub fn set_text(&mut self, platform: &mut Platform, text: String) { //TODO: use this everywhere...
         self.text = text;
 
@@ -55,6 +56,15 @@ impl TextField {
 
         self.char_position_mapping = compute_char_position_mapping(platform, &self.font, &self.text);
     }
+
+    pub fn insert_text(&mut self, platform: &mut Platform, text: &String) {
+        for char in text.chars() {
+            self.text.insert(self.cursor_text_position, char);
+            self.cursor_text_position += 1;
+        }
+        self.char_position_mapping = compute_char_position_mapping(platform, &self.font, &self.text);
+    }
+
     pub fn click(&mut self, x: f32, y: f32)  {
         let is_inside = x > self.x && x < (self.x + self.width) &&
                         y > self.y && y < (self.y + self.height);
@@ -74,6 +84,7 @@ impl TextField {
             }
         }
     }
+
     pub fn handle_keyboard_input(&mut self, platform: &mut Platform, input: Option<&String>, key_code: Option<KeyCode>) {
         let mut text_changed = false;
 

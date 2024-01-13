@@ -3,7 +3,7 @@ goals for 0.2.0:
        - test on mac
        - test on windows (document SDL install)
        - get a proper system for parsing CSS values (are they always numbers?)
-       - make pasting an url in the url bar work
+       - make repeating keys in the url bar work
        - show something when loading a new page, so the user knows we are not hanging
 
 other things (later versions):

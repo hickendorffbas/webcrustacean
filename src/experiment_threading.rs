@@ -1,16 +1,17 @@
 use threadpool::ThreadPool;
-use std::sync::mpsc::{channel, Sender};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc::{channel, Sender, Receiver};
 use std::{thread, time};
-
-
-//TODO: return the response over the channel
-//TODO: build a update loop over all the inprogress work, checking for results on the channel
 
 
 struct ResourceRequestJob {
     job_id: usize,
     url: String,
-    sender: Sender<usize>,
+    sender: Sender<String>,
+}
+struct ResourceRequestJobTracker {
+    job_id: usize,
+    receiver: Receiver<String>,
 }
 
 
@@ -20,37 +21,58 @@ struct PoolContext {
 impl PoolContext {
     fn fire_and_forget(&mut self, job: ResourceRequestJob) {
         self.pool.execute(move || {
-            run_long_job(job.job_id, &job.url);
-            job.sender.send(job.job_id).expect("Could not send over channel");
+            let result = fetch_resource(job.job_id, &job.url);
+            job.sender.send(result).expect("Could not send over channel");
         });
     }
 }
 
 
-fn run_long_job(job_id: usize, url: &String) {
+fn fetch_resource(job_id: usize, url: &String) -> String {
     println!("{job_id} starting to get {url}");
     thread::sleep(time::Duration::from_millis((url.len() * 100) as u64));
     println!("{job_id} finished");
+
+    return String::from("response");
+}
+
+
+static NEXT_JOB_ID: AtomicUsize = AtomicUsize::new(1);
+pub fn get_next_job_id() -> usize { NEXT_JOB_ID.fetch_add(1, Ordering::Relaxed) }
+
+
+fn build_request_job(url: String) -> (ResourceRequestJob, ResourceRequestJobTracker) {
+    let (sender, receiver) = channel::<String>();
+    let job_id = get_next_job_id();
+
+    return (
+        ResourceRequestJob { job_id, url, sender },
+        ResourceRequestJobTracker { job_id, receiver },
+    );
 }
 
 
 pub fn run_experiment() {
-    //TODO: This makes no sense, building a mut struct out of non-mut members, and later mutting the members?
-    let pool = ThreadPool::new(3);
-    let mut pool_context = PoolContext { pool };
+    let mut pool_context = PoolContext { pool: ThreadPool::new(3) };
 
-    let (tx, rx) = channel();
-    
-    pool_context.fire_and_forget(ResourceRequestJob { job_id: 1, url: String::from("http://www.google.com"), sender: tx.clone() });
-    pool_context.fire_and_forget(ResourceRequestJob { job_id: 2, url: String::from("http://www.google.com"), sender: tx.clone() });
-    pool_context.fire_and_forget(ResourceRequestJob { job_id: 3, url: String::from("http://www.google.com"), sender: tx.clone() });
-    pool_context.fire_and_forget(ResourceRequestJob { job_id: 4, url: String::from("http://www.google.com"), sender: tx.clone() });
-    pool_context.fire_and_forget(ResourceRequestJob { job_id: 5, url: String::from("http://www.google.com"), sender: tx.clone() });
-    pool_context.fire_and_forget(ResourceRequestJob { job_id: 6, url: String::from("http://www.google.com"), sender: tx.clone() });
+    let resources: [&str; 5] = [
+        "https://www.google.com",
+        "http://www.bashickendorff.nl",
+        "https://en.wikipedia.org/wiki/Main_Page",
+        "https://cnn.com",
+        "https://www.rust-lang.org/",
+    ];
 
+    let mut jobs = Vec::new();
+    for resource in resources {
+        let (job, job_tracker) = build_request_job(String::from(resource));
 
-    for _ in 0..6 {
-        println!("RECV: {}", rx.recv().unwrap());
+        jobs.push(job_tracker);
+        pool_context.fire_and_forget(job);
+    }
+
+    for job in jobs {
+        println!("RECV {}: {}", job.job_id, job.receiver.recv().unwrap());
     }
 
     println!("DONE");

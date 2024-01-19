@@ -6,7 +6,7 @@ goals for 0.2.0:
        - make repeating keys in the url bar work
        - show something when loading a new page, so the user knows we are not hanging
               - for this we need to move loading to a new thread
-                     - for now just experimenting with a thread pool, but we need to make the whole parsing separate from the frame rendering, and check in on it each frame
+                     - experiment with this works, now we need to integrate it in the page loading (fire request if not in progress, and check on progress each frame)
 
 
 other things (later versions):

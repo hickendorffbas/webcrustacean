@@ -1,7 +1,6 @@
 mod color;
 mod debug;
 mod dom;
-mod experiment_threading;
 mod fonts;
 mod html_lexer;
 mod html_parser;
@@ -24,16 +23,17 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use arboard::Clipboard;
+use resource_loader::ResourceThreadPool;
 use sdl2::keyboard::Mod as SdlKeyMod;
 use sdl2::{
     event::Event as SdlEvent,
     keyboard::Keycode,
     mouse::MouseButton,
 };
+use threadpool::ThreadPool;
 
 use crate::debug::debug_log_warn;
 use crate::dom::Document;
-use crate::experiment_threading::run_experiment;
 use crate::fonts::Font;
 use crate::layout::{
     FullLayout,
@@ -44,11 +44,9 @@ use crate::layout::{
 use crate::network::url::Url;
 use crate::platform::Platform;
 use crate::renderer::render;
-use crate::ui::{CONTENT_HEIGHT, UIState};
+use crate::ui::{CONTENT_HEIGHT, History, UIState};
 use crate::ui_components::{TextField, NavigationButton};
 
-
-use ui::History;
 
 //Config:
 const TARGET_FPS: u32 = if cfg!(debug_assertions) { 20 } else { 60 };
@@ -56,6 +54,7 @@ const SCREEN_WIDTH: f32 = 1400.0;
 const SCREEN_HEIGHT: f32 = 800.0;
 const DEFAULT_LOCATION_TO_LOAD: &str = "file:///home/bas/webcrustacean/testinput/doc.html";
 const SCROLL_SPEED: i32 = 25;
+const NR_RESOURCE_LOADING_THREADS: usize = 4;
 
 //TODO: we probably should include the font files in the repo / build, since these paths might be different on different systems
 #[cfg(target_os = "macos")] const FONT_PATH: &str = "/Library/Fonts/Managed/OpenSans-Light_744839258.ttf";
@@ -103,7 +102,8 @@ pub struct MouseState {
 }
 
 
-pub fn navigate(url: &Url, ui_state: &mut UIState, platform: &mut Platform, document: &RefCell<Document>, full_layout: &RefCell<FullLayout>) {
+pub fn navigate(url: &Url, ui_state: &mut UIState, platform: &mut Platform, document: &RefCell<Document>,
+                full_layout: &RefCell<FullLayout>, resource_thread_pool: &mut ResourceThreadPool) {
     //TODO: we should wrap the history logic in a function or module somewhere...
     if !ui_state.history.currently_navigating_from_history {
         if ui_state.history.list.len() > (ui_state.history.position + 1) {
@@ -128,7 +128,7 @@ pub fn navigate(url: &Url, ui_state: &mut UIState, platform: &mut Platform, docu
     ui_state.history.currently_navigating_from_history = false;
     let page_content = resource_loader::load_text(&url);
     let lex_result = html_lexer::lex_html(&page_content);
-    document.replace(html_parser::parse(lex_result, url));
+    document.replace(html_parser::parse(lex_result, url, resource_thread_pool));
 
     #[cfg(feature="timings")] let start_layout_instant = Instant::now();
     full_layout.replace(layout::build_full_layout(&document.borrow(), platform, &url));
@@ -157,7 +157,6 @@ fn build_selection_rect_on_layout_rect(layout_rect: &mut LayoutRect, selection_r
                     height: layout_rect.location.height };
         layout_rect.selection_rect = Some(selection_rect_for_layout_rect);
         layout_rect.selection_char_range = Some( (start_idx_for_selection, end_idx_for_selection) );
-        println!("UU: {start_idx_for_selection}, {end_idx_for_selection}")
 
     } else if layout_rect.image.is_some() {
         //Currently no selection is implemented for images
@@ -278,17 +277,11 @@ fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_re
 
 
 fn main() -> Result<(), String> {
-
-    run_experiment();
-    return Ok(());
-
-
-
-
     let sdl_context = sdl2::init()?;
-    let ttf_context = sdl2::ttf::init()
-                                .expect("could not initialize the font system");
+    let ttf_context = sdl2::ttf::init().expect("could not initialize the font system");
     let mut platform = platform::init_platform(sdl_context, &ttf_context).unwrap();
+
+    let mut resource_thread_pool = ResourceThreadPool { pool: ThreadPool::new(NR_RESOURCE_LOADING_THREADS) };
 
     let args: Vec<String> = env::args().collect();
 
@@ -328,7 +321,7 @@ fn main() -> Result<(), String> {
     let document = RefCell::from(Document::new_empty());
     let full_layout_tree = RefCell::from(FullLayout::new_empty());
 
-    navigate(&url, &mut ui_state, &mut platform, &document, &full_layout_tree);
+    navigate(&url, &mut ui_state, &mut platform, &document, &full_layout_tree, &mut resource_thread_pool);
     let mut currently_loading_new_page = true;
 
     let mut event_pump = platform.sdl_context.event_pump()?;
@@ -338,7 +331,7 @@ fn main() -> Result<(), String> {
         if should_reload_from_url {
             #[cfg(feature="timings")] let start_page_load_instant = Instant::now();
             currently_loading_new_page = true;
-            navigate(&url, &mut ui_state, &mut platform, &document, &full_layout_tree);
+            navigate(&url, &mut ui_state, &mut platform, &document, &full_layout_tree, &mut resource_thread_pool);
             should_reload_from_url = false;
             #[cfg(feature="timings")] println!("page load elapsed millis: {}", start_page_load_instant.elapsed().as_millis());
         }
@@ -404,7 +397,7 @@ fn main() -> Result<(), String> {
                             let url = optional_url.unwrap();
                             //TODO: this should be done via a nicer "navigate" method or something (also below when pressing enter in the addressbar
                             ui_state.addressbar.set_text(&mut platform, url.to_string());
-                            navigate(&url, &mut ui_state, &mut platform, &document, &full_layout_tree);  // we should do this above in the next loop, just schedule the url for reload
+                            navigate(&url, &mut ui_state, &mut platform, &document, &full_layout_tree, &mut resource_thread_pool); //TODO: we should do this above in the next loop, just schedule the url for reload
                             currently_loading_new_page = true;
                         }
                     }
@@ -427,7 +420,7 @@ fn main() -> Result<(), String> {
                         if ui_state.addressbar.has_focus && keycode.unwrap().name() == "Return" {
                             //TODO: This is here for now because we need to load another page, not sure how to correctly trigger that from inside the component
                             url = Url::from(&ui_state.addressbar.text);
-                            navigate(&url, &mut ui_state, &mut platform, &document, &full_layout_tree); // we should do this above in the next loop, just schedule the url for reload
+                            navigate(&url, &mut ui_state, &mut platform, &document, &full_layout_tree, &mut resource_thread_pool); //TODO: we should do this above in the next loop, just schedule the url for reload
                             currently_loading_new_page = true;
                         }
 
@@ -459,6 +452,8 @@ fn main() -> Result<(), String> {
             }
         }
         #[cfg(feature="timings")] println!("event pump elapsed millis: {}", start_event_pump_instant.elapsed().as_millis());
+
+        document.borrow_mut().update_all_dom_nodes(&mut resource_thread_pool);
 
         #[cfg(feature="timings")] let start_render_instant = Instant::now();
         render(&mut platform, &full_layout_tree.borrow(), &mut ui_state);

@@ -1,7 +1,10 @@
 use std::fs;
+use std::sync::atomic::{Ordering, AtomicUsize};
+use std::sync::mpsc::{channel, Receiver, Sender};
 
 use image::DynamicImage;
 use image::io::Reader as ImageReader;
+use threadpool::ThreadPool;
 
 use crate::debug::debug_log_warn;
 use crate::network::url::Url;
@@ -9,6 +12,34 @@ use crate::network::{
     http_get_image,
     http_get_text,
 };
+
+
+static NEXT_JOB_ID: AtomicUsize = AtomicUsize::new(1);
+pub fn get_next_job_id() -> usize { NEXT_JOB_ID.fetch_add(1, Ordering::Relaxed) }
+
+struct ResourceRequestJob<T> {
+    #[allow(dead_code)] job_id: usize, //TODO: check if we want to use this (probably for logging / debugging?)
+    url: Url,
+    sender: Sender<T>,
+}
+#[derive(Debug)]
+pub struct ResourceRequestJobTracker<T> {
+    pub job_id: usize,
+    pub receiver: Receiver<T>,
+}
+
+
+pub struct ResourceThreadPool {
+    pub pool: ThreadPool,
+}
+impl ResourceThreadPool {
+    fn fire_and_forget(&mut self, job: ResourceRequestJob<DynamicImage>) {
+        self.pool.execute(move || {
+            let result = load_image(&job.url);
+            job.sender.send(result).expect("Could not send over channel");
+        });
+    }
+}
 
 
 pub fn load_text(url: &Url) -> String {
@@ -35,7 +66,20 @@ pub fn load_text(url: &Url) -> String {
 }
 
 
-pub fn load_image(url: &Url) -> DynamicImage {
+pub fn schedule_load_image(url: &Url, resource_thread_pool: &mut ResourceThreadPool) -> ResourceRequestJobTracker<DynamicImage> {
+    let (sender, receiver) = channel::<DynamicImage>();
+    let job_id = get_next_job_id();
+
+    let job = ResourceRequestJob { job_id, url: url.clone(), sender };
+    let job_tracker = ResourceRequestJobTracker { job_id, receiver };
+
+    resource_thread_pool.fire_and_forget(job);
+
+    return job_tracker;
+}
+
+
+fn load_image(url: &Url) -> DynamicImage {
     if url.scheme == "file" {
         let mut local_path = String::from("//");
         local_path.push_str(&url.path.join("/"));

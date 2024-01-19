@@ -55,7 +55,6 @@ fn render_layout_node(platform: &mut Platform, layout_node: &LayoutNode, all_nod
     for layout_rect in layout_node.rects.iter() {
         if layout_rect.text.is_some() {
             if layout_rect.selection_rect.is_some() {
-                println!("{} {}", layout_rect.selection_char_range.unwrap().0, layout_rect.selection_char_range.unwrap().1);
                 let selection_rect = layout_rect.selection_rect.as_ref().unwrap();
                 platform.fill_rect(selection_rect.x, selection_rect.y - current_scroll_y, selection_rect.width, selection_rect.height, Color::new(180, 213, 255));
             }

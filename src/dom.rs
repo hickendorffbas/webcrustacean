@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use image::DynamicImage;
 
 use crate::network::url::Url;
-use crate::resource_loader;
+use crate::resource_loader::{self, ResourceThreadPool, ResourceRequestJobTracker};
 use crate::style::StyleContext;
 
 
@@ -19,11 +19,15 @@ pub struct Document {
     pub document_node: Rc<RefCell<ElementDomNode>>,
     pub all_nodes: HashMap<usize, Rc<RefCell<ElementDomNode>>>,
     pub style_context: StyleContext,
+    pub base_url: Url, //The url this DOM was loaded from
 }
 impl Document {
     pub fn new_empty() -> Document {
         return Document { document_node: Rc::from(RefCell::from(ElementDomNode::new_empty())),
-            all_nodes: HashMap::new(), style_context: StyleContext { user_agent_sheet: vec![], author_sheet: vec![] } };
+            all_nodes: HashMap::new(), style_context: StyleContext { user_agent_sheet: vec![], author_sheet: vec![] }, base_url: Url::empty() };
+    }
+    pub fn update_all_dom_nodes(&mut self, resource_thread_pool: &mut ResourceThreadPool) {
+        self.document_node.borrow_mut().update(resource_thread_pool, self);
     }
 }
 
@@ -74,6 +78,7 @@ pub struct ElementDomNode {
     pub attributes: Option<Vec<Rc<RefCell<AttributeDomNode>>>>,
 
     pub image: Option<Rc<DynamicImage>>,
+    pub img_job_tracker: Option<ResourceRequestJobTracker<DynamicImage>>,
 }
 impl ElementDomNode {
     pub fn get_attribute_value(&self, attribute_name: &str) -> Option<String> {
@@ -86,13 +91,33 @@ impl ElementDomNode {
         }
         return None;
     }
-    pub fn update(&mut self, main_url: &Url) {
+    fn update(&mut self, resource_thread_pool: &mut ResourceThreadPool, document: &Document) {
+
+        if self.children.is_some() {
+            for child in self.children.as_ref().unwrap() {
+                child.borrow_mut().update(resource_thread_pool, document);
+            }
+        }
 
         if self.image.is_none() && self.name.is_some() && self.name.as_ref().unwrap() == "img" {
             let image_src = self.get_attribute_value("src");
+
             if image_src.is_some() {
-                let image_url = Url::from_base_url(&image_src.unwrap(), Some(main_url));
-                self.image = Some(Rc::from(resource_loader::load_image(&image_url)));
+                if self.img_job_tracker.is_none() {
+                    let image_url = Url::from_base_url(&image_src.unwrap(), Some(&document.base_url));
+
+                    self.img_job_tracker = Some(resource_loader::schedule_load_image(&image_url, resource_thread_pool)); //TODO: eventually store the threadpool
+                                                                                                                         //      on a more general context object
+
+                } else {
+                    let try_recv_result = self.img_job_tracker.as_ref().unwrap().receiver.try_recv();
+                    if try_recv_result.is_ok() {
+                        self.image = Some(Rc::from(try_recv_result.unwrap()));
+                        self.img_job_tracker = None;
+                    }
+
+                }
+
             } else {
                 self.image = Some(Rc::from(resource_loader::fallback_image()));
             }
@@ -108,7 +133,8 @@ impl ElementDomNode {
             name_for_layout: TagName::Other,
             children: None,
             attributes: None,
-            image: None
+            image: None,
+            img_job_tracker: None,
         };
     }
 }

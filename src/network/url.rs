@@ -47,6 +47,20 @@ impl Url {
         Url::from_base_url(url_str, None)
     }
 
+    pub fn empty() -> Url {
+        return Url {
+            scheme: String::new(),
+            username: String::new(),
+            password: String::new(),
+            host: String::new(),
+            port: String::new(),
+            path: Vec::new(),
+            query: String::new(),
+            fragment: String::new(),
+            blob: String::new(),
+        }
+    }
+
     pub fn from_base_url(url_str: &String, base_url: Option<&Url>) -> Url {
         let mut state = UrlParsingState::SchemeStartState;
         let mut buffer = String::new();

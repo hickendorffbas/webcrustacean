@@ -1,6 +1,7 @@
 mod color;
 mod debug;
 mod dom;
+mod experiment_threading;
 mod fonts;
 mod html_lexer;
 mod html_parser;
@@ -32,6 +33,7 @@ use sdl2::{
 
 use crate::debug::debug_log_warn;
 use crate::dom::Document;
+use crate::experiment_threading::run_experiment;
 use crate::fonts::Font;
 use crate::layout::{
     FullLayout,
@@ -47,7 +49,6 @@ use crate::ui_components::{TextField, NavigationButton};
 
 
 use ui::History;
-
 
 //Config:
 const TARGET_FPS: u32 = if cfg!(debug_assertions) { 20 } else { 60 };
@@ -277,6 +278,13 @@ fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_re
 
 
 fn main() -> Result<(), String> {
+
+    run_experiment();
+    return Ok(());
+
+
+
+
     let sdl_context = sdl2::init()?;
     let ttf_context = sdl2::ttf::init()
                                 .expect("could not initialize the font system");

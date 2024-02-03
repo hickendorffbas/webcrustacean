@@ -23,7 +23,7 @@ fn check_style(resolved_styles: &HashMap<String, String>, property: &str, value:
 fn test_basic_style_resolving() {
     let document_node_id = 0;
     let dom_node_id = get_next_test_id();
-    let dom_node = Rc::new(RefCell::from(ElementDomNode { internal_id: dom_node_id, parent_id: document_node_id, text: None, is_document_node: false,
+    let dom_node = Rc::new(RefCell::from(ElementDomNode { internal_id: dom_node_id, parent_id: document_node_id, text: None, is_document_node: false, dirty: false,
                                                           name: Some("a".to_owned()), name_for_layout: TagName::A, children: Some(Vec::new()),
                                                           attributes: None, image: None, img_job_tracker: None }));
 
@@ -45,10 +45,10 @@ fn test_inherit_style_from_parent() {
     let document_node_id = 0;
     let main_node_id = get_next_test_id();
     let parent_node_id = get_next_test_id();
-    let main_node = Rc::new(RefCell::from(ElementDomNode { internal_id: main_node_id, parent_id: parent_node_id, text: None, is_document_node: false,
+    let main_node = Rc::new(RefCell::from(ElementDomNode { internal_id: main_node_id, parent_id: parent_node_id, text: None, is_document_node: false, dirty: false,
                                                            name: Some("a".to_owned()), name_for_layout: TagName::A, children: Some(Vec::new()),
                                                            attributes: None, image: None, img_job_tracker: None }));
-    let parent_node = Rc::new(RefCell::from(ElementDomNode { internal_id: parent_node_id, parent_id: document_node_id, text: None,
+    let parent_node = Rc::new(RefCell::from(ElementDomNode { internal_id: parent_node_id, parent_id: document_node_id, text: None, dirty: false,
                                                              is_document_node: false, name: Some("h3".to_owned()), name_for_layout: TagName::Other,
                                                              children: Some(vec![Rc::clone(&main_node)]), attributes: None, image: None, img_job_tracker: None }));
 
@@ -71,7 +71,7 @@ fn test_inherit_style_from_parent() {
 fn test_cascade() {
     let document_node_id = 0;
     let dom_node_id = get_next_test_id();
-    let dom_node = Rc::new(RefCell::from(ElementDomNode { internal_id: dom_node_id, parent_id: document_node_id, text: None, is_document_node: false,
+    let dom_node = Rc::new(RefCell::from(ElementDomNode { internal_id: dom_node_id, parent_id: document_node_id, text: None, is_document_node: false, dirty: false,
                                                           name: Some("a".to_owned()), name_for_layout: TagName::A, children: Some(Vec::new()),
                                                           attributes: None, image: None, img_job_tracker: None }));
 

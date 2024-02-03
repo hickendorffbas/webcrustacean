@@ -46,6 +46,7 @@ pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>, main_url: &Url, resource_t
         internal_id: document_node_id,
         parent_id: 0,
         is_document_node: true,
+        dirty: false,
         text: None,
         name: None,
         name_for_layout: TagName::Other,
@@ -104,6 +105,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                         text: None,
                         attributes: Some(attributes),
                         is_document_node: false,
+                        dirty: false,
                         image: None,
                         img_job_tracker: None,
                     };
@@ -158,6 +160,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                     text: None,
                     attributes: Some(attributes),
                     is_document_node: false,
+                    dirty: false,
                     image: None,
                     img_job_tracker: None,
                 };
@@ -203,6 +206,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
             text: None,
             attributes: Some(attributes),
             is_document_node: false,
+            dirty: false,
             image: None,
             img_job_tracker: None,
         };
@@ -280,6 +284,7 @@ fn read_all_text_for_text_node(html_tokens: &Vec<HtmlTokenWithLocation>, current
         children: None,
         attributes: None,
         is_document_node: false,
+        dirty: false,
         image: None,
         img_job_tracker: None,
     };

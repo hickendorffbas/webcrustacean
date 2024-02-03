@@ -1,3 +1,38 @@
+partial re-layout support:
+
+
+step 1: make layout repeatable, now, doing it twice breaks the layout    DONE
+
+step 2: layout::build_full_layout now both builds, and reflows. Seperate those
+
+step 3: sync content in layout flow when DOM node is dirty
+
+step 4: skip computing what we can (by knowing what is dirty ahead of time? because if nothing is dirty down a node, and width does not change, we should skip it?)
+
+
+
+
+NOTE: dirty should really only be used to avoid copying content, not to not update sizes and positions, that should be recursively determined by comparing things?
+
+
+NOTE: the new idea is to do the normal layout everytime we set a node dirty
+      (and we need to register if we have > 0 dirty nodes outside the tree, so we know when to do this)
+           -> make this a TODO, don't implement yet, for now always re-layout
+
+
+NOTE: the main save is still to not do text wrapping when we don't need to. How do we detect this?
+         we don't need to do it if the width of the box did not change, and the content did not change (is not dirty)
+
+
+//TODO: OLD BELOW (check if we need to take along stuff):
+
+
+
+=========================
+
+- design problem: how are we going to update the DOM from multiple threads? (for example JS modifying DOM)?
+
+
 
 goals for 0.2.0:
        - test on mac
@@ -6,8 +41,10 @@ goals for 0.2.0:
        - make repeating keys in the url bar work
        - show something when loading a new page, so the user knows we are not hanging
               - we now load images in threads
-                     - we still need to trigger the right updates to layout (dirty the right rects, to rebuild after the DOM update)
-                            - or maybe dirty the DOM actually, and update the layout tree based on that
+                     - we still need to trigger the right updates to layout
+                            - set the dirty flag on the DOM node, then walk the layout tree
+                                   - (we need a seperate pass before to modify the layouttree structure if needed, for now out of scope)
+                            - note: dirty nodes also needs a content sync from DOM
 
 
 
@@ -16,7 +53,6 @@ other things (later versions):
        - make parse tests nicer by comparing json
        - fix transparancy in png's (loading works, rendering in SDL does not)
        - integration tests by exporting json for the layout tree, so I can test all the way from HTML to layout
-       - look into threads for UI, network etc. (https://doc.rust-lang.org/book/ch16-01-threads.html)
        - figure out how do build standalone binaries
 
 

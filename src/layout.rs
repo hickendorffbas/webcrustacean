@@ -39,7 +39,7 @@ pub struct FullLayout {
 }
 impl FullLayout {
     pub fn page_height(&self) -> f32 {
-        return self.root_node.borrow().rects.iter().next().unwrap().location.height;
+        return RefCell::borrow(&self.root_node).rects.iter().next().unwrap().location.height;
     }
     pub fn new_empty() -> FullLayout {
         return FullLayout { root_node: Rc::from(RefCell::from(LayoutNode::new_empty())), all_nodes: HashMap::new(), nodes_in_selection_order: Vec::new() };
@@ -58,6 +58,7 @@ pub struct LayoutNode {
     pub styles: HashMap<String, String>,  //TODO: it would eventually be nice to have something stronger typed here
     pub optional_link_url: Option<Url>,
     pub rects: Vec<LayoutRect>,
+    pub pre_wrap_rect_backup: Option<LayoutRect>,
     pub from_dom_node: Option<Rc<RefCell<ElementDomNode>>>,
 }
 impl LayoutNode {
@@ -65,7 +66,7 @@ impl LayoutNode {
         if self.children.is_none() {
             return true;
         }
-        return self.children.as_ref().unwrap().iter().all(|node| node.borrow().display == display);
+        return self.children.as_ref().unwrap().iter().all(|node| RefCell::borrow(node).display == display);
     }
     pub fn update_single_rect_location(&mut self, new_location: Rect) {
         debug_assert!(self.rects.len() == 1);
@@ -108,8 +109,8 @@ impl LayoutNode {
 
         if self.children.is_some() {
             for child in self.children.as_ref().unwrap() {
-                if child.borrow().visible {
-                    let opt_url = child.borrow().find_clickable(x, y, current_scroll_y);
+                if RefCell::borrow(child).visible {
+                    let opt_url = RefCell::borrow(child).find_clickable(x, y, current_scroll_y);
                     if opt_url.is_some() {
                         return opt_url;
                     }
@@ -130,6 +131,7 @@ impl LayoutNode {
             styles: HashMap::new(),
             optional_link_url: None,
             rects: Vec::new(),
+            pre_wrap_rect_backup: None,
             from_dom_node: None
         };
     }
@@ -140,7 +142,7 @@ impl LayoutNode {
         }
         if self.children.is_some() {
             for child in self.children.as_ref().unwrap() {
-                child.borrow_mut().reset_selection();
+                RefCell::borrow_mut(child).reset_selection();
             }
         }
     }
@@ -154,14 +156,23 @@ impl LayoutNode {
 
         if self.children.is_some() {
             for child in self.children.as_ref().unwrap() {
-                child.borrow_mut().get_selected_text(result);
+                RefCell::borrow_mut(child).get_selected_text(result);
             }
+        }
+    }
+    pub fn undo_split_rects(&mut self) {
+        //The main intention for this method is to be used before we start the process of computing line wrapping again (to undo the previous wrapping)
+        if self.rects.len() > 1 {
+            debug_assert!(self.rects.iter().all(|rect| -> bool { rect.text.is_some()} ));
+            debug_assert!(self.pre_wrap_rect_backup.is_some());
+            self.rects = vec![self.pre_wrap_rect_backup.as_ref().unwrap().clone()];
         }
     }
 }
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone)]
 pub struct LayoutRect {
     pub text: Option<String>,
     pub char_position_mapping: Option<Vec<f32>>, //TODO: might be nice to combine this with text in a struct
@@ -195,6 +206,7 @@ pub enum Display { //TODO: this is a CSS property, of which we will have many, w
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone)]
 pub struct Rect {
     pub x: f32,
     pub y: f32,
@@ -248,6 +260,7 @@ pub fn build_full_layout(document: &Document, platform: &mut Platform, main_url:
         styles: HashMap::new(), //TODO: we need to compute styles also for document, but we need special code for it, since we don't have an ElementDomNode for it
         optional_link_url: None,
         rects: vec![LayoutRect::get_default_non_computed_rect()],
+        pre_wrap_rect_backup: None,
         from_dom_node: None,
     };
 
@@ -255,9 +268,9 @@ pub fn build_full_layout(document: &Document, platform: &mut Platform, main_url:
     all_nodes.insert(id_of_node_being_built, Rc::clone(&rc_root_node));
 
     compute_layout(&rc_root_node, &all_nodes, &document.style_context, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y, platform);
-    let (root_width, root_height) = rc_root_node.borrow().get_size_of_bounding_box();
+    let (root_width, root_height) = RefCell::borrow(&rc_root_node).get_size_of_bounding_box();
     let root_location = Rect { x: CONTENT_TOP_LEFT_X, y: CONTENT_TOP_LEFT_Y, width: root_width, height: root_height };
-    rc_root_node.borrow_mut().update_single_rect_location(root_location);
+    RefCell::borrow_mut(&rc_root_node).update_single_rect_location(root_location);
 
     let mut nodes_in_selection_order = Vec::new();
     collect_content_nodes_in_walk_order(&rc_root_node, &mut nodes_in_selection_order);
@@ -268,13 +281,13 @@ pub fn build_full_layout(document: &Document, platform: &mut Platform, main_url:
 
 fn collect_content_nodes_in_walk_order(node: &Rc<RefCell<LayoutNode>>, result: &mut Vec<Rc<RefCell<LayoutNode>>>) {
 
-    let any_content = node.borrow().rects.iter().any(|rect| -> bool { rect.image.is_some() || rect.text.is_some() } );
+    let any_content = RefCell::borrow(node).rects.iter().any(|rect| -> bool { rect.image.is_some() || rect.text.is_some() } );
     if any_content {
         result.push(Rc::clone(&node));
     }
 
-    if node.borrow().children.as_ref().is_some() {
-        for child in node.borrow().children.as_ref().unwrap() {
+    if RefCell::borrow(node).children.as_ref().is_some() {
+        for child in RefCell::borrow(node).children.as_ref().unwrap() {
             collect_content_nodes_in_walk_order(&child, result);
         }
     }
@@ -286,7 +299,7 @@ fn collect_content_nodes_in_walk_order(node: &Rc<RefCell<LayoutNode>>, result: &
 fn compute_layout(node: &Rc<RefCell<LayoutNode>>, all_nodes: &HashMap<usize, Rc<RefCell<LayoutNode>>>, style_context: &StyleContext,
                   top_left_x: f32, top_left_y: f32, platform: &mut Platform) {
 
-    let mut mut_node = node.borrow_mut();
+    let mut mut_node = RefCell::borrow_mut(node);
 
     if !mut_node.visible {
         mut_node.update_single_rect_location(Rect { x: top_left_x, y: top_left_y, width: 0.0, height: 0.0 });
@@ -357,7 +370,7 @@ fn apply_block_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefCe
 
     for child in node.children.as_ref().unwrap() {
         compute_layout(&child, all_nodes, style_context, top_left_x, cursor_y, platform);
-        let (bounding_box_width, bounding_box_height) = child.borrow().get_size_of_bounding_box();
+        let (bounding_box_width, bounding_box_height) = RefCell::borrow(child).get_size_of_bounding_box();
 
         cursor_y += bounding_box_height;
         max_width = max_width.max(bounding_box_width);
@@ -378,14 +391,14 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
     for child in node.children.as_ref().unwrap() {
         compute_layout(&child, all_nodes, style_context, cursor_x, cursor_y, platform);
 
-        if child.borrow().line_break {
+        if RefCell::borrow(child).line_break {
             let child_height;
             if cursor_x != top_left_x {
                 cursor_x = top_left_x;
                 cursor_y += max_height_of_line;
                 child_height = max_height_of_line;
             } else {
-                let (font, _) = get_font_given_styles(&child.borrow().styles);
+                let (font, _) = get_font_given_styles(&RefCell::borrow(child).styles);
                 //we get the hight of a random character in the font for the height of the newline:
                 let (_, random_char_height) = platform.get_text_dimension(&String::from("x"), &font);
 
@@ -394,22 +407,25 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
                 child_height = random_char_height;
             }
 
-            child.borrow_mut().update_single_rect_location(Rect { x: top_left_x, y: top_left_y, width: max_width, height: child_height });
+            RefCell::borrow_mut(child).update_single_rect_location(Rect { x: top_left_x, y: top_left_y, width: max_width, height: child_height });
 
             continue;
         }
 
-        let (child_width, child_height) = child.borrow().get_size_of_bounding_box();
+        RefCell::borrow_mut(child).undo_split_rects();
+
+        let child_borrow = RefCell::borrow(child);
+        let (child_width, child_height) = child_borrow.get_size_of_bounding_box();
 
         if (cursor_x - top_left_x + child_width) > max_allowed_width {
 
-            if child.borrow().children.is_none() && child.borrow().can_wrap() && child.borrow().rects.iter().all(|rect| -> bool { rect.text.is_some()} ) {
+            if child_borrow.children.is_none() && child_borrow.can_wrap() && child_borrow.rects.iter().all(|rect| -> bool { rect.text.is_some()} ) {
                 // in this case, we might be able to split rects, and put part of the node on this line
 
-                let font = get_font_given_styles(&child.borrow().styles);
+                let font = get_font_given_styles(&child_borrow.styles);
                 let relative_cursor_x = cursor_x - top_left_x;
                 let amount_of_space_left_on_line = max_allowed_width - relative_cursor_x;
-                let wrapped_text = wrap_text(child.borrow().rects.last().unwrap(), max_allowed_width, amount_of_space_left_on_line, &font.0, platform);
+                let wrapped_text = wrap_text(child_borrow.rects.last().unwrap(), max_allowed_width, amount_of_space_left_on_line, &font.0, platform);
 
                 let mut rects_for_child = Vec::new();
                 for text in wrapped_text {
@@ -424,7 +440,7 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
                         selection_char_range: None,
                     };
 
-                    let (rect_width, rect_height) = compute_size_for_rect(&new_rect, &child.borrow().styles, platform);
+                    let (rect_width, rect_height) = compute_size_for_rect(&new_rect, &child_borrow.styles, platform);
 
                     if cursor_x - top_left_x + rect_width > max_allowed_width {
                         if cursor_x != top_left_x {
@@ -442,7 +458,11 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
                     max_height_of_line = max_height_of_line.max(rect_height);
 
                 }
-                child.borrow_mut().rects = rects_for_child;
+                let rect_backup = child_borrow.rects.iter().next().unwrap().clone();
+                drop(child_borrow);
+
+                RefCell::borrow_mut(child).pre_wrap_rect_backup = Some(rect_backup);
+                RefCell::borrow_mut(child).rects = rects_for_child;
 
             } else {
                 if cursor_x != top_left_x {
@@ -452,7 +472,7 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
                     cursor_y += max_height_of_line;
 
                     compute_layout(&child, all_nodes, style_context, cursor_x, cursor_y, platform);
-                    let (child_width, child_height) = child.borrow().get_size_of_bounding_box();
+                    let (child_width, child_height) = child_borrow.get_size_of_bounding_box();
 
                     cursor_x += child_width;
                     max_width = max_width.max(cursor_x);
@@ -551,7 +571,7 @@ fn wrap_text(layout_rect: &LayoutRect, max_width: f32, width_remaining_on_curren
 fn get_display_type(node: &Rc<RefCell<ElementDomNode>>) -> Display {
     //TODO: eventually this needs the resolved styles as well, because that can influence the display type...
 
-    let node = node.borrow();
+    let node = RefCell::borrow(node);
 
     if node.name.is_some() {
         let node_name = node.name.as_ref().unwrap();
@@ -592,7 +612,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
     let mut childs_to_recurse_on: &Option<Vec<Rc<RefCell<ElementDomNode>>>> = &None;
 
     let main_node_refcell = main_node;
-    let main_node = main_node.borrow();
+    let main_node = RefCell::borrow(main_node);
 
     if main_node.text.is_some() {
         if optional_new_text.is_some() {
@@ -772,6 +792,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
         styles: partial_node_styles,
         optional_link_url: partial_node_optional_link_url,
         rects: vec![layout_rect],
+        pre_wrap_rect_backup: None,
         from_dom_node: Some(Rc::clone(&main_node_refcell)),
     };
 
@@ -791,8 +812,8 @@ fn build_layout_for_inline_nodes(inline_nodes: &Vec<&Rc<RefCell<ElementDomNode>>
 
     for (node_idx, node) in inline_nodes.iter().enumerate() {
 
-        if node.borrow().text.is_some() {
-            let node = node.borrow();
+        if RefCell::borrow(node).text.is_some() {
+            let node = RefCell::borrow(node);
 
             let node_text = &node.text.as_ref().unwrap().text_content;
             let mut new_text = String::new();
@@ -841,6 +862,7 @@ fn build_anonymous_block_layout_node(visible: bool, parent_id: usize, inline_chi
         styles: styles.clone(),
         optional_link_url: None,
         rects: vec![LayoutRect::get_default_non_computed_rect()],
+        pre_wrap_rect_backup: None,
         from_dom_node: None,
     };
 

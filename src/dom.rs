@@ -69,11 +69,14 @@ impl TagName {
 pub struct ElementDomNode {
     pub internal_id: usize,
     pub parent_id: usize,
-
     pub is_document_node: bool,
+
+    pub dirty: bool,
+
     pub text: Option<DomText>,
     pub name: Option<String>,
     pub name_for_layout: TagName,
+
     pub children: Option<Vec<Rc<RefCell<ElementDomNode>>>>,
     pub attributes: Option<Vec<Rc<RefCell<AttributeDomNode>>>>,
 
@@ -113,6 +116,7 @@ impl ElementDomNode {
                     let try_recv_result = self.img_job_tracker.as_ref().unwrap().receiver.try_recv();
                     if try_recv_result.is_ok() {
                         self.image = Some(Rc::from(try_recv_result.unwrap()));
+                        self.dirty = true;
                         self.img_job_tracker = None;
                     }
 
@@ -120,6 +124,7 @@ impl ElementDomNode {
 
             } else {
                 self.image = Some(Rc::from(resource_loader::fallback_image()));
+                self.dirty = true;
             }
         }
     }
@@ -128,6 +133,7 @@ impl ElementDomNode {
             internal_id: 0,
             parent_id: 0,
             is_document_node: true,
+            dirty: false,
             text: None,
             name: None,
             name_for_layout: TagName::Other,

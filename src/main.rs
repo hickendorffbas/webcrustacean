@@ -454,6 +454,7 @@ fn main() -> Result<(), String> {
         #[cfg(feature="timings")] println!("event pump elapsed millis: {}", start_event_pump_instant.elapsed().as_millis());
 
         document.borrow_mut().update_all_dom_nodes(&mut resource_thread_pool);
+        //TODO: do new layout round here (and later also optionally a new build round if we need to, for both the update method above should probably return whether to do it)
 
         #[cfg(feature="timings")] let start_render_instant = Instant::now();
         render(&mut platform, &full_layout_tree.borrow(), &mut ui_state);

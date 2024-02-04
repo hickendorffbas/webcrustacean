@@ -3,7 +3,7 @@ partial re-layout support:
 
 step 1: make layout repeatable, now, doing it twice breaks the layout    DONE
 
-step 2: layout::build_full_layout now both builds, and reflows. Seperate those
+step 2: layout::build_full_layout now both builds, and reflows. Seperate those    DONE
 
 step 3: sync content in layout flow when DOM node is dirty
 

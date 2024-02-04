@@ -20,11 +20,7 @@ use crate::style::{
     has_style_value,
     resolve_full_styles_for_layout_node,
 };
-use crate::ui::{
-    CONTENT_TOP_LEFT_X,
-    CONTENT_TOP_LEFT_Y,
-    CONTENT_WIDTH
-};
+use crate::ui::CONTENT_WIDTH;
 use crate::ui_components::compute_char_position_mapping;
 
 
@@ -267,11 +263,6 @@ pub fn build_full_layout(document: &Document, platform: &mut Platform, main_url:
     let rc_root_node = Rc::new(RefCell::from(root_node));
     all_nodes.insert(id_of_node_being_built, Rc::clone(&rc_root_node));
 
-    compute_layout(&rc_root_node, &all_nodes, &document.style_context, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y, platform);
-    let (root_width, root_height) = RefCell::borrow(&rc_root_node).get_size_of_bounding_box();
-    let root_location = Rect { x: CONTENT_TOP_LEFT_X, y: CONTENT_TOP_LEFT_Y, width: root_width, height: root_height };
-    RefCell::borrow_mut(&rc_root_node).update_single_rect_location(root_location);
-
     let mut nodes_in_selection_order = Vec::new();
     collect_content_nodes_in_walk_order(&rc_root_node, &mut nodes_in_selection_order);
 
@@ -296,8 +287,8 @@ fn collect_content_nodes_in_walk_order(node: &Rc<RefCell<LayoutNode>>, result: &
 
 //This function is responsible for setting the location rects on the node, and all its children.
 //TODO: need to find a way to make good tests for this (probably via exporting the layout in JSON)
-fn compute_layout(node: &Rc<RefCell<LayoutNode>>, all_nodes: &HashMap<usize, Rc<RefCell<LayoutNode>>>, style_context: &StyleContext,
-                  top_left_x: f32, top_left_y: f32, platform: &mut Platform) {
+pub fn compute_layout(node: &Rc<RefCell<LayoutNode>>, all_nodes: &HashMap<usize, Rc<RefCell<LayoutNode>>>, style_context: &StyleContext,
+                      top_left_x: f32, top_left_y: f32, platform: &mut Platform) {
 
     let mut mut_node = RefCell::borrow_mut(node);
 

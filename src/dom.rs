@@ -26,8 +26,10 @@ impl Document {
         return Document { document_node: Rc::from(RefCell::from(ElementDomNode::new_empty())),
             all_nodes: HashMap::new(), style_context: StyleContext { user_agent_sheet: vec![], author_sheet: vec![] }, base_url: Url::empty() };
     }
-    pub fn update_all_dom_nodes(&mut self, resource_thread_pool: &mut ResourceThreadPool) {
-        self.document_node.borrow_mut().update(resource_thread_pool, self);
+    pub fn update_all_dom_nodes(&mut self, resource_thread_pool: &mut ResourceThreadPool) -> bool {
+        //returns whether there are dirty nodes after the update
+
+        return self.document_node.borrow_mut().update(resource_thread_pool, self);
     }
 }
 
@@ -94,11 +96,17 @@ impl ElementDomNode {
         }
         return None;
     }
-    fn update(&mut self, resource_thread_pool: &mut ResourceThreadPool, document: &Document) {
+    fn update(&mut self, resource_thread_pool: &mut ResourceThreadPool, document: &Document) -> bool {
+        //returns whether there are dirty nodes after the update (being itself, or any of the children)
+
+        let mut any_child_dirty = false;
 
         if self.children.is_some() {
             for child in self.children.as_ref().unwrap() {
-                child.borrow_mut().update(resource_thread_pool, document);
+                let child_dirty = child.borrow_mut().update(resource_thread_pool, document);
+                if child_dirty {
+                    any_child_dirty = true;
+                }
             }
         }
 
@@ -127,6 +135,8 @@ impl ElementDomNode {
                 self.dirty = true;
             }
         }
+
+        return any_child_dirty || self.dirty;
     }
     pub fn new_empty() -> ElementDomNode {
         return ElementDomNode {

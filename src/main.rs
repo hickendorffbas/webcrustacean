@@ -36,6 +36,7 @@ use crate::debug::debug_log_warn;
 use crate::dom::Document;
 use crate::fonts::Font;
 use crate::layout::{
+    compute_layout,
     FullLayout,
     LayoutNode,
     LayoutRect,
@@ -44,7 +45,13 @@ use crate::layout::{
 use crate::network::url::Url;
 use crate::platform::Platform;
 use crate::renderer::render;
-use crate::ui::{CONTENT_HEIGHT, History, UIState};
+use crate::ui::{
+    CONTENT_HEIGHT,
+    CONTENT_TOP_LEFT_X,
+    CONTENT_TOP_LEFT_Y,
+    History,
+    UIState,
+};
 use crate::ui_components::{TextField, NavigationButton};
 
 
@@ -52,7 +59,7 @@ use crate::ui_components::{TextField, NavigationButton};
 const TARGET_FPS: u32 = if cfg!(debug_assertions) { 20 } else { 60 };
 const SCREEN_WIDTH: f32 = 1400.0;
 const SCREEN_HEIGHT: f32 = 800.0;
-const DEFAULT_LOCATION_TO_LOAD: &str = "file:///home/bas/webcrustacean/testinput/doc.html";
+const DEFAULT_LOCATION_TO_LOAD: &str = "file:///home/bas/code/webcrustacean/testinput/doc.html";
 const SCROLL_SPEED: i32 = 25;
 const NR_RESOURCE_LOADING_THREADS: usize = 4;
 
@@ -132,6 +139,9 @@ pub fn navigate(url: &Url, ui_state: &mut UIState, platform: &mut Platform, docu
 
     #[cfg(feature="timings")] let start_layout_instant = Instant::now();
     full_layout.replace(layout::build_full_layout(&document.borrow(), platform, &url));
+
+    compute_layout(&full_layout.borrow().root_node, &full_layout.borrow().all_nodes, &document.borrow().style_context, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y, platform);
+
     debug_assert!(full_layout.borrow().root_node.borrow().rects.len() == 1);
     #[cfg(feature="timings")] println!("layout elapsed millis: {}", start_layout_instant.elapsed().as_millis());
 }
@@ -453,8 +463,11 @@ fn main() -> Result<(), String> {
         }
         #[cfg(feature="timings")] println!("event pump elapsed millis: {}", start_event_pump_instant.elapsed().as_millis());
 
-        document.borrow_mut().update_all_dom_nodes(&mut resource_thread_pool);
-        //TODO: do new layout round here (and later also optionally a new build round if we need to, for both the update method above should probably return whether to do it)
+        let document_has_dirty_nodes = document.borrow_mut().update_all_dom_nodes(&mut resource_thread_pool);
+
+        if document_has_dirty_nodes {
+            compute_layout(&full_layout_tree.borrow().root_node, &full_layout_tree.borrow().all_nodes, &document.borrow().style_context, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y, &mut platform);
+        }
 
         #[cfg(feature="timings")] let start_render_instant = Instant::now();
         render(&mut platform, &full_layout_tree.borrow(), &mut ui_state);

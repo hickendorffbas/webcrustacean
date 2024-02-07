@@ -46,7 +46,7 @@ impl FullLayout {
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct LayoutNode {
     pub internal_id: usize,
-    pub display: Display, //TODO: eventually we don't want every css construct as a member on this struct ofcourse (TODO: we have the styles member now, use that)
+    pub display: Display,
     pub visible: bool,
     pub line_break: bool,
     pub children: Option<Vec<Rc<RefCell<LayoutNode>>>>,
@@ -305,6 +305,34 @@ pub fn compute_layout(node: &Rc<RefCell<LayoutNode>>, all_nodes: &HashMap<usize,
         }
 
     } else {
+
+        if mut_node.from_dom_node.is_some() {
+            if mut_node.from_dom_node.as_ref().unwrap().borrow().dirty {
+
+                //TODO: for now below we update the rect content. We should eventually also update styles etc.
+
+                mut_node.undo_split_rects();
+
+                let opt_image_clone = {
+                    let dom_node = mut_node.from_dom_node.as_ref().unwrap().borrow();
+                    let opt_image_clone = if dom_node.image.is_some() {
+                        Some(dom_node.image.as_ref().unwrap().deref().clone())
+                    } else {
+                        None
+                    };
+                    opt_image_clone
+                };
+
+                debug_assert!(mut_node.rects.len() == 1);
+                let main_rect = mut_node.rects.iter_mut().next().unwrap();
+                main_rect.image = opt_image_clone;
+
+                //TODO: also update text, and possible other content
+
+                mut_node.from_dom_node.as_ref().unwrap().borrow_mut().dirty = false;
+            }
+        }
+
         let styles = mut_node.styles.clone();
 
         for rect in mut_node.rects.iter_mut() {

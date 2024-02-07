@@ -6,6 +6,7 @@ step 1: make layout repeatable, now, doing it twice breaks the layout    DONE
 step 2: layout::build_full_layout now both builds, and reflows. Seperate those    DONE
 
 step 3: sync content in layout flow when DOM node is dirty
+		images DONE, text to be done still
 
 step 4: skip computing what we can (by knowing what is dirty ahead of time? because if nothing is dirty down a node, and width does not change, we should skip it?)
 
@@ -23,8 +24,6 @@ NOTE: the new idea is to do the normal layout everytime we set a node dirty
 NOTE: the main save is still to not do text wrapping when we don't need to. How do we detect this?
          we don't need to do it if the width of the box did not change, and the content did not change (is not dirty)
 
-
-//TODO: OLD BELOW (check if we need to take along stuff):
 
 
 

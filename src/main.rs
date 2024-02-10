@@ -140,7 +140,8 @@ pub fn navigate(url: &Url, ui_state: &mut UIState, platform: &mut Platform, docu
     #[cfg(feature="timings")] let start_layout_instant = Instant::now();
     full_layout.replace(layout::build_full_layout(&document.borrow(), platform, &url));
 
-    compute_layout(&full_layout.borrow().root_node, &full_layout.borrow().all_nodes, &document.borrow().style_context, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y, platform);
+    compute_layout(&full_layout.borrow().root_node, &full_layout.borrow().all_nodes, &document.borrow().style_context,
+                   CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y, platform, false, true);
 
     debug_assert!(full_layout.borrow().root_node.borrow().rects.len() == 1);
     #[cfg(feature="timings")] println!("layout elapsed millis: {}", start_layout_instant.elapsed().as_millis());
@@ -466,7 +467,8 @@ fn main() -> Result<(), String> {
         let document_has_dirty_nodes = document.borrow_mut().update_all_dom_nodes(&mut resource_thread_pool);
 
         if document_has_dirty_nodes {
-            compute_layout(&full_layout_tree.borrow().root_node, &full_layout_tree.borrow().all_nodes, &document.borrow().style_context, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y, &mut platform);
+            compute_layout(&full_layout_tree.borrow().root_node, &full_layout_tree.borrow().all_nodes, &document.borrow().style_context,
+                           CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y, &mut platform, false, false);
         }
 
         #[cfg(feature="timings")] let start_render_instant = Instant::now();

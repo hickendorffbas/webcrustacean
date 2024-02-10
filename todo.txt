@@ -9,11 +9,7 @@ goals for 0.2.0:
        - get a proper system for parsing CSS values (for the numeric values)
        - make repeating keys in the url bar work
        - show something when loading a new page, so the user knows we are not hanging
-              - we now load images in threads
-                     - we still need to trigger the right updates to layout
-                            - set the dirty flag on the DOM node, then walk the layout tree
-                                   - (we need a seperate pass before to modify the layouttree structure if needed, for now out of scope)
-                            - note: dirty nodes also needs a content sync from DOM
+              - we now load images in threads, we might need to move the main page load also to a thread, to animate the UI while we load that
 
 
 

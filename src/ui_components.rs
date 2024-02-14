@@ -20,7 +20,7 @@ pub struct TextField {
 
     pub has_focus: bool,
     pub cursor_visible: bool,
-    pub cursor_text_position: usize, //this position means the string index it is _before_, so starts at 0, and is max string.len()  //TODO: make sure that this becomes true
+    pub cursor_text_position: usize, // this position means the string index it is _before_, so starts at 0, and is max string.len()
     pub text: String,
 
     pub font: Font,
@@ -86,12 +86,9 @@ impl TextField {
     }
 
     pub fn handle_keyboard_input(&mut self, platform: &mut Platform, input: Option<&String>, key_code: Option<KeyCode>) {
-        let mut text_changed = false;
-
         if input.is_some() {
-            self.text.insert_str(self.cursor_text_position, input.unwrap());
-            self.cursor_text_position += 1;
-            text_changed = true;
+            self.insert_text(platform, &input.unwrap());
+            return;
         }
 
         if key_code.is_some() {
@@ -100,8 +97,8 @@ impl TextField {
                     if self.cursor_text_position > 0 {
                         self.text.remove(self.cursor_text_position - 1);  //TODO: this does not work with unicode, but we probably have many more places here that don't
                         self.cursor_text_position -= 1;
+                        self.char_position_mapping = compute_char_position_mapping(platform, &self.font, &self.text);
                     }
-                    text_changed = true;
                 },
                 KeyCode::LEFT => {
                     if self.cursor_text_position > 0 {
@@ -118,10 +115,6 @@ impl TextField {
                     }
                 },
             }
-        }
-
-        if text_changed {
-            self.char_position_mapping = compute_char_position_mapping(platform, &self.font, &self.text);
         }
     }
 }

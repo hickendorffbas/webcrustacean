@@ -202,7 +202,7 @@ fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_re
                     for (idx, offset) in layout_rect.char_position_mapping.as_ref().unwrap().iter().enumerate() {
                         if layout_rect.location.x + offset > selection_rect.x {
                             start_for_selection_rect_on_layout_rect = layout_rect.location.x + previous_offset;
-                            start_idx_for_selection = idx - 1;
+                            start_idx_for_selection = idx;
                             break;
                         }
 

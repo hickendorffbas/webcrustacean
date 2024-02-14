@@ -2,7 +2,7 @@
 - design problem: how are we going to update the DOM from multiple threads? (for example JS modifying DOM)?
 
 
-- BUG: there seems to be an off by one error (sometimes?) when copying from selection
+- BUG: when you go to a page with a lot of paragraph, selection does not work correct, when in between paragraps, paragraphs below get selected
 
 
 

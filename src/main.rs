@@ -423,7 +423,7 @@ fn main() -> Result<(), String> {
                         sdl2::mouse::MouseWheelDirection::Unknown(_) => debug_log_warn("Unknown mousewheel direction!"),
                     }
                 },
-                SdlEvent::KeyUp { keycode, keymod, .. } => {
+                SdlEvent::KeyDown { keycode, keymod, .. } => {
                     if keycode.is_some() {
                         let key_code = platform.convert_key_code(&keycode.unwrap());
                         ui::handle_keyboard_input(&mut platform, None, key_code, &mut ui_state);
@@ -458,8 +458,8 @@ fn main() -> Result<(), String> {
                 },
                 SdlEvent::TextInput { text, .. } => {
                     ui::handle_keyboard_input(&mut platform, Some(&text), None, &mut ui_state);
-                }
-                _ => {}
+                },
+                _ => {},
             }
         }
         #[cfg(feature="timings")] println!("event pump elapsed millis: {}", start_event_pump_instant.elapsed().as_millis());

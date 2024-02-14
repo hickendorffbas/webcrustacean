@@ -2,12 +2,14 @@
 - design problem: how are we going to update the DOM from multiple threads? (for example JS modifying DOM)?
 
 
+- BUG: there seems to be an off by one error (sometimes?) when copying from selection
+
+
 
 goals for 0.2.0:
        - test on mac
        - test on windows (document SDL install)
        - get a proper system for parsing CSS values (for the numeric values)
-       - make repeating keys in the url bar work
        - show something when loading a new page, so the user knows we are not hanging
               - we now load images in threads, we might need to move the main page load also to a thread, to animate the UI while we load that
 

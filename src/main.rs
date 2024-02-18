@@ -109,8 +109,8 @@ pub struct MouseState {
 }
 
 
-pub fn navigate(url: &Url, ui_state: &mut UIState, platform: &mut Platform, document: &RefCell<Document>,
-                full_layout: &RefCell<FullLayout>, resource_thread_pool: &mut ResourceThreadPool) {
+pub fn start_navigate(url: &Url, ui_state: &mut UIState, platform: &mut Platform, document: &RefCell<Document>,
+                      full_layout: &RefCell<FullLayout>, resource_thread_pool: &mut ResourceThreadPool) {
     //TODO: we should wrap the history logic in a function or module somewhere...
     if !ui_state.history.currently_navigating_from_history {
         if ui_state.history.list.len() > (ui_state.history.position + 1) {
@@ -133,7 +133,18 @@ pub fn navigate(url: &Url, ui_state: &mut UIState, platform: &mut Platform, docu
     ui_state.current_scroll_y = 0.0;
 
     ui_state.history.currently_navigating_from_history = false;
-    let page_content = resource_loader::load_text(&url);
+    let page_content_job_tracker = resource_loader::schedule_load_text(&url, resource_thread_pool); //TODO: should this be a different thread pool, or rename it?
+
+
+
+    //TODO: for now we call it here, but eventually we need to watch the job, and call this when it is finished:
+    let page_content = page_content_job_tracker.receiver.recv().ok().unwrap();
+    finish_navigate(url, &page_content, document, full_layout, platform, resource_thread_pool);
+}
+
+
+fn finish_navigate(url: &Url, page_content: &String, document: &RefCell<Document>, full_layout: &RefCell<FullLayout>,
+                   platform: &mut Platform, resource_thread_pool: &mut ResourceThreadPool) {
     let lex_result = html_lexer::lex_html(&page_content);
     document.replace(html_parser::parse(lex_result, url, resource_thread_pool));
 
@@ -332,7 +343,7 @@ fn main() -> Result<(), String> {
     let document = RefCell::from(Document::new_empty());
     let full_layout_tree = RefCell::from(FullLayout::new_empty());
 
-    navigate(&url, &mut ui_state, &mut platform, &document, &full_layout_tree, &mut resource_thread_pool);
+    start_navigate(&url, &mut ui_state, &mut platform, &document, &full_layout_tree, &mut resource_thread_pool);
     let mut currently_loading_new_page = true;
 
     let mut event_pump = platform.sdl_context.event_pump()?;
@@ -342,7 +353,7 @@ fn main() -> Result<(), String> {
         if should_reload_from_url {
             #[cfg(feature="timings")] let start_page_load_instant = Instant::now();
             currently_loading_new_page = true;
-            navigate(&url, &mut ui_state, &mut platform, &document, &full_layout_tree, &mut resource_thread_pool);
+            start_navigate(&url, &mut ui_state, &mut platform, &document, &full_layout_tree, &mut resource_thread_pool);
             should_reload_from_url = false;
             #[cfg(feature="timings")] println!("page load elapsed millis: {}", start_page_load_instant.elapsed().as_millis());
         }
@@ -408,7 +419,7 @@ fn main() -> Result<(), String> {
                             let url = optional_url.unwrap();
                             //TODO: this should be done via a nicer "navigate" method or something (also below when pressing enter in the addressbar
                             ui_state.addressbar.set_text(&mut platform, url.to_string());
-                            navigate(&url, &mut ui_state, &mut platform, &document, &full_layout_tree, &mut resource_thread_pool); //TODO: we should do this above in the next loop, just schedule the url for reload
+                            start_navigate(&url, &mut ui_state, &mut platform, &document, &full_layout_tree, &mut resource_thread_pool); //TODO: we should do this above in the next loop, just schedule the url for reload
                             currently_loading_new_page = true;
                         }
                     }
@@ -431,7 +442,7 @@ fn main() -> Result<(), String> {
                         if ui_state.addressbar.has_focus && keycode.unwrap().name() == "Return" {
                             //TODO: This is here for now because we need to load another page, not sure how to correctly trigger that from inside the component
                             url = Url::from(&ui_state.addressbar.text);
-                            navigate(&url, &mut ui_state, &mut platform, &document, &full_layout_tree, &mut resource_thread_pool); //TODO: we should do this above in the next loop, just schedule the url for reload
+                            start_navigate(&url, &mut ui_state, &mut platform, &document, &full_layout_tree, &mut resource_thread_pool); //TODO: we should do this above in the next loop, just schedule the url for reload
                             currently_loading_new_page = true;
                         }
 

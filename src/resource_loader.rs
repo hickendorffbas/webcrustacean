@@ -33,16 +33,35 @@ pub struct ResourceThreadPool {
     pub pool: ThreadPool,
 }
 impl ResourceThreadPool {
-    fn fire_and_forget(&mut self, job: ResourceRequestJob<DynamicImage>) {
+    fn fire_and_forget_load_image(&mut self, job: ResourceRequestJob<DynamicImage>) {
         self.pool.execute(move || {
             let result = load_image(&job.url);
+            job.sender.send(result).expect("Could not send over channel");
+        });
+    }
+    fn fire_and_forget_load_text(&mut self, job: ResourceRequestJob<String>) {
+        self.pool.execute(move || {
+            let result = load_text(&job.url);
             job.sender.send(result).expect("Could not send over channel");
         });
     }
 }
 
 
-pub fn load_text(url: &Url) -> String {
+pub fn schedule_load_text(url: &Url, resource_thread_pool: &mut ResourceThreadPool) -> ResourceRequestJobTracker<String> {
+    let (sender, receiver) = channel::<String>();
+    let job_id = get_next_job_id();
+
+    let job = ResourceRequestJob { job_id, url: url.clone(), sender };
+    let job_tracker = ResourceRequestJobTracker { job_id, receiver };
+
+    resource_thread_pool.fire_and_forget_load_text(job);
+
+    return job_tracker;
+}
+
+
+fn load_text(url: &Url) -> String {
     if url.scheme == "file" {
         let mut local_path = String::from("//");
         local_path.push_str(&url.path.join("/"));
@@ -73,7 +92,7 @@ pub fn schedule_load_image(url: &Url, resource_thread_pool: &mut ResourceThreadP
     let job = ResourceRequestJob { job_id, url: url.clone(), sender };
     let job_tracker = ResourceRequestJobTracker { job_id, receiver };
 
-    resource_thread_pool.fire_and_forget(job);
+    resource_thread_pool.fire_and_forget_load_image(job);
 
     return job_tracker;
 }

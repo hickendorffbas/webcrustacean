@@ -1,8 +1,5 @@
 
-- design problem: how are we going to update the DOM from multiple threads? (for example JS modifying DOM)?
-
-
-- BUG: when you go to a page with a lot of paragraph, selection does not work correct, when in between paragraps, paragraphs below get selected
+- BUG: when you go to a page with a lot of paragraphs, selection does not work correct, when in between paragraps, paragraphs below get selected
 
 
 
@@ -12,7 +9,9 @@ goals for 0.2.0:
        - get a proper system for parsing CSS values (for the numeric values)
        - show something when loading a new page, so the user knows we are not hanging
               - we now load images in threads, we might need to move the main page load also to a thread, to animate the UI while we load that
-
+                     - the main loop would not change (keep updating and rendering the current tree's, but keep a bool that we are loading a new page
+                                                       and keep checking if it is ready. If it is, do the rest of the current load code)
+                                                               -> so split the load code in 2
 
 
 other things (later versions):

@@ -37,8 +37,18 @@ impl FullLayout {
     pub fn page_height(&self) -> f32 {
         return RefCell::borrow(&self.root_node).rects.iter().next().unwrap().location.height;
     }
-    pub fn new_empty() -> FullLayout {
-        return FullLayout { root_node: Rc::from(RefCell::from(LayoutNode::new_empty())), all_nodes: HashMap::new(), nodes_in_selection_order: Vec::new() };
+    pub fn new_empty(platform: &mut Platform) -> FullLayout {
+        //Note that we we create a 1x1 rect even for an empty layout, since we need a rect to render it (for example when the first page is still loading)
+
+        let mut layout_node = LayoutNode::new_empty();
+        let text = String::new();
+        let location = Rect { x: 0.0, y: 0.0, width: 1.0, height: 1.0 };
+        let font = Font::new(false, false, 18);
+        let char_pos_mapping = Some(compute_char_position_mapping(platform, &font, &text));
+        layout_node.rects.push(LayoutRect { text: Some(text), char_position_mapping: char_pos_mapping, non_breaking_space_positions: None, image: None,
+                                            location: location, selection_rect: None, selection_char_range: None });
+
+        return FullLayout { root_node: Rc::from(RefCell::from(layout_node)), all_nodes: HashMap::new(), nodes_in_selection_order: Vec::new() };
     }
 }
 
@@ -315,6 +325,7 @@ fn collect_content_nodes_in_walk_order(node: &Rc<RefCell<LayoutNode>>, result: &
 
 //This function is responsible for setting the location rects on the node, and all its children.
 //TODO: need to find a way to make good tests for this (probably via exporting the layout in JSON)
+//TODO: we now pass in top_left x and y, but I think we should compute the positions just for layout, and offset for UI in the render phase...
 pub fn compute_layout(node: &Rc<RefCell<LayoutNode>>, all_nodes: &HashMap<usize, Rc<RefCell<LayoutNode>>>, style_context: &StyleContext,
                       top_left_x: f32, top_left_y: f32, platform: &mut Platform, only_update_block_vertical_position: bool, force_full_layout: bool) {
 

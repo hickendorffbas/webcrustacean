@@ -23,11 +23,10 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use arboard::Clipboard;
-use resource_loader::ResourceThreadPool;
-use sdl2::keyboard::Mod as SdlKeyMod;
+use resource_loader::{ResourceRequestJobTracker, ResourceThreadPool};
 use sdl2::{
     event::Event as SdlEvent,
-    keyboard::Keycode,
+    keyboard::{Keycode, Mod as SdlKeyMod},
     mouse::MouseButton,
 };
 use threadpool::ThreadPool;
@@ -74,16 +73,14 @@ const TARGET_MS_PER_FRAME: u128 = 1000 / TARGET_FPS as u128;
 
 
 
-fn frame_time_check(start_instant: &Instant, currently_loading_new_page: bool) {
+fn frame_time_check(start_instant: &Instant) {
     let millis_elapsed = start_instant.elapsed().as_millis();
     let sleep_time_millis = TARGET_MS_PER_FRAME as i64 - millis_elapsed as i64;
     if sleep_time_millis > 1 {
         //If we are more than a millisecond faster than what we need to reach the target FPS, we sleep
         thread::sleep(Duration::from_millis(sleep_time_millis as u64));
     } else {
-        if !currently_loading_new_page {
-            debug_log_warn(format!("we did not reach the target FPS, frametime: {}", millis_elapsed));
-        }
+        debug_log_warn(format!("we did not reach the target FPS, frametime: {}", millis_elapsed));
     }
 }
 
@@ -109,8 +106,7 @@ pub struct MouseState {
 }
 
 
-pub fn start_navigate(url: &Url, ui_state: &mut UIState, platform: &mut Platform, document: &RefCell<Document>,
-                      full_layout: &RefCell<FullLayout>, resource_thread_pool: &mut ResourceThreadPool) {
+pub fn start_navigate(url: &Url, ui_state: &mut UIState, resource_thread_pool: &mut ResourceThreadPool) -> ResourceRequestJobTracker<String> {
     //TODO: we should wrap the history logic in a function or module somewhere...
     if !ui_state.history.currently_navigating_from_history {
         if ui_state.history.list.len() > (ui_state.history.position + 1) {
@@ -133,13 +129,9 @@ pub fn start_navigate(url: &Url, ui_state: &mut UIState, platform: &mut Platform
     ui_state.current_scroll_y = 0.0;
 
     ui_state.history.currently_navigating_from_history = false;
-    let page_content_job_tracker = resource_loader::schedule_load_text(&url, resource_thread_pool); //TODO: should this be a different thread pool, or rename it?
+    let main_page_job_tracker = resource_loader::schedule_load_text(&url, resource_thread_pool); //TODO: should this be a different thread pool, or rename it?
 
-
-
-    //TODO: for now we call it here, but eventually we need to watch the job, and call this when it is finished:
-    let page_content = page_content_job_tracker.receiver.recv().ok().unwrap();
-    finish_navigate(url, &page_content, document, full_layout, platform, resource_thread_pool);
+    return main_page_job_tracker;
 }
 
 
@@ -338,24 +330,22 @@ fn main() -> Result<(), String> {
         history: History { list: Vec::new(), position: 0, currently_navigating_from_history: false },
     };
 
-    let mut should_reload_from_url = false;
-
     let document = RefCell::from(Document::new_empty());
-    let full_layout_tree = RefCell::from(FullLayout::new_empty());
+    let full_layout_tree = RefCell::from(FullLayout::new_empty(&mut platform));
 
-    start_navigate(&url, &mut ui_state, &mut platform, &document, &full_layout_tree, &mut resource_thread_pool);
+    let mut main_page_job_tracker = start_navigate(&url, &mut ui_state, &mut resource_thread_pool);
     let mut currently_loading_new_page = true;
 
     let mut event_pump = platform.sdl_context.event_pump()?;
     'main_loop: loop {
         let start_loop_instant = Instant::now();
 
-        if should_reload_from_url {
-            #[cfg(feature="timings")] let start_page_load_instant = Instant::now();
-            currently_loading_new_page = true;
-            start_navigate(&url, &mut ui_state, &mut platform, &document, &full_layout_tree, &mut resource_thread_pool);
-            should_reload_from_url = false;
-            #[cfg(feature="timings")] println!("page load elapsed millis: {}", start_page_load_instant.elapsed().as_millis());
+        if currently_loading_new_page {
+            let try_recv_result = main_page_job_tracker.receiver.try_recv();
+            if try_recv_result.is_ok() {
+                finish_navigate(&url, &try_recv_result.ok().unwrap(), &document, &full_layout_tree, &mut platform, &mut resource_thread_pool);
+                currently_loading_new_page = false;
+            }
         }
 
         #[cfg(feature="timings")] let start_event_pump_instant = Instant::now();
@@ -419,7 +409,7 @@ fn main() -> Result<(), String> {
                             let url = optional_url.unwrap();
                             //TODO: this should be done via a nicer "navigate" method or something (also below when pressing enter in the addressbar
                             ui_state.addressbar.set_text(&mut platform, url.to_string());
-                            start_navigate(&url, &mut ui_state, &mut platform, &document, &full_layout_tree, &mut resource_thread_pool); //TODO: we should do this above in the next loop, just schedule the url for reload
+                            main_page_job_tracker = start_navigate(&url, &mut ui_state, &mut resource_thread_pool); //TODO: we should do this above in the next loop, just schedule the url for reload
                             currently_loading_new_page = true;
                         }
                     }
@@ -442,7 +432,7 @@ fn main() -> Result<(), String> {
                         if ui_state.addressbar.has_focus && keycode.unwrap().name() == "Return" {
                             //TODO: This is here for now because we need to load another page, not sure how to correctly trigger that from inside the component
                             url = Url::from(&ui_state.addressbar.text);
-                            start_navigate(&url, &mut ui_state, &mut platform, &document, &full_layout_tree, &mut resource_thread_pool); //TODO: we should do this above in the next loop, just schedule the url for reload
+                            main_page_job_tracker = start_navigate(&url, &mut ui_state, &mut resource_thread_pool);
                             currently_loading_new_page = true;
                         }
 
@@ -486,8 +476,7 @@ fn main() -> Result<(), String> {
         render(&mut platform, &full_layout_tree.borrow(), &mut ui_state);
         #[cfg(feature="timings")] println!("render elapsed millis: {}", start_render_instant.elapsed().as_millis());
 
-        frame_time_check(&start_loop_instant, currently_loading_new_page);
-        currently_loading_new_page = false;
+        frame_time_check(&start_loop_instant);
     }
 
     Ok(())

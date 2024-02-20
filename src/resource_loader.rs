@@ -62,6 +62,10 @@ pub fn schedule_load_text(url: &Url, resource_thread_pool: &mut ResourceThreadPo
 
 
 fn load_text(url: &Url) -> String {
+
+    use std::{thread, time::Duration};
+    thread::sleep(Duration::from_millis(4000));
+
     if url.scheme == "file" {
         let mut local_path = String::from("//");
         local_path.push_str(&url.path.join("/"));

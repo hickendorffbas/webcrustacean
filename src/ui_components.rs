@@ -7,10 +7,11 @@ use crate::platform::{
     Platform,
     Position
 };
-use crate::ui::History;
+use crate::ui::{History, UIState};
 
 
 const TEXT_FIELD_OFFSET_FROM_BORDER: f32 = 5.0;
+const CURSOR_BLINK_SPEED_MILLIS: u32 = 500;
 
 pub struct TextField {
     pub x: f32,
@@ -19,7 +20,6 @@ pub struct TextField {
     pub height: f32,
 
     pub has_focus: bool,
-    pub cursor_visible: bool,
     pub cursor_text_position: usize, // this position means the string index it is _before_, so starts at 0, and is max string.len()
     pub text: String,
 
@@ -27,23 +27,28 @@ pub struct TextField {
     pub char_position_mapping: Vec<f32>,
 }
 impl TextField {
-    pub fn render(&self, platform: &mut Platform) {
+    pub fn render(&self, ui_state: &UIState, platform: &mut Platform) {
         platform.draw_square(self.x, self.y, self.width, self.height, Color::BLACK);
         platform.render_text(&self.text, self.x + TEXT_FIELD_OFFSET_FROM_BORDER, self.y + TEXT_FIELD_OFFSET_FROM_BORDER, &self.font, Color::BLACK);
 
-        if self.cursor_visible && self.has_focus {
-            let relative_cursor_position = if self.cursor_text_position == 0 {
-                0.0
-            } else {
-                self.char_position_mapping[self.cursor_text_position - 1]
-            };
+        if self.has_focus {
 
-            let cursor_position = relative_cursor_position + self.x + TEXT_FIELD_OFFSET_FROM_BORDER;
-            let cursor_top_bottom_margin = 2.0;
-            let cursor_bottom_pos = (self.y + self.height) - cursor_top_bottom_margin;
-            platform.draw_line(Position { x: cursor_position, y: self.y + cursor_top_bottom_margin},
-                               Position { x: cursor_position, y: cursor_bottom_pos },
-                               Color::BLACK);
+            //TODO: also we need to make sure we reset the cycle whenever the cursor is moved, so it stays visible while using the arrow keys quickly
+            let cursor_visible = ui_state.animation_tick % (CURSOR_BLINK_SPEED_MILLIS * 2) > CURSOR_BLINK_SPEED_MILLIS;
+            if cursor_visible {
+                let relative_cursor_position = if self.cursor_text_position == 0 {
+                    0.0
+                } else {
+                    self.char_position_mapping[self.cursor_text_position - 1]
+                };
+
+                let cursor_position = relative_cursor_position + self.x + TEXT_FIELD_OFFSET_FROM_BORDER;
+                let cursor_top_bottom_margin = 2.0;
+                let cursor_bottom_pos = (self.y + self.height) - cursor_top_bottom_margin;
+                platform.draw_line(Position { x: cursor_position, y: self.y + cursor_top_bottom_margin},
+                                   Position { x: cursor_position, y: cursor_bottom_pos },
+                                   Color::BLACK);
+            }
         }
     }
 

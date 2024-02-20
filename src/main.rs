@@ -122,11 +122,11 @@ pub fn start_navigate(url: &Url, ui_state: &mut UIState, resource_thread_pool: &
         }
     }
 
+    ui_state.currently_loading_page = true;
+
     //TODO: this code belongs in a history module somewhere as well...
     ui_state.forward_button.enabled = ui_state.history.list.len() > ui_state.history.position + 1;
     ui_state.back_button.enabled = ui_state.history.position > 0;
-
-    ui_state.current_scroll_y = 0.0;
 
     ui_state.history.currently_navigating_from_history = false;
     let main_page_job_tracker = resource_loader::schedule_load_text(&url, resource_thread_pool); //TODO: should this be a different thread pool, or rename it?
@@ -135,13 +135,16 @@ pub fn start_navigate(url: &Url, ui_state: &mut UIState, resource_thread_pool: &
 }
 
 
-fn finish_navigate(url: &Url, page_content: &String, document: &RefCell<Document>, full_layout: &RefCell<FullLayout>,
+fn finish_navigate(url: &Url, ui_state: &mut UIState, page_content: &String, document: &RefCell<Document>, full_layout: &RefCell<FullLayout>,
                    platform: &mut Platform, resource_thread_pool: &mut ResourceThreadPool) {
     let lex_result = html_lexer::lex_html(&page_content);
     document.replace(html_parser::parse(lex_result, url, resource_thread_pool));
 
     #[cfg(feature="timings")] let start_layout_instant = Instant::now();
     full_layout.replace(layout::build_full_layout(&document.borrow(), platform, &url));
+
+    ui_state.current_scroll_y = 0.0;
+    ui_state.currently_loading_page = false;
 
     compute_layout(&full_layout.borrow().root_node, &full_layout.borrow().all_nodes, &document.borrow().style_context,
                    CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y, platform, false, true);
@@ -314,7 +317,6 @@ fn main() -> Result<(), String> {
         width: SCREEN_WIDTH - 200.0,
         height: 35.0,
         has_focus: false,
-        cursor_visible: false,
         cursor_text_position: 0,
         text: String::new(),
         font: Font::new(false, false, 18),
@@ -328,6 +330,8 @@ fn main() -> Result<(), String> {
         back_button: NavigationButton { x: 15.0, y: 15.0, forward: false, enabled: false },
         forward_button: NavigationButton { x: 55.0, y: 15.0, forward: true, enabled: false },
         history: History { list: Vec::new(), position: 0, currently_navigating_from_history: false },
+        currently_loading_page: false,
+        animation_tick: 0,
     };
 
     let document = RefCell::from(Document::new_empty());
@@ -343,7 +347,7 @@ fn main() -> Result<(), String> {
         if currently_loading_new_page {
             let try_recv_result = main_page_job_tracker.receiver.try_recv();
             if try_recv_result.is_ok() {
-                finish_navigate(&url, &try_recv_result.ok().unwrap(), &document, &full_layout_tree, &mut platform, &mut resource_thread_pool);
+                finish_navigate(&url, &mut ui_state, &try_recv_result.ok().unwrap(), &document, &full_layout_tree, &mut platform, &mut resource_thread_pool);
                 currently_loading_new_page = false;
             }
         }

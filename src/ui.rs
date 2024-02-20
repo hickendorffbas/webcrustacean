@@ -1,12 +1,10 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use crate::network::url::Url;
-use crate::{
-    MouseState,
-    SCREEN_HEIGHT,
-    SCREEN_WIDTH,
-};
+use crate::{MouseState, SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::color::Color;
-use crate::platform::{Platform, Position, KeyCode};
-use crate::ui_components::{TextField, NavigationButton};
+use crate::platform::{KeyCode, Platform, Position};
+use crate::ui_components::{NavigationButton, TextField};
 
 
 pub const HEADER_HEIGHT: f32 = 50.0;
@@ -23,7 +21,6 @@ const SCROLLBAR_HEIGHT: f32 = SCREEN_HEIGHT - HEADER_HEIGHT;
 const SCROLLBAR_X_POS: f32 = SCREEN_WIDTH - SIDE_SCROLLBAR_WIDTH;
 
 
-
 pub struct History {
     pub list: Vec<Url>,
     pub position: usize,
@@ -37,10 +34,13 @@ pub struct UIState {
     pub back_button: NavigationButton,
     pub forward_button: NavigationButton,
     pub history: History,
+    pub currently_loading_page: bool,
+    pub animation_tick: u32,
 }
 
 
-pub fn render_ui(platform: &mut Platform, ui_state: &UIState, page_height: f32) {
+pub fn render_ui(platform: &mut Platform, ui_state: &mut UIState, page_height: f32) {
+    update_animation_state(ui_state);
     render_header(platform, ui_state);
     render_scrollbar(platform, ui_state.current_scroll_y, page_height);
 }
@@ -116,9 +116,33 @@ fn render_header(platform: &mut Platform, ui_state: &UIState) {
                        Position { x: SCREEN_WIDTH, y: HEADER_HEIGHT - 1.0 },
                        Color::BLACK);
 
+    if ui_state.currently_loading_page {
+        render_spinner(platform, ui_state);
+    }
+
     ui_state.back_button.render(platform);
     ui_state.forward_button.render(platform);
-    ui_state.addressbar.render(platform);
+    ui_state.addressbar.render(&ui_state, platform);
+}
+
+
+fn render_spinner(platform: &mut Platform, ui_state: &UIState) {
+    let block_size = 5.0;
+    let block_spacing = 15.0;
+    let spinner_x_pos = ui_state.addressbar.x + ui_state.addressbar.width + 15.0;
+    let spinner_y_pos = (ui_state.addressbar.y + ui_state.addressbar.height / 2.0) - (block_size / 2.0);
+
+    let number_of_blocks = (ui_state.animation_tick % 1000) / 250;
+
+    if number_of_blocks > 0 {
+        platform.fill_rect(spinner_x_pos, spinner_y_pos, block_size, block_size, Color::BLACK);
+    }
+    if number_of_blocks > 1 {
+        platform.fill_rect(spinner_x_pos + block_spacing, spinner_y_pos, block_size, block_size, Color::BLACK);
+    }
+    if number_of_blocks > 2 {
+        platform.fill_rect(spinner_x_pos + (block_spacing * 2.0), spinner_y_pos, block_size, block_size, Color::BLACK);
+    }
 }
 
 
@@ -144,4 +168,11 @@ fn compute_scrollblock_position(current_scroll_y: f32, page_height: f32) -> (f32
     let scroll_block_height = relative_size_of_scroll_block * SCROLLBAR_HEIGHT;
 
     return (SCROLLBAR_X_POS, top_scroll_block_y, (SCREEN_WIDTH - SCROLLBAR_X_POS), scroll_block_height);
+}
+
+
+fn update_animation_state(ui_state: &mut UIState) {
+    let current_millis = SystemTime::now().duration_since(UNIX_EPOCH)
+                            .expect("Time went backwards, please check if you entered a wormhole").as_millis();
+    ui_state.animation_tick = (current_millis % 10_000) as u32;
 }

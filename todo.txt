@@ -7,9 +7,6 @@ goals for 0.2.0:
        - test on mac
        - test on windows (document SDL install)
        - get a proper system for parsing CSS values (for the numeric values)
-       - show something when loading a new page, so the user knows we are not hanging
-              - we now load images in threads, we might need to move the main page load also to a thread, to animate the UI while we load that
-                     - its in a thread now, now show something in the UI to indicate we are loading...
 
 
 other things (later versions):

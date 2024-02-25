@@ -6,10 +6,8 @@ use crate::color::Color;
 use crate::layout::{
     FullLayout,
     LayoutNode,
-    get_font_given_styles
 };
 use crate::platform::Platform;
-use crate::style::get_color_style_value;
 use crate::ui::{UIState, render_ui};
 
 
@@ -34,21 +32,21 @@ fn render_layout_node(platform: &mut Platform, layout_node: &LayoutNode, all_nod
     }
 
     for layout_rect in layout_node.rects.iter() {
+
+        if layout_node.background_color != Color::WHITE {
+            let location = &layout_rect.location;
+            platform.fill_rect(location.x, location.y - current_scroll_y, location.width, location.height, layout_node.background_color);
+        }
+
         if layout_rect.text.is_some() {
             if layout_rect.selection_rect.is_some() {
                 let selection_rect = layout_rect.selection_rect.as_ref().unwrap();
                 platform.fill_rect(selection_rect.x, selection_rect.y - current_scroll_y, selection_rect.width, selection_rect.height, Color::new(180, 213, 255));
             }
 
-            let (font, font_color) = get_font_given_styles(&layout_node.styles);
             let render_y = layout_rect.location.y - current_scroll_y;
-            platform.render_text(layout_rect.text.as_ref().unwrap(), layout_rect.location.x, render_y, &font, font_color);
-        } else {
-            let background_color = get_color_style_value(&layout_node.styles, "background-color");
-            if background_color.is_some() {
-                let location = &layout_rect.location;
-                platform.fill_rect(location.x, location.y - current_scroll_y, location.width, location.height, background_color.unwrap());
-            }
+            platform.render_text(layout_rect.text.as_ref().unwrap(), layout_rect.location.x, render_y,
+                                 &layout_rect.font.as_ref().unwrap(), layout_rect.font_color.unwrap());
         }
     }
 

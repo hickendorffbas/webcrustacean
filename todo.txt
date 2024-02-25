@@ -1,12 +1,18 @@
 
 - BUG: when you go to a page with a lot of paragraphs, selection does not work correct, when in between paragraps, paragraphs below get selected
-
+- BUG: back button seems to not always work?
 
 
 goals for 0.2.0:
        - test on mac
        - test on windows (document SDL install)
        - get a proper system for parsing CSS values (for the numeric values)
+		- I probably should not have the styles on the layout node, but only on the dom node, and have methods to extract
+			a number when expected for example, or a value from a set of fixed values
+		- removed the styles:
+			- the dom node has the styles, but those are not resolved yet (is this stylecontext always the same on all nodes, or already filtered).
+				- maybe we need to store a compute a cached hashmap of styles, but then on the DOM node instead of the layout node
+                     - move text based fields in layoutRect to a subrect
 
 
 other things (later versions):

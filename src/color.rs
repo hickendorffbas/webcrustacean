@@ -1,6 +1,6 @@
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct Color {
     pub r: u8,
     pub g: u8,

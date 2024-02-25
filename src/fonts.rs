@@ -4,6 +4,7 @@ use crate::FONT_PATH;
 use sdl2::ttf::{Font as SdlFont, Sdl2TtfContext};
 
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(PartialEq, Eq, Hash, Clone)]
 pub struct Font {
     bold: bool,

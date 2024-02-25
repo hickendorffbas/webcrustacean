@@ -108,7 +108,7 @@ fn debug_print_layout_tree_with_indent(node: &Rc<RefCell<LayoutNode>>, indent_cn
 
     let mut rect_str = String::new();
     for rect in node.rects.iter() {
-        rect_str.push_str(format!("LayoutRect({:?} {:?} {})", rect.location, rect.text, if rect.image.is_some() {"IMG"} else {""}, ).as_str());
+        rect_str.push_str(format!("LayoutRect({:?} {:?} {})", rect.location, rect.text_data, if rect.image.is_some() {"IMG"} else {""}, ).as_str());
     }
 
     let visible = if node.visible {

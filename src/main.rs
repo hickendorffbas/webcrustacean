@@ -157,10 +157,10 @@ fn finish_navigate(url: &Url, ui_state: &mut UIState, page_content: &String, doc
 fn build_selection_rect_on_layout_rect(layout_rect: &mut LayoutRect, selection_rect: &Rect, start_for_selection_rect_on_layout_rect: f32, start_idx_for_selection: usize) {
     let mut matching_offset = layout_rect.location.width;
 
-    if layout_rect.text.is_some() {
+    if layout_rect.text_data.is_some() {
 
         let mut end_idx_for_selection = 0;
-        for (idx, offset) in layout_rect.char_position_mapping.as_ref().unwrap().iter().enumerate() {
+        for (idx, offset) in layout_rect.text_data.as_ref().unwrap().char_position_mapping.iter().enumerate() {
             if layout_rect.location.x + offset > selection_rect.x + selection_rect.width {
                 matching_offset = *offset;
                 end_idx_for_selection = idx;
@@ -189,7 +189,7 @@ fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_re
         return;
     }
 
-    let any_rects_with_content = layout_node.borrow().rects.iter().any(|rect| -> bool { rect.text.is_some() || rect.image.is_some() });
+    let any_rects_with_content = layout_node.borrow().rects.iter().any(|rect| -> bool { rect.text_data.is_some() || rect.image.is_some() });
     if any_rects_with_content {
 
         let selection_end_x = selection_rect.x + selection_rect.width;
@@ -202,10 +202,10 @@ fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_re
             if layout_rect.location.is_inside(selection_rect.x, selection_rect.y) {
                 selection_start_found = true;
 
-                if layout_rect.text.is_some() {
+                if layout_rect.text_data.is_some() {
 
                     let mut previous_offset = 0.0;
-                    for (idx, offset) in layout_rect.char_position_mapping.as_ref().unwrap().iter().enumerate() {
+                    for (idx, offset) in layout_rect.text_data.as_ref().unwrap().char_position_mapping.iter().enumerate() {
                         if layout_rect.location.x + offset > selection_rect.x {
                             start_for_selection_rect_on_layout_rect = layout_rect.location.x + previous_offset;
                             start_idx_for_selection = idx;
@@ -232,8 +232,8 @@ fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_re
                                                                 width: layout_rect.location.width - start_for_selection_rect_on_layout_rect,
                                                                 height: layout_rect.location.height };
                     layout_rect.selection_rect = Some(selection_rect_for_layout_rect);
-                    if layout_rect.text.is_some() {
-                        layout_rect.selection_char_range = Some( (start_idx_for_selection, layout_rect.text.as_ref().unwrap().len()) );
+                    if layout_rect.text_data.is_some() {
+                        layout_rect.selection_char_range = Some( (start_idx_for_selection, layout_rect.text_data.as_ref().unwrap().text.len()) );
                     }
                 }
             } else if selection_start_found {
@@ -247,7 +247,7 @@ fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_re
                     let selection_rect_for_layout_rect = Rect { x: layout_rect.location.x, y: layout_rect.location.y,
                                                                 width: layout_rect.location.width, height: layout_rect.location.height };
                     layout_rect.selection_rect = Some(selection_rect_for_layout_rect);
-                    layout_rect.selection_char_range = Some( (0, layout_rect.text.as_ref().unwrap().len()) );
+                    layout_rect.selection_char_range = Some( (0, layout_rect.text_data.as_ref().unwrap().text.len()) );
                 }
             }
         }
@@ -274,8 +274,8 @@ fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_re
                                                                         width: layout_rect.location.width, height: layout_rect.location.height };
                             layout_rect.selection_rect = Some(selection_rect_for_layout_rect);
 
-                            if layout_rect.text.is_some() {
-                                layout_rect.selection_char_range = Some( (0, layout_rect.text.as_ref().unwrap().len()) );
+                            if layout_rect.text_data.is_some() {
+                                layout_rect.selection_char_range = Some( (0, layout_rect.text_data.as_ref().unwrap().text.len()) );
                             }
                         }
                     }

@@ -44,9 +44,9 @@ impl FullLayout {
         let text = String::new();
         let location = Rect { x: 0.0, y: 0.0, width: 1.0, height: 1.0 };
         let font = Font::new(false, false, 18);
-        let char_pos_mapping = Some(compute_char_position_mapping(platform, &font, &text));
-        layout_node.rects.push(LayoutRect { text: Some(text), font: Some(font), font_color: Some(Color::BLACK), char_position_mapping: char_pos_mapping,
-                                            non_breaking_space_positions: None, image: None, location: location, selection_rect: None, selection_char_range: None });
+        let char_position_mapping = compute_char_position_mapping(platform, &font, &text);
+        let rect_text_data = Some(RectTextData { text, font, font_color: Color::BLACK, char_position_mapping, non_breaking_space_positions: None });
+        layout_node.rects.push(LayoutRect { text_data: rect_text_data, image: None, location, selection_rect: None, selection_char_range: None });
 
         return FullLayout { root_node: Rc::from(RefCell::from(layout_node)), all_nodes: HashMap::new(), nodes_in_selection_order: Vec::new() };
     }
@@ -79,7 +79,7 @@ impl LayoutNode {
         self.rects[0].location = new_location;
     }
     pub fn can_wrap(&self) -> bool {
-        return self.rects.iter().any(|rect| { rect.text.is_some()});
+        return self.rects.iter().any(|rect| { rect.text_data.is_some()});
     }
     pub fn get_size_of_bounding_box(&self) -> (f32, f32) {
         let mut lowest_x = f32::MAX;
@@ -156,7 +156,7 @@ impl LayoutNode {
         for rect in &self.rects {
             if rect.selection_char_range.is_some() {
                 let (start_idx, end_idx) = rect.selection_char_range.unwrap();
-                result.push_str(rect.text.as_ref().unwrap().chars().skip(start_idx).take(end_idx - start_idx + 1).collect::<String>().as_str());
+                result.push_str(rect.text_data.as_ref().unwrap().text.chars().skip(start_idx).take(end_idx - start_idx + 1).collect::<String>().as_str());
             }
         }
 
@@ -169,7 +169,7 @@ impl LayoutNode {
     pub fn undo_split_rects(&mut self) {
         //The main intention for this method is to be used before we start the process of computing line wrapping again (to undo the previous wrapping)
         if self.rects.len() > 1 {
-            debug_assert!(self.rects.iter().all(|rect| -> bool { rect.text.is_some()} ));
+            debug_assert!(self.rects.iter().all(|rect| -> bool { rect.text_data.is_some()} ));
             debug_assert!(self.pre_wrap_rect_backup.is_some());
             self.rects = vec![self.pre_wrap_rect_backup.as_ref().unwrap().clone()];
         }
@@ -208,11 +208,7 @@ impl LayoutNode {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone)]
 pub struct LayoutRect {
-    pub text: Option<String>,
-    pub font: Option<Font>, //TODO: might be nice to combine this with text in a struct
-    pub font_color: Option<Color>, //TODO: might be nice to combine this with text in a struct
-    pub char_position_mapping: Option<Vec<f32>>, //TODO: might be nice to combine this with text in a struct
-    pub non_breaking_space_positions: Option<HashSet<usize>>, //TODO: might be nice to combine this with text in a struct
+    pub text_data: Option<RectTextData>,
     pub image: Option<DynamicImage>,
     pub location: Rect,
     pub selection_rect: Option<Rect>,
@@ -221,17 +217,24 @@ pub struct LayoutRect {
 impl LayoutRect {
     pub fn get_default_non_computed_rect() -> LayoutRect {
         return LayoutRect {
-            text: None,
-            font: None,
-            font_color: None,
-            char_position_mapping: None,
-            non_breaking_space_positions: None,
+            text_data: None,
             image: None,
             location: Rect::empty(),
             selection_rect: None,
             selection_char_range: None,
         };
     }
+}
+
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone)]
+pub struct RectTextData {
+    pub text: String,
+    pub font: Font,
+    pub font_color: Color,
+    pub char_position_mapping: Vec<f32>,
+    pub non_breaking_space_positions: Option<HashSet<usize>>,
 }
 
 
@@ -314,7 +317,7 @@ pub fn build_full_layout(document: &Document, platform: &mut Platform, main_url:
 
 fn collect_content_nodes_in_walk_order(node: &Rc<RefCell<LayoutNode>>, result: &mut Vec<Rc<RefCell<LayoutNode>>>) {
 
-    let any_content = RefCell::borrow(node).rects.iter().any(|rect| -> bool { rect.image.is_some() || rect.text.is_some() } );
+    let any_content = RefCell::borrow(node).rects.iter().any(|rect| -> bool { rect.image.is_some() || rect.text_data.is_some() } );
     if any_content {
         result.push(Rc::clone(&node));
     }
@@ -492,25 +495,29 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
 
         if (cursor_x - top_left_x + child_width) > max_allowed_width {
 
-            if child_borrow.children.is_none() && child_borrow.can_wrap() && child_borrow.rects.iter().all(|rect| -> bool { rect.text.is_some()} ) {
+            if child_borrow.children.is_none() && child_borrow.can_wrap() && child_borrow.rects.iter().all(|rect| -> bool { rect.text_data.is_some()} ) {
                 // in this case, we might be able to split rects, and put part of the node on this line
 
                 let first_rect = child_borrow.rects.iter().next().unwrap();
-                let font = first_rect.font.as_ref().unwrap();
-                let font_color = first_rect.font_color.unwrap();
+                let text_data = first_rect.text_data.as_ref().unwrap();
+                let font_color = text_data.font_color;
                 let relative_cursor_x = cursor_x - top_left_x;
                 let amount_of_space_left_on_line = max_allowed_width - relative_cursor_x;
-                let wrapped_text = wrap_text(child_borrow.rects.last().unwrap(), max_allowed_width, amount_of_space_left_on_line, &font, platform);
+                let wrapped_text = wrap_text(child_borrow.rects.last().unwrap(), max_allowed_width, amount_of_space_left_on_line, &text_data.font, platform);
 
                 let mut rects_for_child = Vec::new();
                 for text in wrapped_text {
 
-                    let mut new_rect = LayoutRect {
-                        char_position_mapping: Some(compute_char_position_mapping(platform, &font, &text)),
+                    let new_text_data = RectTextData {
+                        font: text_data.font.clone(),
+                        font_color: font_color,
+                        char_position_mapping: compute_char_position_mapping(platform, &text_data.font, &text),
                         non_breaking_space_positions: None, //For now not computing these, although it would be more correct to update them after wrapping
-                        text: Some(text),
-                        font: Some(font.clone()),
-                        font_color: Some(font_color),
+                        text: text,
+                    };
+
+                    let mut new_rect = LayoutRect {
+                        text_data: Some(new_text_data),
                         image: None,
                         location: Rect::empty(),
                         selection_rect: None,
@@ -582,9 +589,9 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
 //Note that this function returns the size, but does not update the rect with that size (because we also need to position for the computed location object)
 fn compute_size_for_rect(layout_rect: &LayoutRect, platform: &mut Platform) -> (f32, f32) {
 
-    if layout_rect.text.is_some() {
-        let font = layout_rect.font.as_ref().unwrap(); //TODO: it might be better to have the text based stuff on a seperate sub-struct, so they are all optional together
-        return platform.get_text_dimension(layout_rect.text.as_ref().unwrap(), &font);
+    if layout_rect.text_data.is_some() {
+        let text_data = layout_rect.text_data.as_ref().unwrap();
+        return platform.get_text_dimension(&text_data.text, &text_data.font);
     }
 
     if layout_rect.image.is_some() {
@@ -597,8 +604,8 @@ fn compute_size_for_rect(layout_rect: &LayoutRect, platform: &mut Platform) -> (
 
 
 fn wrap_text(layout_rect: &LayoutRect, max_width: f32, width_remaining_on_current_line: f32, font: &Font, platform: &mut Platform) -> Vec<String> {
-    let text = layout_rect.text.as_ref();
-    let no_wrap_positions = &layout_rect.non_breaking_space_positions;
+    let text = &layout_rect.text_data.as_ref().unwrap().text;
+    let no_wrap_positions = &layout_rect.text_data.as_ref().unwrap().non_breaking_space_positions;
     let mut str_buffers = Vec::new();
     let mut str_buffer_undecided = String::new();
     let mut pos = 0;
@@ -606,7 +613,7 @@ fn wrap_text(layout_rect: &LayoutRect, max_width: f32, width_remaining_on_curren
 
     str_buffers.push(String::new());
 
-    let mut char_iter = text.unwrap().chars();
+    let mut char_iter = text.chars();
     loop {
         let possible_c = char_iter.next();
 
@@ -677,11 +684,7 @@ fn get_display_type(node: &Rc<RefCell<ElementDomNode>>) -> Display {
 
 fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Document, all_nodes: &mut HashMap<usize, Rc<RefCell<LayoutNode>>>,
                      parent_id: usize, platform: &mut Platform, main_url: &Url, state: &mut LayoutBuildState, optional_new_text: Option<String>) -> Rc<RefCell<LayoutNode>> {
-    let mut partial_node_text = None;
-    let mut partial_node_font = None;
-    let mut partial_node_font_color = None;
-    let mut partial_char_position_mapping = None;
-    let mut partial_node_non_breaking_space_positions = None;
+    let mut partial_node_text_data = None;
     let mut partial_node_visible = true;
     let mut partial_node_optional_link_url = None;
     let mut partial_node_optional_img = None;
@@ -690,24 +693,29 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
     let mut partial_node_children = None;
     let partial_node_background_color = get_color_style_value(&partial_node_styles, "background-color").unwrap_or(Color::WHITE);
 
-
     let mut childs_to_recurse_on: &Option<Vec<Rc<RefCell<ElementDomNode>>>> = &None;
 
     let main_node_refcell = main_node;
     let main_node = RefCell::borrow(main_node);
 
     if main_node.text.is_some() {
-        if optional_new_text.is_some() {
-            partial_node_text = optional_new_text;
+        let partial_node_text = if optional_new_text.is_some() {
+            optional_new_text.unwrap()
         } else {
-            partial_node_text = Option::Some(main_node.text.as_ref().unwrap().text_content.clone());
-        }
+            main_node.text.as_ref().unwrap().text_content.clone()
+        };
 
-        partial_node_non_breaking_space_positions = main_node.text.as_ref().unwrap().non_breaking_space_positions.clone();
+        let partial_node_non_breaking_space_positions = main_node.text.as_ref().unwrap().non_breaking_space_positions.clone();
         let font = get_font_given_styles(&partial_node_styles);
-        partial_char_position_mapping = Some(compute_char_position_mapping(platform, &font.0, partial_node_text.as_ref().unwrap()));
-        partial_node_font = Some(font.0);
-        partial_node_font_color = Some(font.1);
+        let partial_char_position_mapping = compute_char_position_mapping(platform, &font.0, &partial_node_text);
+
+        partial_node_text_data = Some(RectTextData {
+            text: partial_node_text,
+            font: font.0,
+            font_color: font.1,
+            char_position_mapping: partial_char_position_mapping,
+            non_breaking_space_positions: partial_node_non_breaking_space_positions,
+        });
 
     } else if main_node.name.is_some() {
         debug_assert!(optional_new_text.is_none());
@@ -855,11 +863,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
     }
 
     let layout_rect = LayoutRect {
-        text: partial_node_text,
-        font: partial_node_font,
-        font_color: partial_node_font_color,
-        char_position_mapping: partial_char_position_mapping,
-        non_breaking_space_positions: partial_node_non_breaking_space_positions,
+        text_data: partial_node_text_data,
         image: partial_node_optional_img,
         location: Rect::empty(),
         selection_rect: None,

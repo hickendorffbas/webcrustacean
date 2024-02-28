@@ -210,6 +210,6 @@ pub fn compute_char_position_mapping(platform: &mut Platform, font: &Font, text:
         char_position_mapping.push(x_pos);
     }
 
-    debug_assert!(text.len() == char_position_mapping.len());
+    debug_assert!(text.chars().count() == char_position_mapping.len());
     return char_position_mapping;
 }

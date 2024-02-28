@@ -10,9 +10,16 @@ goals for 0.2.0:
 		- Have (nicer) methods to extract a number when expected for example, or a value from a set of fixed values
 
 
-other things (later versions):
+goals for 0.3.0:
+       - better testing setup
+              - some way to test layout
+              - some way to test with actual webpage examples in files
+              - make parse tests nicer by comparing json
        - move to rust 2021
-       - make parse tests nicer by comparing json
+
+
+
+other things (later versions):
        - fix transparancy in png's (loading works, rendering in SDL does not)
        - integration tests by exporting json for the layout tree, so I can test all the way from HTML to layout
        - figure out how do build standalone binaries

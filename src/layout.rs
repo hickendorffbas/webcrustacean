@@ -556,8 +556,9 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
                     cursor_y += max_height_of_line;
 
                     let only_update_block_vertical_position = false; //we can only do this if the parent is block layout, but in this case its inline. Inline might cause horizonal cascading changes.
+                    drop(child_borrow);
                     compute_layout(&child, all_nodes, style_context, cursor_x, cursor_y, platform, only_update_block_vertical_position, force_full_layout);
-                    let (child_width, child_height) = child_borrow.get_size_of_bounding_box();
+                    let (child_width, child_height) = RefCell::borrow(child).get_size_of_bounding_box();
 
                     cursor_x += child_width;
                     max_width = max_width.max(cursor_x);

@@ -158,7 +158,7 @@ pub fn find_pixel_format(image: &DynamicImage) -> PixelFormatEnum {
         DynamicImage::ImageRgba16(_) => todo!(),
         DynamicImage::ImageRgb32F(_) => todo!(),
         DynamicImage::ImageRgba32F(_) => todo!(),
-        _ => panic!("unexpect image"), //TODO: what case is this describing?
+        _ => panic!("unexpected pixel format"), //TODO: what case is this describing?
     }
 }
 

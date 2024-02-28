@@ -1,6 +1,7 @@
 
 - BUG: when you go to a page with a lot of paragraphs, selection does not work correct, when in between paragraps, paragraphs below get selected
 - BUG: back button seems to not always work?
+- BUG: we need to set a minimum size for the scrollblock. it gets too small on large pages
 
 
 goals for 0.2.0:

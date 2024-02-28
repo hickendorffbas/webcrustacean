@@ -144,5 +144,5 @@ fn load_image(url: &Url) -> DynamicImage {
 
 pub fn fallback_image() -> DynamicImage {
     //TODO: this should become one of those "broken image"-images
-    return DynamicImage::new_rgb32f(1, 1);
+    return DynamicImage::new_rgb8(1, 1);
 }

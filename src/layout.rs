@@ -7,18 +7,21 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use image::DynamicImage;
 
 use crate::color::Color;
-use crate::debug::debug_log_warn;
-use crate::dom::{Document, ElementDomNode, TagName};
+use crate::dom::{
+    Document,
+    ElementDomNode,
+    TagName,
+};
 use crate::Font;
 use crate::network::url::Url;
 use crate::platform::Platform;
 use crate::SCREEN_HEIGHT;
 use crate::style::{
-    StyleContext,
     get_color_style_value,
     get_property_from_computed_styles,
-    has_style_value,
+    has_style_value, resolve_css_numeric_type_value,
     resolve_full_styles_for_layout_node,
+    StyleContext,
 };
 use crate::ui::CONTENT_WIDTH;
 use crate::ui_components::compute_char_position_mapping;
@@ -397,38 +400,12 @@ pub fn get_font_given_styles(styles: &HashMap<String, String>) -> (Font, Color) 
     let font_bold = has_style_value(&styles, "font-weight", &"bold".to_owned());
     let font_underline = has_style_value(&styles, "text-decoration", &"underline".to_owned());
     let opt_font_size = get_property_from_computed_styles(&styles, "font-size");
-
-    let font_size = if opt_font_size.is_some() {
-        let unwrapped = opt_font_size.unwrap();
-        if unwrapped.chars().last() == Some('%') {
-            //TODO: I need to think about a good way of parsing this and applying it (should be in the styles module), for now we use a fallback:
-            debug_log_warn("css percent font size not implemented, falling back to default");
-            18
-        } else if unwrapped.len() > 3 && &unwrapped.as_str()[unwrapped.len() - 3..] == "rem" {
-            debug_log_warn("css rem font size not implemented, falling back to default");
-            18
-        } else {
-            let parsed_unwrapped = unwrapped.parse::<u16>();
-            if parsed_unwrapped.is_err() {
-                debug_log_warn(format!("could not parse css value: {:}", unwrapped));
-                18
-            } else {
-                parsed_unwrapped.ok().unwrap()
-            }
-        }
-    } else {
-        //font-size should be in the default styles, so this is a fatal error if not found
-        panic!("font-size not found");
-    };
+    let font_size = resolve_css_numeric_type_value(&opt_font_size.unwrap()); //font-size has a default value, so this is a fatal error if not found
 
     let font_color_option = get_color_style_value(&styles, "color");
-    let font_color = if font_color_option.is_some() {
-        font_color_option.unwrap()
-    } else {
-        Color::BLACK
-    };
+    let font_color = font_color_option.unwrap(); //color has a default value, so this is a fatal error if not found
 
-    return (Font::new(font_bold, font_underline, font_size), font_color);
+    return (Font::new(font_bold, font_underline, font_size as u16), font_color);
 }
 
 

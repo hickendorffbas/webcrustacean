@@ -9,7 +9,8 @@ goals for 0.2.0:
        - test on windows (document SDL install)
        - get a proper system for parsing CSS values (for the numeric values)
 		- Have (nicer) methods to extract a number when expected for example, or a value from a set of fixed values
-
+		- Actually the issue is mainly the lack of unit conversion (for example when getting the font, I need to check for "rem" etc.)
+                     -> make a function for this in the style module, check https://developer.mozilla.org/en-US/docs/Learn/CSS/Building_blocks/Values_and_units
 
 goals for 0.3.0:
        - better testing setup

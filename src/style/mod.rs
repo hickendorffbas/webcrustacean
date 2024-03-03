@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::color::Color;
+use crate::debug::debug_log_warn;
 use crate::dom::ElementDomNode;
 
 
@@ -159,6 +160,62 @@ pub fn get_user_agent_style_sheet() -> Vec<StyleRule> {
 }
 
 
+pub fn get_property_from_computed_styles(styles: &HashMap<String, String>, property: &str) -> Option<String> {
+    let computed_prop = styles.get(property);
+    if computed_prop.is_some() {
+        //TODO: not great that we clone here, but we seem to need to because we also could return new strings (for defaults), could we
+        //      return references to static ones for those, and just always return a reference? We might need to return &str then
+        return Some(computed_prop.unwrap().clone());
+    }
+
+    //Defaults per css property:
+    match property {
+        "color" => return Some(String::from("black")),
+        "font-size" => return Some(String::from("18")),
+        "font-weight" => return Some(String::from("normal")),
+        _ => { return None }
+    };
+
+}
+
+
+pub fn resolve_css_numeric_type_value(value: &String) -> f32 {
+    if value.chars().last() == Some('%') {
+        //TODO: implement this case (we probably need to bring in more context)
+        todo!("css percentages implemented");
+    } else if value.len() > 3 && &value.as_str()[value.len() - 3..] == "rem" {
+        //TODO: implement this case (we probably need to bring in more context)
+        todo!("css rem unit not implemented");
+    } else {
+        let parsed_unwrapped = value.parse::<f32>();
+        if parsed_unwrapped.is_err() {
+            debug_log_warn(format!("could not parse css value: {:}", value));
+            18.0  //this is a fairly random number, we should never really get here except by accident for unimplemented things
+        } else {
+            parsed_unwrapped.ok().unwrap()
+        }
+    }
+}
+
+
+pub fn has_style_value(styles: &HashMap<String, String>, style_name: &str, style_value: &String) -> bool {
+    let item = get_property_from_computed_styles(styles, style_name);
+    if item.is_none() {
+        return false;
+    }
+    return item.unwrap() == *style_value;
+}
+
+
+pub fn get_color_style_value(styles: &HashMap<String, String>, style_name: &str) -> Option<Color> {
+    let item = get_property_from_computed_styles(styles, style_name);
+    if item.is_none() {
+        return None;
+    }
+    return Color::from_string(&item.unwrap());
+}
+
+
 // This function returns what rule_a is compare to rule_b (less, equal or greater), greater meaning having higher priority
 fn compare_style_rules(rule_a: &ActiveStyleRule, rule_b: &ActiveStyleRule) -> Ordering {
 
@@ -189,25 +246,6 @@ fn compare_style_rules(rule_a: &ActiveStyleRule, rule_b: &ActiveStyleRule) -> Or
 }
 
 
-pub fn get_property_from_computed_styles(styles: &HashMap<String, String>, property: &str) -> Option<String> {
-    let computed_prop = styles.get(property);
-    if computed_prop.is_some() {
-        //TODO: not great that we clone here, but we seem to need to because we also could return new strings (for defaults), could we
-        //      return references to static ones for those, and just always return a reference?
-        return Some(computed_prop.unwrap().clone());
-    }
-
-    //Defaults per css property:
-    match property {
-        "color" => return Some(String::from("black")),
-        "font-size" => return Some(String::from("18")),
-        "font-weight" => return Some(String::from("normal")),
-        _ => { return None }
-    };
-
-}
-
-
 fn style_rule_does_apply(style_rule: &StyleRule, element_dom_node: &ElementDomNode) -> bool {
     if element_dom_node.name.is_none() {
         return false;
@@ -216,22 +254,4 @@ fn style_rule_does_apply(style_rule: &StyleRule, element_dom_node: &ElementDomNo
     //TODO: currently this matches if any of the nodes matches, I'm not sure if this is correct, do they all need to match?
     return style_rule.selector.nodes.is_some() &&
            style_rule.selector.nodes.as_ref().unwrap().contains(&element_dom_node.name.as_ref().unwrap());
-}
-
-
-pub fn has_style_value(styles: &HashMap<String, String>, style_name: &str, style_value: &String) -> bool {
-    let item = get_property_from_computed_styles(styles, style_name);
-    if item.is_none() {
-        return false;
-    }
-    return item.unwrap() == *style_value;
-}
-
-
-pub fn get_color_style_value(styles: &HashMap<String, String>, style_name: &str) -> Option<Color> {
-    let item = get_property_from_computed_styles(styles, style_name);
-    if item.is_none() {
-        return None;
-    }
-    return Color::from_string(&item.unwrap());
 }

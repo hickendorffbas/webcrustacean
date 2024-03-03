@@ -72,7 +72,11 @@ brew install sdl2_ttf
 
 #### install SDL
 
-see <https://github.com/Rust-SDL2/rust-sdl2#windows-msvc>
+see <https://github.com/Rust-SDL2/rust-sdl2#windows-msvc> for extra context
+
+```
+vcpkg install sdl2-ttf:x64-windows sdl2:x64-windows sdl2-mixer:x64-windows sdl2-image:x64-windows sdl2-gfx:x64-windows
+```
 
 
 

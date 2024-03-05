@@ -1,4 +1,4 @@
-0.2.0 [unreleased]
+0.2.0
 ===================
 - Added ability to select and copy text
 - Allow pasting in the url bar

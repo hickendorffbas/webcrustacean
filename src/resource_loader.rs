@@ -1,4 +1,6 @@
-use std::fs;
+use std::env;
+use std::fs::{self, metadata};
+use std::path::PathBuf;
 use std::sync::atomic::{Ordering, AtomicUsize};
 use std::sync::mpsc::{channel, Receiver, Sender};
 
@@ -62,6 +64,11 @@ pub fn schedule_load_text(url: &Url, resource_thread_pool: &mut ResourceThreadPo
 
 
 fn load_text(url: &Url) -> String {
+
+    if url.scheme == "about" {
+        return build_about_page(&url);
+    }
+
     if url.scheme == "file" {
         let mut local_path = String::from("//");
         local_path.push_str(&url.path.join("/"));
@@ -77,12 +84,53 @@ fn load_text(url: &Url) -> String {
     let file_content_result = http_get_text(url);
 
     if file_content_result.is_err() {
+        //TODO: this error should not just be debug-logged, it should return this, and then render the 404 page, if this was the main page load...
         debug_log_warn(format!("Could not load text: {}", url.to_string()));
         return String::new();
     }
 
     return file_content_result.unwrap();
 }
+
+
+fn build_about_page(url: &Url) -> String {
+
+    if url.path.len() == 1 && url.path.iter().next().unwrap().as_str() == "home" {
+        let our_path = env::current_dir().unwrap();
+        let mut local_file_urls = Vec::new();
+
+        get_all_html_in_folder(our_path, &mut local_file_urls);
+
+        let mut html = String::from("<html><h1>Webcrustacean Home<h1><br />");
+        for local_file_url in local_file_urls {
+            let file_url = &local_file_url.into_os_string().into_string().unwrap();
+            html += format!("<a href=\"file://{file_url}\">{file_url}</a><br />").as_str();
+        }
+
+        return html;
+    }
+
+    //TODO: this error should not just be debug-logged, it should return this, and then render the 404 page, if this was the main page load...
+    debug_log_warn(format!("Could not load text: {}", url.to_string()));
+    return String::new();
+}
+
+
+fn get_all_html_in_folder(folder_path: PathBuf, local_file_urls: &mut Vec<PathBuf>) {
+    //TODO: test the folder walking code on windows
+    let files_in_current_folder = fs::read_dir(folder_path).unwrap();
+    for file in files_in_current_folder {
+        let path = file.as_ref().unwrap().path();
+        if metadata(&path).unwrap().is_dir() {
+            get_all_html_in_folder(path, local_file_urls);
+        } else {
+            if path.extension().is_some() && path.extension().unwrap().to_str().unwrap() == "html" {
+                local_file_urls.push(path);
+            }
+        }
+    }
+}
+
 
 
 pub fn schedule_load_image(url: &Url, resource_thread_pool: &mut ResourceThreadPool) -> ResourceRequestJobTracker<DynamicImage> {

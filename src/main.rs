@@ -58,7 +58,7 @@ use crate::ui_components::{TextField, NavigationButton};
 const TARGET_FPS: u32 = if cfg!(debug_assertions) { 20 } else { 60 };
 const SCREEN_WIDTH: f32 = 1400.0;
 const SCREEN_HEIGHT: f32 = 800.0;
-const DEFAULT_LOCATION_TO_LOAD: &str = "file:///home/bas/code/webcrustacean/testinput/doc.html";
+const DEFAULT_LOCATION_TO_LOAD: &str = "about:home";
 const SCROLL_SPEED: i32 = 25;
 const NR_RESOURCE_LOADING_THREADS: usize = 4;
 

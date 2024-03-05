@@ -392,9 +392,15 @@ impl Url {
         let mut full_string = String::new();
 
         full_string.push_str(&self.scheme);
-        full_string.push_str("://");
+        if self.scheme != "about" {  //TODO: this is a hack, I'm missing something in the URL spec to make this work I think (about: should not have slashes)
+            full_string.push_str("://");
+        } else {
+            full_string.push_str(":");
+        }
         full_string.push_str(&self.host);
-        full_string.push_str("/");
+        if self.scheme != "about" {  //TODO: this is a hack, I'm missing something in the URL spec to make this work I think (about: should not have slashes)
+            full_string.push_str("/");
+        }
         full_string.push_str(self.path.join("/").as_str());
 
         return full_string;

@@ -180,6 +180,7 @@ pub fn get_property_from_computed_styles(styles: &HashMap<String, String>, prope
 
 
 pub fn resolve_css_numeric_type_value(value: &String) -> f32 {
+    //TODO: see https://developer.mozilla.org/en-US/docs/Learn/CSS/Building_blocks/Values_and_units for many missing things here
     if value.chars().last() == Some('%') {
         //TODO: implement this case (we probably need to bring in more context)
         todo!("css percentages implemented");

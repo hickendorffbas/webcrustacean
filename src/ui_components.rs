@@ -28,7 +28,7 @@ pub struct TextField {
 }
 impl TextField {
     pub fn render(&self, ui_state: &UIState, platform: &mut Platform) {
-        platform.draw_square(self.x, self.y, self.width, self.height, Color::BLACK);
+        platform.draw_square(self.x, self.y, self.width, self.height, Color::BLACK, 255);
         platform.render_text(&self.text, self.x + TEXT_FIELD_OFFSET_FROM_BORDER, self.y + TEXT_FIELD_OFFSET_FROM_BORDER, &self.font, Color::BLACK);
 
         if self.has_focus {

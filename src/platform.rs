@@ -7,7 +7,7 @@ use sdl2::{
     keyboard::Keycode as SdlKeycode,
     pixels::{Color as SdlColor, PixelFormatEnum},
     rect::{Point as SdlPoint, Rect as SdlRect},
-    render::{TextureAccess, TextureQuery, WindowCanvas},
+    render::{BlendMode, TextureAccess, TextureQuery, WindowCanvas},
     Sdl,
     ttf::Sdl2TtfContext,
     VideoSubsystem,
@@ -55,12 +55,12 @@ impl Platform<'_> {
     }
 
     pub fn render_clear(&mut self, color: Color) {
-        self.canvas.set_draw_color(to_sdl_color(color));
+        self.canvas.set_draw_color(to_sdl_color(color, 255));
         self.canvas.clear();
     }
 
     pub fn draw_line(&mut self, start: Position, end: Position, color: Color) {
-        self.canvas.set_draw_color(to_sdl_color(color));
+        self.canvas.set_draw_color(to_sdl_color(color, 255));
         self.canvas.draw_line(start.to_sdl_point(), end.to_sdl_point()).expect("error drawing line");
     }
 
@@ -73,7 +73,7 @@ impl Platform<'_> {
 
         let sdl_surface = sdl_font
             .render(text)
-            .blended(to_sdl_color(color))
+            .blended(to_sdl_color(color, 255))
             .expect("error while rendering text");
     
         let texture_creator = self.canvas.texture_creator(); //TODO: I don't think I need to create this every time, we can probably keep it on the struct
@@ -102,18 +102,32 @@ impl Platform<'_> {
         return (width as f32, height as f32);
     }
 
-    pub fn fill_rect(&mut self, x: f32, y: f32, width: f32, height: f32, color: Color) {
-        self.canvas.set_draw_color(to_sdl_color(color));
+    pub fn enable_blending(&mut self) {
+        self.canvas.set_blend_mode(BlendMode::Blend);
+    }
+
+    pub fn disable_blending(&mut self) {
+        self.canvas.set_blend_mode(BlendMode::None);
+    }
+
+    pub fn fill_rect(&mut self, x: f32, y: f32, width: f32, height: f32, color: Color, alpha: u8) {
+        self.canvas.set_draw_color(to_sdl_color(color, alpha));
 
         let rect = SdlRect::new(x as i32, y as i32, width as u32, height as u32);
         self.canvas.fill_rect(rect).expect("error filling rect");
     }
 
-    pub fn draw_square(&mut self, x: f32, y: f32, width: f32, height: f32, color: Color) {
-        self.canvas.set_draw_color(to_sdl_color(color));
+    pub fn set_pixel(&mut self, x: i32, y: i32, color: Color, alpha: u8) {
+        self.canvas.set_draw_color(to_sdl_color(color, alpha)); //TODO: we might want to extract this out of the platform calls, and make it a platform call
+                                                                //      by itself, so we don't need to call it as much...
+        self.canvas.draw_point(SdlPoint::new(x, y)).expect("error drawing point");
+    }
+
+    pub fn draw_square(&mut self, x: f32, y: f32, width: f32, height: f32, color: Color, alpha: u8) {
+        self.canvas.set_draw_color(to_sdl_color(color, alpha));
 
         let rect = SdlRect::new(x as i32, y as i32, width as u32, height as u32);
-        self.canvas.draw_rect(rect).expect("error drawing rect");
+        self.canvas.draw_rect(rect).expect("error drawing square");
     }
 
     pub fn render_image(&mut self, image: &DynamicImage, x: f32, y: f32) {
@@ -163,8 +177,8 @@ pub fn find_pixel_format(image: &DynamicImage) -> PixelFormatEnum {
 }
 
 
-pub fn to_sdl_color(color: Color) -> SdlColor {
-    return SdlColor::RGB(color.r, color.g, color.b);
+pub fn to_sdl_color(color: Color, alpha: u8) -> SdlColor {
+    return SdlColor::RGBA(color.r, color.g, color.b, alpha);
 }
 
 

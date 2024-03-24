@@ -9,7 +9,7 @@ use sdl2::ttf::{Font as SdlFont, Sdl2TtfContext};
 pub struct Font {
     bold: bool,
     underline: bool,
-    font_size: u16
+    pub font_size: u16
 }
 impl Font {
     pub fn new(bold: bool, underline: bool, font_size: u16) -> Font {

@@ -110,7 +110,7 @@ pub fn convert_block_drag_to_page_scroll(ui_state: &UIState, scroll_block_amount
 
 
 fn render_header(platform: &mut Platform, ui_state: &UIState) {
-    platform.fill_rect(0.0, 0.0, SCREEN_WIDTH, HEADER_HEIGHT, Color::WHITE);
+    platform.fill_rect(0.0, 0.0, SCREEN_WIDTH, HEADER_HEIGHT, Color::WHITE, 255);
 
     platform.draw_line(Position { x: 0.0, y: HEADER_HEIGHT - 1.0 },
                        Position { x: SCREEN_WIDTH, y: HEADER_HEIGHT - 1.0 },
@@ -135,13 +135,13 @@ fn render_spinner(platform: &mut Platform, ui_state: &UIState) {
     let number_of_blocks = (ui_state.animation_tick % 1000) / 250;
 
     if number_of_blocks > 0 {
-        platform.fill_rect(spinner_x_pos, spinner_y_pos, block_size, block_size, Color::BLACK);
+        platform.fill_rect(spinner_x_pos, spinner_y_pos, block_size, block_size, Color::BLACK, 255);
     }
     if number_of_blocks > 1 {
-        platform.fill_rect(spinner_x_pos + block_spacing, spinner_y_pos, block_size, block_size, Color::BLACK);
+        platform.fill_rect(spinner_x_pos + block_spacing, spinner_y_pos, block_size, block_size, Color::BLACK, 255);
     }
     if number_of_blocks > 2 {
-        platform.fill_rect(spinner_x_pos + (block_spacing * 2.0), spinner_y_pos, block_size, block_size, Color::BLACK);
+        platform.fill_rect(spinner_x_pos + (block_spacing * 2.0), spinner_y_pos, block_size, block_size, Color::BLACK, 255);
     }
 }
 
@@ -150,10 +150,10 @@ fn render_scrollbar(platform: &mut Platform, current_scroll_y: f32, page_height:
     //TODO: I don't like that we are using HEADER_HEIGHT etc. here. The scrollbar should only know where it should draw, and we should derive that from
     //      header hight etc. outside this function
 
-    platform.fill_rect(SCROLLBAR_X_POS, HEADER_HEIGHT, SCREEN_WIDTH - SCROLLBAR_X_POS, SCROLLBAR_HEIGHT, UI_BASIC_COLOR);
+    platform.fill_rect(SCROLLBAR_X_POS, HEADER_HEIGHT, SCREEN_WIDTH - SCROLLBAR_X_POS, SCROLLBAR_HEIGHT, UI_BASIC_COLOR, 255);
 
     let (block_x, block_y, block_width, block_height) = compute_scrollblock_position(current_scroll_y, page_height);
-    platform.fill_rect(block_x, block_y, block_width, block_height, UI_BASIC_DARKER_COLOR);
+    platform.fill_rect(block_x, block_y, block_width, block_height, UI_BASIC_DARKER_COLOR, 255);
 }
 
 

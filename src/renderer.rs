@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::color::Color;
+use crate::fonts_new;
 use crate::layout::{
     FullLayout,
     LayoutNode,
@@ -35,18 +36,18 @@ fn render_layout_node(platform: &mut Platform, layout_node: &LayoutNode, all_nod
 
         if layout_node.background_color != Color::WHITE {
             let location = &layout_rect.location;
-            platform.fill_rect(location.x, location.y - current_scroll_y, location.width, location.height, layout_node.background_color);
+            platform.fill_rect(location.x, location.y - current_scroll_y, location.width, location.height, layout_node.background_color, 255);
         }
 
         if layout_rect.text_data.is_some() {
             if layout_rect.selection_rect.is_some() {
                 let selection_rect = layout_rect.selection_rect.as_ref().unwrap();
-                platform.fill_rect(selection_rect.x, selection_rect.y - current_scroll_y, selection_rect.width, selection_rect.height, Color::new(180, 213, 255));
+                platform.fill_rect(selection_rect.x, selection_rect.y - current_scroll_y, selection_rect.width, selection_rect.height, Color::new(180, 213, 255), 255);
             }
 
             let render_y = layout_rect.location.y - current_scroll_y;
             let text_data = layout_rect.text_data.as_ref().unwrap();
-            platform.render_text(&text_data.text, layout_rect.location.x, render_y, &text_data.font, text_data.font_color);
+            fonts_new::render_text(platform, text_data.text.as_str(), text_data.font.font_size, text_data.font_color, layout_rect.location.x, render_y);
         }
     }
 

@@ -2,6 +2,7 @@ mod color;
 mod debug;
 mod dom;
 mod fonts;
+mod fonts_new;
 mod html_lexer;
 mod html_parser;
 mod layout;
@@ -23,7 +24,6 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use arboard::Clipboard;
-use resource_loader::{ResourceRequestJobTracker, ResourceThreadPool};
 use sdl2::{
     event::Event as SdlEvent,
     keyboard::{Keycode, Mod as SdlKeyMod},
@@ -43,6 +43,7 @@ use crate::layout::{
 };
 use crate::network::url::Url;
 use crate::platform::Platform;
+use crate::resource_loader::{ResourceRequestJobTracker, ResourceThreadPool};
 use crate::renderer::render;
 use crate::ui::{
     CONTENT_HEIGHT,
@@ -307,6 +308,7 @@ fn main() -> Result<(), String> {
     } else {
         Url::from(&args[1])
     };
+
 
     let mut mouse_state = MouseState { x: 0, y: 0, click_start_x: 0, click_start_y: 0, left_down: false, is_dragging_scrollblock: false };
     let addressbar_text = url.to_string();

@@ -30,6 +30,7 @@ We do use libraries for the following functionality:
 - doing HTTP network requests (reqwest)
 - loading different image formats (image)
 - accessing the clipboard (arboard)
+- loading and rendering fonts (rusttype)
 
 
 

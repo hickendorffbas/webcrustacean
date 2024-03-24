@@ -1,6 +1,6 @@
 [package]
 name = "webcrustacean"
-version = "0.2.0"
+version = "0.3.0-alpha"
 authors = ["Bas Hickendorff <hickendorffbas@gmail.com>"]
 edition = "2018"
 
@@ -28,3 +28,6 @@ version = "=3.3.0"
 
 [dependencies.threadpool]
 version = "=1.8.1"
+
+[dependencies.rusttype]
+version = "=0.9.3"

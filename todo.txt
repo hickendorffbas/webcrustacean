@@ -5,13 +5,19 @@
 
 
 goals for 0.3.0:
+       - no longer use SDL for font loading
+              - rendering works, but size of text is not coupled to the new library yet
+              - check if we can do bold and underline
+                     - our own font object probably does not make a lot of sense anymore?
+              - loaded fonts should still move to a context
+              - all font SDL code should be removed, including the SDL font lib itself (and install instructions etc.) and the ttf feature of the crate
+              - find the correct fonts to ship, and include them in the repo (check licences!)
        - better testing setup
               - some way to test layout
               - some way to test with actual webpage examples in files
               - make parse tests nicer by comparing json
                      - integration tests by exporting json for the layout tree, so I can test all the way from HTML to layout
        - move to rust 2021
-       - use freetype (https://docs.rs/freetype-rs/latest/freetype/) for loading and rendering fonts, instead of SDL (so we can move off SDL easier in the future)
        - extremely minimal start of javascript implementation
        - allow selection in the url bar, and select on first click
 

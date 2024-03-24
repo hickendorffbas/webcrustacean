@@ -1,3 +1,8 @@
+0.3.0 [UNRELEASED]
+===================
+- No longer depend on SDL for font rendering [IN PROGRESS]
+
+
 0.2.0
 ===================
 - Added ability to select and copy text

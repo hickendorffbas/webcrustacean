@@ -34,6 +34,12 @@ We do use libraries for the following functionality:
 
 
 
+## Fonts
+
+We are using the ubuntu font from https://fonts.google.com/specimen/Ubuntu/about. The licence is included in the repository.
+
+
+
 ## Development Installation
 
 

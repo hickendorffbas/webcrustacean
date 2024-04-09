@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use image::DynamicImage;
 
 use sdl2::{
@@ -7,15 +5,14 @@ use sdl2::{
     keyboard::Keycode as SdlKeycode,
     pixels::{Color as SdlColor, PixelFormatEnum},
     rect::{Point as SdlPoint, Rect as SdlRect},
-    render::{BlendMode, TextureAccess, TextureQuery, WindowCanvas},
+    render::{BlendMode, TextureAccess, WindowCanvas},
     Sdl,
-    ttf::Sdl2TtfContext,
     VideoSubsystem,
 };
 
-use crate::{SCREEN_WIDTH, SCREEN_HEIGHT};
+use crate::{SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::color::Color;
-use crate::fonts::{FontCache, Font};
+use crate::fonts::{self, Font, FontContext};
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -41,8 +38,8 @@ pub enum KeyCode {
 
 pub struct Platform<'a> {
     pub sdl_context: Sdl,
+    pub font_context: FontContext<'a>,
 
-    font_cache: FontCache<'a, 'a>,
     canvas: WindowCanvas,
     video_subsystem: VideoSubsystem,
 
@@ -65,41 +62,18 @@ impl Platform<'_> {
     }
 
     pub fn render_text(&mut self, text: &String, x: f32, y: f32, font: &Font, color: Color) {
-        if text.len() == 0 {
-            return;
-        }
-
-        let sdl_font = self.font_cache.get_font(font);
-
-        let sdl_surface = sdl_font
-            .render(text)
-            .blended(to_sdl_color(color, 255))
-            .expect("error while rendering text");
-    
-        let texture_creator = self.canvas.texture_creator(); //TODO: I don't think I need to create this every time, we can probably keep it on the struct
-        let texture = texture_creator
-            .create_texture_from_surface(&sdl_surface)
-            .expect("error while building surface");
-    
-        let TextureQuery { width, height, .. } = texture.query();
-        let target = SdlRect::new(x as i32, y as i32, width, height);
-    
-        self.canvas.copy(&texture, None, Some(target))
-            .expect("copying texture in canvas failed!");
+        //TODO: this method should just move to the font context? YES
+        fonts::render_text(self, text, color, font, x, y);
     }
 
     pub fn get_text_dimension(&mut self, text: &String, font: &Font) -> (f32, f32) {
-        return self.get_text_dimension_str(text.as_str(), font);
+        //TODO: this method should just move to the font context? YES
+        return fonts::get_text_dimension(&self.font_context, text, font);
     }
 
     pub fn get_text_dimension_str(&mut self, text: &str, font: &Font) -> (f32, f32) {
-        if text == "" {
-            return (0.0, 0.0);
-        }
-        let sdl_font = self.font_cache.get_font(font);
-        let result = sdl_font.size_of(text);
-        let (width, height) = result.expect("error measuring size of text");
-        return (width as f32, height as f32);
+        //TODO: this method should just move to the font context? YES
+        return fonts::get_text_dimension_str(&self.font_context, text, font);
     }
 
     pub fn enable_blending(&mut self) {
@@ -182,7 +156,7 @@ pub fn to_sdl_color(color: Color, alpha: u8) -> SdlColor {
 }
 
 
-pub fn init_platform<'a>(sdl_context: Sdl, ttf_context: &Sdl2TtfContext) -> Result<Platform, String> {
+pub fn init_platform<'a>(sdl_context: Sdl) -> Result<Platform<'a>, String> {
     let video_subsystem = sdl_context.video()
         .expect("Could not get the video subsystem");
 
@@ -196,10 +170,13 @@ pub fn init_platform<'a>(sdl_context: Sdl, ttf_context: &Sdl2TtfContext) -> Resu
     let canvas = window.into_canvas().build()
         .expect("could not make a canvas");
 
+    let mut font_context = FontContext::empty();
+    fonts::setup_font_context(&mut font_context);
+
     return Result::Ok(Platform {
         canvas,
         sdl_context,
-        font_cache: FontCache {ttf_context: ttf_context, mapping: HashMap::new()},
+        font_context: font_context,
         video_subsystem,
         _image_context: image_context,
     });

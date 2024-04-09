@@ -2,7 +2,6 @@ mod color;
 mod debug;
 mod dom;
 mod fonts;
-mod fonts_new;
 mod html_lexer;
 mod html_parser;
 mod layout;
@@ -62,11 +61,6 @@ const SCREEN_HEIGHT: f32 = 800.0;
 const DEFAULT_LOCATION_TO_LOAD: &str = "about:home";
 const SCROLL_SPEED: i32 = 25;
 const NR_RESOURCE_LOADING_THREADS: usize = 4;
-
-//TODO: we probably should include the font files in the repo / build, since these paths might be different on different systems
-#[cfg(target_os = "macos")] const FONT_PATH: &str = "/Library/Fonts/Managed/OpenSans-Light_744839258.ttf";
-#[cfg(target_os = "linux")] const FONT_PATH: &str = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf";
-#[cfg(target_os = "windows")] const FONT_PATH: &str = "C:/Windows/Fonts/arial.ttf";
 
 
 //Non-config constants:
@@ -296,8 +290,7 @@ fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_re
 
 fn main() -> Result<(), String> {
     let sdl_context = sdl2::init()?;
-    let ttf_context = sdl2::ttf::init().expect("could not initialize the font system");
-    let mut platform = platform::init_platform(sdl_context, &ttf_context).unwrap();
+    let mut platform = platform::init_platform(sdl_context).unwrap();
 
     let mut resource_thread_pool = ResourceThreadPool { pool: ThreadPool::new(NR_RESOURCE_LOADING_THREADS) };
 
@@ -321,7 +314,7 @@ fn main() -> Result<(), String> {
         has_focus: false,
         cursor_text_position: 0,
         text: String::new(),
-        font: Font::new(false, false, 18),
+        font: Font::default(),
         char_position_mapping: Vec::new(),
     };
     addressbar_text_field.set_text(&mut platform, addressbar_text);

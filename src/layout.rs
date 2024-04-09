@@ -12,7 +12,7 @@ use crate::dom::{
     ElementDomNode,
     TagName,
 };
-use crate::Font;
+use crate::fonts::{Font, FontFace};
 use crate::network::url::Url;
 use crate::platform::Platform;
 use crate::SCREEN_HEIGHT;
@@ -46,7 +46,7 @@ impl FullLayout {
         let mut layout_node = LayoutNode::new_empty();
         let text = String::new();
         let location = Rect { x: 0.0, y: 0.0, width: 1.0, height: 1.0 };
-        let font = Font::new(false, false, 18);
+        let font = Font::default();
         let char_position_mapping = compute_char_position_mapping(platform, &font, &text);
         let rect_text_data = Some(RectTextData { text, font, font_color: Color::BLACK, char_position_mapping, non_breaking_space_positions: None });
         layout_node.rects.push(LayoutRect { text_data: rect_text_data, image: None, location, selection_rect: None, selection_char_range: None });
@@ -398,14 +398,17 @@ pub fn compute_layout(node: &Rc<RefCell<LayoutNode>>, all_nodes: &HashMap<usize,
 
 pub fn get_font_given_styles(styles: &HashMap<String, String>) -> (Font, Color) {
     let font_bold = has_style_value(&styles, "font-weight", &"bold".to_owned());
-    let font_underline = has_style_value(&styles, "text-decoration", &"underline".to_owned());
+    let _font_underline = has_style_value(&styles, "text-decoration", &"underline".to_owned()); //TODO: we need to use this in a different way
+    //TODO: we still need to parse italic (currently harcoded to false in the return below)
     let opt_font_size = get_property_from_computed_styles(&styles, "font-size");
     let font_size = resolve_css_numeric_type_value(&opt_font_size.unwrap()); //font-size has a default value, so this is a fatal error if not found
 
     let font_color_option = get_color_style_value(&styles, "color");
     let font_color = font_color_option.unwrap(); //color has a default value, so this is a fatal error if not found
 
-    return (Font::new(font_bold, font_underline, font_size as u16), font_color);
+    let default_font_face = FontFace::TimesNewRomanRegular;
+
+    return (Font { face: default_font_face, bold: font_bold, italic: false, size: font_size as u16}, font_color);
 }
 
 

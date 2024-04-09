@@ -4,6 +4,10 @@
 - BUG: we need to set a minimum size for the scrollblock. it gets too small on large pages
 
 
+- IDEA: can we do binary search for text wrapping, instead of passing each substring into our slow font function?
+       - we don't even need to, we can use the metrics information from the font library now, I think
+
+
 goals for 0.3.0:
        - no longer use SDL for font loading
               - rendering works, but size of text is not coupled to the new library yet

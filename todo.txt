@@ -4,18 +4,14 @@
 - BUG: we need to set a minimum size for the scrollblock. it gets too small on large pages
 
 
-- IDEA: can we do binary search for text wrapping, instead of passing each substring into our slow font function?
-       - we don't even need to, we can use the metrics information from the font library now, I think
-
 
 goals for 0.3.0:
        - no longer use SDL for font loading
-              - rendering works, but size of text is not coupled to the new library yet
-              - check if we can do bold and underline
-                     - our own font object probably does not make a lot of sense anymore?
-              - loaded fonts should still move to a context
               - all font SDL code should be removed, including the SDL font lib itself (and install instructions etc.) and the ttf feature of the crate
-              - find the correct fonts to ship, and include them in the repo (check licences!)
+              - text wrapping is now way too slow
+                     - IDEA: can we do binary search for text wrapping, instead of passing each substring into our slow font function?
+                            - we don't even need to, we can use the metrics information from the font library now, I think
+                                   -> start at the method that computes positions, hook it up to the font metrics
        - better testing setup
               - some way to test layout
               - some way to test with actual webpage examples in files

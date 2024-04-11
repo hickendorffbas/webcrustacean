@@ -2,9 +2,6 @@ use std::collections::HashMap;
 
 use rusttype::{point, Font as RustTypeFont, Scale};
 
-use crate::{color::Color, platform::Platform};
-
-
 
 //TODO: all stuff of this file belongs in platform, make platform a folder instead of a file
 
@@ -27,7 +24,7 @@ impl Font {
     pub fn default() -> Font {
         return Font { face: FontFace::TimesNewRomanRegular, bold: false, italic: false, size: 18 };
     }
-    fn to_font_key(&self) -> FontKey {
+    pub fn to_font_key(&self) -> FontKey {
         return FontKey { face: self.face.clone(), bold: self.bold, italic: self.italic };
     }
 }
@@ -45,8 +42,15 @@ pub struct FontContext<'a> {
     pub font_data: HashMap<FontKey, RustTypeFont<'a>>,
 }
 impl FontContext<'static>  {
-    pub fn empty() -> FontContext<'static> {
-        return FontContext { font_data: HashMap::new() };
+    pub fn new() -> FontContext<'static> {
+
+        let mut font_context = FontContext { font_data: HashMap::new() };
+
+        //TODO: load the other font variants (bold, italic etc.)
+        let font = RustTypeFont::try_from_bytes(&FONT_DATA).expect("Failure loading font data");
+        font_context.font_data.insert(Font::default().to_font_key(), font);
+
+        return font_context;
     }
 }
 
@@ -57,49 +61,6 @@ pub enum FontFace {
     //TODO: we want bold and italic to be seperate fonts here (because they are loaded from different files)
     //      but it would be nice if the enum items then have properties with those flags (bool)
     TimesNewRomanRegular,
-}
-
-
-pub fn setup_font_context(font_context: &mut FontContext){
-    //TODO: load the other font variants (bold, italic etc.)
-    let font = RustTypeFont::try_from_bytes(&FONT_DATA).expect("Failure loading font data");
-    font_context.font_data.insert(Font::default().to_font_key(), font);
-}
-
-
-pub fn render_text(platform: &mut Platform, text: &str, color: Color, font: &Font, x: f32, y: f32) {
-
-    if text.len() == 0 {
-        return;
-    }
-
-    let rust_type_font = &platform.font_context.font_data[&font.to_font_key()];
-
-    let scale = Scale::uniform(font.size as f32);
-    let v_metrics = rust_type_font.v_metrics(scale);
-    let glyphs: Vec<_> = rust_type_font.layout(text, scale, point(0.0, v_metrics.ascent)).collect();
-
-    platform.enable_blending(); //TODO: what if we always have blending on? Maybe more expensive?
-
-    //TODO: to speed this up, we would need to save the resulting bitmap including alpha somewhere
-    for glyph in glyphs {
-        if let Some(bounding_box) = glyph.pixel_bounding_box() {
-            glyph.draw(|g_x, g_y, g_v| {
-
-                let absolute_x = g_x as i32 + bounding_box.min.x + x as i32;
-                let absolute_y = g_y as i32 + bounding_box.min.y + y as i32;
-
-                //TODO: it is probably slow to set pixels individually on the full surface, instead
-                //      of render a smaller surface first. But lets first move to openGL instead of
-                //      optimizing for SDL, the optimization might be different on openGL
-                platform.set_pixel(absolute_x, absolute_y, color, (g_v * 255.0) as u8);
-
-            });
-        }
-    }
-
-    platform.disable_blending();
-
 }
 
 

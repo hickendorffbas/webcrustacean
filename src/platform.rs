@@ -1,5 +1,6 @@
 use image::DynamicImage;
 
+use rusttype::{point, Scale};
 use sdl2::{
     image::{self as SdlImage, Sdl2ImageContext},
     keyboard::Keycode as SdlKeycode,
@@ -62,8 +63,36 @@ impl Platform<'_> {
     }
 
     pub fn render_text(&mut self, text: &String, x: f32, y: f32, font: &Font, color: Color) {
-        //TODO: this method should just move to the font context? YES
-        fonts::render_text(self, text, color, font, x, y);
+        if text.len() == 0 {
+            return;
+        }
+
+        let rust_type_font = &self.font_context.font_data[&font.to_font_key()];
+
+        let scale = Scale::uniform(font.size as f32);
+        let v_metrics = rust_type_font.v_metrics(scale);
+        let glyphs: Vec<_> = rust_type_font.layout(text, scale, point(0.0, v_metrics.ascent)).collect();
+
+        self.enable_blending(); //TODO: what if we always have blending on? Maybe more expensive?
+
+        //TODO: to speed this up, we would need to save the resulting bitmap including alpha somewhere
+        for glyph in glyphs {
+            if let Some(bounding_box) = glyph.pixel_bounding_box() {
+                glyph.draw(|g_x, g_y, g_v| {
+
+                    let absolute_x = g_x as i32 + bounding_box.min.x + x as i32;
+                    let absolute_y = g_y as i32 + bounding_box.min.y + y as i32;
+
+                    //TODO: it is probably slow to set pixels individually on the full surface, instead
+                    //      of render a smaller surface first. But lets first move to openGL instead of
+                    //      optimizing for SDL, the optimization might be different on openGL
+                    self.set_pixel(absolute_x, absolute_y, color, (g_v * 255.0) as u8);
+
+                });
+            }
+        }
+
+        self.disable_blending();
     }
 
     pub fn get_text_dimension(&mut self, text: &String, font: &Font) -> (f32, f32) {
@@ -170,13 +199,10 @@ pub fn init_platform<'a>(sdl_context: Sdl) -> Result<Platform<'a>, String> {
     let canvas = window.into_canvas().build()
         .expect("could not make a canvas");
 
-    let mut font_context = FontContext::empty();
-    fonts::setup_font_context(&mut font_context);
-
     return Result::Ok(Platform {
         canvas,
         sdl_context,
-        font_context: font_context,
+        font_context: FontContext::new(),
         video_subsystem,
         _image_context: image_context,
     });

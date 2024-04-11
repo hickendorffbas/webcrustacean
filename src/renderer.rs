@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::color::Color;
-use crate::fonts;
+use crate::platform;
 use crate::layout::{FullLayout, LayoutNode};
 use crate::platform::Platform;
 use crate::ui::{UIState, render_ui};
@@ -44,7 +44,7 @@ fn render_layout_node(platform: &mut Platform, layout_node: &LayoutNode, all_nod
 
             let render_y = layout_rect.location.y - current_scroll_y;
             let text_data = layout_rect.text_data.as_ref().unwrap();
-            fonts::render_text(platform, text_data.text.as_str(), text_data.font_color, &text_data.font, layout_rect.location.x, render_y);
+            platform.render_text(&text_data.text, layout_rect.location.x, render_y, &text_data.font, text_data.font_color);
         }
     }
 

@@ -1,8 +1,8 @@
 use crate::color::Color;
 use crate::debug::debug_log_warn;
-use crate::fonts::Font;
 use crate::network::url::Url;
 use crate::platform::{
+    fonts::Font,
     KeyCode,
     Platform,
     Position

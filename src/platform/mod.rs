@@ -1,3 +1,5 @@
+pub mod fonts;
+
 use image::DynamicImage;
 
 use rusttype::{point, Scale};
@@ -13,7 +15,7 @@ use sdl2::{
 
 use crate::{SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::color::Color;
-use crate::fonts::{self, Font, FontContext};
+use crate::platform::fonts::{Font, FontContext};
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -37,9 +39,9 @@ pub enum KeyCode {
 }
 
 
-pub struct Platform<'a> {
+pub struct Platform {
     pub sdl_context: Sdl,
-    pub font_context: FontContext<'a>,
+    pub font_context: FontContext,
 
     canvas: WindowCanvas,
     video_subsystem: VideoSubsystem,
@@ -47,7 +49,7 @@ pub struct Platform<'a> {
     //the image_context is not used by our code, but needs to be kept alive in order to work with images in SDL2:
     _image_context: Sdl2ImageContext,
 }
-impl Platform<'_> {
+impl Platform {
     pub fn present(&mut self) {
         self.canvas.present();
     }
@@ -96,13 +98,11 @@ impl Platform<'_> {
     }
 
     pub fn get_text_dimension(&mut self, text: &String, font: &Font) -> (f32, f32) {
-        //TODO: this method should just move to the font context? YES
-        return fonts::get_text_dimension(&self.font_context, text, font);
+        return self.font_context.get_text_dimension(text, font);
     }
 
     pub fn get_text_dimension_str(&mut self, text: &str, font: &Font) -> (f32, f32) {
-        //TODO: this method should just move to the font context? YES
-        return fonts::get_text_dimension_str(&self.font_context, text, font);
+        return self.font_context.get_text_dimension_str(text, font);
     }
 
     pub fn enable_blending(&mut self) {
@@ -185,7 +185,7 @@ pub fn to_sdl_color(color: Color, alpha: u8) -> SdlColor {
 }
 
 
-pub fn init_platform<'a>(sdl_context: Sdl) -> Result<Platform<'a>, String> {
+pub fn init_platform(sdl_context: Sdl) -> Result<Platform, String> {
     let video_subsystem = sdl_context.video()
         .expect("Could not get the video subsystem");
 

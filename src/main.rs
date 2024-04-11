@@ -1,7 +1,6 @@
 mod color;
 mod debug;
 mod dom;
-mod fonts;
 mod html_lexer;
 mod html_parser;
 mod layout;
@@ -32,7 +31,7 @@ use threadpool::ThreadPool;
 
 use crate::debug::debug_log_warn;
 use crate::dom::Document;
-use crate::fonts::Font;
+use crate::platform::fonts::Font;
 use crate::layout::{
     compute_layout,
     FullLayout,

@@ -12,9 +12,11 @@ use crate::dom::{
     ElementDomNode,
     TagName,
 };
-use crate::fonts::{Font, FontFace};
 use crate::network::url::Url;
-use crate::platform::Platform;
+use crate::platform::{
+    fonts::{Font, FontFace},
+    Platform,
+};
 use crate::SCREEN_HEIGHT;
 use crate::style::{
     get_color_style_value,

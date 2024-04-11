@@ -84,4 +84,23 @@ impl FontContext {
         return (glyphs_width, glyphs_height);
     }
 
+    pub fn compute_char_position_mapping(&self, font: &Font, text: &String) -> Vec<f32> {
+        //This returns the relative ending x positions of each character in the text
+
+        let mut char_position_mapping = Vec::new();
+
+        let rust_type_font = &self.font_data[&font.to_font_key()];
+
+        let scale = Scale::uniform(font.size as f32);
+        let v_metrics = rust_type_font.v_metrics(scale);
+        let glyphs: Vec<_> = rust_type_font.layout(text, scale, point(0.0, v_metrics.ascent)).collect();
+
+        for glyph in glyphs {
+            char_position_mapping.push(glyph.position().x + glyph.unpositioned().h_metrics().advance_width);
+        }
+
+        debug_assert!(text.chars().count() == char_position_mapping.len());
+        return char_position_mapping;
+    }
+
 }

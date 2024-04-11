@@ -97,14 +97,6 @@ impl Platform {
         self.disable_blending();
     }
 
-    pub fn get_text_dimension(&mut self, text: &String, font: &Font) -> (f32, f32) {
-        return self.font_context.get_text_dimension(text, font);
-    }
-
-    pub fn get_text_dimension_str(&mut self, text: &str, font: &Font) -> (f32, f32) {
-        return self.font_context.get_text_dimension_str(text, font);
-    }
-
     pub fn enable_blending(&mut self) {
         self.canvas.set_blend_mode(BlendMode::Blend);
     }

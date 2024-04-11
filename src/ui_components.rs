@@ -59,7 +59,7 @@ impl TextField {
             self.cursor_text_position = self.text.len();
         }
 
-        self.char_position_mapping = compute_char_position_mapping(platform, &self.font, &self.text);
+        self.char_position_mapping = platform.font_context.compute_char_position_mapping(&self.font, &self.text);
     }
 
     pub fn insert_text(&mut self, platform: &mut Platform, text: &String) {
@@ -67,7 +67,7 @@ impl TextField {
             self.text.insert(self.cursor_text_position, char);
             self.cursor_text_position += 1;
         }
-        self.char_position_mapping = compute_char_position_mapping(platform, &self.font, &self.text);
+        self.char_position_mapping = platform.font_context.compute_char_position_mapping(&self.font, &self.text);
     }
 
     pub fn click(&mut self, x: f32, y: f32)  {
@@ -102,7 +102,7 @@ impl TextField {
                     if self.cursor_text_position > 0 {
                         self.text.remove(self.cursor_text_position - 1);  //TODO: this does not work with unicode, but we probably have many more places here that don't
                         self.cursor_text_position -= 1;
-                        self.char_position_mapping = compute_char_position_mapping(platform, &self.font, &self.text);
+                        self.char_position_mapping = platform.font_context.compute_char_position_mapping(&self.font, &self.text);
                     }
                 },
                 KeyCode::LEFT => {
@@ -183,33 +183,4 @@ impl NavigationButton {
 
         return None;
     }
-}
-
-
-//TODO: this should not be public, but we use it in layout now as well, so we should move this to a general place, maybe platform?
-pub fn compute_char_position_mapping(platform: &mut Platform, font: &Font, text: &String) -> Vec<f32> {
-    //This returns the relative ending x positions of each character in the text
-    //TODO: we take a very slow approach here. Not sure if we can do this faster.
-
-    let mut char_position_mapping = Vec::new();
-
-    for (idx, _) in text.char_indices() { //taking indices, because we need to iterate chars, but index by byte. We do want to use the slice, to
-                                          //prevent allocating a new string for each iteration of the loop.
-
-        if idx == 0 {
-            //0 will be produced in the iterator, but the substring [0..0] should not be in the result, since it doesn't contain a character
-            continue;
-        }
-
-        let (x_pos, _) = platform.get_text_dimension_str(&text[0..idx], font);
-        char_position_mapping.push(x_pos);
-    }
-
-    if text.len() > 0 {
-        let (x_pos, _) = platform.get_text_dimension_str(&text, font);
-        char_position_mapping.push(x_pos);
-    }
-
-    debug_assert!(text.chars().count() == char_position_mapping.len());
-    return char_position_mapping;
 }

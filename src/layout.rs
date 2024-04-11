@@ -26,7 +26,6 @@ use crate::style::{
     StyleContext,
 };
 use crate::ui::CONTENT_WIDTH;
-use crate::ui_components::compute_char_position_mapping;
 
 
 static NEXT_LAYOUT_NODE_INTERNAL: AtomicUsize = AtomicUsize::new(1);
@@ -49,7 +48,7 @@ impl FullLayout {
         let text = String::new();
         let location = Rect { x: 0.0, y: 0.0, width: 1.0, height: 1.0 };
         let font = Font::default();
-        let char_position_mapping = compute_char_position_mapping(platform, &font, &text);
+        let char_position_mapping = platform.font_context.compute_char_position_mapping(&font, &text);
         let rect_text_data = Some(RectTextData { text, font, font_color: Color::BLACK, char_position_mapping, non_breaking_space_positions: None });
         layout_node.rects.push(LayoutRect { text_data: rect_text_data, image: None, location, selection_rect: None, selection_char_range: None });
 
@@ -493,7 +492,7 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
                     let new_text_data = RectTextData {
                         font: text_data.font.clone(),
                         font_color: font_color,
-                        char_position_mapping: compute_char_position_mapping(platform, &text_data.font, &text),
+                        char_position_mapping: platform.font_context.compute_char_position_mapping(&text_data.font, &text),
                         non_breaking_space_positions: None, //For now not computing these, although it would be more correct to update them after wrapping
                         text: text,
                     };
@@ -574,7 +573,7 @@ fn compute_size_for_rect(layout_rect: &LayoutRect, platform: &mut Platform) -> (
 
     if layout_rect.text_data.is_some() {
         let text_data = layout_rect.text_data.as_ref().unwrap();
-        return platform.get_text_dimension(&text_data.text, &text_data.font);
+        return platform.font_context.get_text_dimension(&text_data.text, &text_data.font);
     }
 
     if layout_rect.image.is_some() {
@@ -608,7 +607,7 @@ fn wrap_text(layout_rect: &LayoutRect, max_width: f32, width_remaining_on_curren
 
             let width_to_check = if str_buffers.len() == 1 { width_remaining_on_current_line } else { max_width };
 
-            if platform.get_text_dimension(&combined, font).0 < width_to_check {
+            if platform.font_context.get_text_dimension(&combined, font).0 < width_to_check {
                 str_buffers[current_line] = combined;
             } else {
                 current_line += 1;
@@ -690,7 +689,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
         let partial_node_non_breaking_space_positions = main_node.text.as_ref().unwrap().non_breaking_space_positions.clone();
         let font = get_font_given_styles(&partial_node_styles);
-        let partial_char_position_mapping = compute_char_position_mapping(platform, &font.0, &partial_node_text);
+        let partial_char_position_mapping = platform.font_context.compute_char_position_mapping(&font.0, &partial_node_text);
 
         partial_node_text_data = Some(RectTextData {
             text: partial_node_text,

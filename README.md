@@ -47,7 +47,7 @@ We are using the ubuntu font from https://fonts.google.com/specimen/Ubuntu/about
 
 #### install SDL
 
-```sudo apt install libsdl2-dev libsdl2-gfx-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev libssl-dev```
+```sudo apt install libsdl2-dev libsdl2-gfx-dev libsdl2-image-dev libsdl2-mixer-dev libssl-dev```
 
 
 
@@ -64,8 +64,6 @@ brew install sdl2_image
 (optionally) brew link sdl2_image
 brew install sdl2_mixer
 (optionally) brew link sdl2_mixer
-brew install sdl2_ttf
-(optionally) brew link sdl2_ttf
 ```
 
 
@@ -82,7 +80,7 @@ brew install sdl2_ttf
 see <https://github.com/Rust-SDL2/rust-sdl2#windows-msvc> for extra context
 
 ```
-vcpkg install sdl2-ttf:x64-windows sdl2:x64-windows sdl2-mixer:x64-windows sdl2-image:x64-windows sdl2-gfx:x64-windows
+vcpkg install sdl2:x64-windows sdl2-mixer:x64-windows sdl2-image:x64-windows sdl2-gfx:x64-windows
 ```
 
 

@@ -1,6 +1,6 @@
 0.3.0 [UNRELEASED]
 ===================
-- No longer depend on SDL for font rendering [IN PROGRESS]
+- No longer depend on SDL for font rendering
 
 
 0.2.0

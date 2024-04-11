@@ -7,7 +7,6 @@
 
 goals for 0.3.0:
        - no longer use SDL for font loading
-              - all font SDL code should be removed, including the SDL font lib itself (and install instructions etc.) and the ttf feature of the crate
               - text wrapping is now way too slow
                      - IDEA: can we do binary search for text wrapping, instead of passing each substring into our slow font function?
                             - the positions method is now fast, should we still check if we can call it less in layout? (for example with binary search?)

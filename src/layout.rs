@@ -21,7 +21,8 @@ use crate::SCREEN_HEIGHT;
 use crate::style::{
     get_color_style_value,
     get_property_from_computed_styles,
-    has_style_value, resolve_css_numeric_type_value,
+    has_style_value,
+    resolve_css_numeric_type_value,
     resolve_full_styles_for_layout_node,
     StyleContext,
 };
@@ -484,7 +485,7 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
                 let font_color = text_data.font_color;
                 let relative_cursor_x = cursor_x - top_left_x;
                 let amount_of_space_left_on_line = max_allowed_width - relative_cursor_x;
-                let wrapped_text = wrap_text(child_borrow.rects.last().unwrap(), max_allowed_width, amount_of_space_left_on_line, &text_data.font, platform);
+                let wrapped_text = wrap_text(child_borrow.rects.last().unwrap(), max_allowed_width, amount_of_space_left_on_line);
 
                 let mut rects_for_child = Vec::new();
                 for text in wrapped_text {
@@ -585,53 +586,54 @@ fn compute_size_for_rect(layout_rect: &LayoutRect, platform: &mut Platform) -> (
 }
 
 
-fn wrap_text(layout_rect: &LayoutRect, max_width: f32, width_remaining_on_current_line: f32, font: &Font, platform: &mut Platform) -> Vec<String> {
+fn wrap_text(layout_rect: &LayoutRect, max_width: f32, width_remaining_on_current_line: f32) -> Vec<String> {
     let text = &layout_rect.text_data.as_ref().unwrap().text;
     let no_wrap_positions = &layout_rect.text_data.as_ref().unwrap().non_breaking_space_positions;
-    let mut str_buffers = Vec::new();
-    let mut str_buffer_undecided = String::new();
-    let mut pos = 0;
-    let mut current_line = 0;
 
-    str_buffers.push(String::new());
+    //Note: we don't re-compute the char positions after wrapping, since we always break on spaces, which don't affect kerning of the next glyph
+    let char_positions = &layout_rect.text_data.as_ref().unwrap().char_position_mapping;
 
-    let mut char_iter = text.chars();
-    loop {
-        let possible_c = char_iter.next();
+    let mut lines: Vec<String> = Vec::new();
+    let mut current_line_buffer = String::new();
+    let mut undecided_buffer = String::new();
+    let mut consumed_size = 0.0;
+    let mut last_decided_idx = 0;
 
-        if possible_c.is_none() ||
-                (possible_c.unwrap() == ' ' && !(no_wrap_positions.is_some() && no_wrap_positions.as_ref().unwrap().contains(&pos))) {
-            let mut combined = String::new();
-            combined.push_str(&str_buffers[current_line]);
-            combined.push_str(&str_buffer_undecided);
+    for (idx, character) in text.chars().enumerate() {
+        let width_to_check = if lines.len() == 0 { width_remaining_on_current_line } else { max_width };
 
-            let width_to_check = if str_buffers.len() == 1 { width_remaining_on_current_line } else { max_width };
+        undecided_buffer.push(character);
 
-            if platform.font_context.get_text_dimension(&combined, font).0 < width_to_check {
-                str_buffers[current_line] = combined;
-            } else {
-                current_line += 1;
-                str_buffers.push(String::new());
-
-                //TODO: this is ugly and slow, but for now we need to not have all new lines start with a space:
-                if str_buffer_undecided.chars().next().is_some() && str_buffer_undecided.chars().next().unwrap() == ' ' {
-                    str_buffer_undecided.remove(0);
-                }
-
-                str_buffers[current_line] = str_buffer_undecided;
-            }
-            str_buffer_undecided = String::new();
+        let potential_line_length = char_positions[idx] - consumed_size;
+        if potential_line_length >= width_to_check {
+            lines.push(current_line_buffer);
+            current_line_buffer = String::new();
+            consumed_size = char_positions[last_decided_idx];
         }
 
-        if possible_c.is_none() {
-            break;
+        let wrapping_blocked = no_wrap_positions.is_some() && no_wrap_positions.as_ref().unwrap().contains(&idx);
+        if !wrapping_blocked && character.is_whitespace() {
+            current_line_buffer.push_str(undecided_buffer.as_str());
+            undecided_buffer = String::new();
+            last_decided_idx = idx;
         }
-
-        str_buffer_undecided.push(possible_c.unwrap());
-        pos += 1;
     }
 
-    return str_buffers;
+    if !undecided_buffer.is_empty() {
+        let potential_line_length = char_positions.last().unwrap() - consumed_size;
+        let width_to_check = if lines.len() == 0 { width_remaining_on_current_line } else { max_width };
+        if potential_line_length >= width_to_check {
+            lines.push(current_line_buffer);
+            current_line_buffer = String::new();
+        }
+        current_line_buffer.push_str(undecided_buffer.as_str());
+    }
+
+    if !current_line_buffer.is_empty() {
+        lines.push(current_line_buffer);
+    }
+
+    return lines;
 }
 
 

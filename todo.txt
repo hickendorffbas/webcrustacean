@@ -6,10 +6,6 @@
 
 
 goals for 0.3.0:
-       - no longer use SDL for font loading
-              - text wrapping is now way too slow
-                     - IDEA: can we do binary search for text wrapping, instead of passing each substring into our slow font function?
-                            - the positions method is now fast, should we still check if we can call it less in layout? (for example with binary search?)
        - better testing setup
               - some way to test layout
               - some way to test with actual webpage examples in files

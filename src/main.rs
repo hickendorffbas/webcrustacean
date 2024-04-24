@@ -3,6 +3,7 @@ mod debug;
 mod dom;
 mod html_lexer;
 mod html_parser;
+#[cfg(test)] mod jsonify; //TODO: would also like to use it for debug, not sure how to configure that. feature flag on the crate maybe?
 mod layout;
 mod macros;
 mod network;
@@ -135,7 +136,7 @@ fn finish_navigate(url: &Url, ui_state: &mut UIState, page_content: &String, doc
     document.replace(html_parser::parse(lex_result, url, resource_thread_pool));
 
     #[cfg(feature="timings")] let start_layout_instant = Instant::now();
-    full_layout.replace(layout::build_full_layout(&document.borrow(), platform, &url));
+    full_layout.replace(layout::build_full_layout(&document.borrow(), &platform.font_context, &url));
 
     ui_state.current_scroll_y = 0.0;
     ui_state.currently_loading_page = false;

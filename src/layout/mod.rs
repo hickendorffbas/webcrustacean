@@ -340,10 +340,9 @@ fn collect_content_nodes_in_walk_order(node: &Rc<RefCell<LayoutNode>>, result: &
 
 
 //This function is responsible for setting the location rects on the node, and all its children.
-//TODO: need to find a way to make good tests for this (probably via exporting the layout in JSON)
 //TODO: we now pass in top_left x and y, but I think we should compute the positions just for layout, and offset for UI in the render phase...
 pub fn compute_layout(node: &Rc<RefCell<LayoutNode>>, all_nodes: &HashMap<usize, Rc<RefCell<LayoutNode>>>, style_context: &StyleContext,
-                      top_left_x: f32, top_left_y: f32, platform: &mut Platform, only_update_block_vertical_position: bool, force_full_layout: bool) {
+                      top_left_x: f32, top_left_y: f32, font_context: &FontContext, only_update_block_vertical_position: bool, force_full_layout: bool) {
 
     let mut mut_node = RefCell::borrow_mut(node);
 
@@ -358,9 +357,9 @@ pub fn compute_layout(node: &Rc<RefCell<LayoutNode>>, all_nodes: &HashMap<usize,
 
     } else if mut_node.children.is_some() {
         if mut_node.all_childnodes_have_given_display(Display::Block) {
-            apply_block_layout(&mut mut_node, all_nodes, style_context, top_left_x, top_left_y, platform, force_full_layout);
+            apply_block_layout(&mut mut_node, all_nodes, style_context, top_left_x, top_left_y, font_context, force_full_layout);
         } else if mut_node.all_childnodes_have_given_display(Display::Inline) {
-            apply_inline_layout(&mut mut_node, all_nodes, style_context, top_left_x, top_left_y, CONTENT_WIDTH - top_left_x, platform, force_full_layout);
+            apply_inline_layout(&mut mut_node, all_nodes, style_context, top_left_x, top_left_y, CONTENT_WIDTH - top_left_x, font_context, force_full_layout);
         } else {
             panic!("Not all children are either inline or block, earlier in the process this should already have been fixed with anonymous blocks");
         }
@@ -395,7 +394,7 @@ pub fn compute_layout(node: &Rc<RefCell<LayoutNode>>, all_nodes: &HashMap<usize,
         }
 
         for rect in mut_node.rects.iter_mut() {
-            let (rect_width, rect_height) = compute_size_for_rect(rect, platform);
+            let (rect_width, rect_height) = compute_size_for_rect(rect, font_context);
             rect.location = Rect { x: top_left_x, y: top_left_y, width: rect_width, height: rect_height };
         }
     }
@@ -419,13 +418,13 @@ pub fn get_font_given_styles(styles: &HashMap<String, String>) -> (Font, Color) 
 
 
 fn apply_block_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefCell<LayoutNode>>>, style_context: &StyleContext,
-                      top_left_x: f32, top_left_y: f32, platform: &mut Platform, force_full_layout: bool) {
+                      top_left_x: f32, top_left_y: f32, font_context: &FontContext, force_full_layout: bool) {
     let mut cursor_y = top_left_y;
     let mut max_width: f32 = 0.0;
 
     for child in node.children.as_ref().unwrap() {
         let only_update_block_vertical_position = !child.borrow().is_dirty_anywhere(); //Since the parent node is block layout, we can shift the while block up and down if its not dirty
-        compute_layout(&child, all_nodes, style_context, top_left_x, cursor_y, platform, only_update_block_vertical_position, force_full_layout);
+        compute_layout(&child, all_nodes, style_context, top_left_x, cursor_y, font_context, only_update_block_vertical_position, force_full_layout);
         let (bounding_box_width, bounding_box_height) = RefCell::borrow(child).get_size_of_bounding_box();
 
         cursor_y += bounding_box_height;
@@ -438,7 +437,7 @@ fn apply_block_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefCe
 
 
 fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefCell<LayoutNode>>>, style_context: &StyleContext, top_left_x: f32,
-                       top_left_y: f32, max_allowed_width: f32, platform: &mut Platform, force_full_layout: bool) {
+                       top_left_y: f32, max_allowed_width: f32, font_context: &FontContext, force_full_layout: bool) {
     let mut cursor_x = top_left_x;
     let mut cursor_y = top_left_y;
     let mut max_width: f32 = 0.0;
@@ -446,7 +445,7 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
 
     for child in node.children.as_ref().unwrap() {
         let only_update_block_vertical_position = false; //we can only do this if the parent is block layout, but in this case its inline. Inline might cause horizonal cascading changes.
-        compute_layout(&child, all_nodes, style_context, cursor_x, cursor_y, platform, only_update_block_vertical_position, force_full_layout);
+        compute_layout(&child, all_nodes, style_context, cursor_x, cursor_y, font_context, only_update_block_vertical_position, force_full_layout);
 
         if RefCell::borrow(child).line_break {
             let child_height;
@@ -459,9 +458,6 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
                 //we don't have the styles anymore. Should we just make sure the font is set for
                 //newline as well? It seems we don't have a rect in that case?
 
-                //let (font, _) = get_font_given_styles(&RefCell::borrow(child).styles);
-                ////we get the hight of a random character in the font for the height of the newline:
-                //let (_, random_char_height) = platform.get_text_dimension(&String::from("x"), &font);
                 let random_char_height = 16.0; //TODO: temporary hardcoded value
 
                 cursor_x = top_left_x;
@@ -497,7 +493,7 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
                     let new_text_data = RectTextData {
                         font: text_data.font.clone(),
                         font_color: font_color,
-                        char_position_mapping: platform.font_context.compute_char_position_mapping(&text_data.font, &text),
+                        char_position_mapping: font_context.compute_char_position_mapping(&text_data.font, &text),
                         non_breaking_space_positions: None, //For now not computing these, although it would be more correct to update them after wrapping
                         text: text,
                     };
@@ -510,7 +506,7 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
                         selection_char_range: None,
                     };
 
-                    let (rect_width, rect_height) = compute_size_for_rect(&new_rect, platform);
+                    let (rect_width, rect_height) = compute_size_for_rect(&new_rect, font_context);
 
                     if cursor_x - top_left_x + rect_width > max_allowed_width {
                         if cursor_x != top_left_x {
@@ -543,7 +539,7 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
 
                     let only_update_block_vertical_position = false; //we can only do this if the parent is block layout, but in this case its inline. Inline might cause horizonal cascading changes.
                     drop(child_borrow);
-                    compute_layout(&child, all_nodes, style_context, cursor_x, cursor_y, platform, only_update_block_vertical_position, force_full_layout);
+                    compute_layout(&child, all_nodes, style_context, cursor_x, cursor_y, font_context, only_update_block_vertical_position, force_full_layout);
                     let (child_width, child_height) = RefCell::borrow(child).get_size_of_bounding_box();
 
                     cursor_x += child_width;
@@ -574,11 +570,11 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
 
 
 //Note that this function returns the size, but does not update the rect with that size (because we also need to position for the computed location object)
-fn compute_size_for_rect(layout_rect: &LayoutRect, platform: &mut Platform) -> (f32, f32) {
+fn compute_size_for_rect(layout_rect: &LayoutRect, font_context: &FontContext) -> (f32, f32) {
 
     if layout_rect.text_data.is_some() {
         let text_data = layout_rect.text_data.as_ref().unwrap();
-        return platform.font_context.get_text_dimension(&text_data.text, &text_data.font);
+        return font_context.get_text_dimension(&text_data.text, &text_data.font);
     }
 
     if layout_rect.image.is_some() {

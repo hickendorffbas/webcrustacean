@@ -142,7 +142,7 @@ fn finish_navigate(url: &Url, ui_state: &mut UIState, page_content: &String, doc
     ui_state.currently_loading_page = false;
 
     compute_layout(&full_layout.borrow().root_node, &full_layout.borrow().all_nodes, &document.borrow().style_context,
-                   CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y, platform, false, true);
+                   CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y, &platform.font_context, false, true);
 
     debug_assert!(full_layout.borrow().root_node.borrow().rects.len() == 1);
     #[cfg(feature="timings")] println!("layout elapsed millis: {}", start_layout_instant.elapsed().as_millis());
@@ -468,7 +468,7 @@ fn main() -> Result<(), String> {
 
         if document_has_dirty_nodes {
             compute_layout(&full_layout_tree.borrow().root_node, &full_layout_tree.borrow().all_nodes, &document.borrow().style_context,
-                           CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y, &mut platform, false, false);
+                           CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y, &platform.font_context, false, false);
         }
 
         #[cfg(feature="timings")] let start_render_instant = Instant::now();

@@ -1,7 +1,6 @@
-use std::collections::HashMap;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
-
 
 use crate::dom::{Document, ElementDomNode};
 use crate::jsonify::{
@@ -9,17 +8,17 @@ use crate::jsonify::{
     dom_node_from_json,
     layout_node_to_json,
 };
-use crate::layout::build_full_layout;
+use crate::layout::{build_full_layout, compute_layout};
 use crate::network::url::Url;
 use crate::platform::fonts::FontContext;
 use crate::style::StyleContext;
-
 
 
 #[test]
 fn test_basic_paragraph_layout() {
 
     //TODO: this should become a file (or maybe only when big?)
+    //      possibly always, so we can define a function taking 2 filenames, and maybe a list of styles etc, so all the other code can be hidden
     let dom_json = r#"
         { "text": "this is a test" }
     "#.to_owned();
@@ -29,25 +28,27 @@ fn test_basic_paragraph_layout() {
     let mut all_nodes = HashMap::new();
     build_all_nodes_from_document_node(&main_dom_node, &mut all_nodes);
 
+    let style_context = StyleContext { user_agent_sheet: Vec::new() , author_sheet: Vec::new() };
+    let font_context = FontContext::new();
+
     let document = Document {
         all_nodes: all_nodes,
         document_node: main_dom_node,
-        style_context: StyleContext { user_agent_sheet: Vec::new() , author_sheet: Vec::new() },
+        style_context: style_context,
         base_url: Url::empty(),
     };
 
-    //TODO: this expected should at least also contain a position for the test to be useful, but that is not generated in the json yet
     let expected_layout_tree_json = r#"
         {
             "color": [255, 255, 255],
             "rects": [
-                { "text": null }
+                { "text": null, "position": [0, 0, 87, 19] }
             ],
             "childs": [
                 {
                 "color": [255, 255, 255],
                 "rects": [
-                    { "text": "this is a test" }
+                    { "text": "this is a test", "position": [0, 0, 87, 19] }
                 ],
                 "childs": []
                 }
@@ -55,14 +56,12 @@ fn test_basic_paragraph_layout() {
         }
     "#;
 
-    let tree = build_full_layout(&document, &FontContext::new(), &Url::empty());
+    let tree = build_full_layout(&document, &font_context, &Url::empty());
+    compute_layout(&tree.root_node, &tree.all_nodes, &document.style_context, 0.0, 0.0, &font_context, false, true);
     let tree_json = layout_node_to_json(&tree.root_node.borrow());
-
-    println!("got: {}", tree_json);
 
     assert!(compare_json(&tree_json, &String::from(expected_layout_tree_json)));
 }
-
 
 
 fn build_all_nodes_from_document_node(dom_node: &Rc<RefCell<ElementDomNode>>, all_nodes_map: &mut HashMap<usize, Rc<RefCell<ElementDomNode>>>) {

@@ -11,7 +11,6 @@ goals for 0.3.0:
               - some way to test with actual webpage examples in files
               - make parse tests nicer by comparing json
                      - integration tests by exporting json for the layout tree, so I can test all the way from HTML to layout
-       - move to rust 2021
        - extremely minimal start of javascript implementation
        - allow selection in the url bar, and select on first click
 

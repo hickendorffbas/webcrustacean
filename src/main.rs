@@ -10,6 +10,7 @@ mod network;
 mod platform;
 mod renderer;
 mod resource_loader;
+mod script;
 mod style;
 mod ui;
 mod ui_components;

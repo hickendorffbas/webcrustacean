@@ -7,11 +7,11 @@
 
 goals for 0.3.0:
        - better testing setup
-              - some way to test layout
               - some way to test with actual webpage examples in files
               - make parse tests nicer by comparing json
-                     - integration tests by exporting json for the layout tree, so I can test all the way from HTML to layout
+                     - this works, but we need to make a generic function so we can have a nice way of having many tests
        - extremely minimal start of javascript implementation
+              - add basic statement parsing with the minimal needed amount of AST nodes
        - allow selection in the url bar, and select on first click
 
 

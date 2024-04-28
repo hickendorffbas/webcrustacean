@@ -11,6 +11,7 @@ use crate::dom::{
 use crate::html_lexer::{HtmlToken, HtmlTokenWithLocation};
 use crate::network::url::Url;
 use crate::resource_loader::ResourceThreadPool;
+use crate::script::{js_lexer, js_parser};
 use crate::style::{
     StyleRule,
     StyleContext,
@@ -187,8 +188,10 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                 let style_tokens = css_lexer::lex_css(content, current_token.line, current_token.character);
                 styles.append(&mut css_parser::parse_css(&style_tokens));
             },
-            HtmlToken::Script(_) => {
-                //for now we ignore this
+            HtmlToken::Script(content) => {
+                let js_tokens = js_lexer::lex_js(content, current_token.line, current_token.character);
+                let _script = js_parser::parse_js(&js_tokens);
+                //TODO: store the script somewhere on the dom node, but also run it in some way, at the right time?
             },
         }
 

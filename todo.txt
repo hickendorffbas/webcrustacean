@@ -12,6 +12,7 @@ goals for 0.3.0:
                      - this works, but we need to make a generic function so we can have a nice way of having many tests
        - extremely minimal start of javascript implementation
               - add basic statement parsing with the minimal needed amount of AST nodes
+                     - add tests for that
        - allow selection in the url bar, and select on first click
 
 

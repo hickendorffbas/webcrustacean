@@ -4,19 +4,19 @@ use crate::html_lexer::TrackingIterator;
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(PartialEq)]
 pub struct JsTokenWithLocation {
-    pub js_token: JsToken,
+    pub token: JsToken,
     pub line: u32,
     pub character: u32
 }
 impl JsTokenWithLocation {
     fn make(js_iterator: &TrackingIterator, token: JsToken) -> JsTokenWithLocation {
-        return JsTokenWithLocation { js_token: token, line: js_iterator.current_line, character: js_iterator.current_char };
+        return JsTokenWithLocation { token: token, line: js_iterator.current_line, character: js_iterator.current_char };
     }
 }
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(PartialEq)]
+#[derive(Clone, PartialEq)]
 pub enum JsToken {
     Newline,
     Number(String),
@@ -32,6 +32,11 @@ pub enum JsToken {
     CloseBrace,
     OpenBracket,
     CloseBracket,
+    Plus,
+    Minus,
+    Star,
+    ForwardSlash,
+    Comma,
 }
 
 
@@ -77,6 +82,26 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
         }
         else if js_iterator.peek() == Some(&'=') {
             tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Equals));
+            js_iterator.next();
+        }
+        else if js_iterator.peek() == Some(&'+') {
+            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Plus));
+            js_iterator.next();
+        }
+        else if js_iterator.peek() == Some(&'-') {
+            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Minus));
+            js_iterator.next();
+        }
+        else if js_iterator.peek() == Some(&'*') {
+            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Star));
+            js_iterator.next();
+        }
+        else if js_iterator.peek() == Some(&'/') {
+            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::ForwardSlash));
+            js_iterator.next();
+        }
+        else if js_iterator.peek() == Some(&',') {
+            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Comma));
             js_iterator.next();
         }
         else if js_iterator.peek() == Some(&'.') {

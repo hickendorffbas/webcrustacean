@@ -37,6 +37,9 @@ pub enum JsToken {
     Star,
     ForwardSlash,
     Comma,
+
+    //all keywords:
+    KeyWordVar,
 }
 
 
@@ -143,10 +146,13 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                 identifier.push(js_iterator.next());
             }
 
-            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Identifier(identifier)));
+            if identifier == "var" {
+                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordVar));
+            } else {
+                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Identifier(identifier)));
+            }
         }
         else {
-            println!("{}", js_iterator.peek().unwrap());
             todo!("unrecognized character in the js tokenizer");
         }
     }

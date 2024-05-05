@@ -9,7 +9,8 @@ pub struct Script {
 
 enum JsAstStatement {
     Expression(JsAstExpression),
-    Assign(JsAstAssign)
+    Assign(JsAstAssign),
+    Declaration(JsAstDeclaration),
 }
 
 struct JsAstBinOp {
@@ -21,6 +22,11 @@ struct JsAstBinOp {
 struct JsAstAssign {
     #[allow(dead_code)] left: JsAstExpression, //TODO: use
     #[allow(dead_code)] right: JsAstExpression, //TODO: use
+}
+
+struct JsAstDeclaration {
+    #[allow(dead_code)] variable: JsAstVariable,
+    #[allow(dead_code)] initial_value: Option<JsAstExpression>,
 }
 
 enum JsBinOp {
@@ -51,25 +57,57 @@ struct JsAstFunctionCall {
 
 #[derive(Debug)]
 struct JsParserSliceIterator {
-    start_idx: usize,
-    end_idx: usize,  //start and end are inclusive
     next_idx: usize,
+    end_idx: usize,  //end is inclusive
 }
 impl JsParserSliceIterator {
     fn has_next(&self) -> bool {
         return self.next_idx <= self.end_idx;
     }
-    fn next_non_whitespace(&self, tokens: &Vec<JsTokenWithLocation>) -> bool {
+    fn move_after_next_non_whitespace(&mut self, tokens: &Vec<JsTokenWithLocation>) -> bool {
         let mut temp_next = self.next_idx;
 
         loop {
-            if temp_next > self.end_idx {
-                return false;
+            if temp_next > self.end_idx { return false; }
+
+            match &tokens[temp_next].token {
+                JsToken::Whitespace | JsToken::Newline => { },
+                _ => {
+                    if temp_next == self.end_idx {
+                        self.next_idx = self.end_idx;
+                    } else {
+                        self.next_idx = temp_next + 1; //we move one after the non-whitespace char (if we can)
+                    }
+                    return true;
+                }
             }
+            temp_next += 1;
+        }
+    }
+    fn has_next_non_whitespace(&self, tokens: &Vec<JsTokenWithLocation>) -> bool {
+        let mut temp_next = self.next_idx;
+
+        loop {
+            if temp_next > self.end_idx { return false; }
 
             match &tokens[temp_next].token {
                 JsToken::Whitespace | JsToken::Newline => { },
                 _ => { return true; }
+            }
+            temp_next += 1;
+        }
+    }
+    fn next_non_whitespace_token_is(&mut self, tokens: &Vec<JsTokenWithLocation>, token: JsToken) -> bool {
+        let mut temp_next = self.next_idx;
+
+        loop {
+            if temp_next > self.end_idx { return false; }
+
+            match &tokens[temp_next].token {
+                JsToken::Whitespace | JsToken::Newline => { },
+                matching_token @ _ => {
+                    return *matching_token == token;
+                }
             }
             temp_next += 1;
         }
@@ -81,9 +119,7 @@ impl JsParserSliceIterator {
         let mut name_to_return = None;
         let mut identifier_seen = false;
         loop {
-            if temp_next > self.end_idx {
-                return name_to_return;
-            }
+            if temp_next > self.end_idx { return name_to_return; }
 
             match &tokens[temp_next].token {
                 JsToken::Whitespace | JsToken::Newline => { },
@@ -106,12 +142,10 @@ impl JsParserSliceIterator {
         //TODO: parse fractionals here well, by consuming the dot, and return one string containing the full fractional number
 
         let mut temp_next = self.next_idx;
-        let mut name_to_return = None;
+        let mut number_to_return = None;
         let mut number_seen = false;
         loop {
-            if temp_next > self.end_idx {
-                return name_to_return;
-            }
+            if temp_next > self.end_idx { return number_to_return; }
 
             match &tokens[temp_next].token {
                 JsToken::Whitespace | JsToken::Newline => { },
@@ -119,7 +153,7 @@ impl JsParserSliceIterator {
                     if number_seen {
                         return None;
                     }
-                    name_to_return = Some(number.clone());
+                    number_to_return = Some(number.clone());
                     number_seen = true;
                     self.next_idx = temp_next + 1;
                 }
@@ -134,9 +168,7 @@ impl JsParserSliceIterator {
         let mut in_arguments = false;
 
         loop {
-            if temp_next > self.end_idx {
-                return None;
-            }
+            if temp_next > self.end_idx { return None; }
 
             if function_name.is_none() {
                 match &tokens[temp_next].token {
@@ -171,7 +203,7 @@ impl JsParserSliceIterator {
                     }
                 }
 
-                if self.next_non_whitespace(&tokens) {
+                if self.has_next_non_whitespace(&tokens) {
                     panic!("unexpected tokens after function call");
                 }
 
@@ -189,10 +221,7 @@ impl JsParserSliceIterator {
         let mut size = 1;
         loop {
             let potential_end_idx = self.next_idx + (size - 1);
-
-            if potential_end_idx > self.end_idx {
-                return None;
-            }
+            if potential_end_idx > self.end_idx { return None; }
 
             let ending_token = &tokens[potential_end_idx];
             if ending_token.token == token_to_find {
@@ -200,7 +229,6 @@ impl JsParserSliceIterator {
                 self.next_idx += size;
 
                 return Some(JsParserSliceIterator {
-                    start_idx: new_start_idx,
                     end_idx: potential_end_idx - 1, //we remove the token_to_find
                     next_idx: new_start_idx,
                 });
@@ -210,21 +238,14 @@ impl JsParserSliceIterator {
         }
     }
     fn check_for_and_split_on(&mut self, tokens: &Vec<JsTokenWithLocation>, token: JsToken) -> Option<(JsParserSliceIterator, JsParserSliceIterator)> {
+        // split this iterator in 2 new ones, starting from the current position of this iterator
+
         let mut split_idx = self.next_idx;
         loop {
-            if split_idx > self.end_idx {
-                return None;
-            }
-
-            //TODO: re-use split_at() here (and possibly in other places)
+            if split_idx > self.end_idx { return None; }
 
             if tokens[split_idx].token == token {
-                self.next_idx = self.end_idx;  // we consume this iterator fully
-
-                return Some((
-                    JsParserSliceIterator { start_idx: self.start_idx, end_idx: split_idx - 1, next_idx: self.start_idx },
-                    JsParserSliceIterator { start_idx: split_idx + 1,  end_idx: self.end_idx,  next_idx: split_idx + 1 }
-                ));
+                return self.split_at(split_idx);
             }
 
             split_idx += 1;
@@ -233,9 +254,7 @@ impl JsParserSliceIterator {
     fn find_first_token_idx(&self, tokens: &Vec<JsTokenWithLocation>, token: JsToken) -> Option<usize> {
         let mut possible_idx = self.next_idx;
         loop {
-            if possible_idx > self.end_idx {
-                return None;
-            }
+            if possible_idx > self.end_idx { return None; }
 
             if tokens[possible_idx].token == token {
                 return Some(possible_idx);
@@ -244,14 +263,13 @@ impl JsParserSliceIterator {
         }
     }
     fn split_at(&mut self, split_idx: usize) -> Option<(JsParserSliceIterator, JsParserSliceIterator)> {
-        if split_idx > self.end_idx {
-            return None;
-        }
+        //make 2 iterators from this iterator, starting from the current position of this iterator
 
-        self.next_idx = self.end_idx;  // we consume this iterator fully
+        if split_idx > self.end_idx { return None; }
+
         return Some((
-            JsParserSliceIterator { start_idx: self.start_idx, end_idx: split_idx - 1, next_idx: self.start_idx },
-            JsParserSliceIterator { start_idx: split_idx + 1,  end_idx: self.end_idx,  next_idx: split_idx + 1 }
+            JsParserSliceIterator { end_idx: split_idx - 1, next_idx: self.next_idx },
+            JsParserSliceIterator { end_idx: self.end_idx,  next_idx: split_idx + 1 }
         ));
     }
 }
@@ -261,7 +279,6 @@ pub fn parse_js(tokens: &Vec<JsTokenWithLocation>) -> Script {
     //TODO: we need to do semicolon insertion (see rules on https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Lexical_grammar#automatic_semicolon_insertion)
 
     let mut token_iterator = JsParserSliceIterator {
-        start_idx: 0,
         end_idx: tokens.len() - 1,
         next_idx: 0,
     };
@@ -281,7 +298,46 @@ pub fn parse_js(tokens: &Vec<JsTokenWithLocation>) -> Script {
 }
 
 
+fn parse_declaration(statement_iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWithLocation>) -> JsAstDeclaration {
+    statement_iterator.move_after_next_non_whitespace(tokens); //consume the "var"
+
+    let optional_equals_split = statement_iterator.check_for_and_split_on(tokens, JsToken::Equals);
+
+    if optional_equals_split.is_some() {
+        let (mut left, mut right) = optional_equals_split.unwrap();
+
+        let possible_ident = left.read_only_identifier(tokens);
+        let variable = if possible_ident.is_some() {
+            JsAstVariable { name: possible_ident.unwrap() }
+        } else {
+            panic!("Expected only an identifier after var decl");
+        };
+
+        return JsAstDeclaration {
+            variable,
+            initial_value: Some(parse_expression(&mut right, tokens)),
+        };
+    }
+
+    let possible_ident = statement_iterator.read_only_identifier(tokens);
+    let variable = if possible_ident.is_some() {
+        JsAstVariable { name: possible_ident.unwrap() }
+    } else {
+        panic!("Expected only an identifier after var decl");
+    };
+
+    return JsAstDeclaration {
+        variable,
+        initial_value: None,
+    };
+}
+
+
 fn parse_statement(statement_iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWithLocation>) -> JsAstStatement {
+
+    if statement_iterator.next_non_whitespace_token_is(&tokens, JsToken::KeyWordVar) {
+        return JsAstStatement::Declaration(parse_declaration(statement_iterator, tokens));
+    }
 
     let optional_equals_split = statement_iterator.check_for_and_split_on(tokens, JsToken::Equals);
 

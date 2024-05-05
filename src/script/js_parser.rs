@@ -19,8 +19,8 @@ struct JsAstBinOp {
 }
 
 struct JsAstAssign {
-    #[allow(dead_code)] left: JsAstVariable, //TODO: use
-    #[allow(dead_code)] right: Rc<JsAstExpression>, //TODO: use
+    #[allow(dead_code)] left: JsAstExpression, //TODO: use
+    #[allow(dead_code)] right: JsAstExpression, //TODO: use
 }
 
 enum JsBinOp {
@@ -287,30 +287,14 @@ fn parse_statement(statement_iterator: &mut JsParserSliceIterator, tokens: &Vec<
 
     if optional_equals_split.is_some() {
         let (mut left, mut right) = optional_equals_split.unwrap();
-        let parsed_left = parse_assignment_left_side(&mut left, tokens);
+        let parsed_left = parse_expression(&mut left, tokens);
         let parsed_right = parse_expression(&mut right, tokens);
-        return JsAstStatement::Assign(JsAstAssign { left: parsed_left, right: Rc::from(parsed_right) });
+        return JsAstStatement::Assign(JsAstAssign { left: parsed_left, right: parsed_right });
     }
 
     let expression = parse_expression(statement_iterator, tokens);
 
     return JsAstStatement::Expression(expression);
-}
-
-
-fn parse_assignment_left_side(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWithLocation>) -> JsAstVariable {
-    //TODO: I don't this this needs to be a seperate function?
-    //TODO: also, the left side should probably be an expression as well, given dot operator, indexing, etc. just with some limitations (lvalue-wise)
-    //      but we could check those limitations runtime\
-    //      in fact, expression parsing already handles this
-
-    let possible_ident = iterator.read_only_identifier(tokens);
-    if possible_ident.is_some() {
-        return JsAstVariable { name: possible_ident.unwrap() }
-    }
-
-    //this would for example be the case when we have x[3] = 5;
-    todo!("We are not supporting array assignment yet");
 }
 
 

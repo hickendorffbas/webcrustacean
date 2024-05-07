@@ -25,8 +25,8 @@ struct JsAstAssign {
 }
 
 struct JsAstDeclaration {
-    #[allow(dead_code)] variable: JsAstVariable,
-    #[allow(dead_code)] initial_value: Option<JsAstExpression>,
+    #[allow(dead_code)] variable: JsAstVariable, //TODO: use
+    #[allow(dead_code)] initial_value: Option<JsAstExpression>, //TODO: use
 }
 
 enum JsBinOp {
@@ -44,7 +44,7 @@ struct JsAstVariable {
 enum JsAstExpression {
     BinOp(JsAstBinOp),
     NumericLiteral(String),
-    #[allow(dead_code)] StringLiteral(String), //TODO: use
+    StringLiteral(String),
     FunctionCall(JsAstFunctionCall),
     Variable(JsAstVariable)
 }
@@ -117,18 +117,16 @@ impl JsParserSliceIterator {
 
         let mut temp_next = self.next_idx;
         let mut name_to_return = None;
-        let mut identifier_seen = false;
         loop {
             if temp_next > self.end_idx { return name_to_return; }
 
             match &tokens[temp_next].token {
                 JsToken::Whitespace | JsToken::Newline => { },
                 JsToken::Identifier(name) => {
-                    if identifier_seen {
-                        return None;
+                    if name_to_return.is_some() {
+                        return None;  //we saw more than 1 identifier
                     }
                     name_to_return = Some(name.clone());
-                    identifier_seen = true;
                     self.next_idx = temp_next + 1;
                 }
                 _ => { return None }
@@ -143,24 +141,45 @@ impl JsParserSliceIterator {
 
         let mut temp_next = self.next_idx;
         let mut number_to_return = None;
-        let mut number_seen = false;
         loop {
             if temp_next > self.end_idx { return number_to_return; }
 
             match &tokens[temp_next].token {
                 JsToken::Whitespace | JsToken::Newline => { },
                 JsToken::Number(number) => {
-                    if number_seen {
-                        return None;
+                    if number_to_return.is_some() {
+                        return None; // we saw more than 1 number
                     }
                     number_to_return = Some(number.clone());
-                    number_seen = true;
                     self.next_idx = temp_next + 1;
                 }
                 _ => { return None }
             }
             temp_next += 1;
         }
+    }
+    fn read_only_literal_string(&mut self, tokens: &Vec<JsTokenWithLocation>) -> Option<String> {
+        //check if there is only an literal string left, and if so, return it, and consume the iterator
+
+        let mut temp_next = self.next_idx;
+        let mut string_to_return = None;
+        loop {
+            if temp_next > self.end_idx { return string_to_return; }
+
+            match &tokens[temp_next].token {
+                JsToken::Whitespace | JsToken::Newline => { },
+                JsToken::LiteralString(number) => {
+                    if string_to_return.is_some() {
+                        return None; // we saw more than 1 literal string
+                    }
+                    string_to_return = Some(number.clone());
+                    self.next_idx = temp_next + 1;
+                }
+                _ => { return None }
+            }
+            temp_next += 1;
+        }
+
     }
     fn read_possible_function_call(&mut self, tokens: &Vec<JsTokenWithLocation>) -> Option<JsAstFunctionCall> {
         let mut temp_next = self.next_idx;
@@ -278,6 +297,10 @@ impl JsParserSliceIterator {
 pub fn parse_js(tokens: &Vec<JsTokenWithLocation>) -> Script {
     //TODO: we need to do semicolon insertion (see rules on https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Lexical_grammar#automatic_semicolon_insertion)
 
+    if tokens.len() == 0 {
+        return Script { statements: Vec::new() };
+    }
+
     let mut token_iterator = JsParserSliceIterator {
         end_idx: tokens.len() - 1,
         next_idx: 0,
@@ -288,7 +311,9 @@ pub fn parse_js(tokens: &Vec<JsTokenWithLocation>) -> Script {
     while token_iterator.has_next() {
         let statement_iterator = token_iterator.split_and_advance_until_next_token(tokens, JsToken::Semicolon);
         if statement_iterator.is_some() {
-            statements.push(parse_statement(&mut statement_iterator.unwrap(), tokens));
+            if statement_iterator.as_ref().unwrap().has_next_non_whitespace(&tokens) {
+                statements.push(parse_statement(&mut statement_iterator.unwrap(), tokens));
+            }
         } else {
             break;
         }
@@ -444,6 +469,11 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
         return JsAstExpression::NumericLiteral(possible_literal_number.unwrap());
     }
 
+    let possible_literal_string = iterator.read_only_literal_string(tokens);
+    if possible_literal_string.is_some() {
+        return JsAstExpression::StringLiteral(possible_literal_string.unwrap());
+    }
+
     let possible_ident = iterator.read_only_identifier(tokens);
     if possible_ident.is_some() {
         return JsAstExpression::Variable(JsAstVariable { name: possible_ident.unwrap() });  //TODO: is an identifier always a variable in this case??
@@ -451,3 +481,4 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
 
     panic!("unparsable token stream found!")
 }
+

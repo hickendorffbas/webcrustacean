@@ -45,6 +45,7 @@ use crate::network::url::Url;
 use crate::platform::Platform;
 use crate::resource_loader::{ResourceRequestJobTracker, ResourceThreadPool};
 use crate::renderer::render;
+use crate::script::js_execution_context::JsExecutionContext;
 use crate::ui::{
     CONTENT_HEIGHT,
     CONTENT_TOP_LEFT_X,
@@ -134,7 +135,7 @@ pub fn start_navigate(url: &Url, ui_state: &mut UIState, resource_thread_pool: &
 fn finish_navigate(url: &Url, ui_state: &mut UIState, page_content: &String, document: &RefCell<Document>, full_layout: &RefCell<FullLayout>,
                    platform: &mut Platform, resource_thread_pool: &mut ResourceThreadPool) {
     let lex_result = html_lexer::lex_html(&page_content);
-    document.replace(html_parser::parse(lex_result, url, resource_thread_pool));
+    document.replace(html_parser::parse(lex_result, url, resource_thread_pool, &mut JsExecutionContext::new()));
 
     #[cfg(feature="timings")] let start_layout_instant = Instant::now();
     full_layout.replace(layout::build_full_layout(&document.borrow(), &platform.font_context, &url));

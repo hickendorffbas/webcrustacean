@@ -7,6 +7,7 @@ use image::DynamicImage;
 
 use crate::network::url::Url;
 use crate::resource_loader::{self, ResourceThreadPool, ResourceRequestJobTracker};
+use crate::script::js_parser::Script;
 use crate::style::StyleContext;
 
 
@@ -84,6 +85,8 @@ pub struct ElementDomNode {
 
     pub image: Option<Rc<DynamicImage>>,
     pub img_job_tracker: Option<ResourceRequestJobTracker<DynamicImage>>,
+
+    pub scripts: Option<Vec<Script>>,
 }
 impl ElementDomNode {
     pub fn get_attribute_value(&self, attribute_name: &str) -> Option<String> {
@@ -151,6 +154,7 @@ impl ElementDomNode {
             attributes: None,
             image: None,
             img_job_tracker: None,
+            scripts: None,
         };
     }
 }

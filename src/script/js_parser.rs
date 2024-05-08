@@ -1,34 +1,119 @@
 use std::rc::Rc;
 
+use super::js_execution_context::{JsExecutionContext, JsValue};
 use super::js_lexer::{JsToken, JsTokenWithLocation};
 
 
+#[derive(Debug)]
 pub struct Script {
-    #[allow(dead_code)] statements: Vec<JsAstStatement>, //TODO: use
+    statements: Vec<JsAstStatement>,
+}
+impl Script {
+    pub fn execute(&self, js_execution_context: &mut JsExecutionContext) {
+        //I might not want these methods and structs in the parser, maybe move them to the general mod.rs file?
+        for statement in &self.statements {
+            statement.execute(js_execution_context);
+        }
+
+    }
 }
 
+#[derive(Debug)]
 enum JsAstStatement {
     Expression(JsAstExpression),
     Assign(JsAstAssign),
     Declaration(JsAstDeclaration),
 }
-
-struct JsAstBinOp {
-    #[allow(dead_code)] op: JsBinOp, //TODO: use
-    #[allow(dead_code)] left: Rc<JsAstExpression>, //TODO: use
-    #[allow(dead_code)] right: Rc<JsAstExpression>, //TODO: use
+impl JsAstStatement {
+    fn execute(&self, js_execution_context: &mut JsExecutionContext) {
+        match self {
+            JsAstStatement::Expression(expression) => {
+                let _ = expression.execute(js_execution_context);
+            },
+            JsAstStatement::Assign(assign) => {
+                assign.execute(js_execution_context)
+            },
+            JsAstStatement::Declaration(declaration) => {
+                declaration.execute(js_execution_context)
+            },
+        }
+    }
 }
 
+#[derive(Debug)]
+struct JsAstBinOp {
+    op: JsBinOp,
+    left: Rc<JsAstExpression>,
+    right: Rc<JsAstExpression>,
+}
+impl JsAstBinOp {
+    fn execute(&self, js_execution_context: &mut JsExecutionContext) -> JsValue {
+        let left_val = self.left.execute(js_execution_context);
+        let right_val = self.right.execute(js_execution_context);
+
+        match self.op {
+            JsBinOp::Plus => {
+                match left_val {
+                    JsValue::Number(left_number) => {
+                        match right_val {
+                            JsValue::Number(right_number) => {
+                                return JsValue::Number(left_number + right_number);
+                            },
+                            _ => { todo!() }
+                        }
+                    },
+                    _ => { todo!() }
+                }
+            },
+            JsBinOp::Minus => todo!(),
+            JsBinOp::Times => todo!(),
+            JsBinOp::Divide => todo!(),
+            JsBinOp::MemberLookup => {
+                todo!();
+            },
+        }
+    }
+}
+
+
+#[derive(Debug)]
 struct JsAstAssign {
     #[allow(dead_code)] left: JsAstExpression, //TODO: use
     #[allow(dead_code)] right: JsAstExpression, //TODO: use
 }
+impl JsAstAssign {
+    fn execute(&self, js_execution_context: &mut JsExecutionContext) {
+        let var = self.left.execute(js_execution_context);
+        let value = self.right.execute(js_execution_context);
 
+        let var_name = match var {
+            JsValue::String(value) => value,
+            _ => {
+                //TODO: some cases here might be valid? Like object? (depends on how we are going to store them)
+                //TODO: this should probably be a proper error to the user, not a crash
+                panic!("assignment to something that is not a variable");
+            }
+        };
+
+        js_execution_context.set_var(var_name, value);
+    }
+}
+
+
+#[derive(Debug)]
 struct JsAstDeclaration {
     #[allow(dead_code)] variable: JsAstVariable, //TODO: use
     #[allow(dead_code)] initial_value: Option<JsAstExpression>, //TODO: use
 }
+impl JsAstDeclaration {
+    fn execute(&self, _: &mut JsExecutionContext) {
+        //TODO: implement
+        todo!();
+    }
+}
 
+
+#[derive(Debug)]
 enum JsBinOp {
     Plus,
     Minus,
@@ -37,10 +122,20 @@ enum JsBinOp {
     MemberLookup, //this is the "." in object.member
 }
 
+
+#[derive(Debug)]
 struct JsAstVariable {
     #[allow(dead_code)] name: String, //TODO: use
 }
+impl JsAstVariable {
+    fn execute(&self, _: &mut JsExecutionContext) -> JsValue {
+        //TODO: this does not really seem sensible, we could assign varibales numeric id's or something (or return an existing reference to them).
+        //      we should not need to make a string every time we use or assign a variable, thats very inefficient
+        return JsValue::String(self.name.clone());
+    }
+}
 
+#[derive(Debug)]
 enum JsAstExpression {
     BinOp(JsAstBinOp),
     NumericLiteral(String),
@@ -48,7 +143,38 @@ enum JsAstExpression {
     FunctionCall(JsAstFunctionCall),
     Variable(JsAstVariable)
 }
+impl JsAstExpression {
+    fn execute(&self, js_execution_context: &mut JsExecutionContext) -> JsValue {
+        match self {
+            JsAstExpression::BinOp(binop) => { return binop.execute(js_execution_context) },
+            JsAstExpression::Variable(variable) => { return variable.execute(js_execution_context) },
 
+            JsAstExpression::NumericLiteral(numeric_literal) => {
+                //TODO: we might want to cache the JsValue somehow, and we need to support more numeric types...
+
+                let parsed_value = numeric_literal.parse();
+                match parsed_value {
+                    Ok(value) => {
+                        return JsValue::Number(value);
+                    },
+                    Err(_e) => {
+                        panic!("could not convert number in string to JsValue::Number");
+                    }
+                }
+            },
+            JsAstExpression::StringLiteral(string_literal) => {
+                return JsValue::String(string_literal.clone()); //TODO: do we want to make a new string ever time this expression is run?
+            },
+            JsAstExpression::FunctionCall(_) => {
+                //TODO: implement
+                todo!()
+            },
+        }
+    }
+}
+
+
+#[derive(Debug)]
 struct JsAstFunctionCall {
     #[allow(dead_code)] name: String, //TODO: use
     #[allow(dead_code)] arguments: Vec<JsAstExpression>, //TODO: use

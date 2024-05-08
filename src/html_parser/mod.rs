@@ -11,6 +11,7 @@ use crate::dom::{
 use crate::html_lexer::{HtmlToken, HtmlTokenWithLocation};
 use crate::network::url::Url;
 use crate::resource_loader::ResourceThreadPool;
+use crate::script::js_execution_context::JsExecutionContext;
 use crate::script::{js_lexer, js_parser};
 use crate::style::{
     StyleRule,
@@ -27,7 +28,8 @@ use crate::style::{
 const SELF_CLOSING_TAGS: [&str; 6] = ["br", "hr", "img", "input", "link", "meta"];
 
 
-pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>, main_url: &Url, resource_thread_pool: &mut ResourceThreadPool) -> Document {
+pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>, main_url: &Url, resource_thread_pool: &mut ResourceThreadPool,
+             js_execution_context: &mut JsExecutionContext) -> Document {
     let mut all_nodes = HashMap::new();
     let mut document_style_rules = Vec::new();
 
@@ -39,7 +41,7 @@ pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>, main_url: &Url, resource_t
     while current_token_idx < html_tokens.len() {
         let mut tag_stack = Vec::new();
         document_children.push(parse_node(&html_tokens, &mut current_token_idx, document_node_id, &mut all_nodes,
-                                          &mut document_style_rules, &mut tag_stack));
+                                          &mut document_style_rules, &mut tag_stack, js_execution_context));
         current_token_idx += 1;
     }
 
@@ -55,6 +57,7 @@ pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>, main_url: &Url, resource_t
         attributes: None,
         image: None,
         img_job_tracker: None,
+        scripts: None,
     };
 
     let rc_doc_node = Rc::new(RefCell::from(document_node));
@@ -72,12 +75,14 @@ pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>, main_url: &Url, resource_t
 
 
 fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut usize, parent_id: usize,
-              all_nodes: &mut HashMap<usize, Rc<RefCell<ElementDomNode>>>, styles: &mut Vec<StyleRule>, tag_stack: &mut Vec<String>) -> Rc<RefCell<ElementDomNode>> {
+              all_nodes: &mut HashMap<usize, Rc<RefCell<ElementDomNode>>>, styles: &mut Vec<StyleRule>,
+              tag_stack: &mut Vec<String>, js_execution_context: &mut JsExecutionContext) -> Rc<RefCell<ElementDomNode>> {
     let node_being_build_internal_id = get_next_dom_node_interal_id();
 
     let mut tag_being_parsed = None;
     let mut children = Vec::new();
     let mut attributes = Vec::new();
+    let mut scripts = Vec::new();
 
     while *current_token_idx < html_tokens.len() {
         let current_token = html_tokens.get(*current_token_idx).unwrap();
@@ -88,7 +93,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                     tag_being_parsed = Some(name.clone());
                 } else {
                     tag_stack.push(tag_being_parsed.clone().unwrap());
-                    let new_node = parse_node(html_tokens, current_token_idx, node_being_build_internal_id, all_nodes, styles, tag_stack);
+                    let new_node = parse_node(html_tokens, current_token_idx, node_being_build_internal_id, all_nodes, styles, tag_stack, js_execution_context);
                     children.push(new_node);
                 }
             },
@@ -109,6 +114,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                         dirty: false,
                         image: None,
                         img_job_tracker: None,
+                        scripts: None,
                     };
 
                     let rc_node = Rc::new(RefCell::from(new_node));
@@ -164,6 +170,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                     dirty: false,
                     image: None,
                     img_job_tracker: None,
+                    scripts: if scripts.len() == 0 { None } else { Some(scripts) },
                 };
 
                 let rc_node = Rc::new(RefCell::from(new_node));
@@ -190,8 +197,9 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
             },
             HtmlToken::Script(content) => {
                 let js_tokens = js_lexer::lex_js(content, current_token.line, current_token.character);
-                let _script = js_parser::parse_js(&js_tokens);
-                //TODO: store the script somewhere on the dom node, but also run it in some way, at the right time?
+                let script = js_parser::parse_js(&js_tokens);
+                scripts.push(script);
+                scripts.iter().last().unwrap().execute(js_execution_context);
             },
         }
 
@@ -212,6 +220,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
             dirty: false,
             image: None,
             img_job_tracker: None,
+            scripts: if scripts.len() == 0 { None } else { Some(scripts) },
         };
 
         let rc_node = Rc::new(RefCell::from(new_node));
@@ -290,6 +299,7 @@ fn read_all_text_for_text_node(html_tokens: &Vec<HtmlTokenWithLocation>, current
         dirty: false,
         image: None,
         img_job_tracker: None,
+        scripts: None,
     };
     return node;
 }

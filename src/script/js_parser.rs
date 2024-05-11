@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use super::js_execution_context::{JsExecutionContext, JsValue};
+use super::js_execution_context::{JsBuiltinFunction, JsExecutionContext, JsValue};
 use super::js_lexer::{JsToken, JsTokenWithLocation};
 
 
@@ -165,9 +165,48 @@ impl JsAstExpression {
             JsAstExpression::StringLiteral(string_literal) => {
                 return JsValue::String(string_literal.clone()); //TODO: do we want to make a new string ever time this expression is run?
             },
-            JsAstExpression::FunctionCall(_) => {
+            JsAstExpression::FunctionCall(function_call) => {
                 //TODO: look up name in the execution context, and run corresponding code
-                todo!();
+
+
+                let var = js_execution_context.get_var(&function_call.name);
+
+                match var {
+                    Some(JsValue::Function(function)) => {
+                        if function.builtin.is_some() {
+                            match function.builtin.as_ref().unwrap() {
+                                JsBuiltinFunction::ConsoleLog => {
+                                    let to_log = function_call.arguments.get(0); //TODO: handle there being to little or to many arguments
+
+                                    let to_log = to_log.unwrap().execute(js_execution_context);
+
+                                    let to_log = match to_log {
+                                        JsValue::String(string) =>  { string }
+                                        JsValue::Number(_) => todo!(), //TODO: implement
+                                        JsValue::Boolean(_) => todo!(), //TODO: implement
+                                        JsValue::Object(_) => todo!(), //TODO: implement
+                                        JsValue::Function(_) => todo!(), //TODO: implement
+                                        JsValue::Undefined => { "undefined".to_owned() },
+                                    };
+
+                                    println!("{}", to_log);
+                                    return JsValue::Undefined;
+                                }
+                            }
+                        } else {
+                            //TODO: implement non-builtin functions
+                            todo!();
+                        }
+                    },
+                    None => {
+                        //TODO: report an error (function name not found)
+                        return JsValue::Undefined;
+                    },
+                    _ => {
+                        //TODO: report an error (variable is not a function)
+                        return JsValue::Undefined;
+                    },
+                }
             },
         }
     }
@@ -341,7 +380,6 @@ impl JsParserSliceIterator {
         let mut in_arguments = false;
 
         loop {
-
 
             if function_name.is_none() {
                 match &tokens[temp_next].token {

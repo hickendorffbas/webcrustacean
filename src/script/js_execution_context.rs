@@ -22,8 +22,13 @@ impl JsExecutionContext {
 
         return JsExecutionContext { variables: HashMap::from([(String::from("console"), console_builtin)]) };
     }
+
     pub fn set_var(&mut self, var_name: String, value: JsValue) {
         self.variables.insert(var_name, value);
+    }
+
+    pub fn get_var(&self, var_name: &String) -> Option<&JsValue> {
+        return self.variables.get(var_name);
     }
 }
 
@@ -34,6 +39,7 @@ pub enum JsValue {
     #[allow(dead_code)] Boolean(bool), //TODO: use
     #[allow(dead_code)] Object(JsObject), //TODO: use
     Function(JsFunction),
+    Undefined,
 }
 
 pub struct JsObject {
@@ -41,11 +47,11 @@ pub struct JsObject {
 }
 
 pub struct JsFunction {
-    #[allow(dead_code)] name: String, //TODO: use
-    #[allow(dead_code)] code: Option<Rc<Script>>, //TODO: use
-    #[allow(dead_code)] builtin: Option<JsBuiltinFunction>, //TODO: use
+    #[allow(dead_code)] pub name: String, //TODO: use
+    #[allow(dead_code)] pub code: Option<Rc<Script>>, //TODO: use
+    pub builtin: Option<JsBuiltinFunction>,
 }
 
-enum JsBuiltinFunction {
+pub enum JsBuiltinFunction {
     ConsoleLog,
 }

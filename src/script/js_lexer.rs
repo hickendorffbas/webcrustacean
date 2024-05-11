@@ -18,14 +18,12 @@ impl JsTokenWithLocation {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone, PartialEq)]
 pub enum JsToken {
-    Newline,
     Number(String),
     LiteralString(String),
     Identifier(String),
     Dot,
     Equals,
     Semicolon,
-    Whitespace,
     OpenParenthesis,
     CloseParenthesis,
     OpenBrace,
@@ -38,8 +36,15 @@ pub enum JsToken {
     ForwardSlash,
     Comma,
 
+    //whitespace:
+    Newline,
+    Whitespace,
+
     //all keywords:
     KeyWordVar,
+
+    //not an actual token of the language, but used as a way to block out:
+    None,
 }
 
 

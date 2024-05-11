@@ -166,8 +166,8 @@ impl JsAstExpression {
                 return JsValue::String(string_literal.clone()); //TODO: do we want to make a new string ever time this expression is run?
             },
             JsAstExpression::FunctionCall(_) => {
-                //TODO: implement
-                todo!()
+                //TODO: look up name in the execution context, and run corresponding code
+                todo!();
             },
         }
     }
@@ -307,13 +307,41 @@ impl JsParserSliceIterator {
         }
 
     }
+    fn find_first_function_call_idx(&self, tokens: &Vec<JsToken>) -> Option<usize> {
+        let mut possible_idx = 0;
+        let mut ident_seen = false;
+
+        //TODO: is identifier and then open_parentesis always a function call? Or can it be something else?
+
+        for (idx, token) in tokens.iter().enumerate() {
+            match token {
+                JsToken::Whitespace | JsToken::Newline => {
+                    if ident_seen { ident_seen = false; }
+                },
+                JsToken::Identifier(_) => {
+                    if ident_seen {
+                        ident_seen = false;
+                    } else {
+                        ident_seen = true;
+                        possible_idx = idx;
+                    }
+                },
+                JsToken::OpenParenthesis => {
+                    if ident_seen { return Some(possible_idx); }
+                },
+                _ => { ident_seen = false; }
+            }
+        }
+
+        return None;
+    }
     fn read_possible_function_call(&mut self, tokens: &Vec<JsTokenWithLocation>) -> Option<JsAstFunctionCall> {
         let mut temp_next = self.next_idx;
         let mut function_name = None;
         let mut in_arguments = false;
 
         loop {
-            if temp_next > self.end_idx { return None; }
+
 
             if function_name.is_none() {
                 match &tokens[temp_next].token {
@@ -340,7 +368,6 @@ impl JsParserSliceIterator {
 
                     if argument_iterator.is_some() {
                         arguments.push(parse_expression(&mut argument_iterator.unwrap(), tokens));
-
                     } else {
                         let final_argument_iterator = self.split_and_advance_until_next_token(tokens, JsToken::CloseParenthesis);
                         arguments.push(parse_expression(&mut final_argument_iterator.unwrap(), tokens));
@@ -396,16 +423,13 @@ impl JsParserSliceIterator {
             split_idx += 1;
         }
     }
-    fn find_first_token_idx(&self, tokens: &Vec<JsTokenWithLocation>, token: JsToken) -> Option<usize> {
-        let mut possible_idx = self.next_idx;
-        loop {
-            if possible_idx > self.end_idx { return None; }
-
-            if tokens[possible_idx].token == token {
-                return Some(possible_idx);
+    fn find_first_token_idx(&self, tokens: &Vec<JsToken>, token_to_find: JsToken) -> Option<usize> {
+        for idx in self.next_idx..(self.end_idx+1) {
+            if tokens[idx] == token_to_find {
+                return Some(idx);
             }
-            possible_idx += 1;
         }
+        return None;
     }
     fn split_at(&mut self, split_idx: usize) -> Option<(JsParserSliceIterator, JsParserSliceIterator)> {
         //make 2 iterators from this iterator, starting from the current position of this iterator
@@ -505,14 +529,49 @@ fn parse_statement(statement_iterator: &mut JsParserSliceIterator, tokens: &Vec<
 }
 
 
+fn block_out_token_types(token_types: &Vec<JsToken>) -> Vec<JsToken> {
+    let mut blocked_out = Vec::new();
+
+    let mut open_brace = 0;
+    let mut open_brack = 0;
+    let mut open_paren = 0;
+
+    for token in token_types {
+        match token {
+            JsToken::CloseBrace => { open_brace -= 1 },
+            JsToken::CloseBracket => { open_brack -= 1 },
+            JsToken::CloseParenthesis => { open_paren -= 1 },
+            _ => {},
+        }
+
+        if open_brace == 0 && open_brack == 0 && open_paren == 0 {
+            blocked_out.push(token.clone());
+        } else {
+            blocked_out.push(JsToken::None);
+        }
+
+        match token {
+            JsToken::OpenBrace => { open_brace += 1 },
+            JsToken::OpenBracket => { open_brack += 1 },
+            JsToken::OpenParenthesis => { open_paren += 1 },
+            _ => {},
+        }
+
+    }
+
+    return blocked_out;
+}
+
+
 fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWithLocation>) -> JsAstExpression {
-    //TODO: keep counters for open braces, parentesis and brackets
+    let token_types = tokens.iter().map(|token| token.token.clone()).collect::<Vec<_>>();
+    let blocked_out_token_types = block_out_token_types(&token_types);
 
 
-    /*    + and -    */
+    /*  (precendece group 11)   + and -    */
     {
-        let optional_plus_idx = iterator.find_first_token_idx(tokens, JsToken::Plus);
-        let optional_minus_idx = iterator.find_first_token_idx(tokens, JsToken::Minus);
+        let optional_plus_idx = iterator.find_first_token_idx(&blocked_out_token_types, JsToken::Plus);
+        let optional_minus_idx = iterator.find_first_token_idx(&blocked_out_token_types, JsToken::Minus);
 
         let (operator, split_idx) = if optional_plus_idx.is_some() && optional_minus_idx.is_some() {
             if optional_plus_idx.unwrap() < optional_minus_idx.unwrap() {
@@ -540,10 +599,10 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
     }
 
 
-    /*    * and /    */
+    /*  (precendece group 12)    * and /    */
     {
-        let optional_times_idx = iterator.find_first_token_idx(tokens, JsToken::Star);
-        let optional_divide_idx = iterator.find_first_token_idx(tokens, JsToken::ForwardSlash);
+        let optional_times_idx = iterator.find_first_token_idx(&blocked_out_token_types, JsToken::Star);
+        let optional_divide_idx = iterator.find_first_token_idx(&blocked_out_token_types, JsToken::ForwardSlash);
 
         let (operator, split_idx) = if optional_times_idx.is_some() && optional_divide_idx.is_some() {
             if optional_times_idx.unwrap() < optional_divide_idx.unwrap() {
@@ -571,10 +630,26 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
     }
 
 
-    /*   the dot operator (member lookup)   */
+    /* (precendece group 17): the dot operator (member lookup) and function call  */
     {
-        let optional_dot_idx = iterator.find_first_token_idx(tokens, JsToken::Dot);
-        if optional_dot_idx.is_some() {
+        let optional_dot_idx = iterator.find_first_token_idx(&blocked_out_token_types, JsToken::Dot);
+        let optional_function_idx = iterator.find_first_function_call_idx(&blocked_out_token_types);
+
+        let (parse_dot, parse_function) = if optional_dot_idx.is_some() && optional_function_idx.is_some() {
+            if optional_dot_idx.unwrap() < optional_function_idx.unwrap() {
+                (true, false)
+            } else {
+                (false, true)
+            }
+        } else if optional_dot_idx.is_some() {
+            (true, false)
+        } else if optional_function_idx.is_some() {
+            (false, true)
+        } else {
+            (false, false)
+        };
+
+        if parse_dot {
             let (mut left_iter, mut right_iter) = iterator.split_at(optional_dot_idx.unwrap()).unwrap();
             return JsAstExpression::BinOp(JsAstBinOp{
                 op: JsBinOp::MemberLookup,
@@ -582,12 +657,12 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
                 right: Rc::from(parse_expression(&mut right_iter, &tokens)),
             });
         }
-    }
-
-
-    let possible_function_call = iterator.read_possible_function_call(tokens);
-    if possible_function_call.is_some() {
-        return JsAstExpression::FunctionCall(possible_function_call.unwrap());
+        if parse_function {
+            let possible_function_call = iterator.read_possible_function_call(tokens);
+            if possible_function_call.is_some() {
+                return JsAstExpression::FunctionCall(possible_function_call.unwrap());
+            }
+        }
     }
 
     let possible_literal_number = iterator.read_only_literal_number(tokens);
@@ -604,6 +679,7 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
     if possible_ident.is_some() {
         return JsAstExpression::Variable(JsAstVariable { name: possible_ident.unwrap() });  //TODO: is an identifier always a variable in this case??
     }
+
 
     panic!("unparsable token stream found!")
 }

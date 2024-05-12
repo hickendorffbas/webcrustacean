@@ -69,7 +69,31 @@ impl JsAstBinOp {
             JsBinOp::Times => todo!(),
             JsBinOp::Divide => todo!(),
             JsBinOp::MemberLookup => {
-                todo!();
+
+                match left_val {
+                    JsValue::Object(object) => {
+
+                        match right_val {
+                            JsValue::String(member_name) => {
+                                let possible_member = object.members.get(&member_name);
+                                match possible_member {
+                                    Some(value) => {
+                                        return value.clone(); //TODO: cloning here is not nice, can we do better?
+                                    },
+                                    None =>  {
+                                        todo!(); //TODO: report an error in a good way
+                                    }
+                                }
+                            }
+                            _ => {
+                                todo!(); //TODO: report an error in a good way
+                            }
+                        }
+                    },
+                    _ => {
+                        todo!(); //TODO: report an error in a good way
+                    }
+                }
             },
         }
     }
@@ -125,15 +149,19 @@ enum JsBinOp {
 
 #[derive(Debug)]
 struct JsAstVariable {
-    #[allow(dead_code)] name: String, //TODO: use
+    name: String,
 }
 impl JsAstVariable {
-    fn execute(&self, _: &mut JsExecutionContext) -> JsValue {
-        //TODO: this does not really seem sensible, we could assign varibales numeric id's or something (or return an existing reference to them).
-        //      we should not need to make a string every time we use or assign a variable, thats very inefficient
-        return JsValue::String(self.name.clone());
+    fn execute(&self, js_execution_context: &mut JsExecutionContext) -> JsValue {
+        let possible_value = js_execution_context.get_var(&self.name);
+        if possible_value.is_some() {
+            return possible_value.unwrap().clone();  //TODO: can we do better than cloning here?
+        } else {
+            todo!();  //TODO: proper error handling here
+        }
     }
 }
+
 
 #[derive(Debug)]
 enum JsAstExpression {
@@ -166,13 +194,10 @@ impl JsAstExpression {
                 return JsValue::String(string_literal.clone()); //TODO: do we want to make a new string ever time this expression is run?
             },
             JsAstExpression::FunctionCall(function_call) => {
-                //TODO: look up name in the execution context, and run corresponding code
+                let function = function_call.function_expression.execute(js_execution_context);
 
-
-                let var = js_execution_context.get_var(&function_call.name);
-
-                match var {
-                    Some(JsValue::Function(function)) => {
+                match function {
+                    JsValue::Function(function) => {
                         if function.builtin.is_some() {
                             match function.builtin.as_ref().unwrap() {
                                 JsBuiltinFunction::ConsoleLog => {
@@ -182,14 +207,14 @@ impl JsAstExpression {
 
                                     let to_log = match to_log {
                                         JsValue::String(string) =>  { string }
-                                        JsValue::Number(_) => todo!(), //TODO: implement
+                                        JsValue::Number(number) => { number.to_string() },
                                         JsValue::Boolean(_) => todo!(), //TODO: implement
                                         JsValue::Object(_) => todo!(), //TODO: implement
                                         JsValue::Function(_) => todo!(), //TODO: implement
                                         JsValue::Undefined => { "undefined".to_owned() },
                                     };
 
-                                    println!("{}", to_log);
+                                    println!("[JS console] {}", to_log);  //TODO: log this via some util that prepends information, for example that this is js console
                                     return JsValue::Undefined;
                                 }
                             }
@@ -197,10 +222,6 @@ impl JsAstExpression {
                             //TODO: implement non-builtin functions
                             todo!();
                         }
-                    },
-                    None => {
-                        //TODO: report an error (function name not found)
-                        return JsValue::Undefined;
                     },
                     _ => {
                         //TODO: report an error (variable is not a function)
@@ -215,7 +236,7 @@ impl JsAstExpression {
 
 #[derive(Debug)]
 struct JsAstFunctionCall {
-    #[allow(dead_code)] name: String, //TODO: use
+    #[allow(dead_code)] function_expression: Rc<JsAstExpression>, //TODO: use
     #[allow(dead_code)] arguments: Vec<JsAstExpression>, //TODO: use
 }
 
@@ -228,6 +249,9 @@ struct JsParserSliceIterator {
 impl JsParserSliceIterator {
     fn has_next(&self) -> bool {
         return self.next_idx <= self.end_idx;
+    }
+    fn size(&self) -> usize {
+        return (self.end_idx - self.next_idx) + 1;
     }
     fn move_after_next_non_whitespace(&mut self, tokens: &Vec<JsTokenWithLocation>) -> bool {
         let mut temp_next = self.next_idx;
@@ -283,7 +307,12 @@ impl JsParserSliceIterator {
         let mut temp_next = self.next_idx;
         let mut name_to_return = None;
         loop {
-            if temp_next > self.end_idx { return name_to_return; }
+            if temp_next > self.end_idx {
+                if name_to_return.is_some() {
+                    self.next_idx = self.end_idx;
+                }
+                return name_to_return;
+            }
 
             match &tokens[temp_next].token {
                 JsToken::Whitespace | JsToken::Newline => { },
@@ -292,7 +321,6 @@ impl JsParserSliceIterator {
                         return None;  //we saw more than 1 identifier
                     }
                     name_to_return = Some(name.clone());
-                    self.next_idx = temp_next + 1;
                 }
                 _ => { return None }
             }
@@ -307,7 +335,12 @@ impl JsParserSliceIterator {
         let mut temp_next = self.next_idx;
         let mut number_to_return = None;
         loop {
-            if temp_next > self.end_idx { return number_to_return; }
+            if temp_next > self.end_idx {
+                if number_to_return.is_some() {
+                    self.next_idx = self.end_idx;
+                }
+                return number_to_return;
+            }
 
             match &tokens[temp_next].token {
                 JsToken::Whitespace | JsToken::Newline => { },
@@ -316,7 +349,7 @@ impl JsParserSliceIterator {
                         return None; // we saw more than 1 number
                     }
                     number_to_return = Some(number.clone());
-                    self.next_idx = temp_next + 1;
+
                 }
                 _ => { return None }
             }
@@ -329,7 +362,12 @@ impl JsParserSliceIterator {
         let mut temp_next = self.next_idx;
         let mut string_to_return = None;
         loop {
-            if temp_next > self.end_idx { return string_to_return; }
+            if temp_next > self.end_idx {
+                if string_to_return.is_some() {
+                    self.next_idx = self.end_idx;
+                }
+                return string_to_return;
+            }
 
             match &tokens[temp_next].token {
                 JsToken::Whitespace | JsToken::Newline => { },
@@ -338,7 +376,6 @@ impl JsParserSliceIterator {
                         return None; // we saw more than 1 literal string
                     }
                     string_to_return = Some(number.clone());
-                    self.next_idx = temp_next + 1;
                 }
                 _ => { return None }
             }
@@ -346,86 +383,38 @@ impl JsParserSliceIterator {
         }
 
     }
-    fn find_first_function_call_idx(&self, tokens: &Vec<JsToken>) -> Option<usize> {
-        let mut possible_idx = 0;
-        let mut ident_seen = false;
-
-        //TODO: is identifier and then open_parentesis always a function call? Or can it be something else?
-
-        for (idx, token) in tokens.iter().enumerate() {
-            match token {
-                JsToken::Whitespace | JsToken::Newline => {
-                    if ident_seen { ident_seen = false; }
-                },
-                JsToken::Identifier(_) => {
-                    if ident_seen {
-                        ident_seen = false;
-                    } else {
-                        ident_seen = true;
-                        possible_idx = idx;
-                    }
-                },
-                JsToken::OpenParenthesis => {
-                    if ident_seen { return Some(possible_idx); }
-                },
-                _ => { ident_seen = false; }
-            }
-        }
-
-        return None;
-    }
-    fn read_possible_function_call(&mut self, tokens: &Vec<JsTokenWithLocation>) -> Option<JsAstFunctionCall> {
+    fn is_only_function_call(&self, blocked_tokens: &Vec<JsToken>) -> bool {
         let mut temp_next = self.next_idx;
-        let mut function_name = None;
+
+        let mut in_function_expression = true;
         let mut in_arguments = false;
+        let mut seen_close_parentesis = false;
 
         loop {
+            if temp_next > self.end_idx { return seen_close_parentesis; }
 
-            if function_name.is_none() {
-                match &tokens[temp_next].token {
-                    JsToken::Whitespace | JsToken::Newline => { },
-                    JsToken::Identifier(name) => { function_name = Some(name.clone()); }
-                    _ => { return None }
+            if in_function_expression {
+                match &blocked_tokens[temp_next] {
+                    JsToken::OpenParenthesis => {
+                        in_arguments = true;
+                        in_function_expression = false;
+                    },
+                    _ => { },
                 }
-            } else if !in_arguments {
-                match &tokens[temp_next].token {
-                    JsToken::Whitespace | JsToken::Newline => { },
-                    JsToken::OpenParenthesis => { in_arguments = true; }
-                    _ => { return None }
+            } else if in_arguments {
+                match &blocked_tokens[temp_next] {
+                    JsToken::CloseParenthesis => {
+                        seen_close_parentesis = true;
+                        in_arguments = false;
+                    },
+                    _ => { },
                 }
-            } else {
-                //TODO: we should handle nested parenthesis
-
-                //at this point we are sure we are parsing a function call, so we start advancing our next pointer
-                self.next_idx = temp_next;
-
-                let mut arguments = Vec::new();
-
-                while self.has_next() {
-                    let argument_iterator = self.split_and_advance_until_next_token(tokens, JsToken::Comma);
-
-                    if argument_iterator.is_some() {
-                        arguments.push(parse_expression(&mut argument_iterator.unwrap(), tokens));
-                    } else {
-                        let final_argument_iterator = self.split_and_advance_until_next_token(tokens, JsToken::CloseParenthesis);
-                        arguments.push(parse_expression(&mut final_argument_iterator.unwrap(), tokens));
-                        break;
-                    }
-                }
-
-                if self.has_next_non_whitespace(&tokens) {
-                    panic!("unexpected tokens after function call");
-                }
-
-                return Some(JsAstFunctionCall {
-                    name: function_name.unwrap(),
-                    arguments: arguments,
-                });
+            } else if seen_close_parentesis {
+                return false;
             }
 
             temp_next += 1;
         }
-
     }
     fn split_and_advance_until_next_token(&mut self, tokens: &Vec<JsTokenWithLocation>, token_to_find: JsToken) -> Option<JsParserSliceIterator> {
         let mut size = 1;
@@ -472,7 +461,7 @@ impl JsParserSliceIterator {
     fn split_at(&mut self, split_idx: usize) -> Option<(JsParserSliceIterator, JsParserSliceIterator)> {
         //make 2 iterators from this iterator, starting from the current position of this iterator
 
-        if split_idx > self.end_idx { return None; }
+        if split_idx > self.end_idx || split_idx <= self.next_idx { return None; }
 
         return Some((
             JsParserSliceIterator { end_idx: split_idx - 1, next_idx: self.next_idx },
@@ -508,6 +497,29 @@ pub fn parse_js(tokens: &Vec<JsTokenWithLocation>) -> Script {
     }
 
     return Script { statements };
+}
+
+
+fn parse_function_call(function_iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWithLocation>) -> JsAstFunctionCall {
+    //TODO: call this only after we have checked that this _is_ a function call, using the blocked out tokens
+
+    let function_expression_iterator = function_iterator.split_and_advance_until_next_token(tokens, JsToken::OpenParenthesis);
+    let function_expression = parse_expression(&mut function_expression_iterator.unwrap(), tokens);
+
+    let mut arguments = Vec::new();
+
+    while function_iterator.has_next() {
+        let argument_iterator = function_iterator.split_and_advance_until_next_token(tokens, JsToken::Comma);
+        if argument_iterator.is_some() {
+            arguments.push(parse_expression(&mut argument_iterator.unwrap(), tokens));
+
+        } else {
+            let final_argument_iterator = function_iterator.split_and_advance_until_next_token(tokens, JsToken::CloseParenthesis);
+            arguments.push(parse_expression(&mut final_argument_iterator.unwrap(), tokens));
+        }
+    }
+
+    return JsAstFunctionCall { function_expression: Rc::from(function_expression), arguments }
 }
 
 
@@ -567,14 +579,21 @@ fn parse_statement(statement_iterator: &mut JsParserSliceIterator, tokens: &Vec<
 }
 
 
-fn block_out_token_types(token_types: &Vec<JsToken>) -> Vec<JsToken> {
+fn block_out_token_types(iterator: &mut JsParserSliceIterator, token_types: &Vec<JsToken>) -> Vec<JsToken> {
+    //block out token types, but only when in scope of the iterator
+
     let mut blocked_out = Vec::new();
 
     let mut open_brace = 0;
     let mut open_brack = 0;
     let mut open_paren = 0;
 
-    for token in token_types {
+    for (idx, token) in token_types.iter().enumerate() {
+        if idx < iterator.next_idx || idx > iterator.end_idx {
+            blocked_out.push(token.clone());
+            continue;
+        }
+
         match token {
             JsToken::CloseBrace => { open_brace -= 1 },
             JsToken::CloseBracket => { open_brack -= 1 },
@@ -603,7 +622,7 @@ fn block_out_token_types(token_types: &Vec<JsToken>) -> Vec<JsToken> {
 
 fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWithLocation>) -> JsAstExpression {
     let token_types = tokens.iter().map(|token| token.token.clone()).collect::<Vec<_>>();
-    let blocked_out_token_types = block_out_token_types(&token_types);
+    let blocked_out_token_types = block_out_token_types(iterator, &token_types);
 
 
     /*  (precendece group 11)   + and -    */
@@ -612,7 +631,7 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
         let optional_minus_idx = iterator.find_first_token_idx(&blocked_out_token_types, JsToken::Minus);
 
         let (operator, split_idx) = if optional_plus_idx.is_some() && optional_minus_idx.is_some() {
-            if optional_plus_idx.unwrap() < optional_minus_idx.unwrap() {
+            if optional_plus_idx.unwrap() > optional_minus_idx.unwrap() {
                 (Some(JsBinOp::Plus), Some(optional_plus_idx.unwrap()))
             } else {
                 (Some(JsBinOp::Minus), Some(optional_minus_idx.unwrap()))
@@ -643,7 +662,7 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
         let optional_divide_idx = iterator.find_first_token_idx(&blocked_out_token_types, JsToken::ForwardSlash);
 
         let (operator, split_idx) = if optional_times_idx.is_some() && optional_divide_idx.is_some() {
-            if optional_times_idx.unwrap() < optional_divide_idx.unwrap() {
+            if optional_times_idx.unwrap() > optional_divide_idx.unwrap() {
                 (Some(JsBinOp::Times), Some(optional_times_idx.unwrap()))
             } else {
                 (Some(JsBinOp::Divide), Some(optional_divide_idx.unwrap()))
@@ -670,36 +689,29 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
 
     /* (precendece group 17): the dot operator (member lookup) and function call  */
     {
+        if iterator.is_only_function_call(&blocked_out_token_types) {
+            return JsAstExpression::FunctionCall(parse_function_call(iterator, tokens));
+        }
+
         let optional_dot_idx = iterator.find_first_token_idx(&blocked_out_token_types, JsToken::Dot);
-        let optional_function_idx = iterator.find_first_function_call_idx(&blocked_out_token_types);
-
-        let (parse_dot, parse_function) = if optional_dot_idx.is_some() && optional_function_idx.is_some() {
-            if optional_dot_idx.unwrap() < optional_function_idx.unwrap() {
-                (true, false)
-            } else {
-                (false, true)
-            }
-        } else if optional_dot_idx.is_some() {
-            (true, false)
-        } else if optional_function_idx.is_some() {
-            (false, true)
-        } else {
-            (false, false)
-        };
-
-        if parse_dot {
+        if optional_dot_idx.is_some() {
             let (mut left_iter, mut right_iter) = iterator.split_at(optional_dot_idx.unwrap()).unwrap();
+
+
+            if right_iter.size() > 1 {
+                todo!();  //TODO: I think this is always an error, check if that is correct
+            }
+
+            let member_name = match right_iter.read_only_identifier(tokens) {
+                Some(name) => { name },
+                None => { todo!() }  //TODO: I think this is always an error, check if that is correct
+            };
+
             return JsAstExpression::BinOp(JsAstBinOp{
                 op: JsBinOp::MemberLookup,
                 left: Rc::from(parse_expression(&mut left_iter, &tokens)),
-                right: Rc::from(parse_expression(&mut right_iter, &tokens)),
+                right: Rc::from(JsAstExpression::StringLiteral(member_name)),
             });
-        }
-        if parse_function {
-            let possible_function_call = iterator.read_possible_function_call(tokens);
-            if possible_function_call.is_some() {
-                return JsAstExpression::FunctionCall(possible_function_call.unwrap());
-            }
         }
     }
 
@@ -721,4 +733,3 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
 
     panic!("unparsable token stream found!")
 }
-

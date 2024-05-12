@@ -32,6 +32,8 @@ impl JsExecutionContext {
     }
 }
 
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone)]
 pub enum JsValue {
     Number(i32), //TODO: number type is wrong here, we need different rust types depending on what kind of number it is? (floats?)
                  //      or a more complex type maybe?
@@ -42,16 +44,25 @@ pub enum JsValue {
     Undefined,
 }
 
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone)]
 pub struct JsObject {
-    #[allow(dead_code)] members: HashMap<String, JsValue>, //TODO: use
+    pub members: HashMap<String, JsValue>,
 }
 
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone)]
 pub struct JsFunction {
     #[allow(dead_code)] pub name: String, //TODO: use
     #[allow(dead_code)] pub code: Option<Rc<Script>>, //TODO: use
     pub builtin: Option<JsBuiltinFunction>,
 }
 
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone)]
 pub enum JsBuiltinFunction {
     ConsoleLog,
 }

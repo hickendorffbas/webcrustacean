@@ -327,6 +327,32 @@ impl JsParserSliceIterator {
             temp_next += 1;
         }
     }
+    fn read_only_literal_regex(&mut self, tokens: &Vec<JsTokenWithLocation>) -> Option<String> {
+        //check if there is only a literal regex left, and if so, return it, and consume the iterator
+
+        let mut temp_next = self.next_idx;
+        let mut content_to_return = None;
+        loop {
+            if temp_next > self.end_idx {
+                if content_to_return.is_some() {
+                    self.next_idx = self.end_idx;
+                }
+                return content_to_return;
+            }
+
+            match &tokens[temp_next].token {
+                JsToken::Whitespace | JsToken::Newline => { },
+                JsToken::RegexLiteral(content) => {
+                    if content_to_return.is_some() {
+                        return None;  //we saw more than 1 regex
+                    }
+                    content_to_return = Some(content.clone());
+                }
+                _ => { return None }
+            }
+            temp_next += 1;
+        }
+    }
     fn read_only_literal_number(&mut self, tokens: &Vec<JsTokenWithLocation>) -> Option<String> {
         //check if there is only an number left, and if so, return it, and consume the iterator
 
@@ -730,6 +756,11 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
         return JsAstExpression::Variable(JsAstVariable { name: possible_ident.unwrap() });  //TODO: is an identifier always a variable in this case??
     }
 
+    let possible_literal_regex = iterator.read_only_literal_regex(tokens);
+    if possible_literal_regex.is_some() {
+        //TODO: regexes are not implemented yet, so for now we just return the regex itself as an empty string
+        return JsAstExpression::StringLiteral(String::new());
+    }
 
-    panic!("unparsable token stream found!")
+    panic!("unparsable token stream found: {:?} {} {}", tokens.iter().map(|t| { t.token.clone() }).collect::<Vec<_>>(), iterator.next_idx, iterator.end_idx);
 }

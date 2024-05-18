@@ -2,7 +2,8 @@
 ===================
 - No longer depend on SDL for font rendering
 - Move to Rust 2021
-`
+- Implement very basic javascript interpretation
+
 
 0.2.0
 ===================
@@ -17,7 +18,6 @@
 
 0.1.0
 ===================
-
 - basic page loading and display
 - basic css color parsing
 - basic image loading

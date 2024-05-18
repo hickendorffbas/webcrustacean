@@ -762,5 +762,5 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
         return JsAstExpression::StringLiteral(String::new());
     }
 
-    panic!("unparsable token stream found: {:?} {} {}", tokens.iter().map(|t| { t.token.clone() }).collect::<Vec<_>>(), iterator.next_idx, iterator.end_idx);
+    panic!("unparsable token stream found!");
 }

@@ -102,22 +102,38 @@ impl JsAstBinOp {
 
 #[derive(Debug)]
 struct JsAstAssign {
-    #[allow(dead_code)] left: JsAstExpression, //TODO: use
-    #[allow(dead_code)] right: JsAstExpression, //TODO: use
+    left: JsAstExpression,
+    right: JsAstExpression,
 }
 impl JsAstAssign {
     fn execute(&self, js_execution_context: &mut JsExecutionContext) {
-        let var = self.left.execute(js_execution_context);
         let value = self.right.execute(js_execution_context);
 
-        let var_name = match var {
-            JsValue::String(value) => value,
+        let var_name = match &self.left {
+            JsAstExpression::Variable(var) => {
+                //TODO: can we avoid cloning here? Assigning to something in a loop should not create new strings all the time
+                //      (we might want to track assignables other then by string, because we also need to assign to members of objects, see TODO there...)
+                var.name.clone()
+            },
+            JsAstExpression::BinOp(operation) => {
+                match operation.op {
+                    JsBinOp::MemberLookup => {
+                        //TODO: implementing this seems complicated, because we cant just call execute() on it, because we don't want the value
+                        //      we want the adress. do we need to seperate lvalues from rvalues somehow?
+                        todo!("member lookup in assignment not yet implemented");
+                    },
+                    _ => {
+                        //TODO: this should become a proper error
+                        panic!("we can only assign to a variable or object member");
+                    }
+                }
+            },
             _ => {
-                //TODO: some cases here might be valid? Like object? (depends on how we are going to store them)
-                //TODO: this should probably be a proper error to the user, not a crash
-                panic!("assignment to something that is not a variable");
+                //TODO: this should become a proper error
+                panic!("we can only assign to a variable or object member");
             }
         };
+
 
         js_execution_context.set_var(var_name, value);
     }
@@ -236,8 +252,8 @@ impl JsAstExpression {
 
 #[derive(Debug)]
 struct JsAstFunctionCall {
-    #[allow(dead_code)] function_expression: Rc<JsAstExpression>, //TODO: use
-    #[allow(dead_code)] arguments: Vec<JsAstExpression>, //TODO: use
+    function_expression: Rc<JsAstExpression>,
+    arguments: Vec<JsAstExpression>,
 }
 
 

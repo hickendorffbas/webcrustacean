@@ -81,11 +81,10 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
         }
         else if js_iterator.peek() == Some(&'"') || js_iterator.peek() == Some(&'\'') {
             //TODO: this does not account for escaped quotes yet...
-            //TODO: we would need to check which type of quote started this, and only stop on that one, including the other in the string
-            js_iterator.next();
 
+            let quote_type_used = js_iterator.next();
             let mut literal = String::new();
-            while js_iterator.has_next() && (js_iterator.peek() != Some(&'"') || js_iterator.peek() == Some(&'\'')) {
+            while js_iterator.has_next() && js_iterator.peek().unwrap() != &quote_type_used {
                 literal.push(js_iterator.next());
             }
 

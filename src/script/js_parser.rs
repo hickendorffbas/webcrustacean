@@ -1,6 +1,11 @@
 use std::rc::Rc;
 
-use super::js_execution_context::{JsBuiltinFunction, JsExecutionContext, JsValue};
+use super::js_console;
+use super::js_execution_context::{
+    JsBuiltinFunction,
+    JsExecutionContext,
+    JsValue
+};
 use super::js_lexer::{JsToken, JsTokenWithLocation};
 
 
@@ -230,7 +235,7 @@ impl JsAstExpression {
                                         JsValue::Undefined => { "undefined".to_owned() },
                                     };
 
-                                    println!("[JS console] {}", to_log);  //TODO: log this via some util that prepends information, for example that this is js console
+                                    js_console::print(to_log.as_str());
                                     return JsValue::Undefined;
                                 },
                                 #[cfg(test)] JsBuiltinFunction::TesterExport => {
@@ -538,7 +543,10 @@ pub fn parse_js(tokens: &Vec<JsTokenWithLocation>) -> Script {
         let statement_iterator = token_iterator.split_and_advance_until_next_token(tokens, JsToken::Semicolon);
         if statement_iterator.is_some() {
             if statement_iterator.as_ref().unwrap().has_next_non_whitespace(&tokens) {
-                statements.push(parse_statement(&mut statement_iterator.unwrap(), tokens));
+                let stat = parse_statement(&mut statement_iterator.unwrap(), tokens);
+                if stat.is_some() {
+                    statements.push(stat.unwrap());
+                }
             }
         } else {
             break;
@@ -549,30 +557,40 @@ pub fn parse_js(tokens: &Vec<JsTokenWithLocation>) -> Script {
 }
 
 
-fn parse_function_call(function_iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWithLocation>) -> JsAstFunctionCall {
-    //TODO: call this only after we have checked that this _is_ a function call, using the blocked out tokens
+fn parse_function_call(function_iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWithLocation>) -> Option<JsAstFunctionCall> {
 
     let function_expression_iterator = function_iterator.split_and_advance_until_next_token(tokens, JsToken::OpenParenthesis);
     let function_expression = parse_expression(&mut function_expression_iterator.unwrap(), tokens);
+    if function_expression.is_none() {
+        return None;
+    }
 
     let mut arguments = Vec::new();
 
     while function_iterator.has_next() {
         let argument_iterator = function_iterator.split_and_advance_until_next_token(tokens, JsToken::Comma);
         if argument_iterator.is_some() {
-            arguments.push(parse_expression(&mut argument_iterator.unwrap(), tokens));
+            let expression = parse_expression(&mut argument_iterator.unwrap(), tokens);
+            if expression.is_none() {
+                return None;
+            }
+            arguments.push(expression.unwrap());
 
         } else {
             let final_argument_iterator = function_iterator.split_and_advance_until_next_token(tokens, JsToken::CloseParenthesis);
-            arguments.push(parse_expression(&mut final_argument_iterator.unwrap(), tokens));
+            let expression = parse_expression(&mut final_argument_iterator.unwrap(), tokens);
+            if expression.is_none() {
+                return None;
+            }
+            arguments.push(expression.unwrap());
         }
     }
 
-    return JsAstFunctionCall { function_expression: Rc::from(function_expression), arguments }
+    return Some(JsAstFunctionCall { function_expression: Rc::from(function_expression.unwrap()), arguments });
 }
 
 
-fn parse_declaration(statement_iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWithLocation>) -> JsAstDeclaration {
+fn parse_declaration(statement_iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWithLocation>) -> Option<JsAstDeclaration> {
     statement_iterator.move_after_next_non_whitespace(tokens); //consume the "var"
 
     let optional_equals_split = statement_iterator.check_for_and_split_on(tokens, JsToken::Equals);
@@ -587,10 +605,15 @@ fn parse_declaration(statement_iterator: &mut JsParserSliceIterator, tokens: &Ve
             panic!("Expected only an identifier after var decl");
         };
 
-        return JsAstDeclaration {
+        let expression = parse_expression(&mut right, tokens);
+        if expression.is_none() {
+            return None;
+        }
+
+        return Some(JsAstDeclaration {
             variable,
-            initial_value: Some(parse_expression(&mut right, tokens)),
-        };
+            initial_value: expression,
+        });
     }
 
     let possible_ident = statement_iterator.read_only_identifier(tokens);
@@ -600,17 +623,21 @@ fn parse_declaration(statement_iterator: &mut JsParserSliceIterator, tokens: &Ve
         panic!("Expected only an identifier after var decl");
     };
 
-    return JsAstDeclaration {
+    return Some(JsAstDeclaration {
         variable,
         initial_value: None,
-    };
+    });
 }
 
 
-fn parse_statement(statement_iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWithLocation>) -> JsAstStatement {
+fn parse_statement(statement_iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWithLocation>) -> Option<JsAstStatement> {
 
     if statement_iterator.next_non_whitespace_token_is(&tokens, JsToken::KeyWordVar) {
-        return JsAstStatement::Declaration(parse_declaration(statement_iterator, tokens));
+        let decl = parse_declaration(statement_iterator, tokens);
+        if decl.is_none() {
+            return None;
+        }
+        return Some(JsAstStatement::Declaration(decl.unwrap()));
     }
 
     let optional_equals_split = statement_iterator.check_for_and_split_on(tokens, JsToken::Equals);
@@ -619,12 +646,18 @@ fn parse_statement(statement_iterator: &mut JsParserSliceIterator, tokens: &Vec<
         let (mut left, mut right) = optional_equals_split.unwrap();
         let parsed_left = parse_expression(&mut left, tokens);
         let parsed_right = parse_expression(&mut right, tokens);
-        return JsAstStatement::Assign(JsAstAssign { left: parsed_left, right: parsed_right });
+        if parsed_left.is_none() || parsed_right.is_none() {
+            return None;
+        }
+        return Some(JsAstStatement::Assign(JsAstAssign { left: parsed_left.unwrap(), right: parsed_right.unwrap() }));
     }
 
     let expression = parse_expression(statement_iterator, tokens);
+    if expression.is_none() {
+        return None;
+    }
 
-    return JsAstStatement::Expression(expression);
+    return Some(JsAstStatement::Expression(expression.unwrap()));
 }
 
 
@@ -669,7 +702,7 @@ fn block_out_token_types(iterator: &mut JsParserSliceIterator, token_types: &Vec
 }
 
 
-fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWithLocation>) -> JsAstExpression {
+fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWithLocation>) -> Option<JsAstExpression> {
     let token_types = tokens.iter().map(|token| token.token.clone()).collect::<Vec<_>>();
     let blocked_out_token_types = block_out_token_types(iterator, &token_types);
 
@@ -696,11 +729,17 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
         if operator.is_some() {
             let (mut left_iter, mut right_iter) = iterator.split_at(split_idx.unwrap()).unwrap();
 
-            return JsAstExpression::BinOp(JsAstBinOp {
+            let left_ast = parse_expression(&mut left_iter, &tokens);
+            let right_ast = parse_expression(&mut right_iter, &tokens);
+            if left_ast.is_none() || right_ast.is_none() {
+                return None;
+            }
+
+            return Some(JsAstExpression::BinOp(JsAstBinOp {
                 op: operator.unwrap(),
-                left: Rc::from(parse_expression(&mut left_iter, &tokens)),
-                right: Rc::from(parse_expression(&mut right_iter, &tokens)),
-            });
+                left: Rc::from(left_ast.unwrap()),
+                right: Rc::from(right_ast.unwrap()),
+            }));
         }
     }
 
@@ -727,11 +766,17 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
         if operator.is_some() {
             let (mut left_iter, mut right_iter) = iterator.split_at(split_idx.unwrap()).unwrap();
 
-            return JsAstExpression::BinOp(JsAstBinOp {
+            let left_ast = parse_expression(&mut left_iter, &tokens);
+            let right_ast = parse_expression(&mut right_iter, &tokens);
+            if left_ast.is_none() || right_ast.is_none() {
+                return None;
+            }
+
+            return Some(JsAstExpression::BinOp(JsAstBinOp {
                 op: operator.unwrap(),
-                left: Rc::from(parse_expression(&mut left_iter, &tokens)),
-                right: Rc::from(parse_expression(&mut right_iter, &tokens)),
-            });
+                left: Rc::from(left_ast.unwrap()),
+                right: Rc::from(right_ast.unwrap()),
+            }));
         }
     }
 
@@ -739,7 +784,11 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
     /* (precendece group 17): the dot operator (member lookup) and function call  */
     {
         if iterator.is_only_function_call(&blocked_out_token_types) {
-            return JsAstExpression::FunctionCall(parse_function_call(iterator, tokens));
+            let call = parse_function_call(iterator, tokens);
+            if call.is_none() {
+                return None;
+            }
+            return Some(JsAstExpression::FunctionCall(call.unwrap()));
         }
 
         let optional_dot_idx = iterator.find_first_token_idx(&blocked_out_token_types, JsToken::Dot);
@@ -756,34 +805,40 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
                 None => { todo!() }  //TODO: I think this is always an error, check if that is correct
             };
 
-            return JsAstExpression::BinOp(JsAstBinOp{
+            let left_ast = parse_expression(&mut left_iter, &tokens);
+            if left_ast.is_none() {
+                return None;
+            }
+
+            return Some(JsAstExpression::BinOp(JsAstBinOp{
                 op: JsBinOp::MemberLookup,
-                left: Rc::from(parse_expression(&mut left_iter, &tokens)),
+                left: Rc::from(left_ast.unwrap()),
                 right: Rc::from(JsAstExpression::StringLiteral(member_name)),
-            });
+            }));
         }
     }
 
     let possible_literal_number = iterator.read_only_literal_number(tokens);
     if possible_literal_number.is_some() {
-        return JsAstExpression::NumericLiteral(possible_literal_number.unwrap());
+        return Some(JsAstExpression::NumericLiteral(possible_literal_number.unwrap()));
     }
 
     let possible_literal_string = iterator.read_only_literal_string(tokens);
     if possible_literal_string.is_some() {
-        return JsAstExpression::StringLiteral(possible_literal_string.unwrap());
+        return Some(JsAstExpression::StringLiteral(possible_literal_string.unwrap()));
     }
 
     let possible_ident = iterator.read_only_identifier(tokens);
     if possible_ident.is_some() {
-        return JsAstExpression::Variable(JsAstVariable { name: possible_ident.unwrap() });  //TODO: is an identifier always a variable in this case??
+        return Some(JsAstExpression::Variable(JsAstVariable { name: possible_ident.unwrap() }));  //TODO: is an identifier always a variable in this case??
     }
 
     let possible_literal_regex = iterator.read_only_literal_regex(tokens);
     if possible_literal_regex.is_some() {
         //TODO: regexes are not implemented yet, so for now we just return the regex itself as an empty string
-        return JsAstExpression::StringLiteral(String::new());
+        return Some(JsAstExpression::StringLiteral(String::new()));
     }
 
-    panic!("unparsable token stream found!");
+    js_console::log_js_error("unparsable token stream found!"); //TODO: add information about line number, char index and maybe part of the text?
+    return None;
 }

@@ -232,6 +232,12 @@ impl JsAstExpression {
 
                                     println!("[JS console] {}", to_log);  //TODO: log this via some util that prepends information, for example that this is js console
                                     return JsValue::Undefined;
+                                },
+                                #[cfg(test)] JsBuiltinFunction::TesterExport => {
+                                    let data_ast = function_call.arguments.get(0);
+                                    let data = data_ast.unwrap().execute(js_execution_context); //TODO: even for tests, we probably want to handle the unwrap here
+                                    js_execution_context.export_test_data(data);
+                                    return JsValue::Undefined;
                                 }
                             }
                         } else {
@@ -528,6 +534,7 @@ pub fn parse_js(tokens: &Vec<JsTokenWithLocation>) -> Script {
     let mut statements = Vec::new();
 
     while token_iterator.has_next() {
+        //TODO: if the last statement doesn't end with a semicolon we ignore it, we should fix that via semicolon insertion (also insert one at the end)
         let statement_iterator = token_iterator.split_and_advance_until_next_token(tokens, JsToken::Semicolon);
         if statement_iterator.is_some() {
             if statement_iterator.as_ref().unwrap().has_next_non_whitespace(&tokens) {

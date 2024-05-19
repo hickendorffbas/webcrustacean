@@ -42,6 +42,7 @@ pub enum JsToken {
     Pipe,
     ExclamationMark,
     Colon,
+    QuestionMark,
 
     //whitespace:
     Newline,
@@ -240,6 +241,10 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
         }
         else if js_iterator.peek() == Some(&':') {
             tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Colon));
+            js_iterator.next();
+        }
+        else if js_iterator.peek() == Some(&'?') {
+            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::QuestionMark));
             js_iterator.next();
         }
         else if js_iterator.peek().is_some() && is_valid_first_char_of_identifier(*js_iterator.peek().unwrap()) {

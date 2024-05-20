@@ -73,14 +73,67 @@ pub enum JsValue {
     #[allow(dead_code)] Boolean(bool), //TODO: use
     Object(JsObject),
     Function(JsFunction),
+    Variable(JsVariable),
     Undefined,
 }
+impl JsValue {
+    pub fn deref(self, js_execution_context: &JsExecutionContext) -> JsValue {
+        match self {
+            JsValue::Variable(variable) => { return variable.get_value(js_execution_context); },
+            _ => { return self }
+        }
+    }
+}
+
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone)]
 pub struct JsObject {
     pub members: HashMap<String, JsValue>,
+}
+
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone)]
+pub struct JsVariable {
+    pub name: String,
+    pub object_var: Option<Rc<JsVariable>>,
+}
+impl JsVariable {
+    pub fn get_value(&self, js_execution_context: &JsExecutionContext) -> JsValue {
+
+        if self.object_var.is_none() {
+            let value = js_execution_context.get_var(&self.name);
+            if value.is_some() {
+                return value.unwrap().clone();
+            } else {
+                //TODO: should this be an error?
+                return JsValue::Undefined;
+            }
+        }
+
+        let object = self.object_var.as_ref().unwrap().get_value(js_execution_context);
+
+        match object {
+            JsValue::Object(obj) => {
+                let value = obj.members.get(&self.name);
+                if value.is_some() {
+                    return value.unwrap().clone();
+                } else {
+                    //TODO: should this be an error?
+                    return JsValue::Undefined;
+                }
+            },
+            _ => {
+                todo!(); //TODO: proper error logging
+            }
+        }
+
+    }
+    pub fn set_value(&mut self, js_execution_context: &JsExecutionContext, value: JsValue) {
+        todo!();
+    }
 }
 
 

@@ -4,7 +4,7 @@ use super::js_console;
 use super::js_execution_context::{
     JsBuiltinFunction,
     JsExecutionContext,
-    JsValue
+    JsValue, JsVariable
 };
 use super::js_lexer::{JsToken, JsTokenWithLocation};
 
@@ -53,11 +53,14 @@ struct JsAstBinOp {
 }
 impl JsAstBinOp {
     fn execute(&self, js_execution_context: &mut JsExecutionContext) -> JsValue {
-        let left_val = self.left.execute(js_execution_context);
-        let right_val = self.right.execute(js_execution_context);
+        let mut left_val = self.left.execute(js_execution_context);
+        let mut right_val = self.right.execute(js_execution_context);
 
         match self.op {
             JsBinOp::Plus => {
+                left_val = left_val.deref(&js_execution_context);
+                right_val = right_val.deref(&js_execution_context);
+
                 match left_val {
                     JsValue::Number(left_number) => {
                         match right_val {
@@ -70,33 +73,73 @@ impl JsAstBinOp {
                     _ => { todo!() }
                 }
             },
-            JsBinOp::Minus => todo!(),
-            JsBinOp::Times => todo!(),
-            JsBinOp::Divide => todo!(),
-            JsBinOp::MemberLookup => {
+            JsBinOp::Minus => {
+                left_val = left_val.deref(&js_execution_context);
+                right_val = right_val.deref(&js_execution_context);
 
                 match left_val {
-                    JsValue::Object(object) => {
+                    JsValue::Number(left_number) => {
+                        match right_val {
+                            JsValue::Number(right_number) => {
+                                return JsValue::Number(left_number - right_number);
+                            },
+                            _ => { todo!() }
+                        }
+                    },
+                    _ => { todo!() }
+                }
+            },
+            JsBinOp::Times => {
+                left_val = left_val.deref(&js_execution_context);
+                right_val = right_val.deref(&js_execution_context);
+
+                match left_val {
+                    JsValue::Number(left_number) => {
+                        match right_val {
+                            JsValue::Number(right_number) => {
+                                return JsValue::Number(left_number * right_number);
+                            },
+                            _ => { todo!() }
+                        }
+                    },
+                    _ => { todo!() }
+                }
+            },
+            JsBinOp::Divide => {
+                left_val = left_val.deref(&js_execution_context);
+                right_val = right_val.deref(&js_execution_context);
+
+                match left_val {
+                    JsValue::Number(left_number) => {
+                        match right_val {
+                            JsValue::Number(right_number) => {
+                                return JsValue::Number(left_number / right_number);
+                            },
+                            _ => { todo!() }
+                        }
+                    },
+                    _ => { todo!() }
+                }
+            },
+            JsBinOp::PropertyAccess => {
+
+                //NOTE: with property access, we are not always evaluating the value of the resulting node, we are building a new variable, that we can
+                //      use later to look up the value. This is the case with for example "a.b". However, with "{'a': 3}.a", we _do_ compute a value
+
+                match left_val {
+                    JsValue::Variable(object_var) => {
 
                         match right_val {
-                            JsValue::String(member_name) => {
-                                let possible_member = object.members.get(&member_name);
-                                match possible_member {
-                                    Some(value) => {
-                                        return value.clone(); //TODO: cloning here is not nice, can we do better?
-                                    },
-                                    None =>  {
-                                        todo!(); //TODO: report an error in a good way
-                                    }
-                                }
+                            JsValue::Variable(member_var) => {
+                                return JsValue::Variable(JsVariable { name: member_var.name, object_var: Some(Rc::from(object_var)) })
                             }
                             _ => {
-                                todo!(); //TODO: report an error in a good way
+                                todo!();
                             }
                         }
                     },
                     _ => {
-                        todo!(); //TODO: report an error in a good way
+                        todo!();
                     }
                 }
             },
@@ -118,13 +161,16 @@ impl JsAstAssign {
             JsAstExpression::Variable(var) => {
                 //TODO: can we avoid cloning here? Assigning to something in a loop should not create new strings all the time
                 //      (we might want to track assignables other then by string, because we also need to assign to members of objects, see TODO there...)
+
+                //TODO: in the new idea this does not make sense, we need to use the set_value on the resulting variable to evaluateing the left side...
                 var.name.clone()
             },
             JsAstExpression::BinOp(operation) => {
                 match operation.op {
-                    JsBinOp::MemberLookup => {
+                    JsBinOp::PropertyAccess => {
                         //TODO: implementing this seems complicated, because we cant just call execute() on it, because we don't want the value
                         //      we want the adress. do we need to seperate lvalues from rvalues somehow?
+                        //      UPDATE: should now be possible, since we have variables treated a bit differently
                         todo!("member lookup in assignment not yet implemented");
                     },
                     _ => {
@@ -164,7 +210,7 @@ enum JsBinOp {
     Minus,
     Times,
     Divide,
-    MemberLookup, //this is the "." in object.member
+    PropertyAccess,
 }
 
 
@@ -173,13 +219,11 @@ struct JsAstVariable {
     name: String,
 }
 impl JsAstVariable {
-    fn execute(&self, js_execution_context: &mut JsExecutionContext) -> JsValue {
-        let possible_value = js_execution_context.get_var(&self.name);
-        if possible_value.is_some() {
-            return possible_value.unwrap().clone();  //TODO: can we do better than cloning here?
-        } else {
-            todo!();  //TODO: proper error handling here
-        }
+    fn execute(&self, _: &mut JsExecutionContext) -> JsValue {
+        return JsValue::Variable(JsVariable {
+            name: self.name.clone(),  //TODO: can we do better than cloning?
+            object_var: None
+        });
     }
 }
 
@@ -215,7 +259,10 @@ impl JsAstExpression {
                 return JsValue::String(string_literal.clone()); //TODO: do we want to make a new string ever time this expression is run?
             },
             JsAstExpression::FunctionCall(function_call) => {
-                let function = function_call.function_expression.execute(js_execution_context);
+                //TODO: all this code should be moved to the JsAstFunctionCall object
+
+                let mut function = function_call.function_expression.execute(js_execution_context);
+                function = function.deref(js_execution_context);
 
                 match function {
                     JsValue::Function(function) => {
@@ -225,6 +272,7 @@ impl JsAstExpression {
                                     let to_log = function_call.arguments.get(0); //TODO: handle there being to little or to many arguments
 
                                     let to_log = to_log.unwrap().execute(js_execution_context);
+                                    let to_log = to_log.deref(js_execution_context);
 
                                     let to_log = match to_log {
                                         JsValue::String(string) =>  { string }
@@ -232,6 +280,7 @@ impl JsAstExpression {
                                         JsValue::Boolean(_) => todo!(), //TODO: implement
                                         JsValue::Object(_) => todo!(), //TODO: implement
                                         JsValue::Function(_) => todo!(), //TODO: implement
+                                        JsValue::Variable(_) => todo!(), //TODO: implement
                                         JsValue::Undefined => { "undefined".to_owned() },
                                     };
 
@@ -241,6 +290,7 @@ impl JsAstExpression {
                                 #[cfg(test)] JsBuiltinFunction::TesterExport => {
                                     let data_ast = function_call.arguments.get(0);
                                     let data = data_ast.unwrap().execute(js_execution_context); //TODO: even for tests, we probably want to handle the unwrap here
+                                    let data = data.deref(js_execution_context);
                                     js_execution_context.export_test_data(data);
                                     return JsValue::Undefined;
                                 }
@@ -511,6 +561,14 @@ impl JsParserSliceIterator {
         }
         return None;
     }
+    fn find_last_token_idx(&self, tokens: &Vec<JsToken>, token_to_find: JsToken) -> Option<usize> {
+        for idx in (self.next_idx..(self.end_idx+1)).rev() {
+            if tokens[idx] == token_to_find {
+                return Some(idx);
+            }
+        }
+        return None;
+    }
     fn split_at(&mut self, split_idx: usize) -> Option<(JsParserSliceIterator, JsParserSliceIterator)> {
         //make 2 iterators from this iterator, starting from the current position of this iterator
 
@@ -709,8 +767,8 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
 
     /*  (precendece group 11)   + and -    */
     {
-        let optional_plus_idx = iterator.find_first_token_idx(&blocked_out_token_types, JsToken::Plus);
-        let optional_minus_idx = iterator.find_first_token_idx(&blocked_out_token_types, JsToken::Minus);
+        let optional_plus_idx = iterator.find_last_token_idx(&blocked_out_token_types, JsToken::Plus);
+        let optional_minus_idx = iterator.find_last_token_idx(&blocked_out_token_types, JsToken::Minus);
 
         let (operator, split_idx) = if optional_plus_idx.is_some() && optional_minus_idx.is_some() {
             if optional_plus_idx.unwrap() > optional_minus_idx.unwrap() {
@@ -746,8 +804,8 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
 
     /*  (precendece group 12)    * and /    */
     {
-        let optional_times_idx = iterator.find_first_token_idx(&blocked_out_token_types, JsToken::Star);
-        let optional_divide_idx = iterator.find_first_token_idx(&blocked_out_token_types, JsToken::ForwardSlash);
+        let optional_times_idx = iterator.find_last_token_idx(&blocked_out_token_types, JsToken::Star);
+        let optional_divide_idx = iterator.find_last_token_idx(&blocked_out_token_types, JsToken::ForwardSlash);
 
         let (operator, split_idx) = if optional_times_idx.is_some() && optional_divide_idx.is_some() {
             if optional_times_idx.unwrap() > optional_divide_idx.unwrap() {
@@ -781,7 +839,7 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
     }
 
 
-    /* (precendece group 17): the dot operator (member lookup) and function call  */
+    /* (precendece group 17): function call and PropertyAccess (dot operator and [])  */
     {
         if iterator.is_only_function_call(&blocked_out_token_types) {
             let call = parse_function_call(iterator, tokens);
@@ -791,29 +849,22 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
             return Some(JsAstExpression::FunctionCall(call.unwrap()));
         }
 
-        let optional_dot_idx = iterator.find_first_token_idx(&blocked_out_token_types, JsToken::Dot);
+        //TODO: implement the [] case
+
+        let optional_dot_idx = iterator.find_last_token_idx(&blocked_out_token_types, JsToken::Dot);
         if optional_dot_idx.is_some() {
             let (mut left_iter, mut right_iter) = iterator.split_at(optional_dot_idx.unwrap()).unwrap();
 
-
-            if right_iter.size() > 1 {
-                todo!();  //TODO: I think this is always an error, check if that is correct
-            }
-
-            let member_name = match right_iter.read_only_identifier(tokens) {
-                Some(name) => { name },
-                None => { todo!() }  //TODO: I think this is always an error, check if that is correct
-            };
-
             let left_ast = parse_expression(&mut left_iter, &tokens);
-            if left_ast.is_none() {
+            let right_ast = parse_expression(&mut right_iter, &tokens);
+            if left_ast.is_none() || right_ast.is_none() {
                 return None;
             }
 
             return Some(JsAstExpression::BinOp(JsAstBinOp{
-                op: JsBinOp::MemberLookup,
+                op: JsBinOp::PropertyAccess,
                 left: Rc::from(left_ast.unwrap()),
-                right: Rc::from(JsAstExpression::StringLiteral(member_name)),
+                right: Rc::from(right_ast.unwrap()),
             }));
         }
     }

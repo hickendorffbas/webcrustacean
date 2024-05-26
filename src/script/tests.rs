@@ -25,13 +25,13 @@ fn js_values_are_equal(one: &JsValue, two: &JsValue) -> bool {
         JsValue::Boolean(_) => todo!(),
         JsValue::Object(_) => todo!(),
         JsValue::Function(_) => todo!(),
-        JsValue::Variable(_) => todo!(),
         JsValue::Undefined => {
             match two {
                 JsValue::Undefined => { return true },
                 _ => { return false; }
             }
         },
+        JsValue::Address(_) => todo!(),
     }
 }
 

@@ -11,8 +11,9 @@ goals for 0.3.0:
               - make parse tests nicer by comparing json
                      - this works, but we need to make a generic function so we can have a nice way of having many tests
        - fix references in javascript. We have it a bit now with the JsValue::Variable, but that is not really references just yet
-              - something like a = b, with b being an object will not really work yet
-       - allow selection in the url bar, and select on first click
+              - they are *probably fixed correctly now, test by implementing object literals and assigning to members of those...
+
+	- allow selection in the url bar, and select on first click
 
 
 other things (later versions):

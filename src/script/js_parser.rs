@@ -4,7 +4,7 @@ use super::js_console;
 use super::js_execution_context::{
     JsBuiltinFunction,
     JsExecutionContext,
-    JsValue, JsVariable
+    JsValue
 };
 use super::js_lexer::{JsToken, JsTokenWithLocation};
 
@@ -15,13 +15,14 @@ pub struct Script {
 }
 impl Script {
     pub fn execute(&self, js_execution_context: &mut JsExecutionContext) {
-        //I might not want these methods and structs in the parser, maybe move them to the general mod.rs file?
+        //I might not want these methods and structs in the parser, maybe move them to the general mod.rs file? or better, in a ast.rs
         for statement in &self.statements {
             statement.execute(js_execution_context);
         }
 
     }
 }
+
 
 #[derive(Debug)]
 enum JsAstStatement {
@@ -45,6 +46,7 @@ impl JsAstStatement {
     }
 }
 
+
 #[derive(Debug)]
 struct JsAstBinOp {
     op: JsBinOp,
@@ -54,10 +56,11 @@ struct JsAstBinOp {
 impl JsAstBinOp {
     fn execute(&self, js_execution_context: &mut JsExecutionContext) -> JsValue {
         let mut left_val = self.left.execute(js_execution_context);
-        let mut right_val = self.right.execute(js_execution_context);
 
         match self.op {
             JsBinOp::Plus => {
+                let mut right_val = self.right.execute(js_execution_context);
+
                 left_val = left_val.deref(&js_execution_context);
                 right_val = right_val.deref(&js_execution_context);
 
@@ -74,6 +77,8 @@ impl JsAstBinOp {
                 }
             },
             JsBinOp::Minus => {
+                let mut right_val = self.right.execute(js_execution_context);
+
                 left_val = left_val.deref(&js_execution_context);
                 right_val = right_val.deref(&js_execution_context);
 
@@ -90,6 +95,8 @@ impl JsAstBinOp {
                 }
             },
             JsBinOp::Times => {
+                let mut right_val = self.right.execute(js_execution_context);
+
                 left_val = left_val.deref(&js_execution_context);
                 right_val = right_val.deref(&js_execution_context);
 
@@ -106,6 +113,8 @@ impl JsAstBinOp {
                 }
             },
             JsBinOp::Divide => {
+                let mut right_val = self.right.execute(js_execution_context);
+
                 left_val = left_val.deref(&js_execution_context);
                 right_val = right_val.deref(&js_execution_context);
 
@@ -122,26 +131,51 @@ impl JsAstBinOp {
                 }
             },
             JsBinOp::PropertyAccess => {
+                let property = match self.right.as_ref() {
+                    // when the right hand side of our accessor is an identifier, we don't execute, but just take its name as a string
+                    // this is because a.b is equivalent to a["b"]
+                    JsAstExpression::Identifier(ident) => { JsValue::String(ident.name.clone()) }
+                    _ => { self.right.execute(js_execution_context) }
+                };
 
-                //NOTE: with property access, we are not always evaluating the value of the resulting node, we are building a new variable, that we can
-                //      use later to look up the value. This is the case with for example "a.b". However, with "{'a': 3}.a", we _do_ compute a value
+                let object = JsValue::deref(left_val, js_execution_context);
 
-                match left_val {
-                    JsValue::Variable(object_var) => {
-
-                        match right_val {
-                            JsValue::Variable(member_var) => {
-                                return JsValue::Variable(JsVariable { name: member_var.name, object_var: Some(Rc::from(object_var)) })
-                            }
+                match object {
+                    JsValue::Object(object) => {
+                        match property {
+                            JsValue::String(property_value) => {
+                                match object.members.get(&property_value) {
+                                    Some(address) => { JsValue::Address(*address) },
+                                    None => {
+                                        //TODO: handle error
+                                        todo!()
+                                    }
+                                }
+                            },
                             _ => {
+                                //TODO: some of these are invalid, others (like number) are valid (for example for "x[3]")
                                 todo!();
                             }
                         }
+
                     },
                     _ => {
                         todo!();
                     }
                 }
+            },
+        }
+    }
+
+    fn build_var_path(&self, path: &mut Vec<String>) {
+        match self.op {
+            JsBinOp::Plus => todo!(),  //TODO: not sure yet if there is a valid case for this (there might be and we then need to execute())
+            JsBinOp::Minus => todo!(),  //TODO: not sure yet if there is a valid case for this (there might be and we then need to execute())
+            JsBinOp::Times => todo!(),  //TODO: not sure yet if there is a valid case for this (there might be and we then need to execute())
+            JsBinOp::Divide => todo!(),  //TODO: not sure yet if there is a valid case for this (there might be and we then need to execute())
+            JsBinOp::PropertyAccess => {
+                self.left.build_var_path(path);
+                self.right.build_var_path(path);
             },
         }
     }
@@ -156,50 +190,88 @@ struct JsAstAssign {
 impl JsAstAssign {
     fn execute(&self, js_execution_context: &mut JsExecutionContext) {
         let value = self.right.execute(js_execution_context);
+        let target_address = js_execution_context.add_new_value(value);
 
-        let var_name = match &self.left {
-            JsAstExpression::Variable(var) => {
-                //TODO: can we avoid cloning here? Assigning to something in a loop should not create new strings all the time
-                //      (we might want to track assignables other then by string, because we also need to assign to members of objects, see TODO there...)
+        let mut variable_path = Vec::new();
+        self.left.build_var_path(&mut variable_path);
 
-                //TODO: in the new idea this does not make sense, we need to use the set_value on the resulting variable to evaluateing the left side...
-                var.name.clone()
-            },
-            JsAstExpression::BinOp(operation) => {
-                match operation.op {
-                    JsBinOp::PropertyAccess => {
-                        //TODO: implementing this seems complicated, because we cant just call execute() on it, because we don't want the value
-                        //      we want the adress. do we need to seperate lvalues from rvalues somehow?
-                        //      UPDATE: should now be possible, since we have variables treated a bit differently
-                        todo!("member lookup in assignment not yet implemented");
-                    },
-                    _ => {
-                        //TODO: this should become a proper error
-                        panic!("we can only assign to a variable or object member");
+        let mut first = true;
+        let mut current_object_address = None;
+
+        for idx in 0..variable_path.len() {
+            let last = idx == variable_path.len() - 1;
+
+            if first {
+                if last {
+                    js_execution_context.update_variable(variable_path[idx].clone(), target_address);
+                } else {
+                    match js_execution_context.get_var_address(&variable_path[idx]) {
+                        Some(address) => {
+                            current_object_address = Some(*address);
+                        },
+                        None => {
+                            todo!();  //TODO: this is an error, var not found
+                        }
                     }
                 }
-            },
-            _ => {
-                //TODO: this should become a proper error
-                panic!("we can only assign to a variable or object member");
+
+                first = false;
+
+            } else {  //not the first element in the path, so we need to keep looking up members in objects
+
+                let object = js_execution_context.get_value(&current_object_address.unwrap());
+
+                if last {
+                    match object.unwrap() {
+                        JsValue::Object(ref mut obj) => {
+                            obj.members.insert(variable_path[idx].clone(), target_address);
+                        },
+                        _ => {
+                            todo!();  //TODO: are there valid cases here? Don't think so....
+                        }
+                    }
+                } else {
+
+                    match object.unwrap() {
+                        JsValue::Object(obj) => {
+                            let next_address = obj.members.get(&variable_path[idx]);
+
+                            match next_address {
+                                Some(address) => {
+                                    current_object_address = Some(*address);
+                                },
+                                None => {
+                                    todo!(); //TODO: report error that the member is not found
+                                }
+                            }
+
+                        },
+                        _ => {
+                            todo!();  //TODO: are there valid cases here? Don't think so....
+                        }
+                    }
+                }
             }
-        };
-
-
-        js_execution_context.set_var(var_name, value);
+        }
     }
 }
 
 
 #[derive(Debug)]
 struct JsAstDeclaration {
-    #[allow(dead_code)] variable: JsAstVariable, //TODO: use
-    #[allow(dead_code)] initial_value: Option<JsAstExpression>, //TODO: use
+    variable: JsAstIdentifier,
+    initial_value: Option<JsAstExpression>,
 }
 impl JsAstDeclaration {
-    fn execute(&self, _: &mut JsExecutionContext) {
-        //TODO: implement
-        todo!();
+    fn execute(&self, js_execution_context: &mut JsExecutionContext) {
+        let initial_value = if self.initial_value.is_some() {
+            self.initial_value.as_ref().unwrap().execute(js_execution_context)
+        } else {
+            JsValue::Undefined
+        };
+        let new_address = js_execution_context.add_new_value(initial_value);
+
+        js_execution_context.update_variable(self.variable.name.clone(), new_address);
     }
 }
 
@@ -215,15 +287,19 @@ enum JsBinOp {
 
 
 #[derive(Debug)]
-struct JsAstVariable {
+struct JsAstIdentifier {
     name: String,
 }
-impl JsAstVariable {
-    fn execute(&self, _: &mut JsExecutionContext) -> JsValue {
-        return JsValue::Variable(JsVariable {
-            name: self.name.clone(),  //TODO: can we do better than cloning?
-            object_var: None
-        });
+impl JsAstIdentifier {
+    fn execute(&self, js_execution_context: &mut JsExecutionContext) -> JsValue {
+        let opt_address = js_execution_context.get_var_address(&self.name);
+        if opt_address.is_some() {
+            return JsValue::Address(*opt_address.unwrap());
+        }
+        //TODO: report a proper error (variable not found)
+        //      this one might be a bit more complicated if we are assigning the variable for the first time, we might need to pass a parameter
+        //      whether or not to create the varibale if it does not exist
+        todo!();
     }
 }
 
@@ -234,13 +310,13 @@ enum JsAstExpression {
     NumericLiteral(String),
     StringLiteral(String),
     FunctionCall(JsAstFunctionCall),
-    Variable(JsAstVariable)
+    Identifier(JsAstIdentifier)
 }
 impl JsAstExpression {
     fn execute(&self, js_execution_context: &mut JsExecutionContext) -> JsValue {
         match self {
             JsAstExpression::BinOp(binop) => { return binop.execute(js_execution_context) },
-            JsAstExpression::Variable(variable) => { return variable.execute(js_execution_context) },
+            JsAstExpression::Identifier(variable) => { return JsValue::deref(variable.execute(js_execution_context), js_execution_context) },
 
             JsAstExpression::NumericLiteral(numeric_literal) => {
                 //TODO: we might want to cache the JsValue somehow, and we need to support more numeric types...
@@ -280,8 +356,8 @@ impl JsAstExpression {
                                         JsValue::Boolean(_) => todo!(), //TODO: implement
                                         JsValue::Object(_) => todo!(), //TODO: implement
                                         JsValue::Function(_) => todo!(), //TODO: implement
-                                        JsValue::Variable(_) => todo!(), //TODO: implement
                                         JsValue::Undefined => { "undefined".to_owned() },
+                                        JsValue::Address(_) => todo!(), //TODO: implement
                                     };
 
                                     js_console::print(to_log.as_str());
@@ -306,6 +382,17 @@ impl JsAstExpression {
                     },
                 }
             },
+        }
+    }
+
+    fn build_var_path(&self, path: &mut Vec<String>) {
+        match self {
+            JsAstExpression::BinOp(binop) => { binop.build_var_path(path) },
+            JsAstExpression::Identifier(ident) => { path.push(ident.name.clone()) },
+            _ => {
+                //TODO: I think this should always be an error
+                todo!();
+            }
         }
     }
 }
@@ -658,7 +745,7 @@ fn parse_declaration(statement_iterator: &mut JsParserSliceIterator, tokens: &Ve
 
         let possible_ident = left.read_only_identifier(tokens);
         let variable = if possible_ident.is_some() {
-            JsAstVariable { name: possible_ident.unwrap() }
+            JsAstIdentifier { name: possible_ident.unwrap() }
         } else {
             panic!("Expected only an identifier after var decl");
         };
@@ -676,7 +763,7 @@ fn parse_declaration(statement_iterator: &mut JsParserSliceIterator, tokens: &Ve
 
     let possible_ident = statement_iterator.read_only_identifier(tokens);
     let variable = if possible_ident.is_some() {
-        JsAstVariable { name: possible_ident.unwrap() }
+        JsAstIdentifier { name: possible_ident.unwrap() }
     } else {
         panic!("Expected only an identifier after var decl");
     };
@@ -881,7 +968,7 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
 
     let possible_ident = iterator.read_only_identifier(tokens);
     if possible_ident.is_some() {
-        return Some(JsAstExpression::Variable(JsAstVariable { name: possible_ident.unwrap() }));  //TODO: is an identifier always a variable in this case??
+        return Some(JsAstExpression::Identifier(JsAstIdentifier{ name: possible_ident.unwrap() }));
     }
 
     let possible_literal_regex = iterator.read_only_literal_regex(tokens);

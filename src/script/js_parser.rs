@@ -1,9 +1,11 @@
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use super::js_console;
 use super::js_execution_context::{
     JsBuiltinFunction,
     JsExecutionContext,
+    JsObject,
     JsValue
 };
 use super::js_lexer::{JsToken, JsTokenWithLocation};
@@ -310,13 +312,15 @@ enum JsAstExpression {
     NumericLiteral(String),
     StringLiteral(String),
     FunctionCall(JsAstFunctionCall),
-    Identifier(JsAstIdentifier)
+    Identifier(JsAstIdentifier),
+    ObjectLiteral(JsAstObjectLiteral),
 }
 impl JsAstExpression {
     fn execute(&self, js_execution_context: &mut JsExecutionContext) -> JsValue {
         match self {
             JsAstExpression::BinOp(binop) => { return binop.execute(js_execution_context) },
             JsAstExpression::Identifier(variable) => { return JsValue::deref(variable.execute(js_execution_context), js_execution_context) },
+            JsAstExpression::ObjectLiteral(obj) => { return obj.execute(js_execution_context) },
 
             JsAstExpression::NumericLiteral(numeric_literal) => {
                 //TODO: we might want to cache the JsValue somehow, and we need to support more numeric types...
@@ -406,6 +410,38 @@ struct JsAstFunctionCall {
 
 
 #[derive(Debug)]
+struct JsAstObjectLiteral {
+    //NOTE: for now, we only support strings as member names, but we keep expressions here as key, because eventually we need to support
+    //      computed property names (using square brackets)
+    members: Vec<(JsAstExpression, JsAstExpression)>,
+}
+impl JsAstObjectLiteral {
+    fn execute(&self, js_execution_context: &mut JsExecutionContext) -> JsValue {
+        let mut members = HashMap::new();
+
+        for (key_ast, value_ast) in self.members.iter() {
+
+            match key_ast.execute(js_execution_context) {
+                JsValue::String(property_name) => {
+
+                    let value = value_ast.execute(js_execution_context);
+                    let address = js_execution_context.add_new_value(value);
+
+
+                    members.insert(property_name, address);
+                },
+                _ => {
+                    todo!(); //TODO: this should be an error
+                }
+            }
+
+        }
+        return JsValue::Object(JsObject { members });
+    }
+}
+
+
+#[derive(Debug)]
 struct JsParserSliceIterator {
     next_idx: usize,
     end_idx: usize,  //end is inclusive
@@ -413,9 +449,6 @@ struct JsParserSliceIterator {
 impl JsParserSliceIterator {
     fn has_next(&self) -> bool {
         return self.next_idx <= self.end_idx;
-    }
-    fn size(&self) -> usize {
-        return (self.end_idx - self.next_idx) + 1;
     }
     fn move_after_next_non_whitespace(&mut self, tokens: &Vec<JsTokenWithLocation>) -> bool {
         let mut temp_next = self.next_idx;
@@ -573,6 +606,37 @@ impl JsParserSliceIterator {
         }
 
     }
+    fn is_only_object_literal(&mut self, blocked_tokens: &Vec<JsToken>) -> bool {
+        let mut temp_next = self.next_idx;
+        let mut in_object = false;
+        let mut seen_end_of_object = false;
+
+        loop {
+            if temp_next > self.end_idx {
+                if seen_end_of_object {
+                    return true;
+                }
+                return false;
+            }
+
+            match &blocked_tokens[temp_next] {
+                JsToken::Whitespace | JsToken::Newline => { },
+                JsToken::OpenBrace => {
+                    in_object = true;
+                }
+                JsToken::CloseBrace => {
+                    in_object = false;
+                    seen_end_of_object = true;
+                }
+                _ => {
+                    if !in_object || seen_end_of_object {
+                        return false;
+                    }
+                }
+            }
+            temp_next += 1;
+        }
+    }
     fn is_only_function_call(&self, blocked_tokens: &Vec<JsToken>) -> bool {
         let mut temp_next = self.next_idx;
 
@@ -606,14 +670,14 @@ impl JsParserSliceIterator {
             temp_next += 1;
         }
     }
-    fn split_and_advance_until_next_token(&mut self, tokens: &Vec<JsTokenWithLocation>, token_to_find: JsToken) -> Option<JsParserSliceIterator> {
+    fn split_and_advance_until_next_token(&mut self, tokens: &Vec<JsToken>, token_to_find: JsToken) -> Option<JsParserSliceIterator> {
         let mut size = 1;
         loop {
             let potential_end_idx = self.next_idx + (size - 1);
             if potential_end_idx > self.end_idx { return None; }
 
             let ending_token = &tokens[potential_end_idx];
-            if ending_token.token == token_to_find {
+            if *ending_token == token_to_find {
                 let new_start_idx = self.next_idx;
                 self.next_idx += size;
 
@@ -640,13 +704,25 @@ impl JsParserSliceIterator {
             split_idx += 1;
         }
     }
-    fn find_first_token_idx(&self, tokens: &Vec<JsToken>, token_to_find: JsToken) -> Option<usize> {
-        for idx in self.next_idx..(self.end_idx+1) {
-            if tokens[idx] == token_to_find {
-                return Some(idx);
+    fn build_iterator_for_blocked_out_tokens(&self, blocked_tokens: &Vec<JsToken>, open_token: JsToken, close_token: JsToken) -> Option<JsParserSliceIterator> {
+        let mut temp_idx = self.next_idx;
+        let mut first_idx = 0;
+        let mut first_seen = false;
+
+        loop {
+            if temp_idx > self.end_idx { return None; }
+
+            if blocked_tokens[temp_idx] == open_token {
+                first_idx = temp_idx + 1;
+                first_seen = true;
             }
+            if blocked_tokens[temp_idx] == close_token {
+                if !first_seen { return None }
+                return Some(JsParserSliceIterator { next_idx: first_idx, end_idx: temp_idx - 1} );
+            }
+
+            temp_idx += 1;
         }
-        return None;
     }
     fn find_last_token_idx(&self, tokens: &Vec<JsToken>, token_to_find: JsToken) -> Option<usize> {
         for idx in (self.next_idx..(self.end_idx+1)).rev() {
@@ -681,11 +757,15 @@ pub fn parse_js(tokens: &Vec<JsTokenWithLocation>) -> Script {
         next_idx: 0,
     };
 
+    let token_types = tokens.iter().map(|token| token.token.clone()).collect::<Vec<_>>();
+    let blocked_out_token_types = block_out_token_types(&mut token_iterator, &token_types);
+
+
     let mut statements = Vec::new();
 
     while token_iterator.has_next() {
         //TODO: if the last statement doesn't end with a semicolon we ignore it, we should fix that via semicolon insertion (also insert one at the end)
-        let statement_iterator = token_iterator.split_and_advance_until_next_token(tokens, JsToken::Semicolon);
+        let statement_iterator = token_iterator.split_and_advance_until_next_token(&blocked_out_token_types, JsToken::Semicolon);
         if statement_iterator.is_some() {
             if statement_iterator.as_ref().unwrap().has_next_non_whitespace(&tokens) {
                 let stat = parse_statement(&mut statement_iterator.unwrap(), tokens);
@@ -702,9 +782,10 @@ pub fn parse_js(tokens: &Vec<JsTokenWithLocation>) -> Script {
 }
 
 
-fn parse_function_call(function_iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWithLocation>) -> Option<JsAstFunctionCall> {
+fn parse_function_call(function_iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWithLocation>,
+                       blocked_out_token_types: &Vec<JsToken>) -> Option<JsAstFunctionCall> {
 
-    let function_expression_iterator = function_iterator.split_and_advance_until_next_token(tokens, JsToken::OpenParenthesis);
+    let function_expression_iterator = function_iterator.split_and_advance_until_next_token(&blocked_out_token_types, JsToken::OpenParenthesis);
     let function_expression = parse_expression(&mut function_expression_iterator.unwrap(), tokens);
     if function_expression.is_none() {
         return None;
@@ -713,7 +794,7 @@ fn parse_function_call(function_iterator: &mut JsParserSliceIterator, tokens: &V
     let mut arguments = Vec::new();
 
     while function_iterator.has_next() {
-        let argument_iterator = function_iterator.split_and_advance_until_next_token(tokens, JsToken::Comma);
+        let argument_iterator = function_iterator.split_and_advance_until_next_token(&blocked_out_token_types, JsToken::Comma);
         if argument_iterator.is_some() {
             let expression = parse_expression(&mut argument_iterator.unwrap(), tokens);
             if expression.is_none() {
@@ -722,7 +803,7 @@ fn parse_function_call(function_iterator: &mut JsParserSliceIterator, tokens: &V
             arguments.push(expression.unwrap());
 
         } else {
-            let final_argument_iterator = function_iterator.split_and_advance_until_next_token(tokens, JsToken::CloseParenthesis);
+            let final_argument_iterator = function_iterator.split_and_advance_until_next_token(&blocked_out_token_types, JsToken::CloseParenthesis);
             let expression = parse_expression(&mut final_argument_iterator.unwrap(), tokens);
             if expression.is_none() {
                 return None;
@@ -929,7 +1010,7 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
     /* (precendece group 17): function call and PropertyAccess (dot operator and [])  */
     {
         if iterator.is_only_function_call(&blocked_out_token_types) {
-            let call = parse_function_call(iterator, tokens);
+            let call = parse_function_call(iterator, tokens, &blocked_out_token_types);
             if call.is_none() {
                 return None;
             }
@@ -966,6 +1047,14 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
         return Some(JsAstExpression::StringLiteral(possible_literal_string.unwrap()));
     }
 
+    if iterator.is_only_object_literal(&blocked_out_token_types) {
+        let parsed_object = parse_object_literal(iterator, tokens, &blocked_out_token_types);
+        if parsed_object.is_none() {
+            return None;
+        }
+        return Some(JsAstExpression::ObjectLiteral(parsed_object.unwrap()));
+    }
+
     let possible_ident = iterator.read_only_identifier(tokens);
     if possible_ident.is_some() {
         return Some(JsAstExpression::Identifier(JsAstIdentifier{ name: possible_ident.unwrap() }));
@@ -979,4 +1068,57 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
 
     js_console::log_js_error("unparsable token stream found!"); //TODO: add information about line number, char index and maybe part of the text?
     return None;
+}
+
+
+fn parse_object_literal(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWithLocation>,
+                        blocked_out_token_types: &Vec<JsToken>) -> Option<JsAstObjectLiteral> {
+    let mut object_properties = Vec::new();
+
+    let mut iterator = iterator.build_iterator_for_blocked_out_tokens(blocked_out_token_types, JsToken::OpenBrace, JsToken::CloseBrace).unwrap();
+    let token_types = tokens.iter().map(|token| token.token.clone()).collect::<Vec<_>>();
+    let blocked_out_token_types = block_out_token_types(&mut iterator, &token_types);
+
+    let mut last_element_seen = false;
+    while !last_element_seen {
+
+        let possible_property_iterator = iterator.split_and_advance_until_next_token(&blocked_out_token_types, JsToken::Comma);
+
+        let mut property_iterator = if possible_property_iterator.is_some() {
+            possible_property_iterator.unwrap()
+        } else {
+            last_element_seen = true;
+            JsParserSliceIterator { next_idx: iterator.next_idx, end_idx: iterator.end_idx }
+        };
+
+        let mut property_key_iterator = property_iterator.split_and_advance_until_next_token(&blocked_out_token_types, JsToken::Colon).unwrap();
+
+        let key_expression = {
+            let possible_literal_key = property_key_iterator.read_only_literal_string(tokens);
+            if possible_literal_key.is_some() {
+                JsAstExpression::StringLiteral(possible_literal_key.unwrap())
+            } else {
+                // An identifier seen in an object literal is not an identifier, but a literal string without quotes
+                let possible_ident = property_key_iterator.read_only_identifier(tokens);
+                if possible_ident.is_some() {
+                    JsAstExpression::StringLiteral(possible_ident.unwrap())
+                } else {
+                    todo!();  //TODO: give an error
+                }
+            }
+        };
+
+        let value_expression = parse_expression(&mut property_iterator, tokens);
+
+        let value_expression = match value_expression {
+            Some(ast) => {
+                ast
+            },
+            _ => { return None },
+        };
+
+        object_properties.push( (key_expression, value_expression) );
+    }
+
+    return Some(JsAstObjectLiteral { members: object_properties });
 }

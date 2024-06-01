@@ -74,10 +74,6 @@ impl JsExecutionContext {
         return self.values.get_mut(address);
     }
 
-    pub fn update_value(&mut self, address: usize, value: JsValue) {
-        self.values.insert(address, value);
-    }
-
     pub fn update_variable(&mut self, name: String, address: usize) {
         self.variables.insert(name, address);
     }

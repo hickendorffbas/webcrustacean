@@ -61,3 +61,19 @@ fn test_binop_associativity() {
 
     assert!(js_values_are_equal(&js_execution_context.get_last_exported_test_data(), &JsValue::Number(8)));
 }
+
+
+#[test]
+fn test_literal_object_notation() {
+    let code = r#"x = {"a": 4, "b": 2};
+                  x.a = x.a + 1;
+                  x.c = 5;
+                  tester.export(x.a + x.b + x.c);"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens);
+    let mut js_execution_context = JsExecutionContext::new();
+    script.execute(&mut js_execution_context);
+
+    assert!(js_values_are_equal(&js_execution_context.get_last_exported_test_data(), &JsValue::Number(12)));
+}

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use super::js_parser::Script;
+use super::js_ast::Script;
 
 
 pub type JsAddress = usize;

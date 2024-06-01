@@ -7,7 +7,7 @@ use image::DynamicImage;
 
 use crate::network::url::Url;
 use crate::resource_loader::{self, ResourceThreadPool, ResourceRequestJobTracker};
-use crate::script::js_parser::Script;
+use crate::script::js_ast::Script;
 use crate::style::StyleContext;
 
 

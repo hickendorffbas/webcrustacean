@@ -313,7 +313,7 @@ pub fn parse_js(tokens: &Vec<JsTokenWithLocation>) -> Script {
     //TODO: we need to do semicolon insertion (see rules on https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Lexical_grammar#automatic_semicolon_insertion)
 
     if tokens.len() == 0 {
-        return Script { statements: Vec::new() };
+        return Vec::new();
     }
 
     let mut token_iterator = JsParserSliceIterator {
@@ -342,7 +342,7 @@ pub fn parse_js(tokens: &Vec<JsTokenWithLocation>) -> Script {
         }
     }
 
-    return Script { statements };
+    return statements;
 }
 
 
@@ -630,7 +630,9 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
         return Some(JsAstExpression::StringLiteral(String::new()));
     }
 
-    js_console::log_js_error("unparsable token stream found!"); //TODO: add information about line number, char index and maybe part of the text?
+    let line = tokens[iterator.next_idx].line;
+    let char = tokens[iterator.next_idx].character;
+    js_console::log_js_error(format!("unparsable token stream found starting at {line}::{char}").as_str());
     return None;
 }
 

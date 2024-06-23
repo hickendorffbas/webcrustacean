@@ -86,7 +86,7 @@ pub struct ElementDomNode {
     pub image: Option<Rc<DynamicImage>>,
     pub img_job_tracker: Option<ResourceRequestJobTracker<DynamicImage>>,
 
-    pub scripts: Option<Vec<Script>>,
+    pub scripts: Option<Vec<Rc<Script>>>,
 }
 impl ElementDomNode {
     pub fn get_attribute_value(&self, attribute_name: &str) -> Option<String> {

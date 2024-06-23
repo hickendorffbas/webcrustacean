@@ -4,24 +4,14 @@ use std::rc::Rc;
 use super::js_console;
 use super::js_execution_context::{
     JsBuiltinFunction,
-    JsExecutionContext,
+    JsError,
     JsObject,
-    JsValue
+    JsValue,
 };
+use super::js_interpreter::JsInterpreter;
 
 
-#[derive(Debug)]
-pub struct Script {
-    pub statements: Vec<JsAstStatement>,
-}
-impl Script {
-    pub fn execute(&self, js_execution_context: &mut JsExecutionContext) {
-        for statement in &self.statements {
-            statement.execute(js_execution_context);
-        }
-
-    }
-}
+pub type Script = Vec<JsAstStatement>;
 
 
 #[derive(Debug)]
@@ -31,16 +21,16 @@ pub enum JsAstStatement {
     Declaration(JsAstDeclaration),
 }
 impl JsAstStatement {
-    fn execute(&self, js_execution_context: &mut JsExecutionContext) {
+    pub fn execute(&self, js_interpreter: &mut JsInterpreter) {
         match self {
             JsAstStatement::Expression(expression) => {
-                let _ = expression.execute(js_execution_context);
+                let _ = expression.execute(js_interpreter);
             },
             JsAstStatement::Assign(assign) => {
-                assign.execute(js_execution_context)
+                assign.execute(js_interpreter)
             },
             JsAstStatement::Declaration(declaration) => {
-                declaration.execute(js_execution_context)
+                declaration.execute(js_interpreter)
             },
         }
     }
@@ -54,15 +44,15 @@ pub struct JsAstBinOp {
     pub right: Rc<JsAstExpression>,
 }
 impl JsAstBinOp {
-    fn execute(&self, js_execution_context: &mut JsExecutionContext) -> JsValue {
-        let mut left_val = self.left.execute(js_execution_context);
+    fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
+        let mut left_val = self.left.execute(js_interpreter);
 
         match self.op {
             JsBinOp::Plus => {
-                let mut right_val = self.right.execute(js_execution_context);
+                let mut right_val = self.right.execute(js_interpreter);
 
-                left_val = left_val.deref(&js_execution_context);
-                right_val = right_val.deref(&js_execution_context);
+                left_val = left_val.deref(js_interpreter);
+                right_val = right_val.deref(js_interpreter);
 
                 match left_val {
                     JsValue::Number(left_number) => {
@@ -77,10 +67,10 @@ impl JsAstBinOp {
                 }
             },
             JsBinOp::Minus => {
-                let mut right_val = self.right.execute(js_execution_context);
+                let mut right_val = self.right.execute(js_interpreter);
 
-                left_val = left_val.deref(&js_execution_context);
-                right_val = right_val.deref(&js_execution_context);
+                left_val = left_val.deref(js_interpreter);
+                right_val = right_val.deref(js_interpreter);
 
                 match left_val {
                     JsValue::Number(left_number) => {
@@ -95,10 +85,10 @@ impl JsAstBinOp {
                 }
             },
             JsBinOp::Times => {
-                let mut right_val = self.right.execute(js_execution_context);
+                let mut right_val = self.right.execute(js_interpreter);
 
-                left_val = left_val.deref(&js_execution_context);
-                right_val = right_val.deref(&js_execution_context);
+                left_val = left_val.deref(js_interpreter);
+                right_val = right_val.deref(js_interpreter);
 
                 match left_val {
                     JsValue::Number(left_number) => {
@@ -113,10 +103,10 @@ impl JsAstBinOp {
                 }
             },
             JsBinOp::Divide => {
-                let mut right_val = self.right.execute(js_execution_context);
+                let mut right_val = self.right.execute(js_interpreter);
 
-                left_val = left_val.deref(&js_execution_context);
-                right_val = right_val.deref(&js_execution_context);
+                left_val = left_val.deref(js_interpreter);
+                right_val = right_val.deref(js_interpreter);
 
                 match left_val {
                     JsValue::Number(left_number) => {
@@ -135,10 +125,10 @@ impl JsAstBinOp {
                     // when the right hand side of our accessor is an identifier, we don't execute, but just take its name as a string
                     // this is because a.b is equivalent to a["b"]
                     JsAstExpression::Identifier(ident) => { JsValue::String(ident.name.clone()) }
-                    _ => { self.right.execute(js_execution_context) }
+                    _ => { self.right.execute(js_interpreter) }
                 };
 
-                let object = JsValue::deref(left_val, js_execution_context);
+                let object = JsValue::deref(left_val, js_interpreter);
 
                 match object {
                     JsValue::Object(object) => {
@@ -188,9 +178,14 @@ pub struct JsAstAssign {
     pub right: JsAstExpression,
 }
 impl JsAstAssign {
-    fn execute(&self, js_execution_context: &mut JsExecutionContext) {
-        let value = self.right.execute(js_execution_context);
-        let target_address = js_execution_context.add_new_value(value);
+    fn execute(&self, js_interpreter: &mut JsInterpreter) {
+        let value = self.right.execute(js_interpreter);
+
+        //TODO: not all actions might need to be in the current stack frame. Some might be globals, or from outer scopes
+        let current_context = js_interpreter.context_stack.iter_mut().last().unwrap();
+
+
+        let target_address = current_context.add_new_value(value);
 
         let mut variable_path = Vec::new();
         self.left.build_var_path(&mut variable_path);
@@ -203,9 +198,9 @@ impl JsAstAssign {
 
             if first {
                 if last {
-                    js_execution_context.update_variable(variable_path[idx].clone(), target_address);
+                    current_context.update_variable(variable_path[idx].clone(), target_address);
                 } else {
-                    match js_execution_context.get_var_address(&variable_path[idx]) {
+                    match current_context.get_var_address(&variable_path[idx]) {
                         Some(address) => {
                             current_object_address = Some(*address);
                         },
@@ -219,7 +214,7 @@ impl JsAstAssign {
 
             } else {  //not the first element in the path, so we need to keep looking up members in objects
 
-                let object = js_execution_context.get_value(&current_object_address.unwrap());
+                let object = current_context.get_value(&current_object_address.unwrap());
 
                 if last {
                     match object.unwrap() {
@@ -263,15 +258,16 @@ pub struct JsAstDeclaration {
     pub initial_value: Option<JsAstExpression>,
 }
 impl JsAstDeclaration {
-    fn execute(&self, js_execution_context: &mut JsExecutionContext) {
+    fn execute(&self, js_interpreter: &mut JsInterpreter) {
         let initial_value = if self.initial_value.is_some() {
-            self.initial_value.as_ref().unwrap().execute(js_execution_context)
+            self.initial_value.as_ref().unwrap().execute(js_interpreter)
         } else {
             JsValue::Undefined
         };
-        let new_address = js_execution_context.add_new_value(initial_value);
+        let current_context = js_interpreter.context_stack.iter_mut().last().unwrap();
+        let new_address = current_context.add_new_value(initial_value);
 
-        js_execution_context.update_variable(self.variable.name.clone(), new_address);
+        current_context.update_variable(self.variable.name.clone(), new_address);
     }
 }
 
@@ -291,15 +287,15 @@ pub struct JsAstIdentifier {
     pub name: String,
 }
 impl JsAstIdentifier {
-    fn execute(&self, js_execution_context: &mut JsExecutionContext) -> JsValue {
-        let opt_address = js_execution_context.get_var_address(&self.name);
+    fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
+        let opt_address = js_interpreter.get_var_address(&self.name);
         if opt_address.is_some() {
             return JsValue::Address(*opt_address.unwrap());
         }
-        //TODO: report a proper error (variable not found)
-        //      this one might be a bit more complicated if we are assigning the variable for the first time, we might need to pass a parameter
-        //      whether or not to create the varibale if it does not exist
-        todo!();
+        js_interpreter.set_error(JsError::ReferenceError);
+        js_console::log_js_error(format!("variable not found: {}", self.name).as_str()); //TODO: eventually we want to trigger the logging of the error
+                                                                                         //      from setting it (so we can also show stack etc.)
+        return JsValue::Undefined;
     }
 }
 
@@ -314,11 +310,11 @@ pub enum JsAstExpression {
     ObjectLiteral(JsAstObjectLiteral),
 }
 impl JsAstExpression {
-    fn execute(&self, js_execution_context: &mut JsExecutionContext) -> JsValue {
+    fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
         match self {
-            JsAstExpression::BinOp(binop) => { return binop.execute(js_execution_context) },
-            JsAstExpression::Identifier(variable) => { return JsValue::deref(variable.execute(js_execution_context), js_execution_context) },
-            JsAstExpression::ObjectLiteral(obj) => { return obj.execute(js_execution_context) },
+            JsAstExpression::BinOp(binop) => { return binop.execute(js_interpreter) },
+            JsAstExpression::Identifier(variable) => { return JsValue::deref(variable.execute(js_interpreter), js_interpreter) },
+            JsAstExpression::ObjectLiteral(obj) => { return obj.execute(js_interpreter) },
 
             JsAstExpression::NumericLiteral(numeric_literal) => {
                 //TODO: we might want to cache the JsValue somehow, and we need to support more numeric types...
@@ -339,8 +335,8 @@ impl JsAstExpression {
             JsAstExpression::FunctionCall(function_call) => {
                 //TODO: all this code should be moved to the JsAstFunctionCall object
 
-                let mut function = function_call.function_expression.execute(js_execution_context);
-                function = function.deref(js_execution_context);
+                let mut function = function_call.function_expression.execute(js_interpreter);
+                function = function.deref(js_interpreter);
 
                 match function {
                     JsValue::Function(function) => {
@@ -349,8 +345,8 @@ impl JsAstExpression {
                                 JsBuiltinFunction::ConsoleLog => {
                                     let to_log = function_call.arguments.get(0); //TODO: handle there being to little or to many arguments
 
-                                    let to_log = to_log.unwrap().execute(js_execution_context);
-                                    let to_log = to_log.deref(js_execution_context);
+                                    let to_log = to_log.unwrap().execute(js_interpreter);
+                                    let to_log = to_log.deref(js_interpreter);
 
                                     let to_log = match to_log {
                                         JsValue::String(string) =>  { string }
@@ -367,9 +363,9 @@ impl JsAstExpression {
                                 },
                                 #[cfg(test)] JsBuiltinFunction::TesterExport => {
                                     let data_ast = function_call.arguments.get(0);
-                                    let data = data_ast.unwrap().execute(js_execution_context); //TODO: even for tests, we probably want to handle the unwrap here
-                                    let data = data.deref(js_execution_context);
-                                    js_execution_context.export_test_data(data);
+                                    let data = data_ast.unwrap().execute(js_interpreter); //TODO: even for tests, we probably want to handle the unwrap here
+                                    let data = data.deref(js_interpreter);
+                                    js_interpreter.export_test_data(data);
                                     return JsValue::Undefined;
                                 }
                             }
@@ -414,16 +410,17 @@ pub struct JsAstObjectLiteral {
     pub members: Vec<(JsAstExpression, JsAstExpression)>,
 }
 impl JsAstObjectLiteral {
-    fn execute(&self, js_execution_context: &mut JsExecutionContext) -> JsValue {
+    fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
         let mut members = HashMap::new();
 
         for (key_ast, value_ast) in self.members.iter() {
 
-            match key_ast.execute(js_execution_context) {
+            match key_ast.execute(js_interpreter) {
                 JsValue::String(property_name) => {
 
-                    let value = value_ast.execute(js_execution_context);
-                    let address = js_execution_context.add_new_value(value);
+                    let value = value_ast.execute(js_interpreter);
+                    let current_context = js_interpreter.context_stack.iter_mut().last().unwrap();
+                    let address = current_context.add_new_value(value);
 
 
                     members.insert(property_name, address);

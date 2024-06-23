@@ -198,8 +198,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
             HtmlToken::Script(content) => {
                 let js_tokens = js_lexer::lex_js(content, current_token.line, current_token.character);
                 let script = js_parser::parse_js(&js_tokens);
-                scripts.push(script);
-                scripts.iter().last().unwrap().execute(js_execution_context);
+                scripts.push(Rc::from(script));
             },
         }
 

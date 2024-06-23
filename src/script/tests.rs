@@ -1,8 +1,8 @@
-use super::{
-    js_execution_context::{JsExecutionContext, JsValue},
-    js_lexer,
-    js_parser
-};
+use crate::script::js_interpreter::JsInterpreter;
+
+use super::js_execution_context::JsValue;
+use super::js_lexer;
+use super::js_parser;
 
 
 fn js_values_are_equal(one: &JsValue, two: &JsValue) -> bool {
@@ -43,10 +43,11 @@ fn test_basic_assignment_and_export() {
 
     let tokens = js_lexer::lex_js(code, 1, 1);
     let script = js_parser::parse_js(&tokens);
-    let mut js_execution_context = JsExecutionContext::new();
-    script.execute(&mut js_execution_context);
 
-    assert!(js_values_are_equal(&js_execution_context.get_last_exported_test_data(), &JsValue::Number(7)));
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(7)));
 }
 
 
@@ -56,10 +57,10 @@ fn test_binop_associativity() {
 
     let tokens = js_lexer::lex_js(code, 1, 1);
     let script = js_parser::parse_js(&tokens);
-    let mut js_execution_context = JsExecutionContext::new();
-    script.execute(&mut js_execution_context);
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
 
-    assert!(js_values_are_equal(&js_execution_context.get_last_exported_test_data(), &JsValue::Number(8)));
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(8)));
 }
 
 
@@ -72,8 +73,8 @@ fn test_literal_object_notation() {
 
     let tokens = js_lexer::lex_js(code, 1, 1);
     let script = js_parser::parse_js(&tokens);
-    let mut js_execution_context = JsExecutionContext::new();
-    script.execute(&mut js_execution_context);
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
 
-    assert!(js_values_are_equal(&js_execution_context.get_last_exported_test_data(), &JsValue::Number(12)));
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(12)));
 }

@@ -24,6 +24,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use arboard::Clipboard;
+use script::js_interpreter;
 use sdl2::{
     event::Event as SdlEvent,
     keyboard::{Keycode, Mod as SdlKeyMod},
@@ -136,6 +137,11 @@ fn finish_navigate(url: &Url, ui_state: &mut UIState, page_content: &String, doc
                    platform: &mut Platform, resource_thread_pool: &mut ResourceThreadPool) {
     let lex_result = html_lexer::lex_html(&page_content);
     document.replace(html_parser::parse(lex_result, url, resource_thread_pool, &mut JsExecutionContext::new()));
+
+    //for now we run scripts here, because we don't want to always run them fully in the main loop, and we need to have the DOM before we run
+    //but I'm not sure this is really the correct place
+    let mut interpreter = js_interpreter::JsInterpreter::new();
+    interpreter.run_scripts_in_document(document);
 
     #[cfg(feature="timings")] let start_layout_instant = Instant::now();
     full_layout.replace(layout::build_full_layout(&document.borrow(), &platform.font_context, &url));

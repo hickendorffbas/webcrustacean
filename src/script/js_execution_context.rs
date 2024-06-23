@@ -3,6 +3,7 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use super::js_ast::Script;
+use super::js_interpreter::JsInterpreter;
 
 
 pub type JsAddress = usize;
@@ -15,10 +16,13 @@ pub fn get_next_js_value_address() -> JsAddress { NEXT_JS_VALUE_ADDRESS.fetch_ad
 pub struct JsExecutionContext {
     variables: HashMap<String, JsAddress>,
     values: HashMap<JsAddress, JsValue>,
-    #[cfg(test)] pub last_test_data: Option<JsValue>,
 }
 impl JsExecutionContext {
     pub fn new() -> JsExecutionContext {
+        //TODO: I don't think we need to create the objects on every new context, we should just set references to objects
+        //      we create in the interpreter (assuming we need to have the names available at all, scoping rules would probably
+        //      require us to look into higher stack frames when a var is not found anyway...)
+
         let mut variables = HashMap::new();
         let mut values = HashMap::new();
 
@@ -62,7 +66,6 @@ impl JsExecutionContext {
         return JsExecutionContext {
             variables,
             values,
-            #[cfg(test)] last_test_data: None,
         };
     }
 
@@ -83,18 +86,6 @@ impl JsExecutionContext {
         self.values.insert(new_address, value);
         return new_address;
     }
-
-    #[cfg(test)] pub fn export_test_data(&mut self, data: JsValue) {
-        self.last_test_data = Some(data);
-    }
-
-    #[cfg(test)] pub fn get_last_exported_test_data(&self) -> &JsValue {
-        if self.last_test_data.is_some() {
-            return self.last_test_data.as_ref().unwrap();
-        }
-        return &JsValue::Undefined;
-    }
-
 }
 
 
@@ -111,12 +102,16 @@ pub enum JsValue {
     Undefined,
 }
 impl JsValue {
-    pub fn deref(self, js_execution_context: &JsExecutionContext) -> JsValue {
+    pub fn deref(self, js_interpreter: &JsInterpreter) -> JsValue {
         match self {
             JsValue::Address(variable) => {
+
+                //TODO: we might also need to look into higher stack items (for globals), not sure if this is always the case
+                let current_context = js_interpreter.context_stack.iter().last().unwrap();
+
                 //TODO: unwrap() here is wrong, we need to report an error that a variable or property does not exist
                 //      or maybe we should return an option or result here, and handle it on the recieving side...
-                return js_execution_context.values.get(&variable).unwrap().clone();
+                return current_context.values.get(&variable).unwrap().clone();
             },
             _ => { return self }
         }
@@ -145,4 +140,10 @@ pub struct JsFunction {
 pub enum JsBuiltinFunction {
     ConsoleLog,
     #[cfg(test)] TesterExport,
+}
+
+
+pub enum JsError {
+    //NOTE: these are runtime errors, not parse-time errors (i.e. these are errors you can catch in a script)
+    ReferenceError, //TODO: give the specific errors extra information (like here, what reference, and on what position in the script etc)
 }

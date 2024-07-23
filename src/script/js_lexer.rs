@@ -50,6 +50,8 @@ pub enum JsToken {
 
     //all keywords:
     KeyWordVar,
+    KeyWordFunction,
+    KeyWordReturn,
 
     //not an actual token of the language, but used as a way to block out:
     None,
@@ -257,6 +259,10 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
             //TODO: using "make" below is not correct, because it will give the end position of the literal, instead of the start
             if identifier == "var" {
                 tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordVar));
+            } else if identifier == "function" {
+                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordFunction));
+            } else if identifier == "return" {
+                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordReturn));
             } else {
                 tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Identifier(identifier)));
             }

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use super::js_ast::Script;
+use super::js_ast::{JsAstIdentifier, Script};
 use super::js_interpreter::JsInterpreter;
 
 
@@ -28,7 +28,8 @@ impl JsExecutionContext {
 
         let console_log_function = JsValue::Function(JsFunction {
             name: String::from("log"),
-            code: None,
+            argument_names: Vec::new(), //Note that this function _does_ take an argument, but it does not have a name
+            script: None,
             builtin: Some(JsBuiltinFunction::ConsoleLog),
         });
 
@@ -47,7 +48,8 @@ impl JsExecutionContext {
         #[cfg(test)] {
             let tester_export_function = JsValue::Function(JsFunction {
                 name: String::from("export"),
-                code: None,
+                argument_names: Vec::new(), //Note that this function _does_ take an argument, but it does not have a name
+                script: None,
                 builtin: Some(JsBuiltinFunction::TesterExport),
             });
 
@@ -129,8 +131,9 @@ pub struct JsObject {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone)]
 pub struct JsFunction {
-    #[allow(dead_code)] pub name: String, //TODO: use
-    #[allow(dead_code)] pub code: Option<Rc<Script>>, //TODO: use
+    pub name: String,  //TODO: do we need this? I think it is actually incorrect, because a function is just an object, that could be pointed by a var
+    pub script: Option<Rc<Script>>,
+    pub argument_names: Vec<String>,
     pub builtin: Option<JsBuiltinFunction>,
 }
 

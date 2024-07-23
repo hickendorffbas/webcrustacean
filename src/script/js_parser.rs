@@ -269,6 +269,7 @@ impl JsParserSliceIterator {
         }
     }
     fn build_iterator_for_blocked_out_tokens(&self, blocked_tokens: &Vec<JsToken>, open_token: JsToken, close_token: JsToken) -> Option<JsParserSliceIterator> {
+        //TODO: I'm not sure there is anything specific about this for blocked tokens, can we make it more general?
         let mut temp_idx = self.next_idx;
         let mut first_idx = 0;
         let mut first_seen = false;
@@ -348,6 +349,7 @@ pub fn parse_js(tokens: &Vec<JsTokenWithLocation>) -> Script {
 
 fn parse_function_call(function_iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWithLocation>,
                        blocked_out_token_types: &Vec<JsToken>) -> Option<JsAstFunctionCall> {
+    let token_types = tokens.iter().map(|token| token.token.clone()).collect::<Vec<_>>();
 
     let function_expression_iterator = function_iterator.split_and_advance_until_next_token(&blocked_out_token_types, JsToken::OpenParenthesis);
     let function_expression = parse_expression(&mut function_expression_iterator.unwrap(), tokens);
@@ -357,22 +359,31 @@ fn parse_function_call(function_iterator: &mut JsParserSliceIterator, tokens: &V
 
     let mut arguments = Vec::new();
 
-    while function_iterator.has_next() {
-        let argument_iterator = function_iterator.split_and_advance_until_next_token(&blocked_out_token_types, JsToken::Comma);
-        if argument_iterator.is_some() {
-            let expression = parse_expression(&mut argument_iterator.unwrap(), tokens);
-            if expression.is_none() {
-                return None;
-            }
-            arguments.push(expression.unwrap());
+    //The below basically just removes the close CloseParenthesis
+    let function_iterator = function_iterator.check_for_and_split_on(tokens, JsToken::CloseParenthesis);
 
-        } else {
-            let final_argument_iterator = function_iterator.split_and_advance_until_next_token(&blocked_out_token_types, JsToken::CloseParenthesis);
-            let expression = parse_expression(&mut final_argument_iterator.unwrap(), tokens);
-            if expression.is_none() {
-                return None;
+    if function_iterator.is_some() {
+        let (mut function_iterator, _) = function_iterator.unwrap();
+
+        let blocked_out_token_types_for_args = block_out_token_types(&mut function_iterator, &token_types);
+
+        loop {
+            let argument_iterator = function_iterator.split_and_advance_until_next_token(&blocked_out_token_types_for_args, JsToken::Comma);
+            if argument_iterator.is_some() {
+                let expression = parse_expression(&mut argument_iterator.unwrap(), tokens);
+                if expression.is_none() {
+                    return None;
+                }
+                arguments.push(expression.unwrap());
+
+            } else {
+                let expression = parse_expression(&mut function_iterator, tokens);
+                if expression.is_none() {
+                    return None;
+                }
+                arguments.push(expression.unwrap());
+                break;
             }
-            arguments.push(expression.unwrap());
         }
     }
 
@@ -380,8 +391,70 @@ fn parse_function_call(function_iterator: &mut JsParserSliceIterator, tokens: &V
 }
 
 
+fn parse_function_declaration(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWithLocation>) -> Option<JsAstFunctionDeclaration> {
+    let token_types = tokens.iter().map(|token| token.token.clone()).collect::<Vec<_>>();
+
+    iterator.move_after_next_non_whitespace(tokens); //consume the "function" keyword
+
+    let function_name_split = iterator.check_for_and_split_on(tokens, JsToken::OpenParenthesis);
+
+    if function_name_split.is_some() {
+        let (mut function_name_iterator, mut other_iterator) = function_name_split.unwrap();
+
+        let function_name = function_name_iterator.read_only_identifier(tokens).unwrap();
+
+        let function_body_split = other_iterator.check_for_and_split_on(tokens, JsToken::CloseParenthesis);
+        if function_body_split.is_some() {
+            let (mut argument_iterator, mut function_body_iterator) = function_body_split.unwrap();
+
+            let blocked_out_token_types_for_args = block_out_token_types(&mut argument_iterator, &token_types);
+
+            let mut arguments = Vec::new();
+
+            while argument_iterator.has_next() {
+                let possible_argument_iterator = argument_iterator.split_and_advance_until_next_token(&blocked_out_token_types_for_args, JsToken::Comma);
+
+                if possible_argument_iterator.is_none() {
+                    let arg_name = argument_iterator.read_only_identifier(tokens).unwrap();
+                    arguments.push( JsAstIdentifier { name: arg_name });
+                    break;
+                } else {
+                    let arg_name = possible_argument_iterator.unwrap().read_only_identifier(tokens).unwrap();
+                    arguments.push( JsAstIdentifier { name: arg_name });
+                }
+            }
+
+            function_body_iterator.move_after_next_non_whitespace(tokens); //consume the opening brace
+
+            let mut statements = Vec::new();
+
+            while function_body_iterator.has_next() {
+
+                //TODO: if the last statement doesn't end with a semicolon we ignore it, we should fix that via semicolon insertion (also insert one at the end)
+                let statement_iterator = function_body_iterator.split_and_advance_until_next_token(&token_types, JsToken::Semicolon);
+                if statement_iterator.is_some() {
+                    if statement_iterator.as_ref().unwrap().has_next_non_whitespace(&tokens) {
+                        let stat = parse_statement(&mut statement_iterator.unwrap(), tokens);
+                        if stat.is_some() {
+                            statements.push(stat.unwrap());
+                        }
+                    }
+                } else {
+                    break;
+                }
+            }
+
+            return Some(JsAstFunctionDeclaration { name: function_name, arguments: arguments, script: Rc::from(statements) });
+        }
+
+    }
+
+    return None;
+}
+
+
 fn parse_declaration(statement_iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWithLocation>) -> Option<JsAstDeclaration> {
-    statement_iterator.move_after_next_non_whitespace(tokens); //consume the "var"
+    statement_iterator.move_after_next_non_whitespace(tokens); //consume the "var" keyword
 
     let optional_equals_split = statement_iterator.check_for_and_split_on(tokens, JsToken::Equals);
 
@@ -428,6 +501,25 @@ fn parse_statement(statement_iterator: &mut JsParserSliceIterator, tokens: &Vec<
             return None;
         }
         return Some(JsAstStatement::Declaration(decl.unwrap()));
+    }
+
+    if statement_iterator.next_non_whitespace_token_is(&tokens, JsToken::KeyWordFunction) {
+        let function_declaration = parse_function_declaration(statement_iterator, tokens);
+        if function_declaration.is_none() {
+            return None;
+        }
+        return Some(JsAstStatement::FunctionDeclaration(function_declaration.unwrap()));
+    }
+
+    if statement_iterator.next_non_whitespace_token_is(&tokens, JsToken::KeyWordReturn) {
+        statement_iterator.move_after_next_non_whitespace(tokens); //consume the "return" keyword
+
+        let expression = parse_expression(statement_iterator, tokens);
+        if expression.is_none() {
+            return None;
+        }
+        return Some(JsAstStatement::Return(expression.unwrap()));
+
     }
 
     let optional_equals_split = statement_iterator.check_for_and_split_on(tokens, JsToken::Equals);
@@ -633,6 +725,7 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
     let line = tokens[iterator.next_idx].line;
     let char = tokens[iterator.next_idx].character;
     js_console::log_js_error(format!("unparsable token stream found starting at {line}::{char}").as_str());
+
     return None;
 }
 

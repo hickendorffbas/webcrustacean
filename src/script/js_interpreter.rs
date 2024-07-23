@@ -8,14 +8,15 @@ use super::js_execution_context::{
     JsAddress,
     JsError,
     JsExecutionContext,
+    JsValue,
 };
-#[cfg(test)] use super::js_execution_context::JsValue;
 
 
 
 pub struct JsInterpreter {
     pub context_stack: Vec<JsExecutionContext>,
     current_error: Option<JsError>,
+    pub return_value: Option<JsValue>,
     #[cfg(test)] pub last_test_data: Option<JsValue>,
 }
 
@@ -24,6 +25,7 @@ impl JsInterpreter {
         return JsInterpreter {
             context_stack: Vec::new(),
             current_error: None,
+            return_value: None,
             #[cfg(test)] last_test_data: None,
         };
     }
@@ -40,6 +42,10 @@ impl JsInterpreter {
 
     }
 
+    pub fn register_return_value(&mut self, return_value: JsValue) {
+        self.return_value = Some(return_value);
+    }
+
     pub fn set_error(&mut self, error: JsError) {
         self.current_error = Some(error);
     }
@@ -53,15 +59,19 @@ impl JsInterpreter {
         self.run_script_with_context_stack(script);
     }
 
-    fn run_script_with_context_stack(&mut self, script: &Script) {
-
-        //TODO: we want to do something mildly smarter here, because we need to create new contexts and recurisvely call ourselves when entering a function
-        //      I'm not sure yet how function calling will work, but we'll need to call back to the intepreter probably. Which would mean we need to pass
-        //      it in, instead of the context. Then when exectuting a function call node, we can call back, create a new context on the stack, and call
-        //      this method again. And the reverse for returning
+    pub fn run_script_with_context_stack(&mut self, script: &Script) {
 
         for statement in script {
-            statement.execute(self);
+            let run_next_statement = statement.execute(self);
+
+            if !run_next_statement {
+                if self.context_stack.len() == 0 {
+                    todo!() //TODO: report some error, there is nothing to return to...
+                } else {
+                    return;
+                }
+            }
+
         }
 
     }

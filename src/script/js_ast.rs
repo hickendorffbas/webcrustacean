@@ -5,6 +5,8 @@ use super::js_console;
 use super::js_execution_context::{
     JsBuiltinFunction,
     JsError,
+    JsExecutionContext,
+    JsFunction,
     JsObject,
     JsValue,
 };
@@ -19,9 +21,15 @@ pub enum JsAstStatement {
     Expression(JsAstExpression),
     Assign(JsAstAssign),
     Declaration(JsAstDeclaration),
+    FunctionDeclaration(JsAstFunctionDeclaration),  //TODO: a function declaration is not a statement, technically, but we pretend it is for now
+                                                    //      (it actually is a "source element", a statement is also a source element)
+    Return(JsAstExpression),
 }
 impl JsAstStatement {
-    pub fn execute(&self, js_interpreter: &mut JsInterpreter) {
+
+    pub fn execute(&self, js_interpreter: &mut JsInterpreter) -> bool {
+        //returns a boolean saying whether to run the next statement
+
         match self {
             JsAstStatement::Expression(expression) => {
                 let _ = expression.execute(js_interpreter);
@@ -32,9 +40,38 @@ impl JsAstStatement {
             JsAstStatement::Declaration(declaration) => {
                 declaration.execute(js_interpreter)
             },
+            JsAstStatement::FunctionDeclaration(function_declaration) => {
+                function_declaration.execute(js_interpreter);
+            },
+            JsAstStatement::Return(return_expression) => {
+                let value = return_expression.execute(js_interpreter);
+                js_interpreter.register_return_value(value);
+                return false;
+            },
         }
+        return true;
     }
 }
+
+
+#[derive(Debug)]
+pub struct JsAstFunctionDeclaration {
+    pub name: String,
+    pub arguments: Vec<JsAstIdentifier>,
+    pub script: Rc<Script>,
+}
+impl JsAstFunctionDeclaration {
+    fn execute(&self, js_interpreter: &mut JsInterpreter) {
+        let global_context = js_interpreter.context_stack.iter_mut().next().unwrap();
+
+        let argument_names = self.arguments.iter().map(|arg| arg.name.clone()).collect();
+        let value = JsFunction { name: self.name.clone(), script: Some(self.script.clone()), argument_names: argument_names, builtin: None };
+
+        let target_address = global_context.add_new_value(JsValue::Function(value));
+        global_context.update_variable(self.name.clone(), target_address);
+    }
+}
+
 
 
 #[derive(Debug)]
@@ -282,7 +319,7 @@ pub enum JsBinOp {
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct JsAstIdentifier {
     pub name: String,
 }
@@ -370,8 +407,31 @@ impl JsAstExpression {
                                 }
                             }
                         } else {
-                            //TODO: implement non-builtin functions
-                            todo!();
+
+                            let mut args = Vec::new();
+                            for (idx, argument_name) in function.argument_names.into_iter().enumerate() {
+                                let arg_ast = function_call.arguments.get(idx);
+                                let arg_value = arg_ast.unwrap().execute(js_interpreter); //TODO: we need to properly handle the unwrap here
+                                args.push( (argument_name, arg_value));
+                            }
+
+                            let mut new_context = JsExecutionContext::new();
+                            for (arg_name, arg_value) in args {
+                                let address = new_context.add_new_value(arg_value);
+                                new_context.update_variable(arg_name, address);
+                            }
+                            js_interpreter.context_stack.push(new_context);
+
+                            js_interpreter.run_script_with_context_stack(&function.script.unwrap());
+
+                            js_interpreter.context_stack.pop();
+                            let return_value = js_interpreter.return_value.clone();
+                            js_interpreter.return_value = None;
+
+                            if return_value.is_some() {
+                                return return_value.unwrap();
+                            }
+                            return JsValue::Undefined;
                         }
                     },
                     _ => {

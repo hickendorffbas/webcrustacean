@@ -3,6 +3,7 @@
 - No longer depend on SDL for font rendering
 - Move to Rust 2021
 - Implement very basic javascript interpretation
+- Implement javascript functions
 
 
 0.2.0

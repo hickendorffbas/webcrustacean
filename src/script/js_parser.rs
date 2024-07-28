@@ -300,7 +300,7 @@ impl JsParserSliceIterator {
     fn split_at(&mut self, split_idx: usize) -> Option<(JsParserSliceIterator, JsParserSliceIterator)> {
         //make 2 iterators from this iterator, starting from the current position of this iterator
 
-        if split_idx > self.end_idx || split_idx <= self.next_idx { return None; }
+        if split_idx > self.end_idx || split_idx < self.next_idx { return None; }
 
         return Some((
             JsParserSliceIterator { end_idx: split_idx - 1, next_idx: self.next_idx },
@@ -377,6 +377,12 @@ fn parse_function_call(function_iterator: &mut JsParserSliceIterator, tokens: &V
                 arguments.push(expression.unwrap());
 
             } else {
+                if !function_iterator.has_next_non_whitespace(&tokens) {
+                    //This function does not have arguments
+                    //TODO: this is only a valid case in the first iteration of the loop, fix that (do this check somewhere else maybe?)
+                    break;
+                }
+
                 let expression = parse_expression(&mut function_iterator, tokens);
                 if expression.is_none() {
                     return None;

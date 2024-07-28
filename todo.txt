@@ -11,20 +11,6 @@ goals for 0.3.0:
               - make parse tests nicer by comparing json
                      - this works, but we need to make a generic function so we can have a nice way of having many tests
 	- allow selection in the url bar, and select on first click
-       - we need to get the most basic version of callstack and event loop of javascript running, so errors can do the right thing
-              - I probably need to give the interpreter the script to execute, so it can decide wheter to call new functions
-                or go up in the stack because of an error etc.
-                     - so the control of running _functions_ at least need to be at the interpreter level, the rest migth still call each other
-                     - the functions (and all below), probably still need a way to exit if an error occurs, because we should continue processing
-                     - this means the running a function should return some object that tells it to go into another function?
-              - so when calling a function, we need to go through a function in the js-context, that sets up the stack frame etc.
-                     - this is easy, but how to handle errors in this case (i.e. how _not_ to continue executing)
-                            - maybe we _do_ need result<> for basically every execute function, with the error info there instead of in the execution context
-                     - we still might need to unwind the stack, which needs to happen in the execution context, can we?
-                            - maybe from a function called from the returning point in the execute()-ing chain when an error is returned?
-       - in what context we need to look up values and variables depends on whether they were declared with "var"
-              - I don't think we parse that correctly in the AST yet
-
 
 
 other things (later versions):

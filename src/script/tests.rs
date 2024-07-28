@@ -96,3 +96,20 @@ fn test_basic_function_call() {
 
     assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(6)));
 }
+
+
+#[test]
+fn test_basic_function_call_no_args() {
+    let code = r#"function get() {
+            return 150;
+        };
+        x = get();
+        tester.export(x);"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens);
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(150)));
+}

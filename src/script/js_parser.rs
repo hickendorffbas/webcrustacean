@@ -551,6 +551,7 @@ fn parse_statement(statement_iterator: &mut JsParserSliceIterator, tokens: &Vec<
 
 fn block_out_token_types(iterator: &mut JsParserSliceIterator, token_types: &Vec<JsToken>) -> Vec<JsToken> {
     //block out token types, but only when in scope of the iterator
+    //TODO: It would be nicer to do this without making a new Vec, but just modifying the iterator's behavior
 
     let mut blocked_out = Vec::new();
 

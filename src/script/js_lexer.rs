@@ -43,6 +43,8 @@ pub enum JsToken {
     ExclamationMark,
     Colon,
     QuestionMark,
+    BitWiseOr,
+    Hash,
 
     //whitespace:
     Newline,
@@ -96,26 +98,6 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
             tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::LiteralString(literal)));
             js_iterator.next(); //eat the closing "
         }
-        else if js_iterator.peek() == Some(&';') {
-            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Semicolon));
-            js_iterator.next();
-        }
-        else if js_iterator.peek() == Some(&'=') {
-            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Equals));
-            js_iterator.next();
-        }
-        else if js_iterator.peek() == Some(&'+') {
-            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Plus));
-            js_iterator.next();
-        }
-        else if js_iterator.peek() == Some(&'-') {
-            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Minus));
-            js_iterator.next();
-        }
-        else if js_iterator.peek() == Some(&'*') {
-            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Star));
-            js_iterator.next();
-        }
         else if js_iterator.peek() == Some(&'/') {
             //This is either a token on its own (for division), or it is the start of a literal regex. Figuring this out actually requires
             //  parsing rather then lexing. For now we rely on heuristics as described in
@@ -125,7 +107,7 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
 
 
             //TODO: put this in a better place where we don't need to instatiate it so often
-            const TOKENS_PROBABLY_PRECEDING_REGEX_LITERAL: [JsToken; 13] = [
+            const TOKENS_PROBABLY_PRECEDING_REGEX_LITERAL: [JsToken; 14] = [
                 JsToken::OpenParenthesis,
                 JsToken::Dot,
                 JsToken::OpenBracket,
@@ -139,6 +121,7 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                 JsToken::And,
                 JsToken::Pipe,
                 JsToken::ExclamationMark,
+                JsToken::BitWiseOr,
                 //TODO: when we properly parse multi char operators (like "&&" and "=="), we need to add them to this list
             ];
 
@@ -185,70 +168,6 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
             }
 
         }
-        else if js_iterator.peek() == Some(&',') {
-            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Comma));
-            js_iterator.next();
-        }
-        else if js_iterator.peek() == Some(&'.') {
-            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Dot));
-            js_iterator.next();
-        }
-        else if js_iterator.peek() == Some(&'\n') {
-            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Newline));
-            js_iterator.next();
-        }
-        else if js_iterator.peek() == Some(&'(') {
-            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::OpenParenthesis));
-            js_iterator.next();
-        }
-        else if js_iterator.peek() == Some(&')') {
-            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::CloseParenthesis));
-            js_iterator.next();
-        }
-        else if js_iterator.peek() == Some(&'[') {
-            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::OpenBracket));
-            js_iterator.next();
-        }
-        else if js_iterator.peek() == Some(&']') {
-            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::CloseBracket));
-            js_iterator.next();
-        }
-        else if js_iterator.peek() == Some(&'{') {
-            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::OpenBrace));
-            js_iterator.next();
-        }
-        else if js_iterator.peek() == Some(&'}') {
-            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::CloseBrace));
-            js_iterator.next();
-        }
-        else if js_iterator.peek() == Some(&'>') {
-            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Bigger));
-            js_iterator.next();
-        }
-        else if js_iterator.peek() == Some(&'<') {
-            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Smaller));
-            js_iterator.next();
-        }
-        else if js_iterator.peek() == Some(&'&') {
-            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::And));
-            js_iterator.next();
-        }
-        else if js_iterator.peek() == Some(&'|') {
-            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Pipe));
-            js_iterator.next();
-        }
-        else if js_iterator.peek() == Some(&'!') {
-            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::ExclamationMark));
-            js_iterator.next();
-        }
-        else if js_iterator.peek() == Some(&':') {
-            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Colon));
-            js_iterator.next();
-        }
-        else if js_iterator.peek() == Some(&'?') {
-            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::QuestionMark));
-            js_iterator.next();
-        }
         else if js_iterator.peek().is_some() && is_valid_first_char_of_identifier(*js_iterator.peek().unwrap()) {
             let mut identifier = String::new();
 
@@ -268,8 +187,46 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
             }
         }
         else {
-            //TODO: when we are confident we have all relevant characters, we should just ignore here (don't give an error, maybe a warning in devconsole)
-            todo!("unrecognized character in the js tokenizer: {:?}", js_iterator.peek());
+            //from here we parse single chars as tokens, so any more complex tokens should have been handled before this point
+
+            if js_iterator.peek().is_some() {
+                    let next_char = js_iterator.next();
+
+                    let token = match next_char {
+                        '(' => { JsToken::OpenParenthesis }
+                        ')' => { JsToken::CloseParenthesis }
+                        '[' => { JsToken::OpenBracket }
+                        ']' => { JsToken::CloseBracket }
+                        '{' => { JsToken::OpenBrace }
+                        '}' => { JsToken::CloseBrace }
+                        ',' => { JsToken::Comma }
+                        '.' => { JsToken::Dot }
+                        ':' => { JsToken::Colon }
+                        ';' => { JsToken::Semicolon }
+                        '>' => { JsToken::Bigger }
+                        '<' => { JsToken::Smaller }
+                        '!' => { JsToken::ExclamationMark }
+                        '?' => { JsToken::QuestionMark }
+                        '|' => { JsToken::Pipe }
+                        '&' => { JsToken::And }
+                        '^' => { JsToken::BitWiseOr }
+                        '#' => { JsToken::Hash }
+                        '=' => { JsToken::Equals }
+                        '+' => { JsToken::Plus }
+                        '-' => { JsToken::Minus }
+                        '*' => { JsToken::Star }
+
+                        '\n' => { JsToken::Newline }
+
+                        _ => {
+                            //TODO: when we are confident we have all relevant characters, we should just ignore here (don't give an error, maybe a warning in devconsole)
+                            todo!("unrecognized character in the js tokenizer: {:?}", js_iterator.peek());
+                        }
+                    };
+
+                    tokens.push(JsTokenWithLocation::make(&js_iterator, token));
+            }
+
         }
     }
 

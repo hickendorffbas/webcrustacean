@@ -3,8 +3,6 @@
 - BUG: back button seems to not always work?
 - BUG: we need to set a minimum size for the scrollblock. it gets too small on large pages
 
-- change "block out" and "black out" to mask in parsers
-
 
 goals for 0.3.0:
        - better testing setup

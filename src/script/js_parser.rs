@@ -170,7 +170,7 @@ impl JsParserSliceIterator {
         }
 
     }
-    fn is_only_object_literal(&mut self, blocked_tokens: &Vec<JsToken>) -> bool {
+    fn is_only_object_literal(&mut self, masked_tokens: &Vec<JsToken>) -> bool {
         let mut temp_next = self.next_idx;
         let mut in_object = false;
         let mut seen_end_of_object = false;
@@ -183,7 +183,7 @@ impl JsParserSliceIterator {
                 return false;
             }
 
-            match &blocked_tokens[temp_next] {
+            match &masked_tokens[temp_next] {
                 JsToken::Whitespace | JsToken::Newline => { },
                 JsToken::OpenBrace => {
                     in_object = true;
@@ -201,7 +201,7 @@ impl JsParserSliceIterator {
             temp_next += 1;
         }
     }
-    fn is_only_function_call(&self, blocked_tokens: &Vec<JsToken>) -> bool {
+    fn is_only_function_call(&self, masked_tokens: &Vec<JsToken>) -> bool {
         let mut temp_next = self.next_idx;
 
         let mut in_function_expression = true;
@@ -212,7 +212,7 @@ impl JsParserSliceIterator {
             if temp_next > self.end_idx { return seen_close_parentesis; }
 
             if in_function_expression {
-                match &blocked_tokens[temp_next] {
+                match &masked_tokens[temp_next] {
                     JsToken::OpenParenthesis => {
                         in_arguments = true;
                         in_function_expression = false;
@@ -220,7 +220,7 @@ impl JsParserSliceIterator {
                     _ => { },
                 }
             } else if in_arguments {
-                match &blocked_tokens[temp_next] {
+                match &masked_tokens[temp_next] {
                     JsToken::CloseParenthesis => {
                         seen_close_parentesis = true;
                         in_arguments = false;
@@ -268,8 +268,7 @@ impl JsParserSliceIterator {
             split_idx += 1;
         }
     }
-    fn build_iterator_for_blocked_out_tokens(&self, blocked_tokens: &Vec<JsToken>, open_token: JsToken, close_token: JsToken) -> Option<JsParserSliceIterator> {
-        //TODO: I'm not sure there is anything specific about this for blocked tokens, can we make it more general?
+    fn build_iterator_between_tokens(&self, token_types: &Vec<JsToken>, open_token: JsToken, close_token: JsToken) -> Option<JsParserSliceIterator> {
         let mut temp_idx = self.next_idx;
         let mut first_idx = 0;
         let mut first_seen = false;
@@ -277,11 +276,11 @@ impl JsParserSliceIterator {
         loop {
             if temp_idx > self.end_idx { return None; }
 
-            if blocked_tokens[temp_idx] == open_token {
+            if token_types[temp_idx] == open_token {
                 first_idx = temp_idx + 1;
                 first_seen = true;
             }
-            if blocked_tokens[temp_idx] == close_token {
+            if token_types[temp_idx] == close_token {
                 if !first_seen { return None }
                 return Some(JsParserSliceIterator { next_idx: first_idx, end_idx: temp_idx - 1} );
             }
@@ -323,14 +322,14 @@ pub fn parse_js(tokens: &Vec<JsTokenWithLocation>) -> Script {
     };
 
     let token_types = tokens.iter().map(|token| token.token.clone()).collect::<Vec<_>>();
-    let blocked_out_token_types = block_out_token_types(&mut token_iterator, &token_types);
+    let masked_token_types = mask_token_types(&mut token_iterator, &token_types);
 
 
     let mut statements = Vec::new();
 
     while token_iterator.has_next() {
         //TODO: if the last statement doesn't end with a semicolon we ignore it, we should fix that via semicolon insertion (also insert one at the end)
-        let statement_iterator = token_iterator.split_and_advance_until_next_token(&blocked_out_token_types, JsToken::Semicolon);
+        let statement_iterator = token_iterator.split_and_advance_until_next_token(&masked_token_types, JsToken::Semicolon);
         if statement_iterator.is_some() {
             if statement_iterator.as_ref().unwrap().has_next_non_whitespace(&tokens) {
                 let stat = parse_statement(&mut statement_iterator.unwrap(), tokens);
@@ -348,10 +347,10 @@ pub fn parse_js(tokens: &Vec<JsTokenWithLocation>) -> Script {
 
 
 fn parse_function_call(function_iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWithLocation>,
-                       blocked_out_token_types: &Vec<JsToken>) -> Option<JsAstFunctionCall> {
+                       masked_token_types: &Vec<JsToken>) -> Option<JsAstFunctionCall> {
     let token_types = tokens.iter().map(|token| token.token.clone()).collect::<Vec<_>>();
 
-    let function_expression_iterator = function_iterator.split_and_advance_until_next_token(&blocked_out_token_types, JsToken::OpenParenthesis);
+    let function_expression_iterator = function_iterator.split_and_advance_until_next_token(&masked_token_types, JsToken::OpenParenthesis);
     let function_expression = parse_expression(&mut function_expression_iterator.unwrap(), tokens);
     if function_expression.is_none() {
         return None;
@@ -365,10 +364,10 @@ fn parse_function_call(function_iterator: &mut JsParserSliceIterator, tokens: &V
     if function_iterator.is_some() {
         let (mut function_iterator, _) = function_iterator.unwrap();
 
-        let blocked_out_token_types_for_args = block_out_token_types(&mut function_iterator, &token_types);
+        let masked_token_types_for_args = mask_token_types(&mut function_iterator, &token_types);
 
         loop {
-            let argument_iterator = function_iterator.split_and_advance_until_next_token(&blocked_out_token_types_for_args, JsToken::Comma);
+            let argument_iterator = function_iterator.split_and_advance_until_next_token(&masked_token_types_for_args, JsToken::Comma);
             if argument_iterator.is_some() {
                 let expression = parse_expression(&mut argument_iterator.unwrap(), tokens);
                 if expression.is_none() {
@@ -413,20 +412,20 @@ fn parse_function_declaration(iterator: &mut JsParserSliceIterator, tokens: &Vec
         if function_body_split.is_some() {
             let (mut argument_iterator, mut function_body_iterator) = function_body_split.unwrap();
 
-            let blocked_out_token_types_for_args = block_out_token_types(&mut argument_iterator, &token_types);
+            let masked_token_types_for_args = mask_token_types(&mut argument_iterator, &token_types);
 
             let mut arguments = Vec::new();
 
             while argument_iterator.has_next() {
-                let possible_argument_iterator = argument_iterator.split_and_advance_until_next_token(&blocked_out_token_types_for_args, JsToken::Comma);
+                let possible_argument_iterator = argument_iterator.split_and_advance_until_next_token(&masked_token_types_for_args, JsToken::Comma);
 
                 if possible_argument_iterator.is_none() {
                     let arg_name = argument_iterator.read_only_identifier(tokens).unwrap();
-                    arguments.push( JsAstIdentifier { name: arg_name });
+                    arguments.push(JsAstIdentifier { name: arg_name });
                     break;
                 } else {
                     let arg_name = possible_argument_iterator.unwrap().read_only_identifier(tokens).unwrap();
-                    arguments.push( JsAstIdentifier { name: arg_name });
+                    arguments.push(JsAstIdentifier { name: arg_name });
                 }
             }
 
@@ -549,11 +548,10 @@ fn parse_statement(statement_iterator: &mut JsParserSliceIterator, tokens: &Vec<
 }
 
 
-fn block_out_token_types(iterator: &mut JsParserSliceIterator, token_types: &Vec<JsToken>) -> Vec<JsToken> {
-    //block out token types, but only when in scope of the iterator
-    //TODO: It would be nicer to do this without making a new Vec, but just modifying the iterator's behavior
+fn mask_token_types(iterator: &mut JsParserSliceIterator, token_types: &Vec<JsToken>) -> Vec<JsToken> {
+    //mask token types (set those in braces/brackets/parenthesis to None), but only when in scope of the iterator
 
-    let mut blocked_out = Vec::new();
+    let mut masked = Vec::new();
 
     let mut open_brace = 0;
     let mut open_brack = 0;
@@ -561,7 +559,7 @@ fn block_out_token_types(iterator: &mut JsParserSliceIterator, token_types: &Vec
 
     for (idx, token) in token_types.iter().enumerate() {
         if idx < iterator.next_idx || idx > iterator.end_idx {
-            blocked_out.push(token.clone());
+            masked.push(token.clone());
             continue;
         }
 
@@ -573,9 +571,9 @@ fn block_out_token_types(iterator: &mut JsParserSliceIterator, token_types: &Vec
         }
 
         if open_brace == 0 && open_brack == 0 && open_paren == 0 {
-            blocked_out.push(token.clone());
+            masked.push(token.clone());
         } else {
-            blocked_out.push(JsToken::None);
+            masked.push(JsToken::None);
         }
 
         match token {
@@ -587,19 +585,19 @@ fn block_out_token_types(iterator: &mut JsParserSliceIterator, token_types: &Vec
 
     }
 
-    return blocked_out;
+    return masked;
 }
 
 
 fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWithLocation>) -> Option<JsAstExpression> {
     let token_types = tokens.iter().map(|token| token.token.clone()).collect::<Vec<_>>();
-    let blocked_out_token_types = block_out_token_types(iterator, &token_types);
+    let masked_token_types = mask_token_types(iterator, &token_types);
 
 
     /*  (precendece group 11)   + and -    */
     {
-        let optional_plus_idx = iterator.find_last_token_idx(&blocked_out_token_types, JsToken::Plus);
-        let optional_minus_idx = iterator.find_last_token_idx(&blocked_out_token_types, JsToken::Minus);
+        let optional_plus_idx = iterator.find_last_token_idx(&masked_token_types, JsToken::Plus);
+        let optional_minus_idx = iterator.find_last_token_idx(&masked_token_types, JsToken::Minus);
 
         let (operator, split_idx) = if optional_plus_idx.is_some() && optional_minus_idx.is_some() {
             if optional_plus_idx.unwrap() > optional_minus_idx.unwrap() {
@@ -635,8 +633,8 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
 
     /*  (precendece group 12)    * and /    */
     {
-        let optional_times_idx = iterator.find_last_token_idx(&blocked_out_token_types, JsToken::Star);
-        let optional_divide_idx = iterator.find_last_token_idx(&blocked_out_token_types, JsToken::ForwardSlash);
+        let optional_times_idx = iterator.find_last_token_idx(&masked_token_types, JsToken::Star);
+        let optional_divide_idx = iterator.find_last_token_idx(&masked_token_types, JsToken::ForwardSlash);
 
         let (operator, split_idx) = if optional_times_idx.is_some() && optional_divide_idx.is_some() {
             if optional_times_idx.unwrap() > optional_divide_idx.unwrap() {
@@ -672,8 +670,8 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
 
     /* (precendece group 17): function call and PropertyAccess (dot operator and [])  */
     {
-        if iterator.is_only_function_call(&blocked_out_token_types) {
-            let call = parse_function_call(iterator, tokens, &blocked_out_token_types);
+        if iterator.is_only_function_call(&masked_token_types) {
+            let call = parse_function_call(iterator, tokens, &masked_token_types);
             if call.is_none() {
                 return None;
             }
@@ -682,7 +680,7 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
 
         //TODO: implement the [] case
 
-        let optional_dot_idx = iterator.find_last_token_idx(&blocked_out_token_types, JsToken::Dot);
+        let optional_dot_idx = iterator.find_last_token_idx(&masked_token_types, JsToken::Dot);
         if optional_dot_idx.is_some() {
             let (mut left_iter, mut right_iter) = iterator.split_at(optional_dot_idx.unwrap()).unwrap();
 
@@ -710,8 +708,8 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
         return Some(JsAstExpression::StringLiteral(possible_literal_string.unwrap()));
     }
 
-    if iterator.is_only_object_literal(&blocked_out_token_types) {
-        let parsed_object = parse_object_literal(iterator, tokens, &blocked_out_token_types);
+    if iterator.is_only_object_literal(&masked_token_types) {
+        let parsed_object = parse_object_literal(iterator, tokens, &masked_token_types);
         if parsed_object.is_none() {
             return None;
         }
@@ -738,17 +736,17 @@ fn parse_expression(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWi
 
 
 fn parse_object_literal(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTokenWithLocation>,
-                        blocked_out_token_types: &Vec<JsToken>) -> Option<JsAstObjectLiteral> {
+    masked_token_types: &Vec<JsToken>) -> Option<JsAstObjectLiteral> {
     let mut object_properties = Vec::new();
 
-    let mut iterator = iterator.build_iterator_for_blocked_out_tokens(blocked_out_token_types, JsToken::OpenBrace, JsToken::CloseBrace).unwrap();
+    let mut iterator = iterator.build_iterator_between_tokens(masked_token_types, JsToken::OpenBrace, JsToken::CloseBrace).unwrap();
     let token_types = tokens.iter().map(|token| token.token.clone()).collect::<Vec<_>>();
-    let blocked_out_token_types = block_out_token_types(&mut iterator, &token_types);
+    let masked_token_types = mask_token_types(&mut iterator, &token_types);
 
     let mut last_element_seen = false;
     while !last_element_seen {
 
-        let possible_property_iterator = iterator.split_and_advance_until_next_token(&blocked_out_token_types, JsToken::Comma);
+        let possible_property_iterator = iterator.split_and_advance_until_next_token(&masked_token_types, JsToken::Comma);
 
         let mut property_iterator = if possible_property_iterator.is_some() {
             possible_property_iterator.unwrap()
@@ -757,7 +755,7 @@ fn parse_object_literal(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTok
             JsParserSliceIterator { next_idx: iterator.next_idx, end_idx: iterator.end_idx }
         };
 
-        let mut property_key_iterator = property_iterator.split_and_advance_until_next_token(&blocked_out_token_types, JsToken::Colon).unwrap();
+        let mut property_key_iterator = property_iterator.split_and_advance_until_next_token(&masked_token_types, JsToken::Colon).unwrap();
 
         let key_expression = {
             let possible_literal_key = property_key_iterator.read_only_literal_string(tokens);

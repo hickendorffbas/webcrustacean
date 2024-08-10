@@ -57,10 +57,11 @@ impl JsInterpreter {
         self.context_stack.push(global_context);
 
         self.run_script_with_context_stack(script);
+
+        self.context_stack.clear();
     }
 
     pub fn run_script_with_context_stack(&mut self, script: &Script) {
-
         for statement in script {
             let run_next_statement = statement.execute(self);
 
@@ -73,7 +74,6 @@ impl JsInterpreter {
             }
 
         }
-
     }
 
     fn collect_all_scripts_for_node(&mut self, dom_node: &ElementDomNode, all_scripts: &mut Vec<(usize, Rc<Script>)>) {

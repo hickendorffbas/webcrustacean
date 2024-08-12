@@ -38,7 +38,7 @@ fn render_layout_node(platform: &mut Platform, layout_node: &LayoutNode, all_nod
         if layout_rect.text_data.is_some() {
             if layout_rect.selection_rect.is_some() {
                 let selection_rect = layout_rect.selection_rect.as_ref().unwrap();
-                platform.fill_rect(selection_rect.x, selection_rect.y - current_scroll_y, selection_rect.width, selection_rect.height, Color::new(180, 213, 255), 255);
+                platform.fill_rect(selection_rect.x, selection_rect.y - current_scroll_y, selection_rect.width, selection_rect.height, Color::DEFAULT_SELECTION_COLOR, 255);
             }
 
             let render_y = layout_rect.location.y - current_scroll_y;

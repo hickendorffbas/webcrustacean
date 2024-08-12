@@ -322,8 +322,13 @@ fn main() -> Result<(), String> {
         has_focus: false,
         cursor_text_position: 0,
         text: String::new(),
+        select_on_first_click: true,
+        selection_start_x: 0.0,
+        selection_end_x: 0.0,
         font: Font::default(),
         char_position_mapping: Vec::new(),
+        selection_start_idx: 0,
+        selection_end_idx: 0,
     };
     addressbar_text_field.set_text(&mut platform, addressbar_text);
 
@@ -368,9 +373,7 @@ fn main() -> Result<(), String> {
                     if mouse_state.is_dragging_scrollblock {
                         let page_scroll = ui::convert_block_drag_to_page_scroll(&mut ui_state, yrel as f32, full_layout_tree.borrow().page_height());
                         ui_state.current_scroll_y = clamp_scroll_position(ui_state.current_scroll_y + page_scroll, full_layout_tree.borrow().page_height());
-                    }
-
-                    else if mouse_state.left_down {
+                    } else if mouse_state.left_down {
                         let top_left_x = cmp::min(mouse_state.click_start_x, mouse_x) as f32;
                         let top_left_y = cmp::min(mouse_state.click_start_y, mouse_y) as f32 + ui_state.current_scroll_y;
                         let bottom_right_x = cmp::max(mouse_state.click_start_x, mouse_x) as f32;
@@ -380,8 +383,9 @@ fn main() -> Result<(), String> {
                         RefCell::borrow_mut(&full_layout_tree.borrow_mut().root_node).reset_selection();
                         let full_layout_tree = full_layout_tree.borrow();
                         compute_selection_regions(&full_layout_tree.root_node, &selection_rect, ui_state.current_scroll_y, &full_layout_tree.nodes_in_selection_order);
-                    }
 
+                        ui_state.addressbar.update_selection(&selection_rect);
+                    }
                 },
                 SdlEvent::MouseButtonDown { mouse_btn: MouseButton::Left, x: mouse_x, y: mouse_y, .. } => {
                     mouse_state.x = mouse_x;
@@ -414,7 +418,7 @@ fn main() -> Result<(), String> {
 
                         if optional_url.is_some() {
                             let url = optional_url.unwrap();
-                            //TODO: this should be done via a nicer "navigate" method or something (also below when pressing enter in the addressbar
+                            //TODO: this should be done via a nicer "navigate" method or something (also below when pressing enter in the addressbar)
                             ui_state.addressbar.set_text(&mut platform, url.to_string());
                             main_page_job_tracker = start_navigate(&url, &mut ui_state, &mut resource_thread_pool); //TODO: we should do this above in the next loop, just schedule the url for reload
                             currently_loading_new_page = true;

@@ -62,7 +62,7 @@ pub fn handle_keyboard_input(platform: &mut Platform, input: Option<&String>, ke
 
 
 pub fn insert_text(platform: &mut Platform, ui_state: &mut UIState, text: &String) {
-    if ui_state.addressbar.has_focus {
+    if ui_state.addressbar.has_focus && ui_state.addressbar.has_selection_active() {
         ui_state.addressbar.insert_text(platform, text);
     }
 }

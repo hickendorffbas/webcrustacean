@@ -16,15 +16,16 @@ mod ui;
 mod ui_components;
 #[cfg(test)] mod test_util; //TODO: is there a better (test-specific) place to define this?
 
-use std::cell::RefCell;
-use std::cmp;
-use std::env;
-use std::rc::Rc;
-use std::thread;
-use std::time::{Duration, Instant};
+use std::{
+    cell::RefCell,
+    cmp,
+    env,
+    rc::Rc,
+    thread,
+    time::{Duration, Instant},
+};
 
 use arboard::Clipboard;
-use script::js_interpreter;
 use sdl2::{
     event::Event as SdlEvent,
     keyboard::{Keycode, Mod as SdlKeyMod},
@@ -46,11 +47,12 @@ use crate::network::url::Url;
 use crate::platform::Platform;
 use crate::resource_loader::{ResourceRequestJobTracker, ResourceThreadPool};
 use crate::renderer::render;
-use crate::script::js_execution_context::JsExecutionContext;
+use crate::script::{js_execution_context::JsExecutionContext, js_interpreter};
 use crate::ui::{
     CONTENT_HEIGHT,
     CONTENT_TOP_LEFT_X,
     CONTENT_TOP_LEFT_Y,
+    FocusTarget,
     History,
     UIState,
 };
@@ -83,13 +85,13 @@ fn frame_time_check(start_instant: &Instant) {
 }
 
 
-fn handle_left_click(platform: &mut Platform, ui_state: &mut UIState, x: f32, y: f32, full_layout: &FullLayout) -> Option<Url> {
-    let possible_url = ui::handle_possible_ui_click(platform, ui_state, x, y);
+fn handle_left_click(ui_state: &mut UIState, x: f32, y: f32, page_relative_mouse_y: f32, full_layout: &FullLayout) -> Option<Url> {
+    let possible_url = ui::handle_possible_ui_click(ui_state, x, y);
     if possible_url.is_some() {
         return possible_url;
     }
 
-    return full_layout.root_node.borrow().find_clickable(x, y, ui_state.current_scroll_y);
+    return full_layout.root_node.borrow().find_clickable(x, page_relative_mouse_y, ui_state.current_scroll_y);
 }
 
 
@@ -99,8 +101,6 @@ pub struct MouseState {
     click_start_x: i32,
     click_start_y: i32,
     left_down: bool,
-    //TODO: eventually we need a more generic way to refer to controls we are currently dragging...
-    is_dragging_scrollblock: bool,
 }
 
 
@@ -311,7 +311,7 @@ fn main() -> Result<(), String> {
     };
 
 
-    let mut mouse_state = MouseState { x: 0, y: 0, click_start_x: 0, click_start_y: 0, left_down: false, is_dragging_scrollblock: false };
+    let mut mouse_state = MouseState { x: 0, y: 0, click_start_x: 0, click_start_y: 0, left_down: false };
     let addressbar_text = url.to_string();
 
     let mut addressbar_text_field = TextField {
@@ -340,6 +340,7 @@ fn main() -> Result<(), String> {
         history: History { list: Vec::new(), position: 0, currently_navigating_from_history: false },
         currently_loading_page: false,
         animation_tick: 0,
+        focus_target: FocusTarget::None,
     };
 
     let document = RefCell::from(Document::new_empty());
@@ -370,7 +371,7 @@ fn main() -> Result<(), String> {
                     mouse_state.x = mouse_x;
                     mouse_state.y = mouse_y;
 
-                    if mouse_state.is_dragging_scrollblock {
+                    if ui_state.focus_target == FocusTarget::ScrollBlock {
                         let page_scroll = ui::convert_block_drag_to_page_scroll(&mut ui_state, yrel as f32, full_layout_tree.borrow().page_height());
                         ui_state.current_scroll_y = clamp_scroll_position(ui_state.current_scroll_y + page_scroll, full_layout_tree.borrow().page_height());
                     } else if mouse_state.left_down {
@@ -396,25 +397,24 @@ fn main() -> Result<(), String> {
 
                     RefCell::borrow_mut(&full_layout_tree.borrow_mut().root_node).reset_selection();
 
-                    //TODO: its probably nicer to call a generic method in UI, to check any drags and update the mouse state
-                    if ui::mouse_on_scrollblock(&mouse_state, ui_state.current_scroll_y, full_layout_tree.borrow().page_height()) {
-                        mouse_state.is_dragging_scrollblock = true;
-                    } else {
-                        mouse_state.is_dragging_scrollblock = false;
-                    }
+                    let page_height = full_layout_tree.borrow().page_height();
+                    ui::handle_possible_ui_mouse_down(&mut platform, &mut ui_state, mouse_x as f32, mouse_y as f32, page_height);
                 },
                 SdlEvent::MouseButtonUp { mouse_btn: MouseButton::Left, x: mouse_x, y: mouse_y, .. } => {
                     mouse_state.x = mouse_x;
                     mouse_state.y = mouse_y;
                     mouse_state.left_down = false;
-                    mouse_state.is_dragging_scrollblock = false;
+
+                    if ui_state.focus_target == FocusTarget::ScrollBlock {
+                        ui_state.focus_target = FocusTarget::None;
+                    }
 
                     let abs_movement = (mouse_state.x - mouse_state.click_start_x).abs() + (mouse_state.y - mouse_state.click_start_y).abs();
                     let was_dragging = abs_movement > 1;
 
                     if !was_dragging {
-                        let new_mouse_y = mouse_y as f32 + ui_state.current_scroll_y;
-                        let optional_url = handle_left_click(&mut platform, &mut ui_state, mouse_x as f32, new_mouse_y, &full_layout_tree.borrow());
+                        let page_relative_mouse_y = mouse_y as f32 + ui_state.current_scroll_y;
+                        let optional_url = handle_left_click(&mut ui_state, mouse_x as f32, mouse_y as f32, page_relative_mouse_y, &full_layout_tree.borrow());
 
                         if optional_url.is_some() {
                             let url = optional_url.unwrap();

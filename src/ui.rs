@@ -1,7 +1,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::network::url::Url;
-use crate::{MouseState, SCREEN_HEIGHT, SCREEN_WIDTH};
+use crate::{SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::color::Color;
 use crate::platform::{KeyCode, Platform, Position};
 use crate::ui_components::{NavigationButton, TextField};
@@ -27,6 +27,14 @@ pub struct History {
     pub currently_navigating_from_history: bool,
 }
 
+#[derive(PartialEq)]
+pub enum FocusTarget {
+    None,
+    MainContent,
+    AddressBar,
+    ScrollBlock, //TODO: eventually we could have more scrollbars, so replace this with a ui component id
+    //TODO: later we should add a variant here COMPONENT_ID(usize) or something like that, for components on the pages themselves
+}
 
 pub struct UIState {
     pub addressbar: TextField,
@@ -36,6 +44,7 @@ pub struct UIState {
     pub history: History,
     pub currently_loading_page: bool,
     pub animation_tick: u32,
+    pub focus_target: FocusTarget,
 }
 
 
@@ -46,11 +55,11 @@ pub fn render_ui(platform: &mut Platform, ui_state: &mut UIState, page_height: f
 }
 
 
-pub fn mouse_on_scrollblock(mouse_state: &MouseState, current_scroll_y: f32, page_height: f32) -> bool {
+pub fn mouse_on_scrollblock(mouse_x: f32, mouse_y: f32, current_scroll_y: f32, page_height: f32) -> bool {
     let (block_x, block_y, block_width, block_height) = compute_scrollblock_position(current_scroll_y, page_height);
-    return mouse_state.x > block_x as i32 && mouse_state.x < (block_x + block_width) as i32
+    return mouse_x > block_x && mouse_x < (block_x + block_width)
            &&
-           mouse_state.y > block_y as i32 && mouse_state.y < (block_y + block_height) as i32
+           mouse_y > block_y && mouse_y < (block_y + block_height)
 }
 
 
@@ -73,10 +82,7 @@ pub fn current_focus_can_receive_text(ui_state: &UIState) -> bool {
 }
 
 
-pub fn handle_possible_ui_click(platform: &mut Platform, ui_state: &mut UIState, x: f32, y: f32) -> Option<Url> {
-
-    //TODO: I think this should also handle the scrollbar, but we now handle that in main still
-
+pub fn handle_possible_ui_click(ui_state: &mut UIState, x: f32, y: f32) -> Option<Url> {
     ui_state.addressbar.click(x, y);
     let possible_url = ui_state.back_button.click(x, y, &mut ui_state.history);
     if possible_url.is_some() {
@@ -85,6 +91,27 @@ pub fn handle_possible_ui_click(platform: &mut Platform, ui_state: &mut UIState,
     let possible_url = ui_state.forward_button.click(x, y, &mut ui_state.history);
     if possible_url.is_some() {
         return possible_url;
+    }
+
+    return None;
+}
+
+
+pub fn handle_possible_ui_mouse_down(platform: &mut Platform, ui_state: &mut UIState, x: f32, y: f32, page_height: f32) -> Option<Url> {
+    //TODO: taking page_height here is temporary, because we don't keep a rect state for the scrollblock yet
+
+    if ui_state.addressbar.is_inside(x, y) {
+        ui_state.focus_target = FocusTarget::AddressBar;
+        ui_state.addressbar.has_focus = true;
+    } else if mouse_on_scrollblock(x, y, ui_state.current_scroll_y, page_height) {
+        ui_state.focus_target = FocusTarget::ScrollBlock;
+        ui_state.addressbar.has_focus = false;
+    } else {
+        //TODO: this is not always true (for example when clicking in the top bar but not in the addressbar), but for now we always set focus on the content
+        //      it would be more correct to check for the content window size, and set it to None otherwise
+
+        ui_state.focus_target = FocusTarget::MainContent;
+        ui_state.addressbar.has_focus = false;
     }
 
     //The below code is currently a bit more generic than it needs to be, but this makes that the enable/disable doesn't break when we add other textfields...

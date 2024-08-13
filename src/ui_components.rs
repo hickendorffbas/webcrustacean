@@ -93,11 +93,13 @@ impl TextField {
         self.char_position_mapping = platform.font_context.compute_char_position_mapping(&self.font, &self.text);
     }
 
-    pub fn click(&mut self, x: f32, y: f32)  {
-        let is_inside = x > self.x && x < (self.x + self.width) &&
-                        y > self.y && y < (self.y + self.height);
+    pub fn is_inside(&self, x: f32, y: f32) -> bool {
+        return x > self.x && x < (self.x + self.width) &&
+               y > self.y && y < (self.y + self.height);
+    }
 
-        if !is_inside {
+    pub fn click(&mut self, x: f32, y: f32)  {
+        if !self.is_inside(x, y) {
             self.has_focus = false;
             return;
         }

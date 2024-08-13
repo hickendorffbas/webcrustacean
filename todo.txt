@@ -10,7 +10,7 @@ goals for 0.3.0:
               - make parse tests nicer by comparing json
                      - this works, but we need to make a generic function so we can have a nice way of having many tests
 	- allow selection in the url bar, and select on first click
-              - works, but we need to make selecting mutually exclusive with other components (such as the main content)
+              - BUG: when selecting on the page, we also select in the url bar
 
 
 other things (later versions):

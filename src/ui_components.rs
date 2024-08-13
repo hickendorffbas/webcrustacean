@@ -135,13 +135,20 @@ impl TextField {
 
         if (min_x > self.x && min_x < (self.x + self.width)) || (max_x > self.x && max_x < (self.x + self.width))  {
 
+            let mut found = false;
             for (idx, x_position) in self.char_position_mapping.iter().enumerate() {
                 if *x_position + text_start_x > min_x {
                     let char_offset = if idx == 0 { 0.0 } else { self.char_position_mapping[idx - 1] };
                     self.selection_start_x = text_start_x + char_offset;
                     self.selection_start_idx = if idx == 0 { 0 } else { idx - 1 };
+                    found = true;
                     break;
                 }
+            }
+            if !found {
+                self.clear_selection();
+                self.has_focus = false;
+                return;
             }
 
             let mut found = false;

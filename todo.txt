@@ -11,7 +11,6 @@ goals for 0.3.0:
                      - this works, but we need to make a generic function so we can have a nice way of having many tests
 	- allow selection in the url bar, and select on first click
               - works, but we need to make selecting mutually exclusive with other components (such as the main content)
-              - BUG: sometimes we the selection jumps all the way to x = 0
 
 
 other things (later versions):

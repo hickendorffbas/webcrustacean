@@ -65,7 +65,7 @@ impl JsAstFunctionDeclaration {
         let global_context = js_interpreter.context_stack.iter_mut().next().unwrap();
 
         let argument_names = self.arguments.iter().map(|arg| arg.name.clone()).collect();
-        let value = JsFunction { name: self.name.clone(), script: Some(self.script.clone()), argument_names: argument_names, builtin: None };
+        let value = JsFunction { script: Some(self.script.clone()), argument_names: argument_names, builtin: None };
 
         let target_address = global_context.add_new_value(JsValue::Function(value));
         global_context.update_variable(self.name.clone(), target_address);

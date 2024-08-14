@@ -381,11 +381,16 @@ fn main() -> Result<(), String> {
                         let bottom_right_y = cmp::max(mouse_state.click_start_y, mouse_y) as f32 + ui_state.current_scroll_y;
                         let selection_rect = Rect { x: top_left_x, y: top_left_y, width: bottom_right_x - top_left_x, height: bottom_right_y - top_left_y };
 
-                        RefCell::borrow_mut(&full_layout_tree.borrow_mut().root_node).reset_selection();
-                        let full_layout_tree = full_layout_tree.borrow();
-                        compute_selection_regions(&full_layout_tree.root_node, &selection_rect, ui_state.current_scroll_y, &full_layout_tree.nodes_in_selection_order);
-
-                        ui_state.addressbar.update_selection(&selection_rect);
+                        if ui_state.focus_target == FocusTarget::MainContent {
+                            RefCell::borrow_mut(&full_layout_tree.borrow_mut().root_node).reset_selection();
+                            let full_layout_tree = full_layout_tree.borrow();
+                            compute_selection_regions(&full_layout_tree.root_node, &selection_rect, ui_state.current_scroll_y, &full_layout_tree.nodes_in_selection_order);
+                        } else if ui_state.focus_target == FocusTarget::AddressBar {
+                            ui_state.addressbar.update_selection(&selection_rect)
+                        } else {
+                            //TODO: its not clear to me yet how we clear the selection on the main content
+                            ui_state.addressbar.clear_selection();
+                        }
                     }
                 },
                 SdlEvent::MouseButtonDown { mouse_btn: MouseButton::Left, x: mouse_x, y: mouse_y, .. } => {

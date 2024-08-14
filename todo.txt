@@ -1,16 +1,20 @@
-
 - BUG: when you go to a page with a lot of paragraphs, selection does not work correct, when in between paragraps, paragraphs below get selected
 - BUG: back button seems to not always work?
-- BUG: we need to set a minimum size for the scrollblock. it gets too small on large pages
+
 
 
 goals for 0.3.0:
+       - testing the javascript parsing on more real pages
+
+
+goals for 0.4.0:
+       - BUG: we need to set a minimum size for the scrollblock. it gets too small on large pages
+       - basic html form support
        - better testing setup
               - some way to test with actual webpage examples in files
               - make parse tests nicer by comparing json
                      - this works, but we need to make a generic function so we can have a nice way of having many tests
-	- allow selection in the url bar, and select on first click
-              - BUG: when selecting on the page, we also select in the url bar
+
 
 
 other things (later versions):

@@ -106,12 +106,14 @@ pub fn handle_possible_ui_mouse_down(platform: &mut Platform, ui_state: &mut UIS
     } else if mouse_on_scrollblock(x, y, ui_state.current_scroll_y, page_height) {
         ui_state.focus_target = FocusTarget::ScrollBlock;
         ui_state.addressbar.has_focus = false;
+        ui_state.addressbar.clear_selection();
     } else {
         //TODO: this is not always true (for example when clicking in the top bar but not in the addressbar), but for now we always set focus on the content
         //      it would be more correct to check for the content window size, and set it to None otherwise
 
         ui_state.focus_target = FocusTarget::MainContent;
         ui_state.addressbar.has_focus = false;
+        ui_state.addressbar.clear_selection();
     }
 
     //The below code is currently a bit more generic than it needs to be, but this makes that the enable/disable doesn't break when we add other textfields...

@@ -456,6 +456,10 @@ fn main() -> Result<(), String> {
                             if keycode.unwrap().name() == "C" {
                                 let mut text_for_clipboard = String::new();
                                 full_layout_tree.borrow().root_node.borrow().get_selected_text(&mut text_for_clipboard);
+                                if text_for_clipboard.is_empty() && ui_state.addressbar.has_selection_active() {
+                                    text_for_clipboard = ui_state.addressbar.get_selected_text();
+                                }
+
                                 if !text_for_clipboard.is_empty() {
                                     let mut clipboard = Clipboard::new().unwrap();
                                     clipboard.set_text(text_for_clipboard).expect("Unhandled clipboard error");
@@ -463,9 +467,12 @@ fn main() -> Result<(), String> {
                             }
 
                             if keycode.unwrap().name() == "V" {
-                                if ui::current_focus_can_receive_text(&ui_state) {
-                                    let clipboard_text = Clipboard::new().unwrap().get_text().expect("Unhandled clipboard error");
-                                    ui::insert_text(&mut platform, &mut ui_state, &clipboard_text);
+                                match ui_state.focus_target {
+                                    FocusTarget::AddressBar => {
+                                        let clipboard_text = Clipboard::new().unwrap().get_text().expect("Unhandled clipboard error");
+                                        ui_state.addressbar.insert_text(&mut platform, &clipboard_text);
+                                    },
+                                    _ => {},
                                 }
                             }
                         }

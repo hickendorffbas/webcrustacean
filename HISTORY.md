@@ -4,7 +4,7 @@
 - Move to Rust 2021
 - Implement very basic javascript interpretation
 - Implement javascript functions
-- Text selection support in the addressbar, and we select all on first click
+- Text selection, copy and paste support in the addressbar, and we select all on first click
 
 
 0.2.0

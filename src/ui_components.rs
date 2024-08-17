@@ -142,7 +142,7 @@ impl TextField {
                 if *x_position + text_start_x > min_x {
                     let char_offset = if idx == 0 { 0.0 } else { self.char_position_mapping[idx - 1] };
                     self.selection_start_x = text_start_x + char_offset;
-                    self.selection_start_idx = if idx == 0 { 0 } else { idx - 1 };
+                    self.selection_start_idx = idx;
                     found = true;
                     break;
                 }
@@ -179,6 +179,11 @@ impl TextField {
         self.selection_end_x = 0.0;
         self.selection_start_idx = 0;
         self.selection_end_idx = 0;
+    }
+
+    pub fn get_selected_text(&self) -> String {
+        let selection_size = self.selection_end_idx - self.selection_start_idx + 1;
+        return self.text.chars().skip(self.selection_start_idx).take(selection_size).collect::<String>();
     }
 
     fn remove_selected_text(&mut self, platform: &mut Platform) {

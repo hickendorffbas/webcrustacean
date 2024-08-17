@@ -87,7 +87,7 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
         }
         else if js_iterator.peek() == Some(&'"') || js_iterator.peek() == Some(&'\'') || js_iterator.peek() == Some(&'`') {
             //TODO: this does not account for escaped quotes yet...
-            //TODO: this would also match "bla ' " , but by matching the ', not the corresponding '
+            //TODO: this would also match "bla ' " , but by matching the ', not the corresponding "
             //TODO: the backtick is for string tempates and is actually more complicated
             //      see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Template_literals#tagged_templates
 

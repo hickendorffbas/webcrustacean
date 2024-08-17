@@ -70,18 +70,6 @@ pub fn handle_keyboard_input(platform: &mut Platform, input: Option<&String>, ke
 }
 
 
-pub fn insert_text(platform: &mut Platform, ui_state: &mut UIState, text: &String) {
-    if ui_state.addressbar.has_focus && ui_state.addressbar.has_selection_active() {
-        ui_state.addressbar.insert_text(platform, text);
-    }
-}
-
-
-pub fn current_focus_can_receive_text(ui_state: &UIState) -> bool {
-    return ui_state.addressbar.has_focus;
-}
-
-
 pub fn handle_possible_ui_click(ui_state: &mut UIState, x: f32, y: f32) -> Option<Url> {
     ui_state.addressbar.click(x, y);
     let possible_url = ui_state.back_button.click(x, y, &mut ui_state.history);

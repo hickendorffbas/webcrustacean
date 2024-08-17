@@ -85,8 +85,11 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
             tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Whitespace));
             eat_whitespace(&mut js_iterator);
         }
-        else if js_iterator.peek() == Some(&'"') || js_iterator.peek() == Some(&'\'') {
+        else if js_iterator.peek() == Some(&'"') || js_iterator.peek() == Some(&'\'') || js_iterator.peek() == Some(&'`') {
             //TODO: this does not account for escaped quotes yet...
+            //TODO: this would also match "bla ' " , but by matching the ', not the corresponding '
+            //TODO: the backtick is for string tempates and is actually more complicated
+            //      see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Template_literals#tagged_templates
 
             let quote_type_used = js_iterator.next();
             let mut literal = String::new();
@@ -105,7 +108,6 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
 
             //TODO: this can also be a comment, but we should strip those in an earlier pass
 
-
             //TODO: put this in a better place where we don't need to instatiate it so often
             const TOKENS_PROBABLY_PRECEDING_REGEX_LITERAL: [JsToken; 14] = [
                 JsToken::OpenParenthesis,
@@ -122,7 +124,7 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                 JsToken::Pipe,
                 JsToken::ExclamationMark,
                 JsToken::BitWiseOr,
-                //TODO: when we properly parse multi char operators (like "&&" and "=="), we need to add them to this list
+                //TODO: when we properly parse multi char operator tokens (like "&&" and "=="), we need to add them to this list
             ];
 
             let mut last_token = None;
@@ -139,8 +141,15 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                 let mut buffer = String::new();
                 buffer.push(js_iterator.next());  // read the opening slash
 
+                let mut prev_was_escape_char = false;
                 'literal_regex_parse: while js_iterator.has_next() {
-                    if js_iterator.peek() == Some(&'/') {
+                    if js_iterator.peek() == Some(&'\\') {
+                        prev_was_escape_char = true;
+                        js_iterator.next();
+                        continue;
+                    }
+
+                    if !prev_was_escape_char && js_iterator.peek() == Some(&'/') {
                         buffer.push(js_iterator.next());  // read the closing slash
 
                         //TODO: put this in a better place where we don't need to instatiate it so often
@@ -157,6 +166,7 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                     } else {
                         buffer.push(js_iterator.next());
                     }
+                    prev_was_escape_char = false;
                 }
 
                 //TODO: using "make" below is not correct, because it will give the end position of the literal, instead of the start

@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
+use crate::debug::debug_log_warn;
 use crate::dom::{
     AttributeDomNode,
     Document,
@@ -196,9 +197,20 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                 styles.append(&mut css_parser::parse_css(&style_tokens));
             },
             HtmlToken::Script(content) => {
-                let js_tokens = js_lexer::lex_js(content, current_token.line, current_token.character);
-                let script = js_parser::parse_js(&js_tokens);
-                scripts.push(Rc::from(script));
+                let mut script_type = String::from("text/javascript");
+                for att_node in &attributes {
+                    if att_node.borrow().name == "type" {
+                        script_type = att_node.borrow().value.clone();
+                    }
+                }
+
+                if script_type == "text/javascript" {
+                    let js_tokens = js_lexer::lex_js(content, current_token.line, current_token.character);
+                    let script = js_parser::parse_js(&js_tokens);
+                    scripts.push(Rc::from(script));
+                } else {
+                    debug_log_warn(format!("unrecognised script type: {}", script_type));
+                }
             },
         }
 

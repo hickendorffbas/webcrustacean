@@ -250,7 +250,10 @@ fn test_data_rule() {
     let html = r#"<div data-rules='{"prefix": "<span class=\"b\"></span>"}'></div>"#;
 
     let expected_tokens = vec![
-        //TODO: fill
+        html_open("div"),
+        html_attribute("data-rules", "{\"prefix\": \"<span class=\\\"b\\\"></span>\"}"),
+        html_open_tag_end(),
+        html_close("div"),
     ];
 
     let tokens = html_lexer::lex_html(html);

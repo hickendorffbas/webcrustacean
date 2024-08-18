@@ -8,6 +8,9 @@ pub fn get_next_test_id() -> usize { NEXT_TEST_ID.fetch_add(1, Ordering::Relaxed
 
 
 pub fn tokens_equal_ignoring_location(actual_tokens: Vec<HtmlTokenWithLocation>, expected_tokens: Vec<HtmlTokenWithLocation>) -> bool {
+    if actual_tokens.len() != expected_tokens.len() {
+        return false;
+    }
     for (actual_token, expected_token) in actual_tokens.iter().zip(expected_tokens.iter()) {
         if actual_token.html_token != expected_token.html_token {
             return false;

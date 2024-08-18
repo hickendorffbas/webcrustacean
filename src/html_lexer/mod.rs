@@ -301,6 +301,15 @@ fn consume_tag_attribute(html_iterator: &mut TrackingIterator) -> HtmlToken {
             }
             html_iterator.next(); //eat the quote
 
+        } else if let Some('\'') = html_iterator.peek() {
+            html_iterator.next(); //eat the quote
+
+            attribute_value = String::new();
+            while html_iterator.has_next() && html_iterator.peek().unwrap() != &'\'' {
+                attribute_value.push(html_iterator.next());
+            }
+            html_iterator.next(); //eat the quote
+
         } else {
             //no quotes in the attributes value, so we read until next whitespace or other special char
             attribute_value = consume_full_name(html_iterator);

@@ -243,3 +243,16 @@ fn test_newline_in_tag() {
     let tokens = html_lexer::lex_html(html);
     assert!(tokens_equal_ignoring_location(tokens, expected_tokens));
 }
+
+
+#[test]
+fn test_data_rule() {
+    let html = r#"<div data-rules='{"prefix": "<span class=\"b\"></span>"}'></div>"#;
+
+    let expected_tokens = vec![
+        //TODO: fill
+    ];
+
+    let tokens = html_lexer::lex_html(html);
+    assert!(tokens_equal_ignoring_location(tokens, expected_tokens));
+}

@@ -1,4 +1,4 @@
-0.3.0 [UNRELEASED]
+0.3.0
 ===================
 - No longer depend on SDL for font rendering
 - Move to Rust 2021

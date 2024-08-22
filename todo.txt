@@ -3,10 +3,6 @@
 
 
 
-goals for 0.3.0:
-       - testing the javascript parsing on more real pages
-
-
 goals for 0.4.0:
        - BUG: we need to set a minimum size for the scrollblock. it gets too small on large pages
        - basic html form support

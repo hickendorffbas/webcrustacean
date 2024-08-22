@@ -1579,7 +1579,7 @@ dependencies = [
 
 [[package]]
 name = "webcrustacean"
-version = "0.3.0-alpha"
+version = "0.3.0"
 dependencies = [
  "arboard",
  "image",

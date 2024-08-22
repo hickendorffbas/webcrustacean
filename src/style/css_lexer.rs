@@ -42,7 +42,7 @@ pub fn lex_css(document: &str, starting_line: u32, starting_char_idx: u32) -> Ve
 
 
 fn lex_css_block(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenWithLocation>) {
-    'main_loop: loop  {
+    'main_loop: while css_iterator.has_next() {
         eat_whitespace(css_iterator);
 
         if css_iterator.peek() == Some(&'}') {

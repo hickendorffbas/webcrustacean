@@ -1,21 +1,23 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::network::url::Url;
 use crate::{SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::color::Color;
+use crate::network::url::Url;
 use crate::platform::{KeyCode, Platform, Position};
 use crate::ui_components::{NavigationButton, TextField};
 
-
-pub const HEADER_HEIGHT: f32 = 50.0;
-pub const SIDE_SCROLLBAR_WIDTH: f32 = 20.0;
-const UI_BASIC_COLOR: Color = Color::new(212, 208, 200);
-const UI_BASIC_DARKER_COLOR: Color = Color::new(116, 107, 90);
 
 pub const CONTENT_HEIGHT: f32 = SCREEN_HEIGHT - HEADER_HEIGHT;
 pub const CONTENT_WIDTH: f32 = SCREEN_WIDTH - SIDE_SCROLLBAR_WIDTH;
 pub const CONTENT_TOP_LEFT_X: f32 = 0.0;
 pub const CONTENT_TOP_LEFT_Y: f32 = HEADER_HEIGHT;
+
+const HEADER_HEIGHT: f32 = 50.0;
+const SIDE_SCROLLBAR_WIDTH: f32 = 20.0;
+const MINIMUM_SCOLLBLOCK_HEIGHT: f32 = 25.0;
+
+const UI_BASIC_COLOR: Color = Color::new(212, 208, 200);
+const UI_BASIC_DARKER_COLOR: Color = Color::new(116, 107, 90);
 
 const SCROLLBAR_HEIGHT: f32 = SCREEN_HEIGHT - HEADER_HEIGHT;
 const SCROLLBAR_X_POS: f32 = SCREEN_WIDTH - SIDE_SCROLLBAR_WIDTH;
@@ -175,14 +177,14 @@ fn render_scrollbar(platform: &mut Platform, current_scroll_y: f32, page_height:
 
 
 fn compute_scrollblock_position(current_scroll_y: f32, page_height: f32) -> (f32, f32, f32, f32) {
-    let scrollbar_height_per_page_y = SCROLLBAR_HEIGHT / page_height;
-    let relative_size_of_scroll_block = CONTENT_HEIGHT / page_height;
 
-    //TODO: I do need to account that we don't scroll the bottom of the page all the way to the top
-    let top_scroll_block_y = (scrollbar_height_per_page_y * current_scroll_y) + HEADER_HEIGHT;
+    //TODO: we are now maxing with 1, which is ok, but for robustness we also need to disable
+    //      the scrollbar (not reacting to drag) when scroll is not needed
+    let relative_size_of_scroll_block = f32::min(CONTENT_HEIGHT / page_height, 1.0);
 
-    //TODO: we probably should clamp this to a minimum
-    let scroll_block_height = relative_size_of_scroll_block * SCROLLBAR_HEIGHT;
+    let scroll_block_height = f32::max(relative_size_of_scroll_block * SCROLLBAR_HEIGHT, MINIMUM_SCOLLBLOCK_HEIGHT);
+    let scrollblock_distance_per_page_y = (SCROLLBAR_HEIGHT - scroll_block_height) / (page_height - CONTENT_HEIGHT);
+    let top_scroll_block_y = (scrollblock_distance_per_page_y * current_scroll_y) + HEADER_HEIGHT;
 
     return (SCROLLBAR_X_POS, top_scroll_block_y, (SCREEN_WIDTH - SCROLLBAR_X_POS), scroll_block_height);
 }

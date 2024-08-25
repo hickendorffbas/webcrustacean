@@ -76,5 +76,5 @@ impl Color {
     pub const BLACK: Color = Color::new(0, 0, 0);
     pub const GRAY: Color = Color::new(128, 128, 128);
     pub const WHITE: Color = Color::new(255, 255, 255);
-    pub const DEFAULT_SELECTION_COLOR: Color = Color::new(180, 213, 255);
+    pub const DEFAULT_SELECTION_COLOR: Color = Color::new(180, 213, 255);  //TODO: maybe belongs in the ui module? we have other colors there as well...
 }

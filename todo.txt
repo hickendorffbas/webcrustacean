@@ -3,7 +3,9 @@
 
 
 goals for 0.4.0:
-       - BUG: we need to set a minimum size for the scrollblock. it gets too small on large pages
+       - scrollbar improvements
+              - make a component of the scrollbar
+              - disable the scrollbar when there is nothing to scroll
        - basic html form support
        - better testing setup
               - some way to test with actual webpage examples in files

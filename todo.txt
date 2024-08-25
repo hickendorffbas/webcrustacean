@@ -2,7 +2,6 @@
 - BUG: back button seems to not always work?
 
 
-
 goals for 0.4.0:
        - BUG: we need to set a minimum size for the scrollblock. it gets too small on large pages
        - basic html form support

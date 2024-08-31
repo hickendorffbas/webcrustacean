@@ -3,24 +3,31 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::{SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::color::Color;
 use crate::network::url::Url;
-use crate::platform::{KeyCode, Platform, Position};
-use crate::ui_components::{NavigationButton, TextField};
+use crate::platform::{
+    KeyCode,
+    Platform,
+    Position
+};
+use crate::ui_components::{
+    NavigationButton,
+    Scrollbar,
+    TextField
+};
 
 
 pub const CONTENT_HEIGHT: f32 = SCREEN_HEIGHT - HEADER_HEIGHT;
-pub const CONTENT_WIDTH: f32 = SCREEN_WIDTH - SIDE_SCROLLBAR_WIDTH;
+pub const CONTENT_WIDTH: f32 = SCREEN_WIDTH - MAIN_SCROLLBAR_WIDTH;
 pub const CONTENT_TOP_LEFT_X: f32 = 0.0;
 pub const CONTENT_TOP_LEFT_Y: f32 = HEADER_HEIGHT;
 
-const HEADER_HEIGHT: f32 = 50.0;
-const SIDE_SCROLLBAR_WIDTH: f32 = 20.0;
-const MINIMUM_SCOLLBLOCK_HEIGHT: f32 = 25.0;
+pub const HEADER_HEIGHT: f32 = 50.0;
 
-const UI_BASIC_COLOR: Color = Color::new(212, 208, 200);
-const UI_BASIC_DARKER_COLOR: Color = Color::new(116, 107, 90);
+pub const UI_BASIC_COLOR: Color = Color::new(212, 208, 200);
+pub const UI_BASIC_DARKER_COLOR: Color = Color::new(116, 107, 90);
 
-const SCROLLBAR_HEIGHT: f32 = SCREEN_HEIGHT - HEADER_HEIGHT;
-const SCROLLBAR_X_POS: f32 = SCREEN_WIDTH - SIDE_SCROLLBAR_WIDTH;
+pub const MAIN_SCROLLBAR_WIDTH: f32 = 20.0;
+pub const MAIN_SCROLLBAR_HEIGHT: f32 = SCREEN_HEIGHT - HEADER_HEIGHT;
+pub const MAIN_SCROLLBAR_X_POS: f32 = SCREEN_WIDTH - MAIN_SCROLLBAR_WIDTH;
 
 
 pub struct History {
@@ -47,21 +54,15 @@ pub struct UIState {
     pub currently_loading_page: bool,
     pub animation_tick: u32,
     pub focus_target: FocusTarget,
+    pub main_scrollbar: Scrollbar, //TODO: eventually we shoud have components as a list with id's etc. not hardcoded in the state
 }
 
 
-pub fn render_ui(platform: &mut Platform, ui_state: &mut UIState, page_height: f32) {
+pub fn render_ui(platform: &mut Platform, ui_state: &mut UIState) {
     update_animation_state(ui_state);
     render_header(platform, ui_state);
-    render_scrollbar(platform, ui_state.current_scroll_y, page_height);
-}
 
-
-pub fn mouse_on_scrollblock(mouse_x: f32, mouse_y: f32, current_scroll_y: f32, page_height: f32) -> bool {
-    let (block_x, block_y, block_width, block_height) = compute_scrollblock_position(current_scroll_y, page_height);
-    return mouse_x > block_x && mouse_x < (block_x + block_width)
-           &&
-           mouse_y > block_y && mouse_y < (block_y + block_height)
+    ui_state.main_scrollbar.render(platform);
 }
 
 
@@ -87,13 +88,13 @@ pub fn handle_possible_ui_click(ui_state: &mut UIState, x: f32, y: f32) -> Optio
 }
 
 
-pub fn handle_possible_ui_mouse_down(platform: &mut Platform, ui_state: &mut UIState, x: f32, y: f32, page_height: f32) -> Option<Url> {
+pub fn handle_possible_ui_mouse_down(platform: &mut Platform, ui_state: &mut UIState, x: f32, y: f32) -> Option<Url> {
     //TODO: taking page_height here is temporary, because we don't keep a rect state for the scrollblock yet
 
     if ui_state.addressbar.is_inside(x, y) {
         ui_state.focus_target = FocusTarget::AddressBar;
         ui_state.addressbar.has_focus = true;
-    } else if mouse_on_scrollblock(x, y, ui_state.current_scroll_y, page_height) {
+    } else if ui_state.main_scrollbar.is_on_scrollblock(x, y) {
         ui_state.focus_target = FocusTarget::ScrollBlock;
         ui_state.addressbar.has_focus = false;
         ui_state.addressbar.clear_selection();
@@ -116,15 +117,6 @@ pub fn handle_possible_ui_mouse_down(platform: &mut Platform, ui_state: &mut UIS
     }
 
     return None;
-}
-
-
-pub fn convert_block_drag_to_page_scroll(ui_state: &UIState, scroll_block_amount_moved: f32, page_height: f32) -> f32 {
-    let (_, _, _, block_height) = compute_scrollblock_position(ui_state.current_scroll_y, page_height);
-
-    let movable_space = SCROLLBAR_HEIGHT - block_height;
-    let relatively_moved = scroll_block_amount_moved / movable_space;
-    return (page_height - CONTENT_HEIGHT) * relatively_moved;
 }
 
 
@@ -162,31 +154,6 @@ fn render_spinner(platform: &mut Platform, ui_state: &UIState) {
     if number_of_blocks > 2 {
         platform.fill_rect(spinner_x_pos + (block_spacing * 2.0), spinner_y_pos, block_size, block_size, Color::BLACK, 255);
     }
-}
-
-
-fn render_scrollbar(platform: &mut Platform, current_scroll_y: f32, page_height: f32) {
-    //TODO: I don't like that we are using HEADER_HEIGHT etc. here. The scrollbar should only know where it should draw, and we should derive that from
-    //      header hight etc. outside this function
-
-    platform.fill_rect(SCROLLBAR_X_POS, HEADER_HEIGHT, SCREEN_WIDTH - SCROLLBAR_X_POS, SCROLLBAR_HEIGHT, UI_BASIC_COLOR, 255);
-
-    let (block_x, block_y, block_width, block_height) = compute_scrollblock_position(current_scroll_y, page_height);
-    platform.fill_rect(block_x, block_y, block_width, block_height, UI_BASIC_DARKER_COLOR, 255);
-}
-
-
-fn compute_scrollblock_position(current_scroll_y: f32, page_height: f32) -> (f32, f32, f32, f32) {
-
-    //TODO: we are now maxing with 1, which is ok, but for robustness we also need to disable
-    //      the scrollbar (not reacting to drag) when scroll is not needed
-    let relative_size_of_scroll_block = f32::min(CONTENT_HEIGHT / page_height, 1.0);
-
-    let scroll_block_height = f32::max(relative_size_of_scroll_block * SCROLLBAR_HEIGHT, MINIMUM_SCOLLBLOCK_HEIGHT);
-    let scrollblock_distance_per_page_y = (SCROLLBAR_HEIGHT - scroll_block_height) / (page_height - CONTENT_HEIGHT);
-    let top_scroll_block_y = (scrollblock_distance_per_page_y * current_scroll_y) + HEADER_HEIGHT;
-
-    return (SCROLLBAR_X_POS, top_scroll_block_y, (SCREEN_WIDTH - SCROLLBAR_X_POS), scroll_block_height);
 }
 
 

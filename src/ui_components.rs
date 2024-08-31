@@ -8,11 +8,17 @@ use crate::platform::{
     Platform,
     Position
 };
-use crate::ui::{History, UIState};
+use crate::ui::{
+    History,
+    UI_BASIC_COLOR,
+    UI_BASIC_DARKER_COLOR,
+    UIState
+};
 
 
 const TEXT_FIELD_OFFSET_FROM_BORDER: f32 = 5.0;
 const CURSOR_BLINK_SPEED_MILLIS: u32 = 500;
+
 
 pub struct TextField {
     //TODO: it would be nice to have a distinction between properties of the component, and state (for example, select_on_first_click is a property,
@@ -297,5 +303,76 @@ impl NavigationButton {
         }
 
         return None;
+    }
+}
+
+
+const MINIMUM_SCOLLBLOCK_HEIGHT: f32 = 25.0;
+
+pub struct Scrollbar {
+    //NOTE: for now this is only a vertical scrollbar
+    //TODO: make it generic for direction, or add another component for horizontal scrolling
+
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+
+    pub block_height: f32,
+    pub block_y: f32,
+
+    pub content_size: f32,
+    pub content_visible_height: f32,
+}
+impl Scrollbar {
+    pub fn render(&self, platform: &mut Platform) {
+        platform.fill_rect(self.x, self.y, self.width, self.height, UI_BASIC_COLOR, 255);
+        platform.fill_rect(self.x, self.block_y, self.width, self.block_height, UI_BASIC_DARKER_COLOR, 255);
+    }
+
+    pub fn scroll(&mut self, moved_y: f32, content_scroll_y: f32) -> f32 {
+        let movable_space = self.height - self.block_height;
+        let relatively_moved = moved_y / movable_space;
+        let content_scroll_y_diff = (self.content_size - self.content_visible_height) * relatively_moved;
+        return self.update_scroll(content_scroll_y + content_scroll_y_diff);
+    }
+
+    pub fn update_content_size(&mut self, new_content_size: f32, content_scroll_y: f32) -> f32 {
+        self.content_size = new_content_size;
+
+        //TODO: we are now maxing with 1, which is ok, but for robustness we also need to disable
+        //      the scrollbar (not reacting to drag) when scroll is not needed
+        let relative_size_of_scroll_block = f32::min(self.content_visible_height / self.content_size, 1.0);
+        self.block_height = f32::max(relative_size_of_scroll_block * self.height, MINIMUM_SCOLLBLOCK_HEIGHT);
+
+        return self.update_scroll(content_scroll_y);
+    }
+
+    pub fn update_scroll(&mut self, content_scroll_y: f32) -> f32 {
+        let new_content_scroll_y = self.clamp_scroll_position(content_scroll_y);
+
+        let scrollblock_distance_per_page_y = (self.height - self.block_height) / (self.content_size - self.content_visible_height);
+        self.block_y = scrollblock_distance_per_page_y * new_content_scroll_y + self.y;
+
+        return new_content_scroll_y;
+    }
+
+    pub fn is_on_scrollblock(&self, x: f32, y: f32) -> bool {
+        return self.x       <= x && (self.x + self.width)              >= x &&
+               self.block_y <= y && (self.block_y + self.block_height) >= y;
+    }
+
+    fn clamp_scroll_position(&self, content_scroll_y: f32) -> f32 {
+        if content_scroll_y < 0.0 {
+            return 0.0;
+        }
+        let mut max_scroll_y = (self.content_size + 1.0) - self.content_visible_height;
+        if max_scroll_y < 0.0 {
+            max_scroll_y = 0.0;
+        }
+        if content_scroll_y > max_scroll_y {
+            return max_scroll_y;
+        }
+        return content_scroll_y;
     }
 }

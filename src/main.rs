@@ -53,10 +53,17 @@ use crate::ui::{
     CONTENT_TOP_LEFT_X,
     CONTENT_TOP_LEFT_Y,
     FocusTarget,
+    HEADER_HEIGHT,
     History,
+    MAIN_SCROLLBAR_HEIGHT,
+    MAIN_SCROLLBAR_X_POS,
     UIState,
 };
-use crate::ui_components::{TextField, NavigationButton};
+use crate::ui_components::{
+    NavigationButton,
+    TextField,
+    Scrollbar,
+};
 
 
 //Config:
@@ -332,6 +339,18 @@ fn main() -> Result<(), String> {
     };
     addressbar_text_field.set_text(&mut platform, addressbar_text);
 
+    //TODO: this setting up of components should happen in the ui module eventually
+    let main_scrollbar = Scrollbar {
+        x: MAIN_SCROLLBAR_X_POS,
+        y: HEADER_HEIGHT,
+        width: SCREEN_WIDTH,
+        height: MAIN_SCROLLBAR_HEIGHT,
+        content_size: 0.0,
+        content_visible_height: CONTENT_HEIGHT,
+        block_height: MAIN_SCROLLBAR_HEIGHT,
+        block_y: HEADER_HEIGHT,
+    };
+
     let mut ui_state = UIState {
         addressbar: addressbar_text_field,
         current_scroll_y: 0.0,
@@ -341,6 +360,7 @@ fn main() -> Result<(), String> {
         currently_loading_page: false,
         animation_tick: 0,
         focus_target: FocusTarget::None,
+        main_scrollbar: main_scrollbar,
     };
 
     let document = RefCell::from(Document::new_empty());
@@ -361,6 +381,8 @@ fn main() -> Result<(), String> {
             }
         }
 
+        ui_state.current_scroll_y = ui_state.main_scrollbar.update_content_size(full_layout_tree.borrow().page_height(), ui_state.current_scroll_y);
+
         #[cfg(feature="timings")] let start_event_pump_instant = Instant::now();
         for event in event_pump.poll_iter() {
             match event {
@@ -372,8 +394,8 @@ fn main() -> Result<(), String> {
                     mouse_state.y = mouse_y;
 
                     if ui_state.focus_target == FocusTarget::ScrollBlock {
-                        let page_scroll = ui::convert_block_drag_to_page_scroll(&mut ui_state, yrel as f32, full_layout_tree.borrow().page_height());
-                        ui_state.current_scroll_y = clamp_scroll_position(ui_state.current_scroll_y + page_scroll, full_layout_tree.borrow().page_height());
+                        ui_state.current_scroll_y = ui_state.main_scrollbar.scroll(yrel as f32, ui_state.current_scroll_y);
+
                     } else if mouse_state.left_down {
                         let top_left_x = cmp::min(mouse_state.click_start_x, mouse_x) as f32;
                         let top_left_y = cmp::min(mouse_state.click_start_y, mouse_y) as f32 + ui_state.current_scroll_y;
@@ -402,8 +424,7 @@ fn main() -> Result<(), String> {
 
                     RefCell::borrow_mut(&full_layout_tree.borrow_mut().root_node).reset_selection();
 
-                    let page_height = full_layout_tree.borrow().page_height();
-                    ui::handle_possible_ui_mouse_down(&mut platform, &mut ui_state, mouse_x as f32, mouse_y as f32, page_height);
+                    ui::handle_possible_ui_mouse_down(&mut platform, &mut ui_state, mouse_x as f32, mouse_y as f32);
                 },
                 SdlEvent::MouseButtonUp { mouse_btn: MouseButton::Left, x: mouse_x, y: mouse_y, .. } => {
                     mouse_state.x = mouse_x;
@@ -434,7 +455,8 @@ fn main() -> Result<(), String> {
                     match direction {
                         sdl2::mouse::MouseWheelDirection::Normal => {
                             //TODO: someday it might be nice to implement smooth scrolling (animate the movement over frames)
-                            ui_state.current_scroll_y = clamp_scroll_position(ui_state.current_scroll_y - (y * SCROLL_SPEED) as f32, full_layout_tree.borrow().page_height());
+                            let new_page_scroll_y = ui_state.current_scroll_y - (y * SCROLL_SPEED) as f32;
+                            ui_state.current_scroll_y = ui_state.main_scrollbar.update_scroll(new_page_scroll_y);
                         },
                         sdl2::mouse::MouseWheelDirection::Flipped => {},
                         sdl2::mouse::MouseWheelDirection::Unknown(_) => debug_log_warn("Unknown mousewheel direction!"),
@@ -503,19 +525,4 @@ fn main() -> Result<(), String> {
     }
 
     Ok(())
-}
-
-
-fn clamp_scroll_position(current_scroll_y: f32, current_page_height: f32) -> f32 {
-    if current_scroll_y < 0.0 {
-        return 0.0;
-    }
-    let mut max_scroll_y = (current_page_height + 1.0) - CONTENT_HEIGHT;
-    if max_scroll_y < 0.0 {
-        max_scroll_y = 0.0;
-    }
-    if current_scroll_y > max_scroll_y {
-        return max_scroll_y;
-    }
-    return current_scroll_y;
 }

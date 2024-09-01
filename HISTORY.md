@@ -1,6 +1,6 @@
 0.4.0 [UNRELEASED]
 ===================
-
+- Scrollbar bugfixes
 
 
 0.3.0

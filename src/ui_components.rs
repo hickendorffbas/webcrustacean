@@ -323,14 +323,22 @@ pub struct Scrollbar {
 
     pub content_size: f32,
     pub content_visible_height: f32,
+
+    pub enabled: bool,
 }
 impl Scrollbar {
     pub fn render(&self, platform: &mut Platform) {
         platform.fill_rect(self.x, self.y, self.width, self.height, UI_BASIC_COLOR, 255);
-        platform.fill_rect(self.x, self.block_y, self.width, self.block_height, UI_BASIC_DARKER_COLOR, 255);
+        if self.enabled {
+            platform.fill_rect(self.x, self.block_y, self.width, self.block_height, UI_BASIC_DARKER_COLOR, 255);
+        }
     }
 
     pub fn scroll(&mut self, moved_y: f32, content_scroll_y: f32) -> f32 {
+        if !self.enabled {
+            return content_scroll_y;
+        }
+
         let movable_space = self.height - self.block_height;
         let relatively_moved = moved_y / movable_space;
         let content_scroll_y_diff = (self.content_size - self.content_visible_height) * relatively_moved;
@@ -340,8 +348,7 @@ impl Scrollbar {
     pub fn update_content_size(&mut self, new_content_size: f32, content_scroll_y: f32) -> f32 {
         self.content_size = new_content_size;
 
-        //TODO: we are now maxing with 1, which is ok, but for robustness we also need to disable
-        //      the scrollbar (not reacting to drag) when scroll is not needed
+        self.enabled = self.content_size > self.content_visible_height;
         let relative_size_of_scroll_block = f32::min(self.content_visible_height / self.content_size, 1.0);
         self.block_height = f32::max(relative_size_of_scroll_block * self.height, MINIMUM_SCOLLBLOCK_HEIGHT);
 

@@ -1,17 +1,14 @@
 - BUG: when you go to a page with a lot of paragraphs, selection does not work correct, when in between paragraps, paragraphs below get selected
-- BUG: back button seems to not always work?
 
 
 goals for 0.4.0:
-       - scrollbar improvements
-              - make a component of the scrollbar
-              - disable the scrollbar when there is nothing to scroll
        - basic html form support
+              - add basic button component
        - better testing setup
               - some way to test with actual webpage examples in files
               - make parse tests nicer by comparing json
                      - this works, but we need to make a generic function so we can have a nice way of having many tests
-
+       - BUG: back button seems to not always work?
 
 
 other things (later versions):
@@ -25,4 +22,3 @@ specific goals:
               - be able to render the result page (via direct link)
               - make text input work
               - make form submission work
-

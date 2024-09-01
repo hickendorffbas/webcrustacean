@@ -349,6 +349,7 @@ fn main() -> Result<(), String> {
         content_visible_height: CONTENT_HEIGHT,
         block_height: MAIN_SCROLLBAR_HEIGHT,
         block_y: HEADER_HEIGHT,
+        enabled: false,
     };
 
     let mut ui_state = UIState {

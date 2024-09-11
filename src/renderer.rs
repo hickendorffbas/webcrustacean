@@ -4,6 +4,7 @@ use std::rc::Rc;
 
 use crate::color::Color;
 use crate::layout::{FullLayout, LayoutNode};
+use crate::platform::fonts::Font;
 use crate::platform::Platform;
 use crate::ui::{UIState, render_ui};
 
@@ -22,6 +23,26 @@ pub fn render(platform: &mut Platform, full_layout: &FullLayout, ui_state: &mut 
 fn render_layout_node(platform: &mut Platform, layout_node: &LayoutNode, all_nodes: &HashMap<usize, Rc<RefCell<LayoutNode>>>, current_scroll_y: f32) {
 
     if !layout_node.rects.iter().any(|rect| -> bool { rect.location.is_visible_on_y_location(current_scroll_y) }) {
+        return;
+    }
+
+    if layout_node.is_submit_button {
+        let layout_rect = layout_node.rects.iter().next().unwrap();
+        let render_y = layout_rect.location.y - current_scroll_y;
+
+        //TODO: to render the button (and textfield etc.) we would like to defer to the component. Do we store the component on the DOM?
+
+        //TODO: temp debug rendering:
+        platform.render_text(&"[SUBMIT BUTTON]".to_owned(), layout_rect.location.x, render_y, &Font::default(), Color::BLACK);
+        return;
+    }
+
+    if layout_node.is_text_input {
+        let layout_rect = layout_node.rects.iter().next().unwrap();
+        let render_y = layout_rect.location.y - current_scroll_y;
+
+        //TODO: temp debug rendering:
+        platform.render_text(&"[TEXT INPUT]".to_owned(), layout_rect.location.x, render_y, &Font::default(), Color::BLACK);
         return;
     }
 

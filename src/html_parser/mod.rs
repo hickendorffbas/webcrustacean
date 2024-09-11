@@ -6,8 +6,10 @@ use crate::debug::debug_log_warn;
 use crate::dom::{
     AttributeDomNode,
     Document,
+    DomText,
     ElementDomNode,
-    get_next_dom_node_interal_id, DomText, TagName,
+    get_next_dom_node_interal_id,
+    TagName,
 };
 use crate::html_lexer::{HtmlToken, HtmlTokenWithLocation};
 use crate::network::url::Url;
@@ -15,11 +17,11 @@ use crate::resource_loader::ResourceThreadPool;
 use crate::script::js_execution_context::JsExecutionContext;
 use crate::script::{js_lexer, js_parser};
 use crate::style::{
-    StyleRule,
-    StyleContext,
     css_lexer,
     css_parser,
     get_user_agent_style_sheet,
+    StyleRule,
+    StyleContext,
 };
 
 

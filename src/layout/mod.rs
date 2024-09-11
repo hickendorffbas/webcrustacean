@@ -7,6 +7,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use image::DynamicImage;
 
 use crate::color::Color;
+use crate::debug::debug_log_warn;
 use crate::dom::{
     Document,
     ElementDomNode,
@@ -75,6 +76,8 @@ pub struct LayoutNode {
     pub pre_wrap_rect_backup: Option<LayoutRect>,
     pub from_dom_node: Option<Rc<RefCell<ElementDomNode>>>,
     pub background_color: Color,
+    pub is_text_input: bool,
+    pub is_submit_button: bool,
 }
 impl LayoutNode {
     pub fn all_childnodes_have_given_display(&self, display: Display) -> bool {
@@ -148,6 +151,8 @@ impl LayoutNode {
             pre_wrap_rect_backup: None,
             from_dom_node: None,
             background_color: Color::WHITE,
+            is_submit_button: false,
+            is_text_input: false,
         };
     }
     pub fn reset_selection(&mut self) {
@@ -312,6 +317,8 @@ pub fn build_full_layout(document: &Document, font_context: &FontContext, main_u
         pre_wrap_rect_backup: None,
         from_dom_node: None,
         background_color: Color::WHITE,
+        is_submit_button: false,
+        is_text_input: false,
     };
 
     let rc_root_node = Rc::new(RefCell::from(root_node));
@@ -677,6 +684,8 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
     let mut partial_node_styles = resolve_full_styles_for_layout_node(&Rc::clone(main_node), &document.all_nodes, &document.style_context);
     let mut partial_node_children = None;
     let partial_node_background_color = get_color_style_value(&partial_node_styles, "background-color").unwrap_or(Color::WHITE);
+    let mut partial_node_is_submit_button = false;
+    let mut partial_node_is_text_input = false;
 
     let mut childs_to_recurse_on: &Option<Vec<Rc<RefCell<ElementDomNode>>>> = &None;
 
@@ -733,6 +742,18 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
                     partial_node_optional_img = Some(main_node.image.as_ref().unwrap().deref().clone());
                 }
                 childs_to_recurse_on = &None; //images should not have children (its a tag that does not have a close tag, formally)
+            }
+
+            TagName::Input => {
+                let input_type = main_node.get_attribute_value("type");
+
+                if input_type.is_none() || input_type.as_ref().unwrap() == "text" {
+                    partial_node_is_text_input = true;
+                } else if input_type.is_some() && input_type.as_ref().unwrap() == "submit" {
+                    partial_node_is_submit_button = true;
+                } else {
+                    debug_log_warn(format!("Unknown type of input element: {}", input_type.unwrap()));
+                }
             }
 
             //TODO: this one might not be neccesary any more after we fix our html parser to not try to parse the javascript
@@ -867,6 +888,8 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
         pre_wrap_rect_backup: None,
         from_dom_node: Some(Rc::clone(&main_node_refcell)),
         background_color: partial_node_background_color,
+        is_submit_button: partial_node_is_submit_button,
+        is_text_input: partial_node_is_text_input,
     };
 
     let rc_new_node = Rc::new(RefCell::from(new_node));
@@ -937,6 +960,8 @@ fn build_anonymous_block_layout_node(visible: bool, parent_id: usize, inline_chi
         pre_wrap_rect_backup: None,
         from_dom_node: None,
         background_color: background_color,
+        is_submit_button: false,
+        is_text_input: false,
     };
 
     let internal_id = anonymous_node.internal_id;

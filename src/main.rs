@@ -26,6 +26,7 @@ use std::{
 };
 
 use arboard::Clipboard;
+use layout::TextLayoutRect;
 use sdl2::{
     event::Event as SdlEvent,
     keyboard::{Keycode, Mod as SdlKeyMod},
@@ -40,7 +41,6 @@ use crate::layout::{
     compute_layout,
     FullLayout,
     LayoutNode,
-    LayoutRect,
     Rect,
 };
 use crate::network::url::Url;
@@ -159,12 +159,11 @@ fn finish_navigate(url: &Url, ui_state: &mut UIState, page_content: &String, doc
     compute_layout(&full_layout.borrow().root_node, &full_layout.borrow().all_nodes, &document.borrow().style_context,
                    CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y, &platform.font_context, false, true);
 
-    debug_assert!(full_layout.borrow().root_node.borrow().rects.len() == 1);
     #[cfg(feature="timings")] println!("layout elapsed millis: {}", start_layout_instant.elapsed().as_millis());
 }
 
 
-fn build_selection_rect_on_layout_rect(layout_rect: &mut LayoutRect, selection_rect: &Rect, start_for_selection_rect_on_layout_rect: f32, start_idx_for_selection: usize) {
+fn build_selection_rect_on_text_layout_rect(layout_rect: &mut TextLayoutRect, selection_rect: &Rect, start_for_selection_rect_on_layout_rect: f32, start_idx_for_selection: usize) {
     let mut matching_offset = layout_rect.location.width;
 
     if layout_rect.text_data.is_some() {
@@ -185,119 +184,133 @@ fn build_selection_rect_on_layout_rect(layout_rect: &mut LayoutRect, selection_r
         layout_rect.selection_rect = Some(selection_rect_for_layout_rect);
         layout_rect.selection_char_range = Some( (start_idx_for_selection, end_idx_for_selection) );
 
-    } else if layout_rect.image.is_some() {
-        //Currently no selection is implemented for images
     } else {
+        //TODO: this case does not make sense, we should always have text_data (remove the optional....)
         panic!("We should not get in this method with a rect without content");
     }
 }
 
 
 fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_rect: &Rect, current_scroll_y: f32, nodes_in_selection_order: &Vec<Rc<RefCell<LayoutNode>>>) {
-    let any_visible = layout_node.borrow().rects.iter().any(|rect| -> bool { rect.location.is_visible_on_y_location(current_scroll_y) });
-    if !any_visible {
+    if !layout_node.borrow().visible_on_y_location(current_scroll_y) {
         return;
     }
 
-    let any_rects_with_content = layout_node.borrow().rects.iter().any(|rect| -> bool { rect.text_data.is_some() || rect.image.is_some() });
-    if any_rects_with_content {
+    let mut selection_start_found = false;
+    let selection_end_x = selection_rect.x + selection_rect.width;
+    let selection_end_y = selection_rect.y + selection_rect.height;
 
-        let selection_end_x = selection_rect.x + selection_rect.width;
-        let selection_end_y = selection_rect.y + selection_rect.height;
+    match &mut layout_node.borrow_mut().content {
+        layout::LayoutNodeContent::TextLayoutNode(ref mut text_layout_node) => {
+            let mut start_x_for_selection_rect_on_layout_rect = 0.0;
+            let mut start_idx_for_selection = 0;
+            for mut layout_rect in text_layout_node.rects.iter_mut() {
+                if layout_rect.location.is_inside(selection_rect.x, selection_rect.y) {
+                    selection_start_found = true;
 
-        let mut selection_start_found = false;
-        let mut start_for_selection_rect_on_layout_rect = 0.0;
-        let mut start_idx_for_selection = 0;
-        for mut layout_rect in RefCell::borrow_mut(layout_node).rects.iter_mut() {
-            if layout_rect.location.is_inside(selection_rect.x, selection_rect.y) {
-                selection_start_found = true;
+                    if layout_rect.text_data.is_some() {
 
-                if layout_rect.text_data.is_some() {
+                        let mut previous_offset = 0.0;
+                        for (idx, offset) in layout_rect.text_data.as_ref().unwrap().char_position_mapping.iter().enumerate() {
+                            if layout_rect.location.x + offset > selection_rect.x {
+                                start_x_for_selection_rect_on_layout_rect = layout_rect.location.x + previous_offset;
+                                start_idx_for_selection = idx;
+                                break;
+                            }
 
-                    let mut previous_offset = 0.0;
-                    for (idx, offset) in layout_rect.text_data.as_ref().unwrap().char_position_mapping.iter().enumerate() {
-                        if layout_rect.location.x + offset > selection_rect.x {
-                            start_for_selection_rect_on_layout_rect = layout_rect.location.x + previous_offset;
-                            start_idx_for_selection = idx;
-                            break;
+                            previous_offset = *offset;
                         }
 
-                        previous_offset = *offset;
+                    } else {
+                        //TODO: why does this case exist? text_data should not be optional on a text node...
+                        panic!("We should not get here with a text rect without content");
                     }
 
-                } else if layout_rect.image.is_some() {
-                    start_for_selection_rect_on_layout_rect = layout_rect.location.x;
-                    start_idx_for_selection = 0;
-                } else {
-                    panic!("We should not get here with a rect without content");
-                }
-
-                //Handle the special case where both the top left and the bottom right of the selection rect are in the same layout rect:
-                if layout_rect.location.is_inside(selection_end_x, selection_end_y) {
-                    build_selection_rect_on_layout_rect(&mut layout_rect, selection_rect, start_for_selection_rect_on_layout_rect, start_idx_for_selection);
-                    return;
-                } else {
-                    let selection_rect_for_layout_rect = Rect { x: start_for_selection_rect_on_layout_rect,
-                                                                y: layout_rect.location.y,
-                                                                width: layout_rect.location.width - start_for_selection_rect_on_layout_rect,
-                                                                height: layout_rect.location.height };
-                    layout_rect.selection_rect = Some(selection_rect_for_layout_rect);
-                    if layout_rect.text_data.is_some() {
-                        layout_rect.selection_char_range = Some( (start_idx_for_selection, layout_rect.text_data.as_ref().unwrap().text.len()) );
+                    //Handle the special case where both the top left and the bottom right of the selection rect are in the same layout rect:
+                    if layout_rect.location.is_inside(selection_end_x, selection_end_y) {
+                        build_selection_rect_on_text_layout_rect(&mut layout_rect, selection_rect, start_x_for_selection_rect_on_layout_rect, start_idx_for_selection);
+                        return;
+                    } else {
+                        let selection_rect_for_layout_rect = Rect { x: start_x_for_selection_rect_on_layout_rect,
+                                                                    y: layout_rect.location.y,
+                                                                    width: layout_rect.location.width - start_x_for_selection_rect_on_layout_rect,
+                                                                    height: layout_rect.location.height };
+                        layout_rect.selection_rect = Some(selection_rect_for_layout_rect);
+                        if layout_rect.text_data.is_some() {
+                            layout_rect.selection_char_range = Some( (start_idx_for_selection, layout_rect.text_data.as_ref().unwrap().text.len()) );
+                        }
                     }
-                }
-            } else if selection_start_found {
-                // Now we check for other rects on the same layout node that might contain the bottom right point:
-                if layout_rect.location.is_inside(selection_end_x, selection_end_y) {
-                    let start_selection_pos = layout_rect.location.x;
-                    build_selection_rect_on_layout_rect(&mut layout_rect, selection_rect, start_selection_pos, 0);
-                    return;
-                } else {
-                    //This rect is in between the start and end node, so we fully set it as selected:
-                    let selection_rect_for_layout_rect = Rect { x: layout_rect.location.x, y: layout_rect.location.y,
-                                                                width: layout_rect.location.width, height: layout_rect.location.height };
-                    layout_rect.selection_rect = Some(selection_rect_for_layout_rect);
-                    layout_rect.selection_char_range = Some( (0, layout_rect.text_data.as_ref().unwrap().text.len()) );
+                } else if selection_start_found {
+                    // Now we check for other rects on the same layout node that might contain the bottom right point:
+                    if layout_rect.location.is_inside(selection_end_x, selection_end_y) {
+                        let start_selection_pos = layout_rect.location.x;
+                        build_selection_rect_on_text_layout_rect(&mut layout_rect, selection_rect, start_selection_pos, 0);
+                        return;
+                    } else {
+                        //This rect is in between the start and end node, so we fully set it as selected:
+                        let selection_rect_for_layout_rect = Rect { x: layout_rect.location.x, y: layout_rect.location.y,
+                                                                    width: layout_rect.location.width, height: layout_rect.location.height };
+                        layout_rect.selection_rect = Some(selection_rect_for_layout_rect);
+                        layout_rect.selection_char_range = Some( (0, layout_rect.text_data.as_ref().unwrap().text.len()) );
+                    }
                 }
             }
-        }
-        if selection_start_found {
-            //Now we are going to walk the layout nodes to find the node where the selection ends, and all nodes in between
+        },
+        layout::LayoutNodeContent::ImageLayoutNode(_) => todo!(),  //TODO: implement (selection on an image can just be a bool, since you cannot select part of an image)
+        layout::LayoutNodeContent::ButtonLayoutNode(_) => todo!(),  //TODO: implement
+        layout::LayoutNodeContent::TextInputLayoutNode(_) => todo!(),  //TODO: implement
+        layout::LayoutNodeContent::BoxLayoutNode(_) => {
+            //Note: this is a no-op for now, since there is nothing to select in a box node itself (just in its children)
+        },
+        layout::LayoutNodeContent::NoContent => todo!(),  //TODO: implement
+    }
 
-            let mut starting_node_found = false;
-            for next_selection_node in nodes_in_selection_order {
+    if selection_start_found {
+        //Now we are going to walk the layout nodes to find the node where the selection ends, and all nodes in between
 
-                if !starting_node_found {
-                    if next_selection_node.borrow().internal_id == layout_node.borrow().internal_id {
-                        starting_node_found = true;
-                    }
-                    continue;
-                } else {
-                    for mut layout_rect in RefCell::borrow_mut(next_selection_node).rects.iter_mut() {
-                        if layout_rect.location.is_inside(selection_end_x, selection_end_y) {
-                            let start_selection_pos = layout_rect.location.x;
-                            build_selection_rect_on_layout_rect(&mut layout_rect, selection_rect, start_selection_pos, 0);
-                            return;
-                        } else {
-                            //This node is in between the start and end node, so we fully set it as selected:
-                            let selection_rect_for_layout_rect = Rect { x: layout_rect.location.x, y: layout_rect.location.y,
-                                                                        width: layout_rect.location.width, height: layout_rect.location.height };
-                            layout_rect.selection_rect = Some(selection_rect_for_layout_rect);
+        let mut starting_node_found = false;
+        for next_selection_node in nodes_in_selection_order {
 
-                            if layout_rect.text_data.is_some() {
-                                layout_rect.selection_char_range = Some( (0, layout_rect.text_data.as_ref().unwrap().text.len()) );
+            if !starting_node_found {
+                if next_selection_node.borrow().internal_id == layout_node.borrow().internal_id {
+                    starting_node_found = true;
+                }
+                continue;
+            } else {
+
+                match &mut next_selection_node.borrow_mut().content {
+                    layout::LayoutNodeContent::TextLayoutNode(ref mut text_layout_node) => {
+
+                        for mut layout_rect in text_layout_node.rects.iter_mut() {
+                            if layout_rect.location.is_inside(selection_end_x, selection_end_y) {
+                                let start_selection_pos = layout_rect.location.x;
+                                build_selection_rect_on_text_layout_rect(&mut layout_rect, selection_rect, start_selection_pos, 0);
+                                return;
+                            } else {
+                                //This node is in between the start and end node, so we fully set it as selected:
+                                let selection_rect_for_layout_rect = Rect { x: layout_rect.location.x, y: layout_rect.location.y,
+                                                                            width: layout_rect.location.width, height: layout_rect.location.height };
+                                layout_rect.selection_rect = Some(selection_rect_for_layout_rect);
+
+                                if layout_rect.text_data.is_some() {  //TODO: this check does not make sense, text_data should always exist
+                                    layout_rect.selection_char_range = Some( (0, layout_rect.text_data.as_ref().unwrap().text.len()) );
+                                }
                             }
                         }
-                    }
+                    },
+                    layout::LayoutNodeContent::ImageLayoutNode(_) => todo!(),  //TODO: implement
+                    layout::LayoutNodeContent::ButtonLayoutNode(_) => todo!(),  //TODO: implement
+                    layout::LayoutNodeContent::TextInputLayoutNode(_) => todo!(),  //TODO: implement
+                    layout::LayoutNodeContent::BoxLayoutNode(_) => todo!(),  //TODO: implement
+                    layout::LayoutNodeContent::NoContent => todo!(),  //TODO: implement
                 }
             }
         }
+    }
 
-    } else {
-        if layout_node.borrow().children.is_some() {
-            for child in layout_node.borrow().children.as_ref().unwrap() {
-                compute_selection_regions(&child, selection_rect, current_scroll_y, nodes_in_selection_order);
-            }
+    if layout_node.borrow().children.is_some() {
+        for child in layout_node.borrow().children.as_ref().unwrap() {
+            compute_selection_regions(&child, selection_rect, current_scroll_y, nodes_in_selection_order);
         }
     }
 }
@@ -365,7 +378,7 @@ fn main() -> Result<(), String> {
     };
 
     let document = RefCell::from(Document::new_empty());
-    let full_layout_tree = RefCell::from(FullLayout::new_empty(&mut platform));
+    let full_layout_tree = RefCell::from(FullLayout::new_empty());
 
     let mut main_page_job_tracker = start_navigate(&url, &mut ui_state, &mut resource_thread_pool);
     let mut currently_loading_new_page = true;

@@ -41,20 +41,19 @@ fn test_basic_paragraph_layout() {
     let expected_layout_tree_json = r#"
         {
             "color": [255, 255, 255],
-            "rects": [
-                { "text": null, "position": [0, 0, 87, 19] }
-            ],
+            "location": [0, 0, 87, 19],
             "childs": [
                 {
-                "color": [255, 255, 255],
-                "rects": [
-                    { "text": "this is a test", "position": [0, 0, 87, 19] }
-                ],
-                "childs": []
+                    "color": [255, 255, 255],
+                    "rects": [
+                        {
+                            "text": "this is a test",
+                            "position": [0, 0, 87, 19]
+                        }
+                    ]
                 }
             ]
-        }
-    "#;
+        }"#;
 
     let tree = build_full_layout(&document, &font_context, &Url::empty());
     compute_layout(&tree.root_node, &tree.all_nodes, &document.style_context, 0.0, 0.0, &font_context, false, true);

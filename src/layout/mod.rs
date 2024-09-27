@@ -14,10 +14,10 @@ use crate::dom::{
     TagName,
 };
 use crate::network::url::Url;
-use crate::platform::fonts::FontContext;
-use crate::platform::{
-    fonts::{Font, FontFace},
-    Platform,
+use crate::platform::fonts::{
+    Font,
+    FontContext,
+    FontFace,
 };
 use crate::SCREEN_HEIGHT;
 use crate::style::{
@@ -45,39 +45,99 @@ pub struct FullLayout {
 }
 impl FullLayout {
     pub fn page_height(&self) -> f32 {
-        return RefCell::borrow(&self.root_node).rects.iter().next().unwrap().location.height;
+        let node = RefCell::borrow(&self.root_node);
+        match &node.content {
+            LayoutNodeContent::BoxLayoutNode(box_node) => {
+                return box_node.location.height;
+            },
+            _ => { panic!("Root node always should be a box layout node"); }
+        }
     }
-    pub fn new_empty(platform: &mut Platform) -> FullLayout {
+    pub fn new_empty() -> FullLayout {
         //Note that we we create a 1x1 rect even for an empty layout, since we need a rect to render it (for example when the first page is still loading)
 
+        let box_node = BoxLayoutNode {
+            location: Rect { x: 0.0, y: 0.0, width: 1.0, height: 1.0 },
+            background_color: Color::BLACK,
+        };
+
         let mut layout_node = LayoutNode::new_empty();
-        let text = String::new();
-        let location = Rect { x: 0.0, y: 0.0, width: 1.0, height: 1.0 };
-        let font = Font::default();
-        let char_position_mapping = platform.font_context.compute_char_position_mapping(&font, &text);
-        let rect_text_data = Some(RectTextData { text, font, font_color: Color::BLACK, char_position_mapping, non_breaking_space_positions: None });
-        layout_node.rects.push(LayoutRect { text_data: rect_text_data, image: None, location, selection_rect: None, selection_char_range: None });
+        layout_node.content = LayoutNodeContent::BoxLayoutNode(box_node);
 
         return FullLayout { root_node: Rc::from(RefCell::from(layout_node)), all_nodes: HashMap::new(), nodes_in_selection_order: Vec::new() };
     }
+}
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub struct TextLayoutNode {
+    pub line_break: bool,
+    pub rects: Vec<TextLayoutRect>,
+    pub pre_wrap_rect_backup: Option<TextLayoutRect>,
+    pub background_color: Color,
+}
+
+impl TextLayoutNode {
+    pub fn undo_split_rects(&mut self) {
+        //The main intention for this method is to be used before we start the process of computing line wrapping again (to undo the previous wrapping)
+
+        if self.rects.len() > 1 {
+            debug_assert!(self.rects.iter().all(|rect| -> bool { rect.text_data.is_some()} ));
+            debug_assert!(self.pre_wrap_rect_backup.is_some());
+            self.rects = vec![self.pre_wrap_rect_backup.as_ref().unwrap().clone()];
+        }
+    }
+}
+
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub struct ImageLayoutNode {
+    pub image: DynamicImage,
+    pub location: Rect,
+}
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub struct ButtonLayoutNode {
+    pub location: Rect,
+}
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub struct TextInputLayoutNode {
+    pub location: Rect,
+}
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub struct BoxLayoutNode {
+    pub location: Rect,
+    #[allow(dead_code)] pub background_color: Color,  //TODO: use
+}
+
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub enum LayoutNodeContent {
+    TextLayoutNode(TextLayoutNode),
+    ImageLayoutNode(ImageLayoutNode),
+    ButtonLayoutNode(ButtonLayoutNode),
+    TextInputLayoutNode(TextInputLayoutNode),
+    BoxLayoutNode(BoxLayoutNode),
+    NoContent,
 }
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct LayoutNode {
     pub internal_id: usize,
+    pub parent_id: usize,
+    pub children: Option<Vec<Rc<RefCell<LayoutNode>>>>,
+
+    pub from_dom_node: Option<Rc<RefCell<ElementDomNode>>>,
+
     pub display: Display,
     pub visible: bool,
-    pub line_break: bool,
-    pub children: Option<Vec<Rc<RefCell<LayoutNode>>>>,
-    pub parent_id: usize,
-    pub optional_link_url: Option<Url>,
-    pub rects: Vec<LayoutRect>,
-    pub pre_wrap_rect_backup: Option<LayoutRect>,
-    pub from_dom_node: Option<Rc<RefCell<ElementDomNode>>>,
-    pub background_color: Color,
-    pub is_text_input: bool,
-    pub is_submit_button: bool,
+
+    pub content: LayoutNodeContent,
+
+    pub optional_link_url: Option<Url>, //TODO: This is not really nice, there are other things that could happen on click as well. Refactor to a more
+                                        //      general setup of what should happen on click (or, better defer to the DOM for that, should not be on layout nodes)
 }
 impl LayoutNode {
     pub fn all_childnodes_have_given_display(&self, display: Display) -> bool {
@@ -86,44 +146,116 @@ impl LayoutNode {
         }
         return self.children.as_ref().unwrap().iter().all(|node| RefCell::borrow(node).display == display);
     }
+
     pub fn update_single_rect_location(&mut self, new_location: Rect) {
-        debug_assert!(self.rects.len() == 1);
-        self.rects[0].location = new_location;
-    }
-    pub fn can_wrap(&self) -> bool {
-        return self.rects.iter().any(|rect| { rect.text_data.is_some()});
-    }
-    pub fn get_size_of_bounding_box(&self) -> (f32, f32) {
-        let mut lowest_x = f32::MAX;
-        let mut lowest_y = f32::MAX;
-        let mut max_x: f32 = 0.0;
-        let mut max_y: f32 = 0.0;
-
-        for rect in self.rects.iter() {
-            lowest_x = lowest_x.min(rect.location.x);
-            lowest_y = lowest_y.min(rect.location.y);
-            max_x = max_x.max(rect.location.x + rect.location.width);
-            max_y = max_y.max(rect.location.y + rect.location.height);
+        match &mut self.content {
+            LayoutNodeContent::TextLayoutNode(node) => {
+                debug_assert!(node.rects.len() == 1);
+                node.rects[0].location = new_location;
+            },
+            LayoutNodeContent::ImageLayoutNode(node) => { node.location = new_location; },
+            LayoutNodeContent::ButtonLayoutNode(node) => { node.location = new_location; },
+            LayoutNodeContent::TextInputLayoutNode(node) => { node.location = new_location; },
+            LayoutNodeContent::BoxLayoutNode(node) => { node.location = new_location; },
+            LayoutNodeContent::NoContent => { }
         }
-
-        let bounding_box_width = max_x - lowest_x;
-        let bounding_box_height = max_y - lowest_y;
-        return (bounding_box_width, bounding_box_height);
     }
+
+    pub fn can_wrap(&self) -> bool {
+        return if let LayoutNodeContent::TextLayoutNode(_) = self.content { true } else { false };
+    }
+
+    pub fn y_position(&self) -> f32 {
+        return match &self.content {
+            LayoutNodeContent::TextLayoutNode(text_layout_node) => {
+                text_layout_node.rects.iter().next().unwrap().location.y
+            },
+            LayoutNodeContent::ImageLayoutNode(_) => todo!(),  //TODO: implement
+            LayoutNodeContent::ButtonLayoutNode(_) => todo!(),  //TODO: implement
+            LayoutNodeContent::TextInputLayoutNode(_) => todo!(),  //TODO: implement
+            LayoutNodeContent::BoxLayoutNode(_) => todo!(),  //TODO: implement
+            LayoutNodeContent::NoContent => todo!(),  //TODO: implement
+        }
+    }
+
+    pub fn get_size_of_bounding_box(&self) -> (f32, f32) {
+
+        match &self.content {
+            LayoutNodeContent::TextLayoutNode(text_node) => {
+                let mut lowest_x = f32::MAX;
+                let mut lowest_y = f32::MAX;
+                let mut max_x: f32 = 0.0;
+                let mut max_y: f32 = 0.0;
+
+                for rect in text_node.rects.iter() {
+                    lowest_x = lowest_x.min(rect.location.x);
+                    lowest_y = lowest_y.min(rect.location.y);
+                    max_x = max_x.max(rect.location.x + rect.location.width);
+                    max_y = max_y.max(rect.location.y + rect.location.height);
+                }
+
+                let bounding_box_width = max_x - lowest_x;
+                let bounding_box_height = max_y - lowest_y;
+                return (bounding_box_width, bounding_box_height);
+            },
+            LayoutNodeContent::ImageLayoutNode(img_node) => { return (img_node.location.width, img_node.location.height) },
+            LayoutNodeContent::ButtonLayoutNode(button_node)  => { return (button_node.location.width, button_node.location.height) },
+            LayoutNodeContent::TextInputLayoutNode(input_node) => { return (input_node.location.width, input_node.location.height) },
+            LayoutNodeContent::BoxLayoutNode(box_node) => { return (box_node.location.width, box_node.location.height) },
+            LayoutNodeContent::NoContent => { panic!("invalid state") },
+        }
+    }
+
+    pub fn visible_on_y_location(&self, current_scroll_y: f32) -> bool {
+        match &self.content {
+            LayoutNodeContent::TextLayoutNode(text_node) => {
+                return text_node.rects.iter().any(|rect| -> bool {rect.location.is_visible_on_y_location(current_scroll_y)});
+            },
+            LayoutNodeContent::ImageLayoutNode(image_node) => {
+                return image_node.location.is_visible_on_y_location(current_scroll_y);
+            },
+            LayoutNodeContent::ButtonLayoutNode(_) => todo!(),  //TODO: implement
+            LayoutNodeContent::TextInputLayoutNode(_) => todo!(),  //TODO: implement
+            LayoutNodeContent::BoxLayoutNode(box_node) => {
+                return box_node.location.is_visible_on_y_location(current_scroll_y);
+            },
+            LayoutNodeContent::NoContent => { return false; }
+        }
+    }
+
     pub fn find_clickable(&self, x: f32, y: f32, current_scroll_y: f32) -> Option<Url> {
-        let any_visible = self.rects.iter().any(|rect| -> bool {rect.location.is_visible_on_y_location(current_scroll_y)});
-        if !any_visible {
+        if !self.visible_on_y_location(current_scroll_y) {
             return None;
         }
 
         if self.optional_link_url.is_some() {
-            for rect in self.rects.iter() {
-                if x >= rect.location.x && x <= rect.location.x + rect.location.width &&
-                   y >= rect.location.y && y <= rect.location.y + rect.location.height {
-                    return self.optional_link_url.clone();
+            let mut in_rect = false;
+
+            match &self.content {
+                LayoutNodeContent::TextLayoutNode(text_layout_node) => {
+                    for rect in text_layout_node.rects.iter() {
+                        if rect.location.is_inside(x, y) {
+                            in_rect = true;
+                            break;
+                        }
+                    }
+                },
+                LayoutNodeContent::ImageLayoutNode(image_node) => {
+                    if image_node.location.is_inside(x, y) { in_rect = true; }
                 }
+                LayoutNodeContent::BoxLayoutNode(box_node) => {
+                    if box_node.location.is_inside(x, y) { in_rect = true; }
+                }
+                LayoutNodeContent::ButtonLayoutNode(_) => todo!(), //TODO: implement (note: first refactor the way we click thinks. Use click handlers always
+                                                                   //      and have those on the dom instead of the layout tree)
+                _ => {},
+            }
+
+            if in_rect {
+                return self.optional_link_url.clone();
             }
         }
+
 
         if self.children.is_some() {
             for child in self.children.as_ref().unwrap() {
@@ -138,40 +270,59 @@ impl LayoutNode {
 
         return None;
     }
+
     pub fn new_empty() -> LayoutNode {
         return LayoutNode {
             internal_id: 0,
             display: Display::Block,
             visible: true,
-            line_break: false,
             children: None,
             parent_id: 0,
-            optional_link_url: None,
-            rects: Vec::new(),
-            pre_wrap_rect_backup: None,
             from_dom_node: None,
-            background_color: Color::WHITE,
-            is_submit_button: false,
-            is_text_input: false,
+            content: LayoutNodeContent::NoContent,
+            optional_link_url: None,
         };
     }
+
     pub fn reset_selection(&mut self) {
-        for rect in self.rects.iter_mut() {
-            rect.selection_rect = None;
-            rect.selection_char_range = None;
+        match self.content {
+            LayoutNodeContent::TextLayoutNode(ref mut text_layout_node) => {
+                for rect in text_layout_node.rects.iter_mut() {
+                    rect.selection_rect = None;
+                    rect.selection_char_range = None;
+                }
+            },
+            LayoutNodeContent::ImageLayoutNode(_) => todo!(),  //TODO: implement
+            LayoutNodeContent::ButtonLayoutNode(_) => todo!(),  //TODO: implement
+            LayoutNodeContent::TextInputLayoutNode(_) => todo!(),  //TODO: implement
+            LayoutNodeContent::BoxLayoutNode(_) => {
+                //Note: this is a no-op for now, since there is nothing to select in a box node itself (just in its children)
+            },
+            LayoutNodeContent::NoContent => {},
         }
+
         if self.children.is_some() {
             for child in self.children.as_ref().unwrap() {
                 RefCell::borrow_mut(child).reset_selection();
             }
         }
     }
+
     pub fn get_selected_text(&self, result: &mut String) {
-        for rect in &self.rects {
-            if rect.selection_char_range.is_some() {
-                let (start_idx, end_idx) = rect.selection_char_range.unwrap();
-                result.push_str(rect.text_data.as_ref().unwrap().text.chars().skip(start_idx).take(end_idx - start_idx + 1).collect::<String>().as_str());
-            }
+        match &self.content {
+            LayoutNodeContent::TextLayoutNode(text_layout_node) => {
+                for rect in &text_layout_node.rects {
+                    if rect.selection_char_range.is_some() {
+                        let (start_idx, end_idx) = rect.selection_char_range.unwrap();
+                        result.push_str(rect.text_data.as_ref().unwrap().text.chars().skip(start_idx).take(end_idx - start_idx + 1).collect::<String>().as_str());
+                    }
+                }
+            },
+            LayoutNodeContent::ImageLayoutNode(_) => todo!(),  //TODO: implement
+            LayoutNodeContent::ButtonLayoutNode(_) => todo!(),  //TODO: implement
+            LayoutNodeContent::TextInputLayoutNode(_) => todo!(),  //TODO: implement
+            LayoutNodeContent::BoxLayoutNode(_) => {},
+            LayoutNodeContent::NoContent => {},
         }
 
         if self.children.is_some() {
@@ -180,14 +331,7 @@ impl LayoutNode {
             }
         }
     }
-    pub fn undo_split_rects(&mut self) {
-        //The main intention for this method is to be used before we start the process of computing line wrapping again (to undo the previous wrapping)
-        if self.rects.len() > 1 {
-            debug_assert!(self.rects.iter().all(|rect| -> bool { rect.text_data.is_some()} ));
-            debug_assert!(self.pre_wrap_rect_backup.is_some());
-            self.rects = vec![self.pre_wrap_rect_backup.as_ref().unwrap().clone()];
-        }
-    }
+
     pub fn is_dirty_anywhere(&self) -> bool {
         if self.from_dom_node.is_some() && self.from_dom_node.as_ref().unwrap().borrow().dirty {
             return true;
@@ -202,9 +346,19 @@ impl LayoutNode {
         }
         return false;
     }
+
     pub fn move_node_vertically(&mut self, y_diff: f32) {
-        for rect in self.rects.iter_mut() {
-            rect.location.y += y_diff;
+        match &mut self.content {
+            LayoutNodeContent::TextLayoutNode(ref mut text_layout_node) => {
+                for rect in text_layout_node.rects.iter_mut() {
+                    rect.location.y += y_diff;
+                }
+            },
+            LayoutNodeContent::ImageLayoutNode(_) => todo!(),  //TODO: implement
+            LayoutNodeContent::ButtonLayoutNode(_) => todo!(),  //TODO: implement
+            LayoutNodeContent::TextInputLayoutNode(_) => todo!(),  //TODO: implement
+            LayoutNodeContent::BoxLayoutNode(_) => todo!(),  //TODO: implement
+            LayoutNodeContent::NoContent => todo!(),
         }
 
         if self.children.is_some() {
@@ -213,7 +367,6 @@ impl LayoutNode {
                 mut_child.move_node_vertically(y_diff);
             }
         }
-
     }
 
 }
@@ -221,29 +374,19 @@ impl LayoutNode {
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone)]
-pub struct LayoutRect {
+pub struct TextLayoutRect {
     pub text_data: Option<RectTextData>,
-    pub image: Option<DynamicImage>,
     pub location: Rect,
     pub selection_rect: Option<Rect>,
     pub selection_char_range: Option<(usize, usize)>,
-}
-impl LayoutRect {
-    pub fn get_default_non_computed_rect() -> LayoutRect {
-        return LayoutRect {
-            text_data: None,
-            image: None,
-            location: Rect::empty(),
-            selection_rect: None,
-            selection_char_range: None,
-        };
-    }
 }
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone)]
 pub struct RectTextData {
+    //TODO: this can be included in the TextLayoutRect I think, it was not there because it could also be an image, and then all these would have to be
+    //      optional, but that is no longer the case, since image is removed
     pub text: String,
     pub font: Font,
     pub font_color: Color,
@@ -309,16 +452,14 @@ pub fn build_full_layout(document: &Document, font_context: &FontContext, main_u
         internal_id: id_of_node_being_built,
         display: Display::Block,
         visible: true,
-        line_break: false,
         children: Some(top_level_layout_nodes),
         parent_id: id_of_node_being_built,  //this is the top node, so it does not really have a parent, we set it to ourselves,
-        optional_link_url: None,
-        rects: vec![LayoutRect::get_default_non_computed_rect()],
-        pre_wrap_rect_backup: None,
         from_dom_node: None,
-        background_color: Color::WHITE,
-        is_submit_button: false,
-        is_text_input: false,
+        content: LayoutNodeContent::BoxLayoutNode(BoxLayoutNode {
+            location: Rect::empty(),
+            background_color: Color::WHITE,
+        }),
+        optional_link_url: None,
     };
 
     let rc_root_node = Rc::new(RefCell::from(root_node));
@@ -332,10 +473,13 @@ pub fn build_full_layout(document: &Document, font_context: &FontContext, main_u
 
 
 fn collect_content_nodes_in_walk_order(node: &Rc<RefCell<LayoutNode>>, result: &mut Vec<Rc<RefCell<LayoutNode>>>) {
-
-    let any_content = RefCell::borrow(node).rects.iter().any(|rect| -> bool { rect.image.is_some() || rect.text_data.is_some() } );
-    if any_content {
-        result.push(Rc::clone(&node));
+    match RefCell::borrow(node).content {
+        LayoutNodeContent::TextLayoutNode(_) => { result.push(Rc::clone(&node)); },
+        LayoutNodeContent::ImageLayoutNode(_) => { result.push(Rc::clone(&node)); },
+        LayoutNodeContent::ButtonLayoutNode(_) => { result.push(Rc::clone(&node)); },
+        LayoutNodeContent::TextInputLayoutNode(_) => { result.push(Rc::clone(&node)); },
+        LayoutNodeContent::BoxLayoutNode(_) => {},
+        LayoutNodeContent::NoContent => {},
     }
 
     if RefCell::borrow(node).children.as_ref().is_some() {
@@ -354,7 +498,7 @@ pub fn compute_layout(node: &Rc<RefCell<LayoutNode>>, all_nodes: &HashMap<usize,
     let mut mut_node = RefCell::borrow_mut(node);
 
     if only_update_block_vertical_position && !force_full_layout {
-        let y_diff = top_left_y - mut_node.rects.iter().next().unwrap().location.y;
+        let y_diff = top_left_y - mut_node.y_position();
         mut_node.move_node_vertically(y_diff);
         return;
     }
@@ -373,37 +517,66 @@ pub fn compute_layout(node: &Rc<RefCell<LayoutNode>>, all_nodes: &HashMap<usize,
 
     } else {
 
-        if mut_node.from_dom_node.is_some() {
-            if mut_node.from_dom_node.as_ref().unwrap().borrow().dirty {
+        let node_was_dirty = if mut_node.from_dom_node.is_some() {
+            let node_was_dirty = mut_node.from_dom_node.as_ref().unwrap().borrow().dirty;
+            mut_node.from_dom_node.as_ref().unwrap().borrow_mut().dirty = false;
+            node_was_dirty
+        } else {
+            false
+        };
 
-                //TODO: for now below we update the rect content. We should eventually also update styles etc.
+        let opt_dom_node = if mut_node.from_dom_node.is_some() {
+            Some(Rc::clone(&mut_node.from_dom_node.as_ref().unwrap()))
+        } else {
+            None
+        };
 
-                mut_node.undo_split_rects();
+        match &mut mut_node.content {
+            LayoutNodeContent::TextLayoutNode(ref mut text_layout_node) => {
 
-                let opt_image_clone = {
-                    let dom_node = mut_node.from_dom_node.as_ref().unwrap().borrow();
+                if node_was_dirty {
+                    text_layout_node.undo_split_rects();
+                }
+
+                for rect in text_layout_node.rects.iter_mut() {
+                    let (rect_width, rect_height) = compute_size_for_text_rect(rect, font_context);
+                    rect.location = Rect { x: top_left_x, y: top_left_y, width: rect_width, height: rect_height };
+                }
+            },
+            LayoutNodeContent::ImageLayoutNode(ref mut image_layout_node) => {
+
+                if node_was_dirty {
+                    //TODO: why are we reloading the image here? In the build tree we also set it. If we don't rebuild if the image changes, we should set
+                    //      it here, but then we should not set it in the build step. Or, if we _do_ rebuild, we should not update it here...
+                    //         -> I think we only rebuild if we get a new document, so then setting it here makes sense, but then build should not.
+                    //            probably the same for other content.....
+
+                    let dom_node = opt_dom_node.as_ref().unwrap().borrow();
                     let opt_image_clone = if dom_node.image.is_some() {
-                        Some(dom_node.image.as_ref().unwrap().deref().clone())
+                        dom_node.image.as_ref().unwrap().deref().clone()
                     } else {
-                        None
+                        panic!("invalid state"); // we have built an image node based on the DOM, so there should be an image on the DOM
                     };
-                    opt_image_clone
-                };
 
-                debug_assert!(mut_node.rects.len() == 1);
-                let main_rect = mut_node.rects.iter_mut().next().unwrap();
-                main_rect.image = opt_image_clone;
+                    image_layout_node.image = opt_image_clone;
 
-                //TODO: also update text, and possible other content
+                    opt_dom_node.as_ref().unwrap().borrow_mut().dirty = false;
+                }
 
-                mut_node.from_dom_node.as_ref().unwrap().borrow_mut().dirty = false;
-            }
+                image_layout_node.location =
+                     Rect { x: top_left_x, y: top_left_y, width: image_layout_node.image.width() as f32, height: image_layout_node.image.height() as f32 };
+            },
+            LayoutNodeContent::ButtonLayoutNode(_) => todo!(),  //TODO: implement
+            LayoutNodeContent::TextInputLayoutNode(_) => todo!(),  //TODO: implement
+            LayoutNodeContent::BoxLayoutNode(box_node) => {
+                //Note: this is a boxlayoutnode, but without children (because that is a seperate case above), so no content.
+
+                //TODO: for now generating 1 by 1 sized, this might not be correct given styling.
+                box_node.location = Rect { x: top_left_x, y: top_left_y, width: 1.0, height: 1.0 };
+            },
+            LayoutNodeContent::NoContent => todo!(),  //TODO: implement
         }
 
-        for rect in mut_node.rects.iter_mut() {
-            let (rect_width, rect_height) = compute_size_for_rect(rect, font_context);
-            rect.location = Rect { x: top_left_x, y: top_left_y, width: rect_width, height: rect_height };
-        }
     }
 }
 
@@ -454,7 +627,13 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
         let only_update_block_vertical_position = false; //we can only do this if the parent is block layout, but in this case its inline. Inline might cause horizonal cascading changes.
         compute_layout(&child, all_nodes, style_context, cursor_x, cursor_y, font_context, only_update_block_vertical_position, force_full_layout);
 
-        if RefCell::borrow(child).line_break {
+        let is_line_break = if let LayoutNodeContent::TextLayoutNode(text_node) = &RefCell::borrow(child).content {
+            text_node.line_break
+        } else {
+            false
+        };
+
+        if is_line_break {
             let child_height;
             if cursor_x != top_left_x {
                 cursor_x = top_left_x;
@@ -477,65 +656,87 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
             continue;
         }
 
-        RefCell::borrow_mut(child).undo_split_rects();
+        if let LayoutNodeContent::TextLayoutNode(ref mut text_node) = RefCell::borrow_mut(child).content {
+            text_node.undo_split_rects();
+        }
 
         let child_borrow = RefCell::borrow(child);
         let (child_width, child_height) = child_borrow.get_size_of_bounding_box();
 
         if (cursor_x - top_left_x + child_width) > max_allowed_width {
 
-            if child_borrow.children.is_none() && child_borrow.can_wrap() && child_borrow.rects.iter().all(|rect| -> bool { rect.text_data.is_some()} ) {
+            if child_borrow.children.is_none() && child_borrow.can_wrap() {
                 // in this case, we might be able to split rects, and put part of the node on this line
 
-                let first_rect = child_borrow.rects.iter().next().unwrap();
-                let text_data = first_rect.text_data.as_ref().unwrap();
-                let font_color = text_data.font_color;
-                let relative_cursor_x = cursor_x - top_left_x;
-                let amount_of_space_left_on_line = max_allowed_width - relative_cursor_x;
-                let wrapped_text = wrap_text(child_borrow.rects.last().unwrap(), max_allowed_width, amount_of_space_left_on_line);
+                let mut rects_for_child;
+                let rect_backup;
 
-                let mut rects_for_child = Vec::new();
-                for text in wrapped_text {
+                match &child_borrow.content {
+                    LayoutNodeContent::TextLayoutNode(text_layout_node) => {
+                        let first_rect = text_layout_node.rects.iter().next().unwrap();
+                        let text_data = first_rect.text_data.as_ref().unwrap();
+                        let font_color = text_data.font_color;
+                        let relative_cursor_x = cursor_x - top_left_x;
+                        let amount_of_space_left_on_line = max_allowed_width - relative_cursor_x;
+                        let wrapped_text = wrap_text(text_layout_node.rects.last().unwrap(), max_allowed_width, amount_of_space_left_on_line);
 
-                    let new_text_data = RectTextData {
-                        font: text_data.font.clone(),
-                        font_color: font_color,
-                        char_position_mapping: font_context.compute_char_position_mapping(&text_data.font, &text),
-                        non_breaking_space_positions: None, //For now not computing these, although it would be more correct to update them after wrapping
-                        text: text,
-                    };
+                        rects_for_child = Some(Vec::new());
+                        for text in wrapped_text {
 
-                    let mut new_rect = LayoutRect {
-                        text_data: Some(new_text_data),
-                        image: None,
-                        location: Rect::empty(),
-                        selection_rect: None,
-                        selection_char_range: None,
-                    };
+                            let new_text_data = RectTextData {
+                                font: text_data.font.clone(),
+                                font_color: font_color,
+                                char_position_mapping: font_context.compute_char_position_mapping(&text_data.font, &text),
+                                non_breaking_space_positions: None, //For now not computing these, although it would be more correct to update them after wrapping
+                                text: text,
+                            };
 
-                    let (rect_width, rect_height) = compute_size_for_rect(&new_rect, font_context);
+                            let mut new_rect = TextLayoutRect {
+                                text_data: Some(new_text_data),
+                                location: Rect::empty(),
+                                selection_rect: None,
+                                selection_char_range: None,
+                            };
 
-                    if cursor_x - top_left_x + rect_width > max_allowed_width {
-                        if cursor_x != top_left_x {
-                            cursor_x = top_left_x;
-                            cursor_y += max_height_of_line;
-                            max_height_of_line = 0.0;
+                            let (rect_width, rect_height) = compute_size_for_text_rect(&new_rect, font_context);
+
+                            if cursor_x - top_left_x + rect_width > max_allowed_width {
+                                if cursor_x != top_left_x {
+                                    cursor_x = top_left_x;
+                                    cursor_y += max_height_of_line;
+                                    max_height_of_line = 0.0;
+                                }
+                            }
+
+                            new_rect.location = Rect { x: cursor_x, y: cursor_y, width: rect_width, height: rect_height };
+                            rects_for_child.as_mut().unwrap().push(new_rect);
+
+                            cursor_x += rect_width;
+                            max_width = max_width.max(cursor_x);
+                            max_height_of_line = max_height_of_line.max(rect_height);
+
                         }
+
+                        rect_backup = Some(text_layout_node.rects.iter().next().unwrap().clone());
+                    },
+                    _ => {
+                        //We can only get here for nodes that can't wrap, but we checked that we can wrap already
+                        panic!("Invalid state");
                     }
-
-                    new_rect.location = Rect { x: cursor_x, y: cursor_y, width: rect_width, height: rect_height };
-                    rects_for_child.push(new_rect);
-
-                    cursor_x += rect_width;
-                    max_width = max_width.max(cursor_x);
-                    max_height_of_line = max_height_of_line.max(rect_height);
-
                 }
-                let rect_backup = child_borrow.rects.iter().next().unwrap().clone();
+
                 drop(child_borrow);
 
-                RefCell::borrow_mut(child).pre_wrap_rect_backup = Some(rect_backup);
-                RefCell::borrow_mut(child).rects = rects_for_child;
+                match &mut RefCell::borrow_mut(child).content {
+                    LayoutNodeContent::TextLayoutNode(ref mut text_layout_node) => {
+                        text_layout_node.pre_wrap_rect_backup = rect_backup;
+                        text_layout_node.rects = rects_for_child.unwrap();
+                    },
+                    _ => {
+                        //We can only get here for nodes that can't wrap, but we checked that we can wrap already
+                        panic!("Invalid state");
+                    }
+                }
 
             } else {
                 if cursor_x != top_left_x {
@@ -577,28 +778,23 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
 
 
 //Note that this function returns the size, but does not update the rect with that size (because we also need to position for the computed location object)
-fn compute_size_for_rect(layout_rect: &LayoutRect, font_context: &FontContext) -> (f32, f32) {
+fn compute_size_for_text_rect(text_layout_rect: &TextLayoutRect, font_context: &FontContext) -> (f32, f32) {
 
-    if layout_rect.text_data.is_some() {
-        let text_data = layout_rect.text_data.as_ref().unwrap();
+    if text_layout_rect.text_data.is_some() {  //TODO: why is text_data even optional on a text rect? Does not seem to make sense...
+        let text_data = text_layout_rect.text_data.as_ref().unwrap();
         return font_context.get_text_dimension(&text_data.text, &text_data.font);
-    }
-
-    if layout_rect.image.is_some() {
-        let img = layout_rect.image.as_ref().unwrap();
-        return (img.width() as f32, img.height() as f32);
     }
 
     return (0.0, 0.0);
 }
 
 
-fn wrap_text(layout_rect: &LayoutRect, max_width: f32, width_remaining_on_current_line: f32) -> Vec<String> {
-    let text = &layout_rect.text_data.as_ref().unwrap().text;
-    let no_wrap_positions = &layout_rect.text_data.as_ref().unwrap().non_breaking_space_positions;
+fn wrap_text(text_layout_rect: &TextLayoutRect, max_width: f32, width_remaining_on_current_line: f32) -> Vec<String> {
+    let text = &text_layout_rect.text_data.as_ref().unwrap().text;
+    let no_wrap_positions = &text_layout_rect.text_data.as_ref().unwrap().non_breaking_space_positions;
 
     //Note: we don't re-compute the char positions after wrapping, since we always break on spaces, which don't affect kerning of the next glyph
-    let char_positions = &layout_rect.text_data.as_ref().unwrap().char_position_mapping;
+    let char_positions = &text_layout_rect.text_data.as_ref().unwrap().char_position_mapping;
 
     let mut lines: Vec<String> = Vec::new();
     let mut current_line_buffer = String::new();
@@ -733,6 +929,21 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
             TagName::Br => {
                 partial_node_line_break = true;
+
+                //A newline does not have text, but we still want to make a text node, since things like fontsize affect how it looks
+                let text_data = String::new();
+
+                let partial_node_non_breaking_space_positions = None;
+                let font = get_font_given_styles(&partial_node_styles);
+                let partial_char_position_mapping = font_context.compute_char_position_mapping(&font.0, &text_data);
+
+                partial_node_text_data = Some(RectTextData {
+                    text: text_data,
+                    font: font.0,
+                    font_color: font.1,
+                    char_position_mapping: partial_char_position_mapping,
+                    non_breaking_space_positions: partial_node_non_breaking_space_positions,
+                });
             }
 
             TagName::Img => {
@@ -868,28 +1079,45 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
     }
 
-    let layout_rect = LayoutRect {
-        text_data: partial_node_text_data,
-        image: partial_node_optional_img,
-        location: Rect::empty(),
-        selection_rect: None,
-        selection_char_range: None,
+    let content = if partial_node_text_data.is_some() {
+        let rect = TextLayoutRect {
+            text_data: partial_node_text_data,
+            location: Rect::empty(),
+            selection_rect: None,
+            selection_char_range: None,
+        };
+
+        let text_node = TextLayoutNode {
+            line_break: partial_node_line_break,
+            rects: vec![rect],
+            pre_wrap_rect_backup: None,
+            background_color: partial_node_background_color,
+        };
+        LayoutNodeContent::TextLayoutNode(text_node)
+
+    } else if partial_node_optional_img.is_some() {
+        let img_node = ImageLayoutNode { image: partial_node_optional_img.unwrap(), location: Rect::empty() };
+        LayoutNodeContent::ImageLayoutNode(img_node)
+
+    } else if partial_node_is_submit_button {
+        LayoutNodeContent::ButtonLayoutNode(ButtonLayoutNode { location: Rect::empty() })
+
+    } else if partial_node_is_text_input {
+        LayoutNodeContent::TextInputLayoutNode(TextInputLayoutNode { location: Rect::empty() })
+
+    } else {
+        LayoutNodeContent::BoxLayoutNode(BoxLayoutNode { location: Rect::empty(), background_color: partial_node_background_color })
     };
 
     let new_node = LayoutNode {
         internal_id: id_of_node_being_built,
         display: get_display_type(main_node_refcell),
         visible: partial_node_visible,
-        line_break: partial_node_line_break,
         children: partial_node_children,
         parent_id: parent_id,
-        optional_link_url: partial_node_optional_link_url,
-        rects: vec![layout_rect],
-        pre_wrap_rect_backup: None,
         from_dom_node: Some(Rc::clone(&main_node_refcell)),
-        background_color: partial_node_background_color,
-        is_submit_button: partial_node_is_submit_button,
-        is_text_input: partial_node_is_text_input,
+        content: content,
+        optional_link_url: partial_node_optional_link_url,
     };
 
     let rc_new_node = Rc::new(RefCell::from(new_node));
@@ -948,20 +1176,20 @@ fn build_anonymous_block_layout_node(visible: bool, parent_id: usize, inline_chi
                                      all_nodes: &mut HashMap<usize, Rc<RefCell<LayoutNode>>>, background_color: Color) -> Rc<RefCell<LayoutNode>> {
     let id_of_node_being_built = get_next_layout_node_interal_id();
 
+    let empty_box_layout_node = BoxLayoutNode {
+        location: Rect::empty(),
+        background_color,
+    };
+
     let anonymous_node = LayoutNode {
         internal_id: id_of_node_being_built,
         display: Display::Block,
         visible: visible,
-        line_break: false,
         children: Some(inline_children),
         parent_id: parent_id,
-        optional_link_url: None,
-        rects: vec![LayoutRect::get_default_non_computed_rect()],
-        pre_wrap_rect_backup: None,
         from_dom_node: None,
-        background_color: background_color,
-        is_submit_button: false,
-        is_text_input: false,
+        content: LayoutNodeContent::BoxLayoutNode(empty_box_layout_node),
+        optional_link_url: None,
     };
 
     let internal_id = anonymous_node.internal_id;

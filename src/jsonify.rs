@@ -10,7 +10,11 @@ use crate::dom::{
     ElementDomNode,
     get_next_dom_node_interal_id
 };
-use crate::layout::{LayoutNode, LayoutRect};
+use crate::layout::{
+    LayoutNode,
+    Rect,
+    TextLayoutRect
+};
 
 
 //TODO: this function should have some tests by itself
@@ -67,17 +71,31 @@ pub fn layout_node_to_json(layout_node: &LayoutNode) -> String {
 
     buffer += "{";
 
-    buffer += "\"color\":";
-    buffer += color_to_json(&layout_node.background_color).as_str();
+    match &layout_node.content {
+        crate::layout::LayoutNodeContent::TextLayoutNode(text_layout_node) => {
+            buffer += "\"color\":";
+            buffer += color_to_json(&text_layout_node.background_color).as_str();
 
-    buffer += ", \"rects\":";
-    buffer += rects_to_json(&layout_node.rects).as_str();
+            buffer += ", \"rects\":";
+            buffer += text_rects_to_json(&text_layout_node.rects).as_str();
+        },
+        crate::layout::LayoutNodeContent::BoxLayoutNode(box_layout_node) => {
+            buffer += "\"color\":";
+            buffer += color_to_json(&box_layout_node.background_color).as_str();
 
-    buffer += ", \"childs\":";
-    buffer += childs_to_json(&layout_node.children).as_str();
+            buffer += ", \"location\":";
+            buffer += rect_to_json(&box_layout_node.location).as_str();
+
+            buffer += ", \"childs\":";
+            buffer += childs_to_json(&layout_node.children).as_str();
+        },
+        crate::layout::LayoutNodeContent::ImageLayoutNode(_) => todo!(),  //TODO: implement
+        crate::layout::LayoutNodeContent::ButtonLayoutNode(_) => todo!(),  //TODO: implement
+        crate::layout::LayoutNodeContent::TextInputLayoutNode(_) => todo!(),  //TODO: implement
+        crate::layout::LayoutNodeContent::NoContent => { },
+    }
 
     buffer += "}";
-
 
     return buffer;
 }
@@ -92,7 +110,7 @@ pub fn color_to_json(color: &Color) -> String {
 }
 
 
-pub fn rects_to_json(rects: &Vec<LayoutRect>) -> String {
+pub fn text_rects_to_json(rects: &Vec<TextLayoutRect>) -> String {
     let mut buffer = String::new();
     buffer.push('[');
 
@@ -113,8 +131,8 @@ pub fn rects_to_json(rects: &Vec<LayoutRect>) -> String {
             buffer += "\", ";
         }
 
-        buffer += format!("\"position\": [{:.0}, {:.0}, {:.0}, {:.0}]",
-                          rect.location.x, rect.location.y, rect.location.width, rect.location.height).as_str();
+        buffer += "\"position\":";
+        buffer += rect_to_json(&rect.location).as_str();
 
         buffer.push('}');
         first = false;
@@ -122,6 +140,11 @@ pub fn rects_to_json(rects: &Vec<LayoutRect>) -> String {
 
     buffer.push(']');
     return buffer;
+}
+
+
+fn rect_to_json(rect: &Rect) -> String {
+    return format!("[{:.0}, {:.0}, {:.0}, {:.0}]", rect.x, rect.y, rect.width, rect.height);
 }
 
 

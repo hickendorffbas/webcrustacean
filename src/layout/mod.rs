@@ -70,7 +70,7 @@ impl FullLayout {
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct TextLayoutNode {
-    pub line_break: bool,
+    pub line_break: bool,  //TODO: we should not need this. We just need an empty rect, or non layout node at all (as long as we generate the next text lower when layouting)
     pub rects: Vec<TextLayoutRect>,
     pub pre_wrap_rect_backup: Option<TextLayoutRect>,
     pub background_color: Color,
@@ -81,8 +81,6 @@ impl TextLayoutNode {
         //The main intention for this method is to be used before we start the process of computing line wrapping again (to undo the previous wrapping)
 
         if self.rects.len() > 1 {
-            debug_assert!(self.rects.iter().all(|rect| -> bool { rect.text_data.is_some()} ));
-            debug_assert!(self.pre_wrap_rect_backup.is_some());
             self.rects = vec![self.pre_wrap_rect_backup.as_ref().unwrap().clone()];
         }
     }
@@ -314,7 +312,7 @@ impl LayoutNode {
                 for rect in &text_layout_node.rects {
                     if rect.selection_char_range.is_some() {
                         let (start_idx, end_idx) = rect.selection_char_range.unwrap();
-                        result.push_str(rect.text_data.as_ref().unwrap().text.chars().skip(start_idx).take(end_idx - start_idx + 1).collect::<String>().as_str());
+                        result.push_str(rect.text.chars().skip(start_idx).take(end_idx - start_idx + 1).collect::<String>().as_str());
                     }
                 }
             },
@@ -375,23 +373,14 @@ impl LayoutNode {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone)]
 pub struct TextLayoutRect {
-    pub text_data: Option<RectTextData>,
     pub location: Rect,
-    pub selection_rect: Option<Rect>,
-    pub selection_char_range: Option<(usize, usize)>,
-}
-
-
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Clone)]
-pub struct RectTextData {
-    //TODO: this can be included in the TextLayoutRect I think, it was not there because it could also be an image, and then all these would have to be
-    //      optional, but that is no longer the case, since image is removed
     pub text: String,
     pub font: Font,
     pub font_color: Color,
     pub char_position_mapping: Vec<f32>,
     pub non_breaking_space_positions: Option<HashSet<usize>>,
+    pub selection_rect: Option<Rect>,
+    pub selection_char_range: Option<(usize, usize)>,
 }
 
 
@@ -539,7 +528,7 @@ pub fn compute_layout(node: &Rc<RefCell<LayoutNode>>, all_nodes: &HashMap<usize,
                 }
 
                 for rect in text_layout_node.rects.iter_mut() {
-                    let (rect_width, rect_height) = compute_size_for_text_rect(rect, font_context);
+                    let (rect_width, rect_height) = font_context.get_text_dimension(&rect.text, &rect.font);
                     rect.location = Rect { x: top_left_x, y: top_left_y, width: rect_width, height: rect_height };
                 }
             },
@@ -674,8 +663,7 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
                 match &child_borrow.content {
                     LayoutNodeContent::TextLayoutNode(text_layout_node) => {
                         let first_rect = text_layout_node.rects.iter().next().unwrap();
-                        let text_data = first_rect.text_data.as_ref().unwrap();
-                        let font_color = text_data.font_color;
+                        let font_color = first_rect.font_color;
                         let relative_cursor_x = cursor_x - top_left_x;
                         let amount_of_space_left_on_line = max_allowed_width - relative_cursor_x;
                         let wrapped_text = wrap_text(text_layout_node.rects.last().unwrap(), max_allowed_width, amount_of_space_left_on_line);
@@ -683,22 +671,18 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
                         rects_for_child = Some(Vec::new());
                         for text in wrapped_text {
 
-                            let new_text_data = RectTextData {
-                                font: text_data.font.clone(),
+                            let mut new_rect = TextLayoutRect {
+                                location: Rect::empty(),
+                                selection_rect: None,
+                                selection_char_range: None,
+                                font: first_rect.font.clone(),
                                 font_color: font_color,
-                                char_position_mapping: font_context.compute_char_position_mapping(&text_data.font, &text),
+                                char_position_mapping: font_context.compute_char_position_mapping(&first_rect.font, &text),
                                 non_breaking_space_positions: None, //For now not computing these, although it would be more correct to update them after wrapping
                                 text: text,
                             };
 
-                            let mut new_rect = TextLayoutRect {
-                                text_data: Some(new_text_data),
-                                location: Rect::empty(),
-                                selection_rect: None,
-                                selection_char_range: None,
-                            };
-
-                            let (rect_width, rect_height) = compute_size_for_text_rect(&new_rect, font_context);
+                            let (rect_width, rect_height) = font_context.get_text_dimension(&new_rect.text, &new_rect.font);
 
                             if cursor_x - top_left_x + rect_width > max_allowed_width {
                                 if cursor_x != top_left_x {
@@ -776,25 +760,11 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
     node.update_single_rect_location(Rect { x: top_left_x, y: top_left_y, width: max_width, height: our_height });
 }
 
-
-//Note that this function returns the size, but does not update the rect with that size (because we also need to position for the computed location object)
-fn compute_size_for_text_rect(text_layout_rect: &TextLayoutRect, font_context: &FontContext) -> (f32, f32) {
-
-    if text_layout_rect.text_data.is_some() {  //TODO: why is text_data even optional on a text rect? Does not seem to make sense...
-        let text_data = text_layout_rect.text_data.as_ref().unwrap();
-        return font_context.get_text_dimension(&text_data.text, &text_data.font);
-    }
-
-    return (0.0, 0.0);
-}
-
-
 fn wrap_text(text_layout_rect: &TextLayoutRect, max_width: f32, width_remaining_on_current_line: f32) -> Vec<String> {
-    let text = &text_layout_rect.text_data.as_ref().unwrap().text;
-    let no_wrap_positions = &text_layout_rect.text_data.as_ref().unwrap().non_breaking_space_positions;
+    let no_wrap_positions = &text_layout_rect.non_breaking_space_positions;
 
     //Note: we don't re-compute the char positions after wrapping, since we always break on spaces, which don't affect kerning of the next glyph
-    let char_positions = &text_layout_rect.text_data.as_ref().unwrap().char_position_mapping;
+    let char_positions = &text_layout_rect.char_position_mapping;
 
     let mut lines: Vec<String> = Vec::new();
     let mut current_line_buffer = String::new();
@@ -802,7 +772,7 @@ fn wrap_text(text_layout_rect: &TextLayoutRect, max_width: f32, width_remaining_
     let mut consumed_size = 0.0;
     let mut last_decided_idx = 0;
 
-    for (idx, character) in text.chars().enumerate() {
+    for (idx, character) in text_layout_rect.text.chars().enumerate() {
         let width_to_check = if lines.len() == 0 { width_remaining_on_current_line } else { max_width };
 
         undecided_buffer.push(character);
@@ -872,16 +842,20 @@ fn get_display_type(node: &Rc<RefCell<ElementDomNode>>) -> Display {
 fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Document, all_nodes: &mut HashMap<usize, Rc<RefCell<LayoutNode>>>,
                      parent_id: usize, font_context: &FontContext, main_url: &Url, state: &mut LayoutBuildState,
                      optional_new_text: Option<String>) -> Rc<RefCell<LayoutNode>> {
-    let mut partial_node_text_data = None;
     let mut partial_node_visible = true;
     let mut partial_node_optional_link_url = None;
     let mut partial_node_optional_img = None;
     let mut partial_node_line_break = false;
     let mut partial_node_styles = resolve_full_styles_for_layout_node(&Rc::clone(main_node), &document.all_nodes, &document.style_context);
     let mut partial_node_children = None;
-    let partial_node_background_color = get_color_style_value(&partial_node_styles, "background-color").unwrap_or(Color::WHITE);
     let mut partial_node_is_submit_button = false;
     let mut partial_node_is_text_input = false;
+    let mut partial_text = None;
+    let mut partial_font = None;
+    let mut partial_font_color = None;
+    let mut partial_node_non_breaking_space_positions = None;
+
+    let partial_node_background_color = get_color_style_value(&partial_node_styles, "background-color").unwrap_or(Color::WHITE);
 
     let mut childs_to_recurse_on: &Option<Vec<Rc<RefCell<ElementDomNode>>>> = &None;
 
@@ -889,23 +863,16 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
     let main_node = RefCell::borrow(main_node);
 
     if main_node.text.is_some() {
-        let partial_node_text = if optional_new_text.is_some() {
-            optional_new_text.unwrap()
+        partial_text = if optional_new_text.is_some() {
+            Some(optional_new_text.unwrap())
         } else {
-            main_node.text.as_ref().unwrap().text_content.clone()
+            Some(main_node.text.as_ref().unwrap().text_content.clone())
         };
 
-        let partial_node_non_breaking_space_positions = main_node.text.as_ref().unwrap().non_breaking_space_positions.clone();
         let font = get_font_given_styles(&partial_node_styles);
-        let partial_char_position_mapping = font_context.compute_char_position_mapping(&font.0, &partial_node_text);
-
-        partial_node_text_data = Some(RectTextData {
-            text: partial_node_text,
-            font: font.0,
-            font_color: font.1,
-            char_position_mapping: partial_char_position_mapping,
-            non_breaking_space_positions: partial_node_non_breaking_space_positions,
-        });
+        partial_font = Some(font.0);
+        partial_font_color = Some(font.1);
+        partial_node_non_breaking_space_positions = main_node.text.as_ref().unwrap().non_breaking_space_positions.clone();
 
     } else if main_node.name.is_some() {
         debug_assert!(optional_new_text.is_none());
@@ -928,22 +895,14 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
             }
 
             TagName::Br => {
+                //A newline does not have text, but we still want to make a text node, since things like fontsize affect how it looks
+                partial_text = Some(String::new());
+
                 partial_node_line_break = true;
 
-                //A newline does not have text, but we still want to make a text node, since things like fontsize affect how it looks
-                let text_data = String::new();
-
-                let partial_node_non_breaking_space_positions = None;
                 let font = get_font_given_styles(&partial_node_styles);
-                let partial_char_position_mapping = font_context.compute_char_position_mapping(&font.0, &text_data);
-
-                partial_node_text_data = Some(RectTextData {
-                    text: text_data,
-                    font: font.0,
-                    font_color: font.1,
-                    char_position_mapping: partial_char_position_mapping,
-                    non_breaking_space_positions: partial_node_non_breaking_space_positions,
-                });
+                partial_font = Some(font.0);
+                partial_font_color = Some(font.1);
             }
 
             TagName::Img => {
@@ -1079,12 +1038,16 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
     }
 
-    let content = if partial_node_text_data.is_some() {
+    let content = if partial_text.is_some() {
         let rect = TextLayoutRect {
-            text_data: partial_node_text_data,
+            char_position_mapping: font_context.compute_char_position_mapping(&partial_font.as_ref().unwrap(), &partial_text.as_ref().unwrap()),
+            non_breaking_space_positions: partial_node_non_breaking_space_positions,
             location: Rect::empty(),
             selection_rect: None,
             selection_char_range: None,
+            text: partial_text.unwrap(),
+            font: partial_font.unwrap(),
+            font_color: partial_font_color.unwrap(),
         };
 
         let text_node = TextLayoutNode {

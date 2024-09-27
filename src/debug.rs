@@ -110,7 +110,7 @@ fn debug_print_layout_tree_with_indent(node: &Rc<RefCell<LayoutNode>>, indent_cn
         crate::layout::LayoutNodeContent::TextLayoutNode(text_node) => {
             let mut rect_str = String::new();
             for rect in text_node.rects.iter() {
-                rect_str.push_str(format!("LayoutRect({:?} {:?})", rect.location, rect.text_data, ).as_str());
+                rect_str.push_str(format!("LayoutRect({:?} {:?})", rect.location, rect.text).as_str());
             };
             rect_str
         },

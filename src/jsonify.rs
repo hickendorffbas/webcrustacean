@@ -121,15 +121,9 @@ pub fn text_rects_to_json(rects: &Vec<TextLayoutRect>) -> String {
             buffer.push(',');
         }
 
-        buffer += "{ \"text\": ";
-
-        if rect.text_data.is_none() {
-            buffer += "null, ";
-        } else {
-            buffer += "\"";
-            buffer += rect.text_data.as_ref().unwrap().text.as_str();
-            buffer += "\", ";
-        }
+        buffer += "{ \"text\": \"";
+        buffer += rect.text.as_str();
+        buffer += "\", ";
 
         buffer += "\"position\":";
         buffer += rect_to_json(&rect.location).as_str();

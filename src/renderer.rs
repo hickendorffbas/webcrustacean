@@ -38,16 +38,13 @@ fn render_layout_node(platform: &mut Platform, layout_node: &LayoutNode, all_nod
                     platform.fill_rect(location.x, location.y - current_scroll_y, location.width, location.height, text_layout_node.background_color, 255);
                 }
 
-                if layout_rect.text_data.is_some() {
-                    if layout_rect.selection_rect.is_some() {
-                        let selection_rect = layout_rect.selection_rect.as_ref().unwrap();
-                        platform.fill_rect(selection_rect.x, selection_rect.y - current_scroll_y, selection_rect.width, selection_rect.height, Color::DEFAULT_SELECTION_COLOR, 255);
-                    }
-
-                    let render_y = layout_rect.location.y - current_scroll_y;
-                    let text_data = layout_rect.text_data.as_ref().unwrap();
-                    platform.render_text(&text_data.text, layout_rect.location.x, render_y, &text_data.font, text_data.font_color);
+                if layout_rect.selection_rect.is_some() {
+                    let selection_rect = layout_rect.selection_rect.as_ref().unwrap();
+                    platform.fill_rect(selection_rect.x, selection_rect.y - current_scroll_y, selection_rect.width, selection_rect.height, Color::DEFAULT_SELECTION_COLOR, 255);
                 }
+
+                let render_y = layout_rect.location.y - current_scroll_y;
+                platform.render_text(&layout_rect.text, layout_rect.location.x, render_y, &layout_rect.font, layout_rect.font_color);
             }
         },
         LayoutNodeContent::ImageLayoutNode(image_layout_node) => {

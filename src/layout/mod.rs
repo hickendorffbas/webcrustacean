@@ -165,14 +165,12 @@ impl LayoutNode {
 
     pub fn y_position(&self) -> f32 {
         return match &self.content {
-            LayoutNodeContent::TextLayoutNode(text_layout_node) => {
-                text_layout_node.rects.iter().next().unwrap().location.y
-            },
-            LayoutNodeContent::ImageLayoutNode(_) => todo!(),  //TODO: implement
-            LayoutNodeContent::ButtonLayoutNode(_) => todo!(),  //TODO: implement
-            LayoutNodeContent::TextInputLayoutNode(_) => todo!(),  //TODO: implement
-            LayoutNodeContent::BoxLayoutNode(_) => todo!(),  //TODO: implement
-            LayoutNodeContent::NoContent => todo!(),  //TODO: implement
+            LayoutNodeContent::TextLayoutNode(text_layout_node) => { text_layout_node.rects.iter().next().unwrap().location.y },
+            LayoutNodeContent::ImageLayoutNode(image_node) => { image_node.location.y }
+            LayoutNodeContent::ButtonLayoutNode(button_node) => { button_node.location.y }
+            LayoutNodeContent::TextInputLayoutNode(text_input_node) => { text_input_node.location.y }
+            LayoutNodeContent::BoxLayoutNode(box_node) => { box_node.location.y }
+            LayoutNodeContent::NoContent => { panic!("can't get a position of something without content") },
         }
     }
 
@@ -209,14 +207,10 @@ impl LayoutNode {
             LayoutNodeContent::TextLayoutNode(text_node) => {
                 return text_node.rects.iter().any(|rect| -> bool {rect.location.is_visible_on_y_location(current_scroll_y)});
             },
-            LayoutNodeContent::ImageLayoutNode(image_node) => {
-                return image_node.location.is_visible_on_y_location(current_scroll_y);
-            },
-            LayoutNodeContent::ButtonLayoutNode(_) => todo!(),  //TODO: implement
-            LayoutNodeContent::TextInputLayoutNode(_) => todo!(),  //TODO: implement
-            LayoutNodeContent::BoxLayoutNode(box_node) => {
-                return box_node.location.is_visible_on_y_location(current_scroll_y);
-            },
+            LayoutNodeContent::ImageLayoutNode(image_node) => { return image_node.location.is_visible_on_y_location(current_scroll_y); },
+            LayoutNodeContent::ButtonLayoutNode(button_node) => { return button_node.location.is_visible_on_y_location(current_scroll_y); }
+            LayoutNodeContent::TextInputLayoutNode(text_input_node) => { return text_input_node.location.is_visible_on_y_location(current_scroll_y); }
+            LayoutNodeContent::BoxLayoutNode(box_node) => { return box_node.location.is_visible_on_y_location(current_scroll_y); },
             LayoutNodeContent::NoContent => { return false; }
         }
     }
@@ -352,11 +346,11 @@ impl LayoutNode {
                     rect.location.y += y_diff;
                 }
             },
-            LayoutNodeContent::ImageLayoutNode(_) => todo!(),  //TODO: implement
-            LayoutNodeContent::ButtonLayoutNode(_) => todo!(),  //TODO: implement
-            LayoutNodeContent::TextInputLayoutNode(_) => todo!(),  //TODO: implement
-            LayoutNodeContent::BoxLayoutNode(_) => todo!(),  //TODO: implement
-            LayoutNodeContent::NoContent => todo!(),
+            LayoutNodeContent::ImageLayoutNode(image_node) => { image_node.location.y += y_diff; }
+            LayoutNodeContent::ButtonLayoutNode(button_node) => { button_node.location.y += y_diff; }
+            LayoutNodeContent::TextInputLayoutNode(text_input_node) => { text_input_node.location.y += y_diff; }
+            LayoutNodeContent::BoxLayoutNode(box_node) => { box_node.location.y += y_diff; }
+            LayoutNodeContent::NoContent => { panic!("Cant adjust position of something without content"); }
         }
 
         if self.children.is_some() {

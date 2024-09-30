@@ -1,7 +1,3 @@
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::rc::Rc;
-
 use crate::color::Color;
 use crate::layout::{
     FullLayout,
@@ -15,7 +11,7 @@ use crate::ui::{UIState, render_ui};
 pub fn render(platform: &mut Platform, full_layout: &FullLayout, ui_state: &mut UIState) {
     platform.render_clear(Color::WHITE);
 
-    render_layout_node(platform, &full_layout.root_node.borrow(), &full_layout.all_nodes, ui_state.current_scroll_y);
+    render_layout_node(platform, &full_layout.root_node.borrow(), ui_state.current_scroll_y);
 
     render_ui(platform, ui_state);
 
@@ -23,7 +19,7 @@ pub fn render(platform: &mut Platform, full_layout: &FullLayout, ui_state: &mut 
 }
 
 
-fn render_layout_node(platform: &mut Platform, layout_node: &LayoutNode, all_nodes: &HashMap<usize, Rc<RefCell<LayoutNode>>>, current_scroll_y: f32) {
+fn render_layout_node(platform: &mut Platform, layout_node: &LayoutNode, current_scroll_y: f32) {
 
     if !layout_node.visible_on_y_location(current_scroll_y) {
         return;
@@ -77,7 +73,7 @@ fn render_layout_node(platform: &mut Platform, layout_node: &LayoutNode, all_nod
     if layout_node.children.is_some() {
         for child in layout_node.children.as_ref().unwrap() {
             if child.borrow().visible {
-                render_layout_node(platform, &child.borrow(), all_nodes, current_scroll_y);
+                render_layout_node(platform, &child.borrow(), current_scroll_y);
             }
         }
     }

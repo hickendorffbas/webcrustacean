@@ -127,7 +127,7 @@ fn debug_print_layout_tree_with_indent(node: &Rc<RefCell<LayoutNode>>, indent_cn
         "!visible"
     };
 
-    println!("{}{:?} ({}) (parent: {}) {}", indent, rect_str, node.internal_id, node.parent_id, visible);
+    println!("{}{:?} ({}) {}", indent, rect_str, node.internal_id, visible);
     if node.children.is_some() {
         for child in node.children.clone().unwrap() {
             debug_print_layout_tree_with_indent(&child, indent_cnt + INDENT_AMOUNT)

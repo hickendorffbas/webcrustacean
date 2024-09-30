@@ -14,10 +14,10 @@
 
 
        changes we need to do:
-              - ensure the DOM update() is called every frame
+              DONE - ensure the DOM update() is called every frame
               - if there are dirty nodes, walk the _layout_ tree, and find nodes that need rebuild because their DOM equivalent is dirty
               - build new layout node trees for all those nodes
-              - insert the new layout nodes in the tree (TODO: figure out what to do with id's, both of deleted and new nodes)
+              - insert the new layout nodes in the tree
               - remove all content syncing from the layout pass
               - relayout the whole thing (depending on dirtyness)
               - make sure the dirty flag is only reset after all rebuild and relayout is done, and nowhere in between

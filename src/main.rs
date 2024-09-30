@@ -156,14 +156,14 @@ fn finish_navigate(url: &Url, ui_state: &mut UIState, page_content: &String, doc
     ui_state.current_scroll_y = 0.0;
     ui_state.currently_loading_page = false;
 
-    compute_layout(&full_layout.borrow().root_node, &full_layout.borrow().all_nodes, &document.borrow().style_context,
-                   CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y, &platform.font_context, false, true);
+    compute_layout(&full_layout.borrow().root_node, &document.borrow().style_context, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y, &platform.font_context, false, true);
 
     #[cfg(feature="timings")] println!("layout elapsed millis: {}", start_layout_instant.elapsed().as_millis());
 }
 
 
-fn build_selection_rect_on_text_layout_rect(text_layout_rect: &mut TextLayoutRect, selection_rect: &Rect, start_for_selection_rect_on_layout_rect: f32, start_idx_for_selection: usize) {
+fn build_selection_rect_on_text_layout_rect(text_layout_rect: &mut TextLayoutRect, selection_rect: &Rect, start_for_selection_rect_on_layout_rect: f32,
+                                            start_idx_for_selection: usize) {
     let mut matching_offset = text_layout_rect.location.width;
 
     let mut end_idx_for_selection = 0;
@@ -509,8 +509,9 @@ fn main() -> Result<(), String> {
         let document_has_dirty_nodes = document.borrow_mut().update_all_dom_nodes(&mut resource_thread_pool);
 
         if document_has_dirty_nodes {
-            compute_layout(&full_layout_tree.borrow().root_node, &full_layout_tree.borrow().all_nodes, &document.borrow().style_context,
-                           CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y, &platform.font_context, false, false);
+            //rebuild_dirty_nodes(&mut full_layout_tree.borrow_mut().root_node);  //TODO: implement something like this...
+            compute_layout(&full_layout_tree.borrow().root_node, &document.borrow().style_context, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y,
+                           &platform.font_context, false, false);
         }
 
         #[cfg(feature="timings")] let start_render_instant = Instant::now();

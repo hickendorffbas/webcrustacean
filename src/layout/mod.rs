@@ -40,7 +40,6 @@ pub fn get_next_layout_node_interal_id() -> usize { NEXT_LAYOUT_NODE_INTERNAL.fe
 
 pub struct FullLayout {
     pub root_node: Rc<RefCell<LayoutNode>>,
-    pub all_nodes: HashMap<usize, Rc<RefCell<LayoutNode>>>,
     pub nodes_in_selection_order: Vec<Rc<RefCell<LayoutNode>>>,
 }
 impl FullLayout {
@@ -64,7 +63,7 @@ impl FullLayout {
         let mut layout_node = LayoutNode::new_empty();
         layout_node.content = LayoutNodeContent::BoxLayoutNode(box_node);
 
-        return FullLayout { root_node: Rc::from(RefCell::from(layout_node)), all_nodes: HashMap::new(), nodes_in_selection_order: Vec::new() };
+        return FullLayout { root_node: Rc::from(RefCell::from(layout_node)), nodes_in_selection_order: Vec::new() };
     }
 }
 
@@ -124,7 +123,6 @@ pub enum LayoutNodeContent {
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct LayoutNode {
     pub internal_id: usize,
-    pub parent_id: usize,
     pub children: Option<Vec<Rc<RefCell<LayoutNode>>>>,
 
     pub from_dom_node: Option<Rc<RefCell<ElementDomNode>>>,
@@ -268,7 +266,6 @@ impl LayoutNode {
             display: Display::Block,
             visible: true,
             children: None,
-            parent_id: 0,
             from_dom_node: None,
             content: LayoutNodeContent::NoContent,
             optional_link_url: None,
@@ -420,13 +417,12 @@ struct LayoutBuildState {
 
 pub fn build_full_layout(document: &Document, font_context: &FontContext, main_url: &Url) -> FullLayout {
     let mut top_level_layout_nodes: Vec<Rc<RefCell<LayoutNode>>> = Vec::new();
-    let mut all_nodes: HashMap<usize, Rc<RefCell<LayoutNode>>> = HashMap::new();
 
     let id_of_node_being_built = get_next_layout_node_interal_id();
 
     let mut state = LayoutBuildState { last_char_was_space: false };
 
-    let layout_node = build_layout_tree(&document.document_node, document, id_of_node_being_built, font_context, main_url, &mut state, None);
+    let layout_node = build_layout_tree(&document.document_node, document, font_context, main_url, &mut state, None);
     top_level_layout_nodes.push(layout_node);
 
     let root_node = LayoutNode {
@@ -434,7 +430,6 @@ pub fn build_full_layout(document: &Document, font_context: &FontContext, main_u
         display: Display::Block,
         visible: true,
         children: Some(top_level_layout_nodes),
-        parent_id: id_of_node_being_built,  //this is the top node, so it does not really have a parent, we set it to ourselves,
         from_dom_node: None,
         content: LayoutNodeContent::BoxLayoutNode(BoxLayoutNode {
             location: Rect::empty(),
@@ -444,12 +439,11 @@ pub fn build_full_layout(document: &Document, font_context: &FontContext, main_u
     };
 
     let rc_root_node = Rc::new(RefCell::from(root_node));
-    all_nodes.insert(id_of_node_being_built, Rc::clone(&rc_root_node));
 
     let mut nodes_in_selection_order = Vec::new();
     collect_content_nodes_in_walk_order(&rc_root_node, &mut nodes_in_selection_order);
 
-    return FullLayout { root_node: rc_root_node, all_nodes, nodes_in_selection_order };
+    return FullLayout { root_node: rc_root_node, nodes_in_selection_order };
 }
 
 
@@ -473,8 +467,8 @@ fn collect_content_nodes_in_walk_order(node: &Rc<RefCell<LayoutNode>>, result: &
 
 //This function is responsible for setting the location rects on the node, and all its children, and updating content if needed (sync with DOM)
 //TODO: we now pass in top_left x and y, but I think we should compute the positions just for layout, and offset for UI in the render phase...
-pub fn compute_layout(node: &Rc<RefCell<LayoutNode>>, all_nodes: &HashMap<usize, Rc<RefCell<LayoutNode>>>, style_context: &StyleContext,
-                      top_left_x: f32, top_left_y: f32, font_context: &FontContext, only_update_block_vertical_position: bool, force_full_layout: bool) {
+pub fn compute_layout(node: &Rc<RefCell<LayoutNode>>, style_context: &StyleContext, top_left_x: f32, top_left_y: f32, font_context: &FontContext,
+                      only_update_block_vertical_position: bool, force_full_layout: bool) {
 
     let mut mut_node = RefCell::borrow_mut(node);
 
@@ -489,9 +483,9 @@ pub fn compute_layout(node: &Rc<RefCell<LayoutNode>>, all_nodes: &HashMap<usize,
 
     } else if mut_node.children.is_some() {
         if mut_node.all_childnodes_have_given_display(Display::Block) {
-            apply_block_layout(&mut mut_node, all_nodes, style_context, top_left_x, top_left_y, font_context, force_full_layout);
+            apply_block_layout(&mut mut_node, style_context, top_left_x, top_left_y, font_context, force_full_layout);
         } else if mut_node.all_childnodes_have_given_display(Display::Inline) {
-            apply_inline_layout(&mut mut_node, all_nodes, style_context, top_left_x, top_left_y, CONTENT_WIDTH - top_left_x, font_context, force_full_layout);
+            apply_inline_layout(&mut mut_node, style_context, top_left_x, top_left_y, CONTENT_WIDTH - top_left_x, font_context, force_full_layout);
         } else {
             panic!("Not all children are either inline or block, earlier in the process this should already have been fixed with anonymous blocks");
         }
@@ -576,14 +570,13 @@ pub fn get_font_given_styles(styles: &HashMap<String, String>) -> (Font, Color) 
 }
 
 
-fn apply_block_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefCell<LayoutNode>>>, style_context: &StyleContext,
-                      top_left_x: f32, top_left_y: f32, font_context: &FontContext, force_full_layout: bool) {
+fn apply_block_layout(node: &mut LayoutNode, style_context: &StyleContext, top_left_x: f32, top_left_y: f32, font_context: &FontContext, force_full_layout: bool) {
     let mut cursor_y = top_left_y;
     let mut max_width: f32 = 0.0;
 
     for child in node.children.as_ref().unwrap() {
         let only_update_block_vertical_position = !child.borrow().is_dirty_anywhere(); //Since the parent node is block layout, we can shift the while block up and down if its not dirty
-        compute_layout(&child, all_nodes, style_context, top_left_x, cursor_y, font_context, only_update_block_vertical_position, force_full_layout);
+        compute_layout(&child, style_context, top_left_x, cursor_y, font_context, only_update_block_vertical_position, force_full_layout);
         let (bounding_box_width, bounding_box_height) = RefCell::borrow(child).get_size_of_bounding_box();
 
         cursor_y += bounding_box_height;
@@ -595,8 +588,8 @@ fn apply_block_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefCe
 }
 
 
-fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefCell<LayoutNode>>>, style_context: &StyleContext, top_left_x: f32,
-                       top_left_y: f32, max_allowed_width: f32, font_context: &FontContext, force_full_layout: bool) {
+fn apply_inline_layout(node: &mut LayoutNode, style_context: &StyleContext, top_left_x: f32, top_left_y: f32, max_allowed_width: f32,
+                       font_context: &FontContext, force_full_layout: bool) {
     let mut cursor_x = top_left_x;
     let mut cursor_y = top_left_y;
     let mut max_width: f32 = 0.0;
@@ -604,7 +597,7 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
 
     for child in node.children.as_ref().unwrap() {
         let only_update_block_vertical_position = false; //we can only do this if the parent is block layout, but in this case its inline. Inline might cause horizonal cascading changes.
-        compute_layout(&child, all_nodes, style_context, cursor_x, cursor_y, font_context, only_update_block_vertical_position, force_full_layout);
+        compute_layout(&child, style_context, cursor_x, cursor_y, font_context, only_update_block_vertical_position, force_full_layout);
 
         let is_line_break = if let LayoutNodeContent::TextLayoutNode(text_node) = &RefCell::borrow(child).content {
             text_node.line_break
@@ -721,7 +714,7 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
 
                     let only_update_block_vertical_position = false; //we can only do this if the parent is block layout, but in this case its inline. Inline might cause horizonal cascading changes.
                     drop(child_borrow);
-                    compute_layout(&child, all_nodes, style_context, cursor_x, cursor_y, font_context, only_update_block_vertical_position, force_full_layout);
+                    compute_layout(&child, style_context, cursor_x, cursor_y, font_context, only_update_block_vertical_position, force_full_layout);
                     let (child_width, child_height) = RefCell::borrow(child).get_size_of_bounding_box();
 
                     cursor_x += child_width;
@@ -828,7 +821,7 @@ fn get_display_type(node: &Rc<RefCell<ElementDomNode>>) -> Display {
 }
 
 
-fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Document, parent_id: usize, font_context: &FontContext, main_url: &Url,
+fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Document, font_context: &FontContext, main_url: &Url,
                      state: &mut LayoutBuildState, optional_new_text: Option<String>) -> Rc<RefCell<LayoutNode>> {
     let mut partial_node_visible = true;
     let mut partial_node_optional_link_url = None;
@@ -975,29 +968,27 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
                 if get_display_type(&child) == Display::Block {
                     if !temp_inline_child_buffer.is_empty() {
-                        let layout_childs = build_layout_for_inline_nodes(&temp_inline_child_buffer, document, id_of_node_being_built, font_context,
-                                                                          main_url, state);
+                        let layout_childs = build_layout_for_inline_nodes(&temp_inline_child_buffer, document, font_context, main_url, state);
 
-                        let anon_block = build_anonymous_block_layout_node(true, id_of_node_being_built, layout_childs, background_color);
+                        let anon_block = build_anonymous_block_layout_node(true, layout_childs, background_color);
                         partial_node_children.as_mut().unwrap().push(anon_block);
 
                         temp_inline_child_buffer = Vec::new();
                     }
 
                     state.last_char_was_space = false;
-                    let layout_child = build_layout_tree(child, document, id_of_node_being_built, font_context, main_url, state, None);
+                    let layout_child = build_layout_tree(child, document, font_context, main_url, state, None);
                     partial_node_children.as_mut().unwrap().push(layout_child);
 
                 } else {
                     temp_inline_child_buffer.push(child);
                 }
-
             }
 
             if !temp_inline_child_buffer.is_empty() {
-                let layout_childs = build_layout_for_inline_nodes(&temp_inline_child_buffer, document, id_of_node_being_built, font_context, main_url, state);
+                let layout_childs = build_layout_for_inline_nodes(&temp_inline_child_buffer, document, font_context, main_url, state);
 
-                let anon_block = build_anonymous_block_layout_node(true, id_of_node_being_built, layout_childs, background_color);
+                let anon_block = build_anonymous_block_layout_node(true, layout_childs, background_color);
                 partial_node_children.as_mut().unwrap().push(anon_block);
             }
 
@@ -1007,7 +998,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
             for child in childs_to_recurse_on.as_ref().unwrap() {
                 inline_nodes_to_layout.push(child);
             }
-            let layout_childs = build_layout_for_inline_nodes(&inline_nodes_to_layout, document, id_of_node_being_built, font_context, main_url, state);
+            let layout_childs = build_layout_for_inline_nodes(&inline_nodes_to_layout, document, font_context, main_url, state);
 
             for layout_child in layout_childs {
                 partial_node_children.as_mut().unwrap().push(layout_child);
@@ -1017,7 +1008,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
             for child in childs_to_recurse_on.as_ref().unwrap() {
                 state.last_char_was_space = false;
-                let layout_child = build_layout_tree(child, document, id_of_node_being_built, font_context, main_url, state, None);
+                let layout_child = build_layout_tree(child, document, font_context, main_url, state, None);
                 partial_node_children.as_mut().unwrap().push(layout_child);
             }
         }
@@ -1063,7 +1054,6 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
         display: get_display_type(main_node_refcell),
         visible: partial_node_visible,
         children: partial_node_children,
-        parent_id: parent_id,
         from_dom_node: Some(Rc::clone(&main_node_refcell)),
         content: content,
         optional_link_url: partial_node_optional_link_url,
@@ -1073,7 +1063,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 }
 
 
-fn build_layout_for_inline_nodes(inline_nodes: &Vec<&Rc<RefCell<ElementDomNode>>>, document: &Document, parent_id: usize, font_context: &FontContext,
+fn build_layout_for_inline_nodes(inline_nodes: &Vec<&Rc<RefCell<ElementDomNode>>>, document: &Document, font_context: &FontContext,
                                  main_url: &Url, state: &mut LayoutBuildState) -> Vec<Rc<RefCell<LayoutNode>>> {
 
     let mut optional_new_text;
@@ -1110,7 +1100,7 @@ fn build_layout_for_inline_nodes(inline_nodes: &Vec<&Rc<RefCell<ElementDomNode>>
             optional_new_text = None;
         }
 
-        let layout_child = build_layout_tree(node, document, parent_id, font_context, main_url, state, optional_new_text);
+        let layout_child = build_layout_tree(node, document, font_context, main_url, state, optional_new_text);
         layout_nodes.push(layout_child);
     }
 
@@ -1118,8 +1108,7 @@ fn build_layout_for_inline_nodes(inline_nodes: &Vec<&Rc<RefCell<ElementDomNode>>
 }
 
 
-fn build_anonymous_block_layout_node(visible: bool, parent_id: usize, inline_children: Vec<Rc<RefCell<LayoutNode>>>,
-                                     background_color: Color) -> Rc<RefCell<LayoutNode>> {
+fn build_anonymous_block_layout_node(visible: bool, inline_children: Vec<Rc<RefCell<LayoutNode>>>, background_color: Color) -> Rc<RefCell<LayoutNode>> {
     let id_of_node_being_built = get_next_layout_node_interal_id();
 
     let empty_box_layout_node = BoxLayoutNode {
@@ -1132,7 +1121,6 @@ fn build_anonymous_block_layout_node(visible: bool, parent_id: usize, inline_chi
         display: Display::Block,
         visible: visible,
         children: Some(inline_children),
-        parent_id: parent_id,
         from_dom_node: None,
         content: LayoutNodeContent::BoxLayoutNode(empty_box_layout_node),
         optional_link_url: None,

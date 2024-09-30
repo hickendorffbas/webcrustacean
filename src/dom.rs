@@ -166,7 +166,7 @@ impl ElementDomNode {
 pub struct AttributeDomNode {
     pub name: String,
     pub value: String,
-    pub parent_id: usize,  //TODO: if we don't use this a lot, we might want to remove it and make attributes an HashMap<String, String>
+    #[allow(dead_code)] pub parent_id: usize,  //TODO: if we really don't use this, we might want to remove it and make attributes an HashMap<String, String>
 }
 
 

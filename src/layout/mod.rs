@@ -248,7 +248,6 @@ impl LayoutNode {
             }
         }
 
-
         if self.children.is_some() {
             for child in self.children.as_ref().unwrap() {
                 if RefCell::borrow(child).visible {
@@ -427,8 +426,7 @@ pub fn build_full_layout(document: &Document, font_context: &FontContext, main_u
 
     let mut state = LayoutBuildState { last_char_was_space: false };
 
-    let layout_node = build_layout_tree(&document.document_node, document, &mut all_nodes, id_of_node_being_built, font_context, 
-                                        main_url, &mut state, None);
+    let layout_node = build_layout_tree(&document.document_node, document, id_of_node_being_built, font_context, main_url, &mut state, None);
     top_level_layout_nodes.push(layout_node);
 
     let root_node = LayoutNode {
@@ -830,9 +828,8 @@ fn get_display_type(node: &Rc<RefCell<ElementDomNode>>) -> Display {
 }
 
 
-fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Document, all_nodes: &mut HashMap<usize, Rc<RefCell<LayoutNode>>>,
-                     parent_id: usize, font_context: &FontContext, main_url: &Url, state: &mut LayoutBuildState,
-                     optional_new_text: Option<String>) -> Rc<RefCell<LayoutNode>> {
+fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Document, parent_id: usize, font_context: &FontContext, main_url: &Url,
+                     state: &mut LayoutBuildState, optional_new_text: Option<String>) -> Rc<RefCell<LayoutNode>> {
     let mut partial_node_visible = true;
     let mut partial_node_optional_link_url = None;
     let mut partial_node_optional_img = None;
@@ -978,17 +975,17 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
                 if get_display_type(&child) == Display::Block {
                     if !temp_inline_child_buffer.is_empty() {
-                        let layout_childs = build_layout_for_inline_nodes(&temp_inline_child_buffer, document, all_nodes, id_of_node_being_built,
-                                                                          font_context, main_url, state);
+                        let layout_childs = build_layout_for_inline_nodes(&temp_inline_child_buffer, document, id_of_node_being_built, font_context,
+                                                                          main_url, state);
 
-                        let anon_block = build_anonymous_block_layout_node(true, id_of_node_being_built, layout_childs, all_nodes, background_color);
+                        let anon_block = build_anonymous_block_layout_node(true, id_of_node_being_built, layout_childs, background_color);
                         partial_node_children.as_mut().unwrap().push(anon_block);
 
                         temp_inline_child_buffer = Vec::new();
                     }
 
                     state.last_char_was_space = false;
-                    let layout_child = build_layout_tree(child, document, all_nodes, id_of_node_being_built, font_context, main_url, state, None);
+                    let layout_child = build_layout_tree(child, document, id_of_node_being_built, font_context, main_url, state, None);
                     partial_node_children.as_mut().unwrap().push(layout_child);
 
                 } else {
@@ -998,10 +995,9 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
             }
 
             if !temp_inline_child_buffer.is_empty() {
-                let layout_childs = build_layout_for_inline_nodes(&temp_inline_child_buffer, document, all_nodes, id_of_node_being_built,
-                                                                  font_context, main_url, state);
+                let layout_childs = build_layout_for_inline_nodes(&temp_inline_child_buffer, document, id_of_node_being_built, font_context, main_url, state);
 
-                let anon_block = build_anonymous_block_layout_node(true, id_of_node_being_built, layout_childs, all_nodes, background_color);
+                let anon_block = build_anonymous_block_layout_node(true, id_of_node_being_built, layout_childs, background_color);
                 partial_node_children.as_mut().unwrap().push(anon_block);
             }
 
@@ -1011,8 +1007,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
             for child in childs_to_recurse_on.as_ref().unwrap() {
                 inline_nodes_to_layout.push(child);
             }
-            let layout_childs = build_layout_for_inline_nodes(&inline_nodes_to_layout, document, all_nodes, id_of_node_being_built,
-                                                              font_context, main_url, state);
+            let layout_childs = build_layout_for_inline_nodes(&inline_nodes_to_layout, document, id_of_node_being_built, font_context, main_url, state);
 
             for layout_child in layout_childs {
                 partial_node_children.as_mut().unwrap().push(layout_child);
@@ -1022,7 +1017,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
             for child in childs_to_recurse_on.as_ref().unwrap() {
                 state.last_char_was_space = false;
-                let layout_child = build_layout_tree(child, document, all_nodes, id_of_node_being_built, font_context, main_url, state, None);
+                let layout_child = build_layout_tree(child, document, id_of_node_being_built, font_context, main_url, state, None);
                 partial_node_children.as_mut().unwrap().push(layout_child);
             }
         }
@@ -1074,15 +1069,12 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
         optional_link_url: partial_node_optional_link_url,
     };
 
-    let rc_new_node = Rc::new(RefCell::from(new_node));
-    all_nodes.insert(id_of_node_being_built, Rc::clone(&rc_new_node));
-
-    return rc_new_node;
+    return Rc::new(RefCell::from(new_node));
 }
 
 
-fn build_layout_for_inline_nodes(inline_nodes: &Vec<&Rc<RefCell<ElementDomNode>>>, document: &Document, all_nodes: &mut HashMap<usize, Rc<RefCell<LayoutNode>>>,
-                                 parent_id: usize, font_context: &FontContext, main_url: &Url, state: &mut LayoutBuildState) -> Vec<Rc<RefCell<LayoutNode>>> {
+fn build_layout_for_inline_nodes(inline_nodes: &Vec<&Rc<RefCell<ElementDomNode>>>, document: &Document, parent_id: usize, font_context: &FontContext,
+                                 main_url: &Url, state: &mut LayoutBuildState) -> Vec<Rc<RefCell<LayoutNode>>> {
 
     let mut optional_new_text;
     let mut layout_nodes = Vec::new();
@@ -1118,7 +1110,7 @@ fn build_layout_for_inline_nodes(inline_nodes: &Vec<&Rc<RefCell<ElementDomNode>>
             optional_new_text = None;
         }
 
-        let layout_child = build_layout_tree(node, document, all_nodes, parent_id, font_context, main_url, state, optional_new_text);
+        let layout_child = build_layout_tree(node, document, parent_id, font_context, main_url, state, optional_new_text);
         layout_nodes.push(layout_child);
     }
 
@@ -1127,7 +1119,7 @@ fn build_layout_for_inline_nodes(inline_nodes: &Vec<&Rc<RefCell<ElementDomNode>>
 
 
 fn build_anonymous_block_layout_node(visible: bool, parent_id: usize, inline_children: Vec<Rc<RefCell<LayoutNode>>>,
-                                     all_nodes: &mut HashMap<usize, Rc<RefCell<LayoutNode>>>, background_color: Color) -> Rc<RefCell<LayoutNode>> {
+                                     background_color: Color) -> Rc<RefCell<LayoutNode>> {
     let id_of_node_being_built = get_next_layout_node_interal_id();
 
     let empty_box_layout_node = BoxLayoutNode {
@@ -1146,8 +1138,5 @@ fn build_anonymous_block_layout_node(visible: bool, parent_id: usize, inline_chi
         optional_link_url: None,
     };
 
-    let internal_id = anonymous_node.internal_id;
-    let anon_rc = Rc::new(RefCell::from(anonymous_node));
-    all_nodes.insert(internal_id, Rc::clone(&anon_rc));
-    return anon_rc;
+    return Rc::new(RefCell::from(anonymous_node));
 }

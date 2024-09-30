@@ -473,7 +473,7 @@ fn collect_content_nodes_in_walk_order(node: &Rc<RefCell<LayoutNode>>, result: &
 }
 
 
-//This function is responsible for setting the location rects on the node, and all its children.
+//This function is responsible for setting the location rects on the node, and all its children, and updating content if needed (sync with DOM)
 //TODO: we now pass in top_left x and y, but I think we should compute the positions just for layout, and offset for UI in the render phase...
 pub fn compute_layout(node: &Rc<RefCell<LayoutNode>>, all_nodes: &HashMap<usize, Rc<RefCell<LayoutNode>>>, style_context: &StyleContext,
                       top_left_x: f32, top_left_y: f32, font_context: &FontContext, only_update_block_vertical_position: bool, force_full_layout: bool) {
@@ -529,10 +529,10 @@ pub fn compute_layout(node: &Rc<RefCell<LayoutNode>>, all_nodes: &HashMap<usize,
             LayoutNodeContent::ImageLayoutNode(ref mut image_layout_node) => {
 
                 if node_was_dirty {
-                    //TODO: why are we reloading the image here? In the build tree we also set it. If we don't rebuild if the image changes, we should set
+                    //TODO: (TODO-1) why are we reloading the image here? In the build tree we also set it. If we don't rebuild if the image changes, we should set
                     //      it here, but then we should not set it in the build step. Or, if we _do_ rebuild, we should not update it here...
-                    //         -> I think we only rebuild if we get a new document, so then setting it here makes sense, but then build should not.
-                    //            probably the same for other content.....
+                    //         -> I think we only rebuild if we get a new document, so then setting it here makes sense (since the image loads in later),
+                    //            but then build should not. probably the same for other content.....
 
                     let dom_node = opt_dom_node.as_ref().unwrap().borrow();
                     let opt_image_clone = if dom_node.image.is_some() {
@@ -542,8 +542,6 @@ pub fn compute_layout(node: &Rc<RefCell<LayoutNode>>, all_nodes: &HashMap<usize,
                     };
 
                     image_layout_node.image = opt_image_clone;
-
-                    opt_dom_node.as_ref().unwrap().borrow_mut().dirty = false;
                 }
 
                 image_layout_node.location =
@@ -754,10 +752,9 @@ fn apply_inline_layout(node: &mut LayoutNode, all_nodes: &HashMap<usize, Rc<RefC
     node.update_single_rect_location(Rect { x: top_left_x, y: top_left_y, width: max_width, height: our_height });
 }
 
+
 fn wrap_text(text_layout_rect: &TextLayoutRect, max_width: f32, width_remaining_on_current_line: f32) -> Vec<String> {
     let no_wrap_positions = &text_layout_rect.non_breaking_space_positions;
-
-    //Note: we don't re-compute the char positions after wrapping, since we always break on spaces, which don't affect kerning of the next glyph
     let char_positions = &text_layout_rect.char_position_mapping;
 
     let mut lines: Vec<String> = Vec::new();
@@ -813,12 +810,12 @@ fn get_display_type(node: &Rc<RefCell<ElementDomNode>>) -> Display {
         let node_name = node.name.as_ref().unwrap();
 
         if node_name == "a" ||  //TODO: should we check a static array of str here?
-        node_name == "b" ||
-        node_name == "br" ||
-        node_name == "img" ||
-        node_name == "span" {
+           node_name == "b" ||
+           node_name == "br" ||
+           node_name == "img" ||
+           node_name == "span" {
                 return Display::Inline;
-            }
+        }
         return Display::Block;
 
     }
@@ -844,9 +841,9 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
     let mut partial_node_children = None;
     let mut partial_node_is_submit_button = false;
     let mut partial_node_is_text_input = false;
-    let mut partial_text = None;
-    let mut partial_font = None;
-    let mut partial_font_color = None;
+    let mut partial_node_text = None;
+    let mut partial_node_font = None;
+    let mut partial_node_font_color = None;
     let mut partial_node_non_breaking_space_positions = None;
 
     let partial_node_background_color = get_color_style_value(&partial_node_styles, "background-color").unwrap_or(Color::WHITE);
@@ -857,15 +854,15 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
     let main_node = RefCell::borrow(main_node);
 
     if main_node.text.is_some() {
-        partial_text = if optional_new_text.is_some() {
+        partial_node_text = if optional_new_text.is_some() {
             Some(optional_new_text.unwrap())
         } else {
             Some(main_node.text.as_ref().unwrap().text_content.clone())
         };
 
         let font = get_font_given_styles(&partial_node_styles);
-        partial_font = Some(font.0);
-        partial_font_color = Some(font.1);
+        partial_node_font = Some(font.0);
+        partial_node_font_color = Some(font.1);
         partial_node_non_breaking_space_positions = main_node.text.as_ref().unwrap().non_breaking_space_positions.clone();
 
     } else if main_node.name.is_some() {
@@ -890,13 +887,13 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
             TagName::Br => {
                 //A newline does not have text, but we still want to make a text node, since things like fontsize affect how it looks
-                partial_text = Some(String::new());
+                partial_node_text = Some(String::new());
 
                 partial_node_line_break = true;
 
                 let font = get_font_given_styles(&partial_node_styles);
-                partial_font = Some(font.0);
-                partial_font_color = Some(font.1);
+                partial_node_font = Some(font.0);
+                partial_node_font_color = Some(font.1);
             }
 
             TagName::Img => {
@@ -1032,16 +1029,16 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
     }
 
-    let content = if partial_text.is_some() {
+    let content = if partial_node_text.is_some() {
         let rect = TextLayoutRect {
-            char_position_mapping: font_context.compute_char_position_mapping(&partial_font.as_ref().unwrap(), &partial_text.as_ref().unwrap()),
+            char_position_mapping: font_context.compute_char_position_mapping(&partial_node_font.as_ref().unwrap(), &partial_node_text.as_ref().unwrap()),
             non_breaking_space_positions: partial_node_non_breaking_space_positions,
             location: Rect::empty(),
             selection_rect: None,
             selection_char_range: None,
-            text: partial_text.unwrap(),
-            font: partial_font.unwrap(),
-            font_color: partial_font_color.unwrap(),
+            text: partial_node_text.unwrap(),
+            font: partial_node_font.unwrap(),
+            font_color: partial_node_font_color.unwrap(),
         };
 
         let text_node = TextLayoutNode {

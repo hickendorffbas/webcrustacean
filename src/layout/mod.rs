@@ -425,6 +425,8 @@ pub fn build_full_layout(document: &Document, font_context: &FontContext, main_u
     let layout_node = build_layout_tree(&document.document_node, document, font_context, main_url, &mut state, None);
     top_level_layout_nodes.push(layout_node);
 
+    //Note: we need a node above the first node actually containing any content or styles, since for updates to content or styles we re-assign
+    //      children to the parent, so we need all nodes that could update to have a valid parent. That is this root_node for the toplevel node(s).
     let root_node = LayoutNode {
         internal_id: id_of_node_being_built,
         display: Display::Block,
@@ -922,9 +924,6 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
         childs_to_recurse_on = &main_node.children;
     }
 
-
-    let id_of_node_being_built = get_next_layout_node_interal_id();
-
     let has_mixed_inline_and_block = {
         let mut has_mixed_inline_and_block = false;
 
@@ -1050,7 +1049,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
     };
 
     let new_node = LayoutNode {
-        internal_id: id_of_node_being_built,
+        internal_id: get_next_layout_node_interal_id(),
         display: get_display_type(main_node_refcell),
         visible: partial_node_visible,
         children: partial_node_children,
@@ -1060,6 +1059,29 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
     };
 
     return Rc::new(RefCell::from(new_node));
+}
+
+
+pub fn rebuild_dirty_layout_childs(main_node: &Rc<RefCell<LayoutNode>>, document: &Document, font_context: &FontContext, main_url: &Url) {
+    let mut main_node_mut = main_node.borrow_mut();
+    let main_node_children = &mut main_node_mut.children;
+
+    if main_node_children.is_some() {
+        for child_idx in 0..main_node_children.as_ref().unwrap().len() {
+            let child = &main_node_children.as_ref().unwrap()[child_idx];
+
+            if child.borrow().from_dom_node.is_some() && child.borrow().from_dom_node.as_ref().unwrap().borrow().dirty {
+                let mut layout_build_state = LayoutBuildState { last_char_was_space: false }; //TODO: is there ever a case where this needs to be not false?
+                                                                                              //      maybe when replacing in a series of inline nodes?
+                let new_child = build_layout_tree(&child.borrow().from_dom_node.as_ref().unwrap(), document, font_context, main_url, &mut layout_build_state, None);
+                main_node_children.as_mut().unwrap()[child_idx] = new_child;
+
+            } else {
+                rebuild_dirty_layout_childs(&child, document, font_context, main_url);
+            }
+
+        }
+    }
 }
 
 

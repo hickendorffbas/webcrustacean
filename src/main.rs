@@ -41,6 +41,7 @@ use crate::layout::{
     compute_layout,
     FullLayout,
     LayoutNode,
+    rebuild_dirty_layout_childs,
     Rect,
 };
 use crate::network::url::Url;
@@ -509,7 +510,7 @@ fn main() -> Result<(), String> {
         let document_has_dirty_nodes = document.borrow_mut().update_all_dom_nodes(&mut resource_thread_pool);
 
         if document_has_dirty_nodes {
-            //rebuild_dirty_nodes(&mut full_layout_tree.borrow_mut().root_node);  //TODO: implement something like this...
+            rebuild_dirty_layout_childs(&full_layout_tree.borrow().root_node, &document.borrow(), &platform.font_context, &url);
             compute_layout(&full_layout_tree.borrow().root_node, &document.borrow().style_context, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y,
                            &platform.font_context, false, false);
         }

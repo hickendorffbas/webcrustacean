@@ -15,7 +15,7 @@
 
        changes we need to do:
               DONE - ensure the DOM update() is called every frame
-              - if there are dirty nodes, walk the _layout_ tree, and find nodes that need rebuild because their DOM equivalent is dirty
+              DONE - if there are dirty nodes, walk the _layout_ tree, and find nodes that need rebuild because their DOM equivalent is dirty
               - build new layout node trees for all those nodes
               - insert the new layout nodes in the tree
               - remove all content syncing from the layout pass
@@ -26,9 +26,7 @@
 goals for 0.4.0:
        - basic html form support
               - add basic button component
-                     - how am I going to give the form items a size? The rects on the layout node are just for text atm. Not sure if I want all different
-                       rects for other things. Maybe a generic non-text rect?
-                            -> use an enum for layout nodes for different variants
+                     - I already have the point to render the button, but it should probably a ui component, registered in some dynamic way...
        - better testing setup
               - some way to test with actual webpage examples in files
               - make parse tests nicer by comparing json

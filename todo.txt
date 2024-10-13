@@ -1,28 +1,6 @@
 - BUG: when you go to a page with a lot of paragraphs, selection does not work correct, when in between paragraps, paragraphs below get selected
 
 
-
-
--> the problem we are having now is that an image is loading in later. We first just make a box node, but we never update the content type of layout nodes
-   later. Should we? Otherwise we might need to rebuild the node. We have a dirty flag on the dom node, but its currently only for layout updates
-
-       so the cycle should be:
-              - update() all the DOM nodes
-              - walk the nodes from root to leafs, rebuild whenever you see a dirty DOM node
-              - recompute things like selection order etc.
-              - do a re-layout, layout everything, but (as we already do), don't update block layout children if we don't have to
-
-
-       changes we need to do:
-              DONE - ensure the DOM update() is called every frame
-              DONE - if there are dirty nodes, walk the _layout_ tree, and find nodes that need rebuild because their DOM equivalent is dirty
-              DONE - build new layout node trees for all those nodes
-              DONE - insert the new layout nodes in the tree
-              - remove all content syncing from the layout pass
-              DONE - relayout the whole thing (depending on dirtyness)
-              DONE - make sure the dirty flag is only reset after all rebuild and relayout is done, and nowhere in between (check TODO-1)
-
-
 goals for 0.4.0:
        - basic html form support
               - add basic button component

@@ -449,7 +449,10 @@ pub fn build_full_layout(document: &Document, font_context: &FontContext, main_u
 }
 
 
-fn collect_content_nodes_in_walk_order(node: &Rc<RefCell<LayoutNode>>, result: &mut Vec<Rc<RefCell<LayoutNode>>>) {
+pub fn collect_content_nodes_in_walk_order(node: &Rc<RefCell<LayoutNode>>, result: &mut Vec<Rc<RefCell<LayoutNode>>>) {
+    //TODO: this is not correct, at least, not if we are using it for things like selection. Because absolutely positioned elements might have
+    //      very different positions, regardless of their place in the tree. We need to base this on all (x, y) postions (and keep that updated)
+
     match RefCell::borrow(node).content {
         LayoutNodeContent::TextLayoutNode(_) => { result.push(Rc::clone(&node)); },
         LayoutNodeContent::ImageLayoutNode(_) => { result.push(Rc::clone(&node)); },
@@ -534,24 +537,7 @@ fn compute_layout_for_node(node: &Rc<RefCell<LayoutNode>>, style_context: &Style
                     layout_rect.location = Rect { x: top_left_x, y: top_left_y, width: rect_width, height: rect_height };
                 }
             },
-            LayoutNodeContent::ImageLayoutNode(ref mut image_layout_node) => {
-
-                if opt_dom_node.is_some() && opt_dom_node.as_ref().unwrap().borrow().dirty {
-                    //TODO: (TODO-1) why are we reloading the image here? In the build tree we also set it. If we don't rebuild if the image changes, we should set
-                    //      it here, but then we should not set it in the build step. Or, if we _do_ rebuild, we should not update it here...
-                    //         -> I think we only rebuild if we get a new document, so then setting it here makes sense (since the image loads in later),
-                    //            but then build should not. probably the same for other content.....
-
-                    let dom_node = opt_dom_node.as_ref().unwrap().borrow();
-                    let opt_image_clone = if dom_node.image.is_some() {
-                        dom_node.image.as_ref().unwrap().deref().clone()
-                    } else {
-                        panic!("invalid state"); // we have built an image node based on the DOM, so there should be an image on the DOM
-                    };
-
-                    image_layout_node.image = opt_image_clone;
-                }
-
+            LayoutNodeContent::ImageLayoutNode(image_layout_node) => {
                 image_layout_node.location =
                      Rect { x: top_left_x, y: top_left_y, width: image_layout_node.image.width() as f32, height: image_layout_node.image.height() as f32 };
             },

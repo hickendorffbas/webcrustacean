@@ -26,7 +26,7 @@ use std::{
 };
 
 use arboard::Clipboard;
-use layout::TextLayoutRect;
+use layout::{collect_content_nodes_in_walk_order, TextLayoutRect};
 use sdl2::{
     event::Event as SdlEvent,
     keyboard::{Keycode, Mod as SdlKeyMod},
@@ -511,6 +511,11 @@ fn main() -> Result<(), String> {
 
         if document_has_dirty_nodes {
             rebuild_dirty_layout_childs(&full_layout_tree.borrow().root_node, &document.borrow(), &platform.font_context, &url);
+
+            let mut nodes_in_selection_order = Vec::new();
+            collect_content_nodes_in_walk_order(&full_layout_tree.borrow().root_node, &mut nodes_in_selection_order);
+            full_layout_tree.borrow_mut().nodes_in_selection_order = nodes_in_selection_order;
+
             compute_layout(&full_layout_tree.borrow().root_node, &document.borrow().style_context, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y,
                            &platform.font_context, false, false);
         }

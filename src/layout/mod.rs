@@ -467,10 +467,32 @@ fn collect_content_nodes_in_walk_order(node: &Rc<RefCell<LayoutNode>>, result: &
 }
 
 
-//This function is responsible for setting the location rects on the node, and all its children, and updating content if needed (sync with DOM)
-//TODO: we now pass in top_left x and y, but I think we should compute the positions just for layout, and offset for UI in the render phase...
 pub fn compute_layout(node: &Rc<RefCell<LayoutNode>>, style_context: &StyleContext, top_left_x: f32, top_left_y: f32, font_context: &FontContext,
                       only_update_block_vertical_position: bool, force_full_layout: bool) {
+    compute_layout_for_node(node, style_context, top_left_x, top_left_y, font_context, only_update_block_vertical_position, force_full_layout);
+
+    reset_dirtyness(node);
+}
+
+fn reset_dirtyness(node: &Rc<RefCell<LayoutNode>>) {
+    let node = node.borrow();
+
+    if node.from_dom_node.is_some() {
+        let dom_node = node.from_dom_node.as_ref().unwrap();
+        RefCell::borrow_mut(dom_node).dirty = false;
+    }
+
+    if node.children.is_some() {
+        for child in node.children.as_ref().unwrap() {
+            reset_dirtyness(child);
+        }
+    }
+}
+
+//This function is responsible for setting the location rects on the node, and all its children, and updating content if needed (sync with DOM)
+//TODO: we now pass in top_left x and y, but I think we should compute the positions just for layout, and offset for UI in the render phase...
+fn compute_layout_for_node(node: &Rc<RefCell<LayoutNode>>, style_context: &StyleContext, top_left_x: f32, top_left_y: f32, font_context: &FontContext,
+                           only_update_block_vertical_position: bool, force_full_layout: bool) {
 
     let mut mut_node = RefCell::borrow_mut(node);
 
@@ -494,14 +516,6 @@ pub fn compute_layout(node: &Rc<RefCell<LayoutNode>>, style_context: &StyleConte
 
     } else {
 
-        let node_was_dirty = if mut_node.from_dom_node.is_some() {
-            let node_was_dirty = mut_node.from_dom_node.as_ref().unwrap().borrow().dirty;
-            mut_node.from_dom_node.as_ref().unwrap().borrow_mut().dirty = false;
-            node_was_dirty
-        } else {
-            false
-        };
-
         let opt_dom_node = if mut_node.from_dom_node.is_some() {
             Some(Rc::clone(&mut_node.from_dom_node.as_ref().unwrap()))
         } else {
@@ -511,18 +525,18 @@ pub fn compute_layout(node: &Rc<RefCell<LayoutNode>>, style_context: &StyleConte
         match &mut mut_node.content {
             LayoutNodeContent::TextLayoutNode(ref mut text_layout_node) => {
 
-                if node_was_dirty {
+                if opt_dom_node.is_some() && opt_dom_node.as_ref().unwrap().borrow().dirty {
                     text_layout_node.undo_split_rects();
                 }
 
-                for rect in text_layout_node.rects.iter_mut() {
-                    let (rect_width, rect_height) = font_context.get_text_dimension(&rect.text, &rect.font);
-                    rect.location = Rect { x: top_left_x, y: top_left_y, width: rect_width, height: rect_height };
+                for layout_rect in text_layout_node.rects.iter_mut() {
+                    let (rect_width, rect_height) = font_context.get_text_dimension(&layout_rect.text, &layout_rect.font);
+                    layout_rect.location = Rect { x: top_left_x, y: top_left_y, width: rect_width, height: rect_height };
                 }
             },
             LayoutNodeContent::ImageLayoutNode(ref mut image_layout_node) => {
 
-                if node_was_dirty {
+                if opt_dom_node.is_some() && opt_dom_node.as_ref().unwrap().borrow().dirty {
                     //TODO: (TODO-1) why are we reloading the image here? In the build tree we also set it. If we don't rebuild if the image changes, we should set
                     //      it here, but then we should not set it in the build step. Or, if we _do_ rebuild, we should not update it here...
                     //         -> I think we only rebuild if we get a new document, so then setting it here makes sense (since the image loads in later),
@@ -578,7 +592,7 @@ fn apply_block_layout(node: &mut LayoutNode, style_context: &StyleContext, top_l
 
     for child in node.children.as_ref().unwrap() {
         let only_update_block_vertical_position = !child.borrow().is_dirty_anywhere(); //Since the parent node is block layout, we can shift the while block up and down if its not dirty
-        compute_layout(&child, style_context, top_left_x, cursor_y, font_context, only_update_block_vertical_position, force_full_layout);
+        compute_layout_for_node(&child, style_context, top_left_x, cursor_y, font_context, only_update_block_vertical_position, force_full_layout);
         let (bounding_box_width, bounding_box_height) = RefCell::borrow(child).get_size_of_bounding_box();
 
         cursor_y += bounding_box_height;
@@ -599,7 +613,7 @@ fn apply_inline_layout(node: &mut LayoutNode, style_context: &StyleContext, top_
 
     for child in node.children.as_ref().unwrap() {
         let only_update_block_vertical_position = false; //we can only do this if the parent is block layout, but in this case its inline. Inline might cause horizonal cascading changes.
-        compute_layout(&child, style_context, cursor_x, cursor_y, font_context, only_update_block_vertical_position, force_full_layout);
+        compute_layout_for_node(&child, style_context, cursor_x, cursor_y, font_context, only_update_block_vertical_position, force_full_layout);
 
         let is_line_break = if let LayoutNodeContent::TextLayoutNode(text_node) = &RefCell::borrow(child).content {
             text_node.line_break
@@ -716,7 +730,7 @@ fn apply_inline_layout(node: &mut LayoutNode, style_context: &StyleContext, top_
 
                     let only_update_block_vertical_position = false; //we can only do this if the parent is block layout, but in this case its inline. Inline might cause horizonal cascading changes.
                     drop(child_borrow);
-                    compute_layout(&child, style_context, cursor_x, cursor_y, font_context, only_update_block_vertical_position, force_full_layout);
+                    compute_layout_for_node(&child, style_context, cursor_x, cursor_y, font_context, only_update_block_vertical_position, force_full_layout);
                     let (child_width, child_height) = RefCell::borrow(child).get_size_of_bounding_box();
 
                     cursor_x += child_width;
@@ -1063,7 +1077,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
 
 pub fn rebuild_dirty_layout_childs(main_node: &Rc<RefCell<LayoutNode>>, document: &Document, font_context: &FontContext, main_url: &Url) {
-    let mut main_node_mut = main_node.borrow_mut();
+    let mut main_node_mut = RefCell::borrow_mut(main_node);
     let main_node_children = &mut main_node_mut.children;
 
     if main_node_children.is_some() {

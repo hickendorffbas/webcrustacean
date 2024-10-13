@@ -20,7 +20,7 @@
               DONE - insert the new layout nodes in the tree
               - remove all content syncing from the layout pass
               DONE - relayout the whole thing (depending on dirtyness)
-              - make sure the dirty flag is only reset after all rebuild and relayout is done, and nowhere in between
+              DONE - make sure the dirty flag is only reset after all rebuild and relayout is done, and nowhere in between (check TODO-1)
 
 
 goals for 0.4.0:

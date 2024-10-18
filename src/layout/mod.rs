@@ -280,9 +280,16 @@ impl LayoutNode {
                     rect.selection_char_range = None;
                 }
             },
-            LayoutNodeContent::ImageLayoutNode(_) => todo!(),  //TODO: implement
-            LayoutNodeContent::ButtonLayoutNode(_) => todo!(),  //TODO: implement
-            LayoutNodeContent::TextInputLayoutNode(_) => todo!(),  //TODO: implement
+            LayoutNodeContent::ImageLayoutNode(_) => {
+                //For now you can't select images
+            },
+            LayoutNodeContent::ButtonLayoutNode(_) => {}
+            LayoutNodeContent::TextInputLayoutNode(_) => {
+                //It seems in other browers, when you select content with a text input in it, the content of the text box is not included
+                //   so for now we are not doing anything here...
+
+                //TODO: unsure if I also need to reset the selection _inside_ the text input here.
+            },
             LayoutNodeContent::BoxLayoutNode(_) => {
                 //Note: this is a no-op for now, since there is nothing to select in a box node itself (just in its children)
             },
@@ -541,8 +548,15 @@ fn compute_layout_for_node(node: &Rc<RefCell<LayoutNode>>, style_context: &Style
                 image_layout_node.location =
                      Rect { x: top_left_x, y: top_left_y, width: image_layout_node.image.width() as f32, height: image_layout_node.image.height() as f32 };
             },
-            LayoutNodeContent::ButtonLayoutNode(_) => todo!(),  //TODO: implement
-            LayoutNodeContent::TextInputLayoutNode(_) => todo!(),  //TODO: implement
+            LayoutNodeContent::ButtonLayoutNode(button_node) => {
+                //TODO: for now we are setting a default size here, but that should actually be on the DOM
+                //TODO: size should also be dependent on the text on the button
+                button_node.location = Rect { x: top_left_x, y: top_left_y, width: 100.0, height: 50.0 };
+            }
+            LayoutNodeContent::TextInputLayoutNode(text_input_node) => {
+                //TODO: for now we are setting a default size here, but that should actually be on the DOM
+                text_input_node.location = Rect { x: top_left_x, y: top_left_y, width: 500.0, height: 50.0 };
+            },
             LayoutNodeContent::BoxLayoutNode(box_node) => {
                 //Note: this is a boxlayoutnode, but without children (because that is a seperate case above), so no content.
 

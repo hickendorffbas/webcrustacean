@@ -190,6 +190,9 @@ fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_re
         return;
     }
 
+    //TODO: the algorithm here needs a full redesign. There are many cases not covered, such as the selection ending outside any node, and having several
+    //      nodes in block layout next to each other etc.
+
     let mut selection_start_found = false;
     let selection_end_x = selection_rect.x + selection_rect.width;
     let selection_end_y = selection_rect.y + selection_rect.height;
@@ -242,13 +245,15 @@ fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_re
                 }
             }
         },
-        layout::LayoutNodeContent::ImageLayoutNode(_) => todo!(),  //TODO: implement (selection on an image can just be a bool, since you cannot select part of an image)
-        layout::LayoutNodeContent::ButtonLayoutNode(_) => todo!(),  //TODO: implement
-        layout::LayoutNodeContent::TextInputLayoutNode(_) => todo!(),  //TODO: implement
+        layout::LayoutNodeContent::ImageLayoutNode(_) => {
+            //For now we don't do selection on images
+        }
+        layout::LayoutNodeContent::ButtonLayoutNode(_) => {}
+        layout::LayoutNodeContent::TextInputLayoutNode(_) => {}
         layout::LayoutNodeContent::BoxLayoutNode(_) => {
             //Note: this is a no-op for now, since there is nothing to select in a box node itself (just in its children)
         },
-        layout::LayoutNodeContent::NoContent => todo!(),  //TODO: implement
+        layout::LayoutNodeContent::NoContent => {},
     }
 
     if selection_start_found {
@@ -281,11 +286,11 @@ fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_re
                             }
                         }
                     },
-                    layout::LayoutNodeContent::ImageLayoutNode(_) => todo!(),  //TODO: implement
-                    layout::LayoutNodeContent::ButtonLayoutNode(_) => todo!(),  //TODO: implement
-                    layout::LayoutNodeContent::TextInputLayoutNode(_) => todo!(),  //TODO: implement
-                    layout::LayoutNodeContent::BoxLayoutNode(_) => todo!(),  //TODO: implement
-                    layout::LayoutNodeContent::NoContent => todo!(),  //TODO: implement
+                    layout::LayoutNodeContent::ImageLayoutNode(_) => {},
+                    layout::LayoutNodeContent::ButtonLayoutNode(_) => {},
+                    layout::LayoutNodeContent::TextInputLayoutNode(_) => {},
+                    layout::LayoutNodeContent::BoxLayoutNode(_) => {},
+                    layout::LayoutNodeContent::NoContent => {},
                 }
             }
         }

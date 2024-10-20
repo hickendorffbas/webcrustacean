@@ -20,11 +20,13 @@ const TEXT_FIELD_OFFSET_FROM_BORDER: f32 = 5.0;
 const CURSOR_BLINK_SPEED_MILLIS: u32 = 500;
 
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct TextField {
     //TODO: it would be nice to have a distinction between properties of the component, and state (for example, select_on_first_click is a property,
     //      while selection_start_x is state. Maybe make a constructor?)
-    pub x: f32,
-    pub y: f32,
+
+    pub x: f32, //NOTE: x and y are the absolute positions in the window, not content positions in the page.
+    pub y: f32, //TODO: we need to make sure x and y are updated when the page is scrolled (for <input> TextFields) and disable / hide them when outside of the window
     pub width: f32,
     pub height: f32,
 
@@ -42,6 +44,14 @@ pub struct TextField {
     pub char_position_mapping: Vec<f32>,
 }
 impl TextField {
+    pub fn new(x: f32, y: f32, width: f32, height: f32, select_on_first_click: bool) -> TextField {
+        //we currently don't allow the text to be set in this constructor, because we then also need the platform in the constructor to compute char position mappings
+        //   and that would mean that the DOM construction needs the platform (font context) too. Which is not nice.
+        //TODO: it would be nicer to have the font_context (and other contexts) in some kind of global
+        let font = Font::default();
+        return TextField { x, y, width, height, has_focus: false, cursor_text_position: 0, text: String::new(), select_on_first_click,
+                           selection_start_x: 0.0, selection_end_x: 0.0, selection_start_idx: 0, selection_end_idx: 0, font, char_position_mapping: Vec::new() };
+    }
     pub fn render(&self, ui_state: &UIState, platform: &mut Platform) {
         platform.draw_square(self.x, self.y, self.width, self.height, Color::BLACK, 255);
 
@@ -75,6 +85,13 @@ impl TextField {
                                    Color::BLACK);
             }
         }
+    }
+
+    pub fn update_position(&mut self, x: f32, y: f32, width: f32, height: f32) {
+        self.x = x;
+        self.y = y;
+        self.width = width;
+        self.height = height;
     }
 
     pub fn set_text(&mut self, platform: &mut Platform, text: String) { //TODO: use this everywhere...

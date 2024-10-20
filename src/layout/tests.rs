@@ -56,7 +56,7 @@ fn test_basic_paragraph_layout() {
         }"#;
 
     let tree = build_full_layout(&document, &font_context, &Url::empty());
-    compute_layout(&tree.root_node, &document.style_context, 0.0, 0.0, &font_context, false, true);
+    compute_layout(&tree.root_node, &document.style_context, 0.0, 0.0, &font_context, 0.0, false, true);
     let tree_json = layout_node_to_json(&tree.root_node.borrow());
 
     assert!(compare_json(&tree_json, &String::from(expected_layout_tree_json)));

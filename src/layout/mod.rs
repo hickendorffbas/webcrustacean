@@ -478,8 +478,8 @@ pub fn collect_content_nodes_in_walk_order(node: &Rc<RefCell<LayoutNode>>, resul
 
 
 pub fn compute_layout(node: &Rc<RefCell<LayoutNode>>, style_context: &StyleContext, top_left_x: f32, top_left_y: f32, font_context: &FontContext,
-                      only_update_block_vertical_position: bool, force_full_layout: bool) {
-    compute_layout_for_node(node, style_context, top_left_x, top_left_y, font_context, only_update_block_vertical_position, force_full_layout);
+                      current_scroll_y: f32, only_update_block_vertical_position: bool, force_full_layout: bool) {
+    compute_layout_for_node(node, style_context, top_left_x, top_left_y, font_context, current_scroll_y, only_update_block_vertical_position, force_full_layout);
 
     reset_dirtyness(node);
 }
@@ -502,7 +502,7 @@ fn reset_dirtyness(node: &Rc<RefCell<LayoutNode>>) {
 //This function is responsible for setting the location rects on the node, and all its children, and updating content if needed (sync with DOM)
 //TODO: we now pass in top_left x and y, but I think we should compute the positions just for layout, and offset for UI in the render phase...
 fn compute_layout_for_node(node: &Rc<RefCell<LayoutNode>>, style_context: &StyleContext, top_left_x: f32, top_left_y: f32, font_context: &FontContext,
-                           only_update_block_vertical_position: bool, force_full_layout: bool) {
+                           current_scroll_y: f32, only_update_block_vertical_position: bool, force_full_layout: bool) {
 
     let mut mut_node = RefCell::borrow_mut(node);
 
@@ -517,9 +517,9 @@ fn compute_layout_for_node(node: &Rc<RefCell<LayoutNode>>, style_context: &Style
 
     } else if mut_node.children.is_some() {
         if mut_node.all_childnodes_have_given_display(Display::Block) {
-            apply_block_layout(&mut mut_node, style_context, top_left_x, top_left_y, font_context, force_full_layout);
+            apply_block_layout(&mut mut_node, style_context, top_left_x, top_left_y, current_scroll_y, font_context, force_full_layout);
         } else if mut_node.all_childnodes_have_given_display(Display::Inline) {
-            apply_inline_layout(&mut mut_node, style_context, top_left_x, top_left_y, CONTENT_WIDTH - top_left_x, font_context, force_full_layout);
+            apply_inline_layout(&mut mut_node, style_context, top_left_x, top_left_y, CONTENT_WIDTH - top_left_x, current_scroll_y, font_context, force_full_layout);
         } else {
             panic!("Not all children are either inline or block, earlier in the process this should already have been fixed with anonymous blocks");
         }
@@ -554,8 +554,14 @@ fn compute_layout_for_node(node: &Rc<RefCell<LayoutNode>>, style_context: &Style
                 button_node.location = Rect { x: top_left_x, y: top_left_y, width: 100.0, height: 50.0 };
             }
             LayoutNodeContent::TextInputLayoutNode(text_input_node) => {
-                //TODO: for now we are setting a default size here, but that should actually be on the DOM
-                text_input_node.location = Rect { x: top_left_x, y: top_left_y, width: 500.0, height: 50.0 };
+                //TODO: for now we are setting a default size here, but that should actually retreived from the DOM
+                let field_width = 500.0;
+                let field_height = 40.0;
+
+                text_input_node.location = Rect { x: top_left_x, y: top_left_y, width: field_width, height: field_height };
+                let mut mut_dom_node = mut_node.from_dom_node.as_ref().unwrap().borrow_mut();
+                let text_field = mut_dom_node.text_field.as_mut().unwrap();
+                text_field.update_position(top_left_x, top_left_y - current_scroll_y, field_width, field_height);
             },
             LayoutNodeContent::BoxLayoutNode(box_node) => {
                 //Note: this is a boxlayoutnode, but without children (because that is a seperate case above), so no content.
@@ -586,13 +592,14 @@ pub fn get_font_given_styles(styles: &HashMap<String, String>) -> (Font, Color) 
 }
 
 
-fn apply_block_layout(node: &mut LayoutNode, style_context: &StyleContext, top_left_x: f32, top_left_y: f32, font_context: &FontContext, force_full_layout: bool) {
+fn apply_block_layout(node: &mut LayoutNode, style_context: &StyleContext, top_left_x: f32, top_left_y: f32,
+                      current_scroll_y: f32, font_context: &FontContext, force_full_layout: bool) {
     let mut cursor_y = top_left_y;
     let mut max_width: f32 = 0.0;
 
     for child in node.children.as_ref().unwrap() {
         let only_update_block_vertical_position = !child.borrow().is_dirty_anywhere(); //Since the parent node is block layout, we can shift the while block up and down if its not dirty
-        compute_layout_for_node(&child, style_context, top_left_x, cursor_y, font_context, only_update_block_vertical_position, force_full_layout);
+        compute_layout_for_node(&child, style_context, top_left_x, cursor_y, font_context, current_scroll_y, only_update_block_vertical_position, force_full_layout);
         let (bounding_box_width, bounding_box_height) = RefCell::borrow(child).get_size_of_bounding_box();
 
         cursor_y += bounding_box_height;
@@ -605,7 +612,7 @@ fn apply_block_layout(node: &mut LayoutNode, style_context: &StyleContext, top_l
 
 
 fn apply_inline_layout(node: &mut LayoutNode, style_context: &StyleContext, top_left_x: f32, top_left_y: f32, max_allowed_width: f32,
-                       font_context: &FontContext, force_full_layout: bool) {
+                       current_scroll_y: f32, font_context: &FontContext, force_full_layout: bool) {
     let mut cursor_x = top_left_x;
     let mut cursor_y = top_left_y;
     let mut max_width: f32 = 0.0;
@@ -613,7 +620,7 @@ fn apply_inline_layout(node: &mut LayoutNode, style_context: &StyleContext, top_
 
     for child in node.children.as_ref().unwrap() {
         let only_update_block_vertical_position = false; //we can only do this if the parent is block layout, but in this case its inline. Inline might cause horizonal cascading changes.
-        compute_layout_for_node(&child, style_context, cursor_x, cursor_y, font_context, only_update_block_vertical_position, force_full_layout);
+        compute_layout_for_node(&child, style_context, cursor_x, cursor_y, font_context, current_scroll_y, only_update_block_vertical_position, force_full_layout);
 
         let is_line_break = if let LayoutNodeContent::TextLayoutNode(text_node) = &RefCell::borrow(child).content {
             text_node.line_break
@@ -730,7 +737,7 @@ fn apply_inline_layout(node: &mut LayoutNode, style_context: &StyleContext, top_
 
                     let only_update_block_vertical_position = false; //we can only do this if the parent is block layout, but in this case its inline. Inline might cause horizonal cascading changes.
                     drop(child_borrow);
-                    compute_layout_for_node(&child, style_context, cursor_x, cursor_y, font_context, only_update_block_vertical_position, force_full_layout);
+                    compute_layout_for_node(&child, style_context, cursor_x, cursor_y, font_context, current_scroll_y, only_update_block_vertical_position, force_full_layout);
                     let (child_width, child_height) = RefCell::borrow(child).get_size_of_bounding_box();
 
                     cursor_x += child_width;
@@ -913,6 +920,8 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
             TagName::Input => {
                 let input_type = main_node.get_attribute_value("type");
+
+                //TODO: we should not check type attribute here, the dom node already has either a textfield or a button on it
 
                 if input_type.is_none() || input_type.as_ref().unwrap() == "text" {
                     partial_node_is_text_input = true;

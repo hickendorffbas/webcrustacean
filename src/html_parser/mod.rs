@@ -61,6 +61,7 @@ pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>, main_url: &Url, resource_t
         image: None,
         img_job_tracker: None,
         scripts: None,
+        text_field: None,
     };
 
     let rc_doc_node = Rc::new(RefCell::from(document_node));
@@ -72,6 +73,7 @@ pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>, main_url: &Url, resource_t
         author_sheet: document_style_rules,
     };
     let mut document = Document { all_nodes, style_context, document_node: rc_doc_node_clone, base_url: main_url.clone() };
+    document.document_node.borrow_mut().post_construct();
     document.update_all_dom_nodes(resource_thread_pool);
     return document;
 }
@@ -118,6 +120,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                         image: None,
                         img_job_tracker: None,
                         scripts: None,
+                        text_field: None,
                     };
 
                     let rc_node = Rc::new(RefCell::from(new_node));
@@ -174,6 +177,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                     image: None,
                     img_job_tracker: None,
                     scripts: if scripts.len() == 0 { None } else { Some(scripts) },
+                    text_field: None,
                 };
 
                 let rc_node = Rc::new(RefCell::from(new_node));
@@ -234,6 +238,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
             image: None,
             img_job_tracker: None,
             scripts: if scripts.len() == 0 { None } else { Some(scripts) },
+            text_field: None,
         };
 
         let rc_node = Rc::new(RefCell::from(new_node));
@@ -313,6 +318,7 @@ fn read_all_text_for_text_node(html_tokens: &Vec<HtmlTokenWithLocation>, current
         image: None,
         img_job_tracker: None,
         scripts: None,
+        text_field: None,
     };
     return node;
 }

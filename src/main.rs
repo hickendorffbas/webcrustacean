@@ -36,7 +36,6 @@ use threadpool::ThreadPool;
 
 use crate::debug::debug_log_warn;
 use crate::dom::Document;
-use crate::platform::fonts::Font;
 use crate::layout::{
     compute_layout,
     FullLayout,
@@ -157,7 +156,8 @@ fn finish_navigate(url: &Url, ui_state: &mut UIState, page_content: &String, doc
     ui_state.current_scroll_y = 0.0;
     ui_state.currently_loading_page = false;
 
-    compute_layout(&full_layout.borrow().root_node, &document.borrow().style_context, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y, &platform.font_context, false, true);
+    compute_layout(&full_layout.borrow().root_node, &document.borrow().style_context, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y,
+                   &platform.font_context, ui_state.current_scroll_y, false, true);
 
     #[cfg(feature="timings")] println!("layout elapsed millis: {}", start_layout_instant.elapsed().as_millis());
 }
@@ -322,22 +322,7 @@ fn main() -> Result<(), String> {
     let mut mouse_state = MouseState { x: 0, y: 0, click_start_x: 0, click_start_y: 0, left_down: false };
     let addressbar_text = url.to_string();
 
-    let mut addressbar_text_field = TextField {
-        x: 100.0,
-        y: 10.0,
-        width: SCREEN_WIDTH - 200.0,
-        height: 35.0,
-        has_focus: false,
-        cursor_text_position: 0,
-        text: String::new(),
-        select_on_first_click: true,
-        selection_start_x: 0.0,
-        selection_end_x: 0.0,
-        font: Font::default(),
-        char_position_mapping: Vec::new(),
-        selection_start_idx: 0,
-        selection_end_idx: 0,
-    };
+    let mut addressbar_text_field = TextField::new(100.0, 10.0, SCREEN_WIDTH - 200.0, 35.0, true);
     addressbar_text_field.set_text(&mut platform, addressbar_text);
 
     //TODO: this setting up of components should happen in the ui module eventually
@@ -522,7 +507,7 @@ fn main() -> Result<(), String> {
             full_layout_tree.borrow_mut().nodes_in_selection_order = nodes_in_selection_order;
 
             compute_layout(&full_layout_tree.borrow().root_node, &document.borrow().style_context, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y,
-                           &platform.font_context, false, false);
+                           &platform.font_context, ui_state.current_scroll_y, false, false);
         }
 
         #[cfg(feature="timings")] let start_render_instant = Instant::now();

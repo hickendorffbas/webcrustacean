@@ -1,10 +1,17 @@
 - BUG: when you go to a page with a lot of paragraphs, selection does not work correct, when in between paragraps, paragraphs below get selected
 
+- I need to think about where I want to introduce the platform. Now its a bit messy, since to measure font size we need the platform, therefore needing it
+       in layout. Or do we accept that and just get better at mocking?
+              -> use lazy_static , but figure out mocking for tests
+
 
 goals for 0.4.0:
        - basic html form support
-              - add basic button component
-                     - I already have the point to render the button, but it should probably a ui component, registered in some dynamic way...
+              - add input elements
+                     - add generic button component
+                     - wire it up just like the text field
+                     - build a set of RC<>'s to these components (including the UI ones), and check those for events
+              - add the ability to do a POST on formsubmit
        - better testing setup
               - some way to test with actual webpage examples in files
               - make parse tests nicer by comparing json

@@ -6,9 +6,14 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use image::DynamicImage;
 
 use crate::network::url::Url;
-use crate::resource_loader::{self, ResourceThreadPool, ResourceRequestJobTracker};
+use crate::resource_loader::{
+    self,
+    ResourceThreadPool,
+    ResourceRequestJobTracker
+};
 use crate::script::js_ast::Script;
 use crate::style::StyleContext;
+use crate::ui_components::TextField;
 
 
 static NEXT_DOM_NODE_INTERNAL: AtomicUsize = AtomicUsize::new(1);
@@ -72,6 +77,9 @@ impl TagName {
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct ElementDomNode {
+    //TODO: we are already getting many optional fiels here again, so we need something similar as in layout nodes. Probably just enum variants
+    //      check the DOM spec, there is also types and subtypes defined there. Staying close to that will make the JS implementation easier for DOM manipulation
+
     pub internal_id: usize,
     pub parent_id: usize,
     pub is_document_node: bool,
@@ -89,6 +97,9 @@ pub struct ElementDomNode {
     pub img_job_tracker: Option<ResourceRequestJobTracker<DynamicImage>>,
 
     pub scripts: Option<Vec<Rc<Script>>>,
+
+    pub text_field: Option<TextField>,
+    //TODO: we need the button component here too, but we don't have a ui_component for that yet (no generic one I think)
 }
 impl ElementDomNode {
     pub fn get_attribute_value(&self, attribute_name: &str) -> Option<String> {
@@ -100,6 +111,38 @@ impl ElementDomNode {
             }
         }
         return None;
+    }
+    pub fn post_construct(&mut self) {
+        //here we set things up that don't need to happen every update step, but that we don't want to do during html parsing
+
+        if self.name.is_some() && self.name.as_ref().unwrap() == "input" {
+
+            let mut input_type = self.get_attribute_value("type");
+            if input_type.is_none() {
+                input_type = Some(String::from("text"));
+            }
+
+            match input_type.unwrap().as_str() {
+                "text" => {
+                    //We create the component at (0,0), the layout pass will update that to the correct positions
+                        //TODO: make sure that that actually happens
+                    let text_field = TextField::new(0.0, 0.0, 200.0, 50.0, false);
+                    self.text_field = Some(text_field);
+                },
+                "submit" => {
+                    todo!();  //TODO: implement
+                },
+                _ =>  {
+                    //Ignoring other values for now
+                }
+            }
+        }
+
+        if self.children.is_some() {
+            for child in self.children.as_ref().unwrap() {
+                child.borrow_mut().post_construct();
+            }
+        }
     }
     fn update(&mut self, resource_thread_pool: &mut ResourceThreadPool, document: &Document) -> bool {
         //returns whether there are dirty nodes after the update (being itself, or any of the children)
@@ -157,6 +200,7 @@ impl ElementDomNode {
             image: None,
             img_job_tracker: None,
             scripts: None,
+            text_field: None,
         };
     }
 }

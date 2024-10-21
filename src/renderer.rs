@@ -4,7 +4,7 @@ use crate::layout::{
     LayoutNode,
     LayoutNodeContent
 };
-use crate::platform::{fonts::Font, Platform};
+use crate::platform::Platform;
 use crate::ui::{UIState, render_ui};
 
 
@@ -47,13 +47,8 @@ fn render_layout_node(platform: &mut Platform, ui_state: &mut UIState, layout_no
         LayoutNodeContent::ImageLayoutNode(image_layout_node) => {
             platform.render_image(&image_layout_node.image, image_layout_node.location.x, image_layout_node.location.y - scroll_y);
         },
-        LayoutNodeContent::ButtonLayoutNode(button_layout_node) => {
-            let render_y = button_layout_node.location.y - scroll_y;
-
-            //TODO: to render the button (and textfield etc.) we would like to defer to the component. Do we store the component on the DOM?
-
-            //TODO: temp debug rendering:
-            platform.render_text(&"[SUBMIT BUTTON]".to_owned(), button_layout_node.location.x, render_y, &Font::default(), Color::BLACK);
+        LayoutNodeContent::ButtonLayoutNode(_) => {
+            layout_node.from_dom_node.as_ref().unwrap().borrow().button.as_ref().unwrap().render(platform);
         },
         LayoutNodeContent::TextInputLayoutNode(_) => {
             layout_node.from_dom_node.as_ref().unwrap().borrow().text_field.as_ref().unwrap().render(ui_state, platform);

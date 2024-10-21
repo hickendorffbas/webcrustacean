@@ -549,9 +549,18 @@ fn compute_layout_for_node(node: &Rc<RefCell<LayoutNode>>, style_context: &Style
                      Rect { x: top_left_x, y: top_left_y, width: image_layout_node.image.width() as f32, height: image_layout_node.image.height() as f32 };
             },
             LayoutNodeContent::ButtonLayoutNode(button_node) => {
-                //TODO: for now we are setting a default size here, but that should actually be on the DOM
-                //TODO: size should also be dependent on the text on the button
-                button_node.location = Rect { x: top_left_x, y: top_left_y, width: 100.0, height: 50.0 };
+                //TODO: for now we are setting a default size here, but that should actually retreived from the DOM
+                let button_width = 100.0;  //TODO: this needs to be dependent on the text size. How do we do that? Compute it here?
+                let button_height = 40.0;
+
+                button_node.location = Rect { x: top_left_x, y: top_left_y, width: button_width, height: button_height };
+                let mut mut_dom_node = mut_node.from_dom_node.as_ref().unwrap().borrow_mut();
+                let button = mut_dom_node.button.as_mut().unwrap();
+
+                //TODO: here we get the text size, and then add margins, but that is knowledge that should be inside the ui component...
+                //      (for example the exact size of the margins)
+                let text_dimension = font_context.get_text_dimension(&button.text, &button.font);
+                button.update_position(top_left_x, top_left_y - current_scroll_y, text_dimension.0 + 10.0, text_dimension.1 + 10.0);
             }
             LayoutNodeContent::TextInputLayoutNode(text_input_node) => {
                 //TODO: for now we are setting a default size here, but that should actually retreived from the DOM

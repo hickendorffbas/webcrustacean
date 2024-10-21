@@ -263,6 +263,41 @@ impl TextField {
 }
 
 
+const BUTTON_TEXT_OFFSET_FROM_BORDER: f32 = 5.0;
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub struct Button {
+    pub x: f32, //NOTE: x and y are the absolute positions in the window, not content positions in the page.
+    pub y: f32, //TODO: we need to make sure x and y are updated when the page is scrolled (for <input> TextFields) and disable / hide them when outside of the window
+    pub width: f32,
+    pub height: f32,
+    #[allow(dead_code)] pub has_focus: bool,  //TODO: set in the correct cases, and use (to trigger on enter)
+    pub text: String,
+    pub font: Font,
+}
+impl Button {
+    pub fn render(&self, platform: &mut Platform) {
+        platform.draw_square(self.x, self.y, self.width, self.height, Color::BLACK, 255);
+        platform.render_text(&self.text, self.x + BUTTON_TEXT_OFFSET_FROM_BORDER, self.y + BUTTON_TEXT_OFFSET_FROM_BORDER, &self.font, Color::BLACK);
+    }
+    #[allow(dead_code)] pub fn click(&mut self, x: f32, y: f32) -> bool {  //TODO: use (by collecting components in a list, and calling this if in bounds)
+                                                                           //      we need to decide for all components if we check inside in or outside this
+                                                                           //      method. I think outside is better, and then only call it if inside.
+        let is_inside = x > self.x && x < (self.x + self.width) &&
+                        y > self.y && y < (self.y + self.height);
+
+        return is_inside;
+    }
+
+    pub fn update_position(&mut self, x: f32, y: f32, width: f32, height: f32) {
+        self.x = x;
+        self.y = y;
+        self.width = width;
+        self.height = height;
+    }
+}
+
+
 pub struct NavigationButton {
     pub x: f32,
     pub y: f32,

@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use image::DynamicImage;
 
 use crate::network::url::Url;
+use crate::platform::fonts::Font;
 use crate::resource_loader::{
     self,
     ResourceThreadPool,
@@ -13,7 +14,7 @@ use crate::resource_loader::{
 };
 use crate::script::js_ast::Script;
 use crate::style::StyleContext;
-use crate::ui_components::TextField;
+use crate::ui_components::{Button, TextField};
 
 
 static NEXT_DOM_NODE_INTERNAL: AtomicUsize = AtomicUsize::new(1);
@@ -99,7 +100,7 @@ pub struct ElementDomNode {
     pub scripts: Option<Vec<Rc<Script>>>,
 
     pub text_field: Option<TextField>,
-    //TODO: we need the button component here too, but we don't have a ui_component for that yet (no generic one I think)
+    pub button: Option<Button>,
 }
 impl ElementDomNode {
     pub fn get_attribute_value(&self, attribute_name: &str) -> Option<String> {
@@ -121,16 +122,28 @@ impl ElementDomNode {
             if input_type.is_none() {
                 input_type = Some(String::from("text"));
             }
+            let mut input_value = self.get_attribute_value("value");
+            if input_value.is_none() {
+                input_value = Some(String::from(""));
+            }
 
             match input_type.unwrap().as_str() {
                 "text" => {
-                    //We create the component at (0,0), the layout pass will update that to the correct positions
-                        //TODO: make sure that that actually happens
-                    let text_field = TextField::new(0.0, 0.0, 200.0, 50.0, false);
+                    //We create the component at (0,0) with size (1,1), the layout pass will update that to the correct positions and sizes
+                    let mut text_field = TextField::new(0.0, 0.0, 21.0, 1.0, false);
+                    text_field.text = input_value.unwrap();
                     self.text_field = Some(text_field);
                 },
                 "submit" => {
-                    todo!();  //TODO: implement
+                    if input_value == Some(String::from("")) {
+                        input_value = Some(String::from("Submit"));
+                    }
+
+                    //We create the component at (0,0) with size (1,1), the layout pass will update that to the correct positions and sizes
+                    //TODO: make a constructor for the button
+                    let mut button = Button { x: 0.0, y: 0.0, width: 1.0, height: 1.0, has_focus: false, text: String::new(), font: Font::default() };
+                    button.text = input_value.unwrap();
+                    self.button = Some(button);
                 },
                 _ =>  {
                     //Ignoring other values for now
@@ -201,6 +214,7 @@ impl ElementDomNode {
             img_job_tracker: None,
             scripts: None,
             text_field: None,
+            button: None,
         };
     }
 }

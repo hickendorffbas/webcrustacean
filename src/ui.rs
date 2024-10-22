@@ -1,7 +1,10 @@
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::{SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::color::Color;
+use crate::dom::{Document, ElementDomNode};
 use crate::network::url::Url;
 use crate::platform::{
     KeyCode,
@@ -10,6 +13,7 @@ use crate::platform::{
 };
 use crate::ui_components::{
     NavigationButton,
+    PageComponent,
     Scrollbar,
     TextField
 };
@@ -54,7 +58,8 @@ pub struct UIState {
     pub currently_loading_page: bool,
     pub animation_tick: u32,
     pub focus_target: FocusTarget,
-    pub main_scrollbar: Scrollbar, //TODO: eventually we shoud have components as a list with id's etc. not hardcoded in the state
+    pub main_scrollbar: Scrollbar, //TODO: eventually this should become a dynamic page component in the list, because there might be more than 1 scrollbar
+    pub page_components: Vec<Rc<RefCell<PageComponent>>>,
 }
 
 
@@ -117,6 +122,25 @@ pub fn handle_possible_ui_mouse_down(platform: &mut Platform, ui_state: &mut UIS
     }
 
     return None;
+}
+
+
+pub fn rebuild_page_component_list(document: &Document, ui_state: &mut UIState) {
+    ui_state.page_components.clear();
+    rebuild_page_component_list_for_node(&document.document_node.borrow(), ui_state);
+}
+
+
+fn rebuild_page_component_list_for_node(node: &ElementDomNode, ui_state: &mut UIState) {
+    if node.page_component.is_some() {
+        ui_state.page_components.push(Rc::clone(&node.page_component.as_ref().unwrap()))
+    }
+
+    if node.children.is_some() {
+        for child in node.children.as_ref().unwrap() {
+            rebuild_page_component_list_for_node(&child.borrow(), ui_state);
+        }
+    }
 }
 
 

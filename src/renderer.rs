@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use crate::color::Color;
 use crate::layout::{
     FullLayout,
@@ -6,6 +8,7 @@ use crate::layout::{
 };
 use crate::platform::Platform;
 use crate::ui::{UIState, render_ui};
+use crate::ui_components::PageComponent;
 
 
 pub fn render(platform: &mut Platform, full_layout: &FullLayout, ui_state: &mut UIState) {
@@ -48,10 +51,20 @@ fn render_layout_node(platform: &mut Platform, ui_state: &mut UIState, layout_no
             platform.render_image(&image_layout_node.image, image_layout_node.location.x, image_layout_node.location.y - scroll_y);
         },
         LayoutNodeContent::ButtonLayoutNode(_) => {
-            layout_node.from_dom_node.as_ref().unwrap().borrow().button.as_ref().unwrap().render(platform);
+            let dom_node = layout_node.from_dom_node.as_ref().unwrap().borrow();
+            let component = dom_node.page_component.as_ref().unwrap().borrow();
+            match component.deref() {
+                PageComponent::Button(button) => { button.render(platform); }
+                PageComponent::TextField(_) => { panic!("Invalid state"); }
+            }
         },
         LayoutNodeContent::TextInputLayoutNode(_) => {
-            layout_node.from_dom_node.as_ref().unwrap().borrow().text_field.as_ref().unwrap().render(ui_state, platform);
+            let dom_node = layout_node.from_dom_node.as_ref().unwrap().borrow();
+            let component = dom_node.page_component.as_ref().unwrap().borrow();
+            match component.deref() {
+                PageComponent::Button(_) => { panic!("Invalid state"); }
+                PageComponent::TextField(text_field) => { text_field.render(ui_state, platform); }
+            }
         },
         LayoutNodeContent::BoxLayoutNode(box_node) => {
             if box_node.background_color != Color::WHITE { //TODO: don't think this check is correct (also for text nodes,

@@ -26,7 +26,6 @@ use std::{
 };
 
 use arboard::Clipboard;
-use layout::{collect_content_nodes_in_walk_order, TextLayoutRect};
 use sdl2::{
     event::Event as SdlEvent,
     keyboard::{Keycode, Mod as SdlKeyMod},
@@ -37,11 +36,13 @@ use threadpool::ThreadPool;
 use crate::debug::debug_log_warn;
 use crate::dom::Document;
 use crate::layout::{
+    collect_content_nodes_in_walk_order,
     compute_layout,
     FullLayout,
     LayoutNode,
     rebuild_dirty_layout_childs,
     Rect,
+    TextLayoutRect,
 };
 use crate::network::url::Url;
 use crate::platform::Platform;
@@ -57,6 +58,7 @@ use crate::ui::{
     History,
     MAIN_SCROLLBAR_HEIGHT,
     MAIN_SCROLLBAR_X_POS,
+    rebuild_page_component_list,
     UIState,
 };
 use crate::ui_components::{
@@ -149,6 +151,8 @@ fn finish_navigate(url: &Url, ui_state: &mut UIState, page_content: &String, doc
     //but I'm not sure this is really the correct place
     let mut interpreter = js_interpreter::JsInterpreter::new();
     interpreter.run_scripts_in_document(document);
+
+    rebuild_page_component_list(&document.borrow(), ui_state);
 
     #[cfg(feature="timings")] let start_layout_instant = Instant::now();
     full_layout.replace(layout::build_full_layout(&document.borrow(), &platform.font_context, &url));
@@ -348,6 +352,7 @@ fn main() -> Result<(), String> {
         animation_tick: 0,
         focus_target: FocusTarget::None,
         main_scrollbar: main_scrollbar,
+        page_components: Vec::new(),
     };
 
     let document = RefCell::from(Document::new_empty());

@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -19,6 +19,7 @@ use crate::platform::fonts::{
     FontContext,
     FontFace,
 };
+use crate::ui_components::PageComponent;
 use crate::SCREEN_HEIGHT;
 use crate::style::{
     get_color_style_value,
@@ -554,13 +555,19 @@ fn compute_layout_for_node(node: &Rc<RefCell<LayoutNode>>, style_context: &Style
                 let button_height = 40.0;
 
                 button_node.location = Rect { x: top_left_x, y: top_left_y, width: button_width, height: button_height };
-                let mut mut_dom_node = mut_node.from_dom_node.as_ref().unwrap().borrow_mut();
-                let button = mut_dom_node.button.as_mut().unwrap();
+                let mut_dom_node = mut_node.from_dom_node.as_ref().unwrap().borrow();
+                let mut page_component = mut_dom_node.page_component.as_ref().unwrap().borrow_mut();
 
-                //TODO: here we get the text size, and then add margins, but that is knowledge that should be inside the ui component...
-                //      (for example the exact size of the margins)
-                let text_dimension = font_context.get_text_dimension(&button.text, &button.font);
-                button.update_position(top_left_x, top_left_y - current_scroll_y, text_dimension.0 + 10.0, text_dimension.1 + 10.0);
+                match page_component.deref_mut() {
+                    PageComponent::Button(button) => {
+                        //TODO: here we get the text size, and then add margins, but that is knowledge that should be inside the ui component...
+                        //      (for example the exact size of the margins)
+                        let text_dimension = font_context.get_text_dimension(&button.text, &button.font);
+                        button.update_position(top_left_x, top_left_y - current_scroll_y, text_dimension.0 + 10.0, text_dimension.1 + 10.0);
+                    }
+                    PageComponent::TextField(_) => { panic!("Invalid state"); },
+                }
+
             }
             LayoutNodeContent::TextInputLayoutNode(text_input_node) => {
                 //TODO: for now we are setting a default size here, but that should actually retreived from the DOM
@@ -568,9 +575,15 @@ fn compute_layout_for_node(node: &Rc<RefCell<LayoutNode>>, style_context: &Style
                 let field_height = 40.0;
 
                 text_input_node.location = Rect { x: top_left_x, y: top_left_y, width: field_width, height: field_height };
-                let mut mut_dom_node = mut_node.from_dom_node.as_ref().unwrap().borrow_mut();
-                let text_field = mut_dom_node.text_field.as_mut().unwrap();
-                text_field.update_position(top_left_x, top_left_y - current_scroll_y, field_width, field_height);
+                let dom_node = mut_node.from_dom_node.as_ref().unwrap().borrow();
+                let mut page_component = dom_node.page_component.as_ref().unwrap().borrow_mut();
+
+                match page_component.deref_mut() {
+                    PageComponent::Button(_) => { panic!("Invalid state"); },
+                    PageComponent::TextField(text_field) => {
+                        text_field.update_position(top_left_x, top_left_y - current_scroll_y, field_width, field_height);
+                    }
+                }
             },
             LayoutNodeContent::BoxLayoutNode(box_node) => {
                 //Note: this is a boxlayoutnode, but without children (because that is a seperate case above), so no content.

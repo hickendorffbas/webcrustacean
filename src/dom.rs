@@ -14,7 +14,7 @@ use crate::resource_loader::{
 };
 use crate::script::js_ast::Script;
 use crate::style::StyleContext;
-use crate::ui_components::{Button, TextField};
+use crate::ui_components::{Button, PageComponent, TextField};
 
 
 static NEXT_DOM_NODE_INTERNAL: AtomicUsize = AtomicUsize::new(1);
@@ -99,8 +99,7 @@ pub struct ElementDomNode {
 
     pub scripts: Option<Vec<Rc<Script>>>,
 
-    pub text_field: Option<TextField>,
-    pub button: Option<Button>,
+    pub page_component: Option<Rc<RefCell<PageComponent>>>,
 }
 impl ElementDomNode {
     pub fn get_attribute_value(&self, attribute_name: &str) -> Option<String> {
@@ -132,7 +131,7 @@ impl ElementDomNode {
                     //We create the component at (0,0) with size (1,1), the layout pass will update that to the correct positions and sizes
                     let mut text_field = TextField::new(0.0, 0.0, 21.0, 1.0, false);
                     text_field.text = input_value.unwrap();
-                    self.text_field = Some(text_field);
+                    self.page_component = Some(Rc::from(RefCell::from(PageComponent::TextField(text_field))));
                 },
                 "submit" => {
                     if input_value == Some(String::from("")) {
@@ -143,7 +142,7 @@ impl ElementDomNode {
                     //TODO: make a constructor for the button
                     let mut button = Button { x: 0.0, y: 0.0, width: 1.0, height: 1.0, has_focus: false, text: String::new(), font: Font::default() };
                     button.text = input_value.unwrap();
-                    self.button = Some(button);
+                    self.page_component = Some(Rc::from(RefCell::from(PageComponent::Button(button))));
                 },
                 _ =>  {
                     //Ignoring other values for now
@@ -213,8 +212,7 @@ impl ElementDomNode {
             image: None,
             img_job_tracker: None,
             scripts: None,
-            text_field: None,
-            button: None,
+            page_component: None,
         };
     }
 }

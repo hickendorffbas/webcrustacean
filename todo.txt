@@ -9,9 +9,12 @@
 goals for 0.4.0:
        - basic html form support
               - add input elements
-                     - add generic button component
-                     - wire it up just like the text field
-                     - build a set of RC<>'s to these components (including the UI ones), and check those for events
+                     DONE - wrap the components in an Rc<RefCell>
+                     DONE - register them in some list for the page (seperate from UI for now)
+                     - in the click handler in main, check this list as well, and fire click() if positions match
+                     - set focus in the correct cases, and update the focus enum I have somewhere (in ui-state I think?)
+                     - handle keypresses (redirect them to the correct component)
+                     - make sure we clean the page_components in the right cases (basically rebuild it every frame if the dom changed?)
               - add the ability to do a POST on formsubmit
        - better testing setup
               - some way to test with actual webpage examples in files

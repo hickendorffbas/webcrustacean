@@ -21,6 +21,13 @@ const CURSOR_BLINK_SPEED_MILLIS: u32 = 500;
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]
+pub enum PageComponent {
+    Button(Button),
+    TextField(TextField),
+}
+
+
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct TextField {
     //TODO: it would be nice to have a distinction between properties of the component, and state (for example, select_on_first_click is a property,
     //      while selection_start_x is state. Maybe make a constructor?)

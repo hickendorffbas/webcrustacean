@@ -61,8 +61,7 @@ pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>, main_url: &Url, resource_t
         image: None,
         img_job_tracker: None,
         scripts: None,
-        text_field: None,
-        button: None,
+        page_component: None,
     };
 
     let rc_doc_node = Rc::new(RefCell::from(document_node));
@@ -121,8 +120,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                         image: None,
                         img_job_tracker: None,
                         scripts: None,
-                        text_field: None,
-                        button: None,
+                        page_component: None,
                     };
 
                     let rc_node = Rc::new(RefCell::from(new_node));
@@ -179,8 +177,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                     image: None,
                     img_job_tracker: None,
                     scripts: if scripts.len() == 0 { None } else { Some(scripts) },
-                    text_field: None,
-                    button: None,
+                    page_component: None,
                 };
 
                 let rc_node = Rc::new(RefCell::from(new_node));
@@ -241,8 +238,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
             image: None,
             img_job_tracker: None,
             scripts: if scripts.len() == 0 { None } else { Some(scripts) },
-            text_field: None,
-            button: None,
+            page_component: None,
         };
 
         let rc_node = Rc::new(RefCell::from(new_node));
@@ -322,8 +318,7 @@ fn read_all_text_for_text_node(html_tokens: &Vec<HtmlTokenWithLocation>, current
         image: None,
         img_job_tracker: None,
         scripts: None,
-        text_field: None,
-        button: None,
+        page_component: None,
     };
     return node;
 }

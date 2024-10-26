@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::ops::DerefMut;
 use std::rc::Rc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -41,12 +42,13 @@ pub struct History {
 }
 
 #[derive(PartialEq)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum FocusTarget {
     None,
     MainContent,
     AddressBar,
     ScrollBlock, //TODO: eventually we could have more scrollbars, so replace this with a ui component id
-    //TODO: later we should add a variant here COMPONENT_ID(usize) or something like that, for components on the pages themselves
+    Component(usize),  // a component on the page, with its id
 }
 
 pub struct UIState {
@@ -94,26 +96,55 @@ pub fn handle_possible_ui_click(ui_state: &mut UIState, x: f32, y: f32) -> Optio
 
 
 pub fn handle_possible_ui_mouse_down(platform: &mut Platform, ui_state: &mut UIState, x: f32, y: f32) -> Option<Url> {
-    //TODO: taking page_height here is temporary, because we don't keep a rect state for the scrollblock yet
+
+    let mut any_text_field_has_focus = false;
 
     if ui_state.addressbar.is_inside(x, y) {
         ui_state.focus_target = FocusTarget::AddressBar;
         ui_state.addressbar.has_focus = true;
+        any_text_field_has_focus = true;
     } else if ui_state.main_scrollbar.is_on_scrollblock(x, y) {
         ui_state.focus_target = FocusTarget::ScrollBlock;
-        ui_state.addressbar.has_focus = false;
-        ui_state.addressbar.clear_selection();
     } else {
-        //TODO: this is not always true (for example when clicking in the top bar but not in the addressbar), but for now we always set focus on the content
-        //      it would be more correct to check for the content window size, and set it to None otherwise
 
-        ui_state.focus_target = FocusTarget::MainContent;
+        let mut component_found = false;
+        for component in ui_state.page_components.iter_mut() {
+            let mut comp_borrow = component.borrow_mut();
+            match comp_borrow.deref_mut() {
+                PageComponent::Button(button) => {
+                    if button.is_inside(x, y) {
+                        ui_state.focus_target = FocusTarget::Component(button.id);
+                        button.has_focus = true;
+                        component_found = true;
+                    } else {
+                        button.has_focus = false;
+                    }
+                },
+                PageComponent::TextField(text_field) => {
+                    if text_field.is_inside(x, y) {
+                        ui_state.focus_target = FocusTarget::Component(text_field.id);
+                        text_field.has_focus = true;
+                        component_found = true;
+                        any_text_field_has_focus = true;
+                    } else {
+                        text_field.has_focus = false;
+                    }
+                },
+            }
+        }
+
+        if !component_found {
+            //TODO: this is not always true (for example when clicking in the top bar but not in the addressbar), but for now we always set focus on the content
+            //      it would be more correct to check for the content window size, and set it to None otherwise
+            ui_state.focus_target = FocusTarget::MainContent;
+        }
+    }
+
+
+    if ui_state.focus_target != FocusTarget::AddressBar {
         ui_state.addressbar.has_focus = false;
         ui_state.addressbar.clear_selection();
     }
-
-    //The below code is currently a bit more generic than it needs to be, but this makes that the enable/disable doesn't break when we add other textfields...
-    let any_text_field_has_focus = ui_state.addressbar.has_focus;
 
     if any_text_field_has_focus {
         platform.enable_text_input();

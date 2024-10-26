@@ -403,7 +403,8 @@ fn main() -> Result<(), String> {
                             ui_state.addressbar.update_selection(&selection_rect)
                         } else {
                             //TODO: its not clear to me yet how we clear the selection on the main content
-                            ui_state.addressbar.clear_selection();
+                            ui_state.addressbar.clear_selection(); //TODO: this seems incorrect, we should clear selection when it looses focus, not on
+                                                                   //      mouse move
                         }
                     }
                 },

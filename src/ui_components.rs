@@ -1,3 +1,5 @@
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use crate::color::Color;
 use crate::debug::debug_log_warn;
 use crate::layout::Rect;
@@ -19,11 +21,22 @@ use crate::ui::{
 const TEXT_FIELD_OFFSET_FROM_BORDER: f32 = 5.0;
 const CURSOR_BLINK_SPEED_MILLIS: u32 = 500;
 
+static NEXT_COMPONENT_ID: AtomicUsize = AtomicUsize::new(1);
+pub fn get_next_component_id() -> usize { NEXT_COMPONENT_ID.fetch_add(1, Ordering::Relaxed) }
+
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub enum PageComponent {
     Button(Button),
     TextField(TextField),
+}
+impl PageComponent {
+    pub fn get_id(&self) -> usize {
+        match self {
+            PageComponent::Button(button) => button.id,
+            PageComponent::TextField(text_field) => text_field.id,
+        }
+    }
 }
 
 
@@ -31,6 +44,8 @@ pub enum PageComponent {
 pub struct TextField {
     //TODO: it would be nice to have a distinction between properties of the component, and state (for example, select_on_first_click is a property,
     //      while selection_start_x is state. Maybe make a constructor?)
+
+    pub id: usize,
 
     pub x: f32, //NOTE: x and y are the absolute positions in the window, not content positions in the page.
     pub y: f32, //TODO: we need to make sure x and y are updated when the page is scrolled (for <input> TextFields) and disable / hide them when outside of the window
@@ -55,8 +70,9 @@ impl TextField {
         //we currently don't allow the text to be set in this constructor, because we then also need the platform in the constructor to compute char position mappings
         //   and that would mean that the DOM construction needs the platform (font context) too. Which is not nice.
         //TODO: it would be nicer to have the font_context (and other contexts) in some kind of global
+        //      -> yes, we are going to make a lazy_static PLATFORM variable
         let font = Font::default();
-        return TextField { x, y, width, height, has_focus: false, cursor_text_position: 0, text: String::new(), select_on_first_click,
+        return TextField { id: get_next_component_id(), x, y, width, height, has_focus: false, cursor_text_position: 0, text: String::new(), select_on_first_click,
                            selection_start_x: 0.0, selection_end_x: 0.0, selection_start_idx: 0, selection_end_idx: 0, font, char_position_mapping: Vec::new() };
     }
     pub fn render(&self, ui_state: &UIState, platform: &mut Platform) {
@@ -274,6 +290,7 @@ const BUTTON_TEXT_OFFSET_FROM_BORDER: f32 = 5.0;
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Button {
+    pub id: usize,
     pub x: f32, //NOTE: x and y are the absolute positions in the window, not content positions in the page.
     pub y: f32, //TODO: we need to make sure x and y are updated when the page is scrolled (for <input> TextFields) and disable / hide them when outside of the window
     pub width: f32,
@@ -283,6 +300,12 @@ pub struct Button {
     pub font: Font,
 }
 impl Button {
+    pub fn new(x: f32, y: f32, width: f32, height: f32, text: String) -> Button {
+        //TODO: for now the width with not neccesarily be compatible with the text, but when we have a PLATFORM global we can fix this with the width of the text
+        //TODO: it would be nicer to have the font_context (and other contexts) in some kind of global
+        //      -> yes, we are going to make a lazy_static PLATFORM variable
+        return Button { id: get_next_component_id(), x, y, width, height, has_focus: false, text, font: Font::default()};
+    }
     pub fn render(&self, platform: &mut Platform) {
         platform.draw_square(self.x, self.y, self.width, self.height, Color::BLACK, 255);
         platform.render_text(&self.text, self.x + BUTTON_TEXT_OFFSET_FROM_BORDER, self.y + BUTTON_TEXT_OFFSET_FROM_BORDER, &self.font, Color::BLACK);
@@ -290,10 +313,17 @@ impl Button {
     #[allow(dead_code)] pub fn click(&mut self, x: f32, y: f32) -> bool {  //TODO: use (by collecting components in a list, and calling this if in bounds)
                                                                            //      we need to decide for all components if we check inside in or outside this
                                                                            //      method. I think outside is better, and then only call it if inside.
+
+        //TODO: we have an is_inside() method, now, but not using it here, because we need to do this check outside this method
         let is_inside = x > self.x && x < (self.x + self.width) &&
                         y > self.y && y < (self.y + self.height);
 
         return is_inside;
+    }
+
+    pub fn is_inside(&self, x: f32, y: f32) -> bool {
+        return x > self.x && x < (self.x + self.width) &&
+               y > self.y && y < (self.y + self.height);
     }
 
     pub fn update_position(&mut self, x: f32, y: f32, width: f32, height: f32) {

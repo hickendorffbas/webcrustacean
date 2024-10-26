@@ -6,7 +6,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use image::DynamicImage;
 
 use crate::network::url::Url;
-use crate::platform::fonts::Font;
 use crate::resource_loader::{
     self,
     ResourceThreadPool,
@@ -17,8 +16,8 @@ use crate::style::StyleContext;
 use crate::ui_components::{Button, PageComponent, TextField};
 
 
-static NEXT_DOM_NODE_INTERNAL: AtomicUsize = AtomicUsize::new(1);
-pub fn get_next_dom_node_interal_id() -> usize { NEXT_DOM_NODE_INTERNAL.fetch_add(1, Ordering::Relaxed) }
+static NEXT_DOM_NODE_INTERNAL_ID: AtomicUsize = AtomicUsize::new(1);
+pub fn get_next_dom_node_interal_id() -> usize { NEXT_DOM_NODE_INTERNAL_ID.fetch_add(1, Ordering::Relaxed) }
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -139,9 +138,7 @@ impl ElementDomNode {
                     }
 
                     //We create the component at (0,0) with size (1,1), the layout pass will update that to the correct positions and sizes
-                    //TODO: make a constructor for the button
-                    let mut button = Button { x: 0.0, y: 0.0, width: 1.0, height: 1.0, has_focus: false, text: String::new(), font: Font::default() };
-                    button.text = input_value.unwrap();
+                    let button = Button::new(0.0, 0.0, 1.0, 1.0, input_value.unwrap());
                     self.page_component = Some(Rc::from(RefCell::from(PageComponent::Button(button))));
                 },
                 _ =>  {

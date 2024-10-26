@@ -11,8 +11,8 @@ goals for 0.4.0:
               - add input elements
                      DONE - wrap the components in an Rc<RefCell>
                      DONE - register them in some list for the page (seperate from UI for now)
+                     DONE - set focus in the correct cases, and update the focus enum I have in the UI state
                      - in the click handler in main, check this list as well, and fire click() if positions match
-                     - set focus in the correct cases, and update the focus enum I have somewhere (in ui-state I think?)
                      - handle keypresses (redirect them to the correct component)
                      - make sure we clean the page_components in the right cases (basically rebuild it every frame if the dom changed?)
               - add the ability to do a POST on formsubmit

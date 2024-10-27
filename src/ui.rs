@@ -74,8 +74,32 @@ pub fn render_ui(platform: &mut Platform, ui_state: &mut UIState) {
 
 
 pub fn handle_keyboard_input(platform: &mut Platform, input: Option<&String>, key_code: Option<KeyCode>, ui_state: &mut UIState) {
-    if ui_state.addressbar.has_focus {
-        ui_state.addressbar.handle_keyboard_input(platform, input, key_code);
+
+    match ui_state.focus_target {
+        FocusTarget::None => {},
+        FocusTarget::MainContent => {},
+        FocusTarget::AddressBar => {
+            ui_state.addressbar.handle_keyboard_input(platform, input, key_code);
+        },
+        FocusTarget::ScrollBlock => {},
+        FocusTarget::Component(component_id) => {
+            for component in ui_state.page_components.iter() {
+                if component.borrow().get_id() == component_id {
+
+                    let mut comp_borrow = component.borrow_mut();
+                    match comp_borrow.deref_mut() {
+                        PageComponent::Button(_) => {
+                            //TODO: handle enter here?
+                        },
+                        PageComponent::TextField(text_field) => {
+                            text_field.handle_keyboard_input(platform, input, key_code);
+                        },
+                    }
+                    return;
+                }
+            }
+
+        },
     }
 }
 
@@ -99,6 +123,23 @@ pub fn handle_possible_ui_mouse_down(platform: &mut Platform, ui_state: &mut UIS
 
     let mut any_text_field_has_focus = false;
 
+
+    ui_state.addressbar.has_focus = false;
+    ui_state.addressbar.clear_selection();
+
+    for component in ui_state.page_components.iter_mut() {
+        let mut comp_borrow = component.borrow_mut();
+        match comp_borrow.deref_mut() {
+            PageComponent::Button(button) => {
+                button.has_focus = false;
+            },
+            PageComponent::TextField(text_field) => {
+                text_field.has_focus = false;
+                text_field.clear_selection();
+            }
+        }
+    }
+
     if ui_state.addressbar.is_inside(x, y) {
         ui_state.focus_target = FocusTarget::AddressBar;
         ui_state.addressbar.has_focus = true;
@@ -116,8 +157,6 @@ pub fn handle_possible_ui_mouse_down(platform: &mut Platform, ui_state: &mut UIS
                         ui_state.focus_target = FocusTarget::Component(button.id);
                         button.has_focus = true;
                         component_found = true;
-                    } else {
-                        button.has_focus = false;
                     }
                 },
                 PageComponent::TextField(text_field) => {
@@ -126,8 +165,6 @@ pub fn handle_possible_ui_mouse_down(platform: &mut Platform, ui_state: &mut UIS
                         text_field.has_focus = true;
                         component_found = true;
                         any_text_field_has_focus = true;
-                    } else {
-                        text_field.has_focus = false;
                     }
                 },
             }
@@ -138,12 +175,6 @@ pub fn handle_possible_ui_mouse_down(platform: &mut Platform, ui_state: &mut UIS
             //      it would be more correct to check for the content window size, and set it to None otherwise
             ui_state.focus_target = FocusTarget::MainContent;
         }
-    }
-
-
-    if ui_state.focus_target != FocusTarget::AddressBar {
-        ui_state.addressbar.has_focus = false;
-        ui_state.addressbar.clear_selection();
     }
 
     if any_text_field_has_focus {

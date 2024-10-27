@@ -42,9 +42,6 @@ impl PageComponent {
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct TextField {
-    //TODO: it would be nice to have a distinction between properties of the component, and state (for example, select_on_first_click is a property,
-    //      while selection_start_x is state. Maybe make a constructor?)
-
     pub id: usize,
 
     pub x: f32, //NOTE: x and y are the absolute positions in the window, not content positions in the page.
@@ -271,8 +268,7 @@ impl TextField {
                     }
                 },
                 KeyCode::RETURN => {
-                    //This is currently handled outside of the component
-                    //TODO: (but shouldn't I think)
+                    //This is currently handled outside of the component (for the address bar), we need to rework this now we have more text inputs on a page possibly
                 },
                 KeyCode::RIGHT => {
                     self.clear_selection();

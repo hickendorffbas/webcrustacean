@@ -141,13 +141,8 @@ impl TextField {
                y > self.y && y < (self.y + self.height);
     }
 
-    pub fn click(&mut self, x: f32, y: f32)  {
-        if !self.is_inside(x, y) {
-            self.has_focus = false;
-            return;
-        }
-
-        if self.select_on_first_click && !self.has_focus {
+    pub fn click(&mut self, x: f32, _: f32)  {
+        if self.select_on_first_click && !self.has_focus {  //TODO: this no longer works because focus is already set on mouse down
             self.selection_start_idx = 0;
             self.selection_end_idx = self.text.len() - 1;
             self.selection_start_x = self.x + TEXT_FIELD_OFFSET_FROM_BORDER;
@@ -156,7 +151,7 @@ impl TextField {
             return;
         }
 
-        self.has_focus = true;
+        self.has_focus = true; //TODO: this should happen already in the mouse down
 
         let mut found = false;
         for (idx, x_position) in self.char_position_mapping.iter().enumerate() {
@@ -362,6 +357,8 @@ impl NavigationButton {
     pub fn click(&mut self, x: f32, y: f32, history: &mut History) -> Option<Url> {
         //TODO: the x and y are now starting where we draw the arrow. We should make the component bigger so it covers the whole click region
         //      but then we also need to change the co-ordinates we use to draw
+
+        //TODO: the is_inside check should live outside this component, and the click() should only be called once inside...
         let is_inside = x > (self.x - 10.0) && x < (self.x + 30.0) &&
                         y > (self.y - 10.0) && y < (self.y + 30.0);
 

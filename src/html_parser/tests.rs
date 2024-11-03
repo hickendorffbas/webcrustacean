@@ -1,17 +1,7 @@
-use threadpool::ThreadPool;
-
 use crate::dom::ElementDomNode;
 use crate::html_parser;
 use crate::network::url::Url;
-use crate::resource_loader::ResourceThreadPool;
-use crate::script::js_execution_context::JsExecutionContext;
 use crate::test_util::*;
-
-//TODO: I don't think it makes sense that we need to make this to test the parser, the structure seems wrong
-fn test_resource_pool() -> ResourceThreadPool {
-    return ResourceThreadPool { pool: ThreadPool::new(1) };
-}
-
 
 
 #[test]
@@ -26,7 +16,7 @@ fn test_basic_parsing_1() {
     ];
 
     let main_url = Url::from(&String::from("http://www.google.com")); //TODO: would be nice if we can define these as (lazy?) consts?
-    let parse_result = html_parser::parse(tokens, &main_url, &mut test_resource_pool(), &mut JsExecutionContext::new());
+    let parse_result = html_parser::parse(tokens, &main_url);
     let document = parse_result;
     let doc_node = &document.document_node.borrow();
     assert_eq!(doc_node.children.as_ref().unwrap().len(), 2);
@@ -54,7 +44,7 @@ fn test_text_concatenation() {
     ];
 
     let main_url = Url::from(&String::from("http://www.google.com"));
-    let parse_result = html_parser::parse(tokens, &main_url, &mut test_resource_pool(), &mut JsExecutionContext::new());
+    let parse_result = html_parser::parse(tokens, &main_url);
     let document = parse_result;
     let doc_node = &document.document_node.borrow();
     assert_eq!(doc_node.children.as_ref().unwrap().len(), 1);
@@ -86,7 +76,7 @@ fn test_not_closing_a_tag() {
     ];
 
     let main_url = Url::from(&String::from("http://www.google.com"));
-    let parse_result = html_parser::parse(tokens, &main_url, &mut test_resource_pool(), &mut JsExecutionContext::new());
+    let parse_result = html_parser::parse(tokens, &main_url);
     let document = parse_result;
     let doc_node = &document.document_node.borrow();
     assert_eq!(doc_node.children.as_ref().unwrap().len(), 1);
@@ -125,7 +115,7 @@ fn test_closing_a_tag_we_did_not_open() {
     ];
 
     let main_url = Url::from(&String::from("http://www.google.com"));
-    let parse_result = html_parser::parse(tokens, &main_url, &mut test_resource_pool(), &mut JsExecutionContext::new());
+    let parse_result = html_parser::parse(tokens, &main_url);
     let document = parse_result;
     let doc_node = &document.document_node.borrow();
     assert_eq!(doc_node.children.as_ref().unwrap().len(), 1);
@@ -154,7 +144,7 @@ fn test_missing_last_closing_tag() {
 
 
     let main_url = Url::from(&String::from("http://www.google.com"));
-    let parse_result = html_parser::parse(tokens, &main_url, &mut test_resource_pool(), &mut JsExecutionContext::new());
+    let parse_result = html_parser::parse(tokens, &main_url);
     let document = parse_result;
     let doc_node = &document.document_node.borrow();
     assert_eq!(doc_node.children.as_ref().unwrap().len(), 1);

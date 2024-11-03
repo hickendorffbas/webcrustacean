@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use image::DynamicImage;
 
 use crate::network::url::Url;
+use crate::platform::Platform;
 use crate::resource_loader::{
     self,
     ResourceThreadPool,
@@ -111,7 +112,7 @@ impl ElementDomNode {
         }
         return None;
     }
-    pub fn post_construct(&mut self) {
+    pub fn post_construct(&mut self, platform: &mut Platform) {
         //here we set things up that don't need to happen every update step, but that we don't want to do during html parsing
 
         if self.name.is_some() && self.name.as_ref().unwrap() == "input" {
@@ -129,7 +130,7 @@ impl ElementDomNode {
                 "text" => {
                     //We create the component at (0,0) with size (1,1), the layout pass will update that to the correct positions and sizes
                     let mut text_field = TextField::new(0.0, 0.0, 21.0, 1.0, false);
-                    text_field.text = input_value.unwrap();
+                    text_field.set_text(platform, input_value.unwrap());
                     self.page_component = Some(Rc::from(RefCell::from(PageComponent::TextField(text_field))));
                 },
                 "submit" => {
@@ -149,7 +150,7 @@ impl ElementDomNode {
 
         if self.children.is_some() {
             for child in self.children.as_ref().unwrap() {
-                child.borrow_mut().post_construct();
+                child.borrow_mut().post_construct(platform);
             }
         }
     }

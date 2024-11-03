@@ -13,8 +13,6 @@ use crate::dom::{
 };
 use crate::html_lexer::{HtmlToken, HtmlTokenWithLocation};
 use crate::network::url::Url;
-use crate::resource_loader::ResourceThreadPool;
-use crate::script::js_execution_context::JsExecutionContext;
 use crate::script::{js_lexer, js_parser};
 use crate::style::{
     css_lexer,
@@ -31,8 +29,7 @@ use crate::style::{
 const SELF_CLOSING_TAGS: [&str; 6] = ["br", "hr", "img", "input", "link", "meta"];
 
 
-pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>, main_url: &Url, resource_thread_pool: &mut ResourceThreadPool,
-             js_execution_context: &mut JsExecutionContext) -> Document {
+pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>, main_url: &Url) -> Document {
     let mut all_nodes = HashMap::new();
     let mut document_style_rules = Vec::new();
 
@@ -43,8 +40,7 @@ pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>, main_url: &Url, resource_t
 
     while current_token_idx < html_tokens.len() {
         let mut tag_stack = Vec::new();
-        document_children.push(parse_node(&html_tokens, &mut current_token_idx, document_node_id, &mut all_nodes,
-                                          &mut document_style_rules, &mut tag_stack, js_execution_context));
+        document_children.push(parse_node(&html_tokens, &mut current_token_idx, document_node_id, &mut all_nodes, &mut document_style_rules, &mut tag_stack));
         current_token_idx += 1;
     }
 
@@ -72,16 +68,13 @@ pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>, main_url: &Url, resource_t
         user_agent_sheet: get_user_agent_style_sheet(),
         author_sheet: document_style_rules,
     };
-    let mut document = Document { all_nodes, style_context, document_node: rc_doc_node_clone, base_url: main_url.clone() };
-    document.document_node.borrow_mut().post_construct();
-    document.update_all_dom_nodes(resource_thread_pool);
-    return document;
+    return Document { all_nodes, style_context, document_node: rc_doc_node_clone, base_url: main_url.clone() };
 }
 
 
 fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut usize, parent_id: usize,
               all_nodes: &mut HashMap<usize, Rc<RefCell<ElementDomNode>>>, styles: &mut Vec<StyleRule>,
-              tag_stack: &mut Vec<String>, js_execution_context: &mut JsExecutionContext) -> Rc<RefCell<ElementDomNode>> {
+              tag_stack: &mut Vec<String>) -> Rc<RefCell<ElementDomNode>> {
     let node_being_build_internal_id = get_next_dom_node_interal_id();
 
     let mut tag_being_parsed = None;
@@ -98,7 +91,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                     tag_being_parsed = Some(name.clone());
                 } else {
                     tag_stack.push(tag_being_parsed.clone().unwrap());
-                    let new_node = parse_node(html_tokens, current_token_idx, node_being_build_internal_id, all_nodes, styles, tag_stack, js_execution_context);
+                    let new_node = parse_node(html_tokens, current_token_idx, node_being_build_internal_id, all_nodes, styles, tag_stack);
                     children.push(new_node);
                 }
             },

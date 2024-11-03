@@ -1,5 +1,5 @@
 - BUG: when you go to a page with a lot of paragraphs, selection does not work correct, when in between paragraps, paragraphs below get selected
-- BUG: select_on_first_click does not seem to work in the addressbar (probably broke when starting to use the constructor)
+- BUG: select_on_first_click does not seem to work in the addressbar (bug is in the click() method checking for focus)
 
 - I need to think about where I want to introduce the platform. Now its a bit messy, since to measure font size we need the platform, therefore needing it
        in layout. Or do we accept that and just get better at mocking?
@@ -12,8 +12,9 @@ goals for 0.4.0:
                      DONE - wrap the components in an Rc<RefCell>
                      DONE - register them in some list for the page (seperate from UI for now)
                      DONE - set focus in the correct cases, and update the focus enum I have in the UI state
-                     - in the click handler in main, check this list as well, and fire click() if positions match
-                     - handle keypresses (redirect them to the correct component)
+                     DONE - handle keypresses (redirect them to the correct component)
+                     DONE - in the click handler, check this list as well, and fire click() if positions match
+                     - implement setting the cursor at the right position when clicking in the text field
                      - make sure we clean the page_components in the right cases (basically rebuild it every frame if the dom changed?)
               - add the ability to do a POST on formsubmit
        - better testing setup

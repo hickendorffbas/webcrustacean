@@ -105,7 +105,28 @@ pub fn handle_keyboard_input(platform: &mut Platform, input: Option<&String>, ke
 
 
 pub fn handle_possible_ui_click(ui_state: &mut UIState, x: f32, y: f32) -> Option<Url> {
-    ui_state.addressbar.click(x, y);
+    if ui_state.addressbar.is_inside(x, y) {
+        ui_state.addressbar.click(x, y);
+        return None;
+    }
+
+    for component in ui_state.page_components.iter() {
+        let mut mut_comp = component.borrow_mut();
+        match mut_comp.deref_mut() {
+            PageComponent::Button(button) => {
+                if button.is_inside(x, y) {
+                    todo!(); //TODO: implement actually clicking a button
+                }
+            },
+            PageComponent::TextField(text_field) => {
+                if text_field.is_inside(x, y) {
+                    text_field.click(x, y);
+                }
+            },
+        }
+    }
+
+
     let possible_url = ui_state.back_button.click(x, y, &mut ui_state.history);
     if possible_url.is_some() {
         return possible_url;
@@ -120,9 +141,7 @@ pub fn handle_possible_ui_click(ui_state: &mut UIState, x: f32, y: f32) -> Optio
 
 
 pub fn handle_possible_ui_mouse_down(platform: &mut Platform, ui_state: &mut UIState, x: f32, y: f32) -> Option<Url> {
-
     let mut any_text_field_has_focus = false;
-
 
     ui_state.addressbar.has_focus = false;
     ui_state.addressbar.clear_selection();

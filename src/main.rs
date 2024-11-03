@@ -48,7 +48,7 @@ use crate::network::url::Url;
 use crate::platform::Platform;
 use crate::resource_loader::{ResourceRequestJobTracker, ResourceThreadPool};
 use crate::renderer::render;
-use crate::script::{js_execution_context::JsExecutionContext, js_interpreter};
+use crate::script::js_interpreter;
 use crate::ui::{
     CONTENT_HEIGHT,
     CONTENT_TOP_LEFT_X,
@@ -79,7 +79,6 @@ const NR_RESOURCE_LOADING_THREADS: usize = 4;
 
 //Non-config constants:
 const TARGET_MS_PER_FRAME: u128 = 1000 / TARGET_FPS as u128;
-
 
 
 fn frame_time_check(start_instant: &Instant) {
@@ -145,7 +144,10 @@ pub fn start_navigate(url: &Url, ui_state: &mut UIState, resource_thread_pool: &
 fn finish_navigate(url: &Url, ui_state: &mut UIState, page_content: &String, document: &RefCell<Document>, full_layout: &RefCell<FullLayout>,
                    platform: &mut Platform, resource_thread_pool: &mut ResourceThreadPool) {
     let lex_result = html_lexer::lex_html(&page_content);
-    document.replace(html_parser::parse(lex_result, url, resource_thread_pool, &mut JsExecutionContext::new()));
+    document.replace(html_parser::parse(lex_result, url));
+
+    document.borrow_mut().document_node.borrow_mut().post_construct(platform);
+    document.borrow_mut().update_all_dom_nodes(resource_thread_pool);
 
     //for now we run scripts here, because we don't want to always run them fully in the main loop, and we need to have the DOM before we run
     //but I'm not sure this is really the correct place
@@ -385,26 +387,28 @@ fn main() -> Result<(), String> {
                     mouse_state.x = mouse_x;
                     mouse_state.y = mouse_y;
 
-                    if ui_state.focus_target == FocusTarget::ScrollBlock {
-                        ui_state.current_scroll_y = ui_state.main_scrollbar.scroll(yrel as f32, ui_state.current_scroll_y);
-
-                    } else if mouse_state.left_down {
+                    if mouse_state.left_down {
                         let top_left_x = cmp::min(mouse_state.click_start_x, mouse_x) as f32;
                         let top_left_y = cmp::min(mouse_state.click_start_y, mouse_y) as f32 + ui_state.current_scroll_y;
                         let bottom_right_x = cmp::max(mouse_state.click_start_x, mouse_x) as f32;
                         let bottom_right_y = cmp::max(mouse_state.click_start_y, mouse_y) as f32 + ui_state.current_scroll_y;
                         let selection_rect = Rect { x: top_left_x, y: top_left_y, width: bottom_right_x - top_left_x, height: bottom_right_y - top_left_y };
 
-                        if ui_state.focus_target == FocusTarget::MainContent {
-                            RefCell::borrow_mut(&full_layout_tree.borrow_mut().root_node).reset_selection();
-                            let full_layout_tree = full_layout_tree.borrow();
-                            compute_selection_regions(&full_layout_tree.root_node, &selection_rect, ui_state.current_scroll_y, &full_layout_tree.nodes_in_selection_order);
-                        } else if ui_state.focus_target == FocusTarget::AddressBar {
-                            ui_state.addressbar.update_selection(&selection_rect)
-                        } else {
-                            //TODO: its not clear to me yet how we clear the selection on the main content
-                            ui_state.addressbar.clear_selection(); //TODO: this seems incorrect, we should clear selection when it looses focus, not on
-                                                                   //      mouse move
+                        match ui_state.focus_target {
+                            FocusTarget::None => {},
+                            FocusTarget::MainContent => {
+                                RefCell::borrow_mut(&full_layout_tree.borrow_mut().root_node).reset_selection();
+                                let full_layout_tree = full_layout_tree.borrow();
+                                compute_selection_regions(&full_layout_tree.root_node, &selection_rect, ui_state.current_scroll_y,
+                                                          &full_layout_tree.nodes_in_selection_order);
+                            },
+                            FocusTarget::AddressBar => {
+                                ui_state.addressbar.update_selection(&selection_rect);
+                            },
+                            FocusTarget::ScrollBlock => {
+                                ui_state.current_scroll_y = ui_state.main_scrollbar.scroll(yrel as f32, ui_state.current_scroll_y);
+                            },
+                            FocusTarget::Component(_) => todo!(),
                         }
                     }
                 },

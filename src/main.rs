@@ -58,7 +58,6 @@ use crate::ui::{
     History,
     MAIN_SCROLLBAR_HEIGHT,
     MAIN_SCROLLBAR_X_POS,
-    rebuild_page_component_list,
     UIState,
 };
 use crate::ui_components::{
@@ -99,7 +98,7 @@ fn handle_left_click(ui_state: &mut UIState, x: f32, y: f32, page_relative_mouse
         return possible_url;
     }
 
-    return full_layout.root_node.borrow().find_clickable(x, page_relative_mouse_y, ui_state.current_scroll_y);
+    return full_layout.root_node.borrow().click(x, page_relative_mouse_y, ui_state.current_scroll_y);
 }
 
 
@@ -153,8 +152,6 @@ fn finish_navigate(url: &Url, ui_state: &mut UIState, page_content: &String, doc
     //but I'm not sure this is really the correct place
     let mut interpreter = js_interpreter::JsInterpreter::new();
     interpreter.run_scripts_in_document(document);
-
-    rebuild_page_component_list(&document.borrow(), ui_state);
 
     #[cfg(feature="timings")] let start_layout_instant = Instant::now();
     full_layout.replace(layout::build_full_layout(&document.borrow(), &platform.font_context, &url));
@@ -354,7 +351,6 @@ fn main() -> Result<(), String> {
         animation_tick: 0,
         focus_target: FocusTarget::None,
         main_scrollbar: main_scrollbar,
-        page_components: Vec::new(),
     };
 
     let document = RefCell::from(Document::new_empty());
@@ -408,7 +404,10 @@ fn main() -> Result<(), String> {
                             FocusTarget::ScrollBlock => {
                                 ui_state.current_scroll_y = ui_state.main_scrollbar.scroll(yrel as f32, ui_state.current_scroll_y);
                             },
-                            FocusTarget::Component(_) => todo!(),
+                            FocusTarget::Component(_) => {
+                                //TODO: I would need to pass the mouse movement at least to text fields to make selection work
+                                //      or is that already working in another way
+                            }
                         }
                     }
                 },
@@ -421,16 +420,17 @@ fn main() -> Result<(), String> {
 
                     RefCell::borrow_mut(&full_layout_tree.borrow_mut().root_node).reset_selection();
 
-                    ui::handle_possible_ui_mouse_down(&mut platform, &mut ui_state, mouse_x as f32, mouse_y as f32);
+                    ui::handle_possible_ui_mouse_down(&full_layout_tree.borrow().root_node, &mut platform, &mut ui_state, mouse_x as f32, mouse_y as f32);
                 },
                 SdlEvent::MouseButtonUp { mouse_btn: MouseButton::Left, x: mouse_x, y: mouse_y, .. } => {
                     mouse_state.x = mouse_x;
                     mouse_state.y = mouse_y;
                     mouse_state.left_down = false;
 
-                    if ui_state.focus_target == FocusTarget::ScrollBlock {
-                        ui_state.focus_target = FocusTarget::None;
-                    }
+                    match ui_state.focus_target {
+                        FocusTarget::ScrollBlock => { ui_state.focus_target = FocusTarget::None; }
+                        _ => {}
+                    };
 
                     let abs_movement = (mouse_state.x - mouse_state.click_start_x).abs() + (mouse_state.y - mouse_state.click_start_y).abs();
                     let was_dragging = abs_movement > 1;

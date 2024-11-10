@@ -3,9 +3,9 @@ use std::ops::DerefMut;
 use std::rc::Rc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::layout::LayoutNode;
 use crate::{SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::color::Color;
-use crate::dom::{Document, ElementDomNode};
 use crate::network::url::Url;
 use crate::platform::{
     KeyCode,
@@ -41,14 +41,13 @@ pub struct History {
     pub currently_navigating_from_history: bool,
 }
 
-#[derive(PartialEq)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub enum FocusTarget {
     None,
     MainContent,
     AddressBar,
-    ScrollBlock, //TODO: eventually we could have more scrollbars, so replace this with a ui component id
-    Component(usize),  // a component on the page, with its id
+    ScrollBlock, //TODO: eventually we could have more scrollbars, so maybe make scrollbars page components
+    Component(Rc<RefCell<PageComponent>>),
 }
 
 pub struct UIState {
@@ -61,7 +60,6 @@ pub struct UIState {
     pub animation_tick: u32,
     pub focus_target: FocusTarget,
     pub main_scrollbar: Scrollbar, //TODO: eventually this should become a dynamic page component in the list, because there might be more than 1 scrollbar
-    pub page_components: Vec<Rc<RefCell<PageComponent>>>,
 }
 
 
@@ -75,30 +73,22 @@ pub fn render_ui(platform: &mut Platform, ui_state: &mut UIState) {
 
 pub fn handle_keyboard_input(platform: &mut Platform, input: Option<&String>, key_code: Option<KeyCode>, ui_state: &mut UIState) {
 
-    match ui_state.focus_target {
+    match &ui_state.focus_target {
         FocusTarget::None => {},
         FocusTarget::MainContent => {},
         FocusTarget::AddressBar => {
             ui_state.addressbar.handle_keyboard_input(platform, input, key_code);
         },
         FocusTarget::ScrollBlock => {},
-        FocusTarget::Component(component_id) => {
-            for component in ui_state.page_components.iter() {
-                if component.borrow().get_id() == component_id {
-
-                    let mut comp_borrow = component.borrow_mut();
-                    match comp_borrow.deref_mut() {
-                        PageComponent::Button(_) => {
-                            //TODO: handle enter here?
-                        },
-                        PageComponent::TextField(text_field) => {
-                            text_field.handle_keyboard_input(platform, input, key_code);
-                        },
-                    }
-                    return;
+        FocusTarget::Component(component) => {
+            match component.borrow_mut().deref_mut() {
+                PageComponent::Button(_) => {
+                    //TODO: handle enter here
                 }
+                PageComponent::TextField(text_field) => {
+                    text_field.handle_keyboard_input(platform, input, key_code);
+                },
             }
-
         },
     }
 }
@@ -109,23 +99,6 @@ pub fn handle_possible_ui_click(ui_state: &mut UIState, x: f32, y: f32) -> Optio
         ui_state.addressbar.click(x, y);
         return None;
     }
-
-    for component in ui_state.page_components.iter() {
-        let mut mut_comp = component.borrow_mut();
-        match mut_comp.deref_mut() {
-            PageComponent::Button(button) => {
-                if button.is_inside(x, y) {
-                    todo!(); //TODO: implement actually clicking a button
-                }
-            },
-            PageComponent::TextField(text_field) => {
-                if text_field.is_inside(x, y) {
-                    text_field.click(x, y);
-                }
-            },
-        }
-    }
-
 
     let possible_url = ui_state.back_button.click(x, y, &mut ui_state.history);
     if possible_url.is_some() {
@@ -140,23 +113,23 @@ pub fn handle_possible_ui_click(ui_state: &mut UIState, x: f32, y: f32) -> Optio
 }
 
 
-pub fn handle_possible_ui_mouse_down(platform: &mut Platform, ui_state: &mut UIState, x: f32, y: f32) -> Option<Url> {
+pub fn handle_possible_ui_mouse_down(root_layout_node: &Rc<RefCell<LayoutNode>>, platform: &mut Platform, ui_state: &mut UIState, x: f32, y: f32) -> Option<Url> {
     let mut any_text_field_has_focus = false;
 
     ui_state.addressbar.has_focus = false;
     ui_state.addressbar.clear_selection();
 
-    for component in ui_state.page_components.iter_mut() {
-        let mut comp_borrow = component.borrow_mut();
-        match comp_borrow.deref_mut() {
-            PageComponent::Button(button) => {
-                button.has_focus = false;
-            },
-            PageComponent::TextField(text_field) => {
-                text_field.has_focus = false;
-                text_field.clear_selection();
+    match &ui_state.focus_target {
+        FocusTarget::Component(component) => {
+            match component.borrow_mut().deref_mut() {
+                PageComponent::Button(button) => { button.has_focus = false },
+                PageComponent::TextField(text_field) => {
+                    text_field.has_focus = false;
+                    text_field.clear_selection();
+                },
             }
-        }
+        },
+        _ => {},
     }
 
     if ui_state.addressbar.is_inside(x, y) {
@@ -168,24 +141,27 @@ pub fn handle_possible_ui_mouse_down(platform: &mut Platform, ui_state: &mut UIS
     } else {
 
         let mut component_found = false;
-        for component in ui_state.page_components.iter_mut() {
-            let mut comp_borrow = component.borrow_mut();
-            match comp_borrow.deref_mut() {
-                PageComponent::Button(button) => {
-                    if button.is_inside(x, y) {
-                        ui_state.focus_target = FocusTarget::Component(button.id);
+
+        let possible_dom_node = root_layout_node.borrow().find_dom_node_at_position(x, y);
+        if possible_dom_node.is_some() {
+            let dom_node = possible_dom_node.unwrap();
+            let borr_dom_node = dom_node.borrow();
+            if borr_dom_node.page_component.is_some() {
+                let rc_component_clone = borr_dom_node.page_component.as_ref().unwrap().clone();
+
+                match borr_dom_node.page_component.as_ref().unwrap().borrow_mut().deref_mut() {
+                    PageComponent::Button(button) => {
+                        ui_state.focus_target = FocusTarget::Component(rc_component_clone);
                         button.has_focus = true;
                         component_found = true;
-                    }
-                },
-                PageComponent::TextField(text_field) => {
-                    if text_field.is_inside(x, y) {
-                        ui_state.focus_target = FocusTarget::Component(text_field.id);
+                    },
+                    PageComponent::TextField(text_field) => {
+                        ui_state.focus_target = FocusTarget::Component(rc_component_clone);
                         text_field.has_focus = true;
                         component_found = true;
                         any_text_field_has_focus = true;
-                    }
-                },
+                    },
+                }
             }
         }
 
@@ -203,25 +179,6 @@ pub fn handle_possible_ui_mouse_down(platform: &mut Platform, ui_state: &mut UIS
     }
 
     return None;
-}
-
-
-pub fn rebuild_page_component_list(document: &Document, ui_state: &mut UIState) {
-    ui_state.page_components.clear();
-    rebuild_page_component_list_for_node(&document.document_node.borrow(), ui_state);
-}
-
-
-fn rebuild_page_component_list_for_node(node: &ElementDomNode, ui_state: &mut UIState) {
-    if node.page_component.is_some() {
-        ui_state.page_components.push(Rc::clone(&node.page_component.as_ref().unwrap()))
-    }
-
-    if node.children.is_some() {
-        for child in node.children.as_ref().unwrap() {
-            rebuild_page_component_list_for_node(&child.borrow(), ui_state);
-        }
-    }
 }
 
 

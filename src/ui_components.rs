@@ -37,6 +37,12 @@ impl PageComponent {
             PageComponent::TextField(text_field) => text_field.id,
         }
     }
+    pub fn click(&mut self, x: f32, y: f32) {
+        match self {
+            PageComponent::Button(button) => button.click(),
+            PageComponent::TextField(text_field) => text_field.click(x, y),
+        }
+    }
 }
 
 
@@ -141,7 +147,8 @@ impl TextField {
                y > self.y && y < (self.y + self.height);
     }
 
-    pub fn click(&mut self, x: f32, _: f32)  {
+    pub fn click(&mut self, x: f32, _: f32) {
+
         if self.select_on_first_click && !self.has_focus {  //TODO: this no longer works because focus is already set on mouse down
             self.selection_start_idx = 0;
             self.selection_end_idx = self.text.len() - 1;
@@ -297,19 +304,15 @@ impl Button {
         //      -> yes, we are going to make a lazy_static PLATFORM variable
         return Button { id: get_next_component_id(), x, y, width, height, has_focus: false, text, font: Font::default()};
     }
+
     pub fn render(&self, platform: &mut Platform) {
         platform.draw_square(self.x, self.y, self.width, self.height, Color::BLACK, 255);
         platform.render_text(&self.text, self.x + BUTTON_TEXT_OFFSET_FROM_BORDER, self.y + BUTTON_TEXT_OFFSET_FROM_BORDER, &self.font, Color::BLACK);
     }
-    #[allow(dead_code)] pub fn click(&mut self, x: f32, y: f32) -> bool {  //TODO: use (by collecting components in a list, and calling this if in bounds)
-                                                                           //      we need to decide for all components if we check inside in or outside this
-                                                                           //      method. I think outside is better, and then only call it if inside.
 
-        //TODO: we have an is_inside() method, now, but not using it here, because we need to do this check outside this method
-        let is_inside = x > self.x && x < (self.x + self.width) &&
-                        y > self.y && y < (self.y + self.height);
-
-        return is_inside;
+    pub fn click(&mut self) {
+        //We don't implement any actual behavior here for now, since the actual click is handled by the dom node. Later we could add animation here to show
+        //   the button actually being pressed.
     }
 
     pub fn is_inside(&self, x: f32, y: f32) -> bool {

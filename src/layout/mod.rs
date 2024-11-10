@@ -119,6 +119,31 @@ pub enum LayoutNodeContent {
     BoxLayoutNode(BoxLayoutNode),
     NoContent,
 }
+impl LayoutNodeContent {
+    pub fn is_inside(&self, x: f32, y: f32) -> bool {
+        match self {
+            LayoutNodeContent::TextLayoutNode(text_layout_node) => {
+                for rect in text_layout_node.rects.iter() {
+                    if rect.location.is_inside(x, y) { return true; }
+                }
+                return false;
+            },
+            LayoutNodeContent::ImageLayoutNode(image_node) => {
+                return image_node.location.is_inside(x, y);
+            }
+            LayoutNodeContent::BoxLayoutNode(box_node) => {
+                return box_node.location.is_inside(x, y);
+            }
+            LayoutNodeContent::ButtonLayoutNode(button_node) => {
+                return button_node.location.is_inside(x, y);
+            }
+            LayoutNodeContent::TextInputLayoutNode(text_input_node) => {
+                return text_input_node.location.is_inside(x, y);
+            }
+            LayoutNodeContent::NoContent => { return false; },
+        }
+    }
+}
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -214,35 +239,43 @@ impl LayoutNode {
         }
     }
 
-    pub fn find_clickable(&self, x: f32, y: f32, current_scroll_y: f32) -> Option<Url> {
+    pub fn find_dom_node_at_position(&self, x: f32, y: f32) -> Option<Rc<RefCell<ElementDomNode>>> {
+        if self.content.is_inside(x, y) {
+            if self.children.is_some() {
+                for child in self.children.as_ref().unwrap() {
+                    if RefCell::borrow(child).visible {
+                        let possible_node = child.borrow().find_dom_node_at_position(x, y);
+                        if possible_node.is_some() {
+                            return possible_node;
+                        }
+                    }
+                }
+            }
+
+            if self.from_dom_node.is_some() {
+                return Some(self.from_dom_node.as_ref().unwrap().clone());
+            }
+        }
+
+        return None;
+    }
+
+    pub fn click(&self, x: f32, y: f32, current_scroll_y: f32) -> Option<Url> {
+        let possible_dom_node = self.find_dom_node_at_position(x, y);
+
+        if possible_dom_node.is_some() {
+            possible_dom_node.unwrap().borrow().click(x, y);
+        }
+
+
+        //TODO: below is all temporary until we move out the link clicking to the DOM
+
         if !self.visible_on_y_location(current_scroll_y) {
             return None;
         }
 
-        if self.optional_link_url.is_some() {
-            let mut in_rect = false;
-
-            match &self.content {
-                LayoutNodeContent::TextLayoutNode(text_layout_node) => {
-                    for rect in text_layout_node.rects.iter() {
-                        if rect.location.is_inside(x, y) {
-                            in_rect = true;
-                            break;
-                        }
-                    }
-                },
-                LayoutNodeContent::ImageLayoutNode(image_node) => {
-                    if image_node.location.is_inside(x, y) { in_rect = true; }
-                }
-                LayoutNodeContent::BoxLayoutNode(box_node) => {
-                    if box_node.location.is_inside(x, y) { in_rect = true; }
-                }
-                LayoutNodeContent::ButtonLayoutNode(_) => todo!(), //TODO: implement (note: first refactor the way we click thinks. Use click handlers always
-                                                                   //      and have those on the dom instead of the layout tree)
-                _ => {},
-            }
-
-            if in_rect {
+        if self.content.is_inside(x, y) {
+            if self.optional_link_url.is_some() {
                 return self.optional_link_url.clone();
             }
         }
@@ -250,7 +283,7 @@ impl LayoutNode {
         if self.children.is_some() {
             for child in self.children.as_ref().unwrap() {
                 if RefCell::borrow(child).visible {
-                    let opt_url = RefCell::borrow(child).find_clickable(x, y, current_scroll_y);
+                    let opt_url = RefCell::borrow(child).click(x, y, current_scroll_y);
                     if opt_url.is_some() {
                         return opt_url;
                     }

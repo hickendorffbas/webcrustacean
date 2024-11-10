@@ -80,6 +80,7 @@ impl TagName {
 pub struct ElementDomNode {
     //TODO: we are already getting many optional fiels here again, so we need something similar as in layout nodes. Probably just enum variants
     //      check the DOM spec, there is also types and subtypes defined there. Staying close to that will make the JS implementation easier for DOM manipulation
+    //      that might it also make it easier to add methods for specific elements, like submitting a form
 
     pub internal_id: usize,
     pub parent_id: usize,
@@ -196,6 +197,17 @@ impl ElementDomNode {
 
         return any_child_dirty || self.dirty;
     }
+
+    pub fn click(&self, x: f32, y: f32) {
+        //TODO: move possible other click behaviour here (some things might make more sense on layout maybe? , but just plain links can be here for example)
+
+        if self.page_component.is_some() {
+            self.page_component.as_ref().unwrap().borrow_mut().click(x, y);
+        }
+
+        //TODO: check for submit input, if so, try to find a form in a node above, and call sumbit() on that node
+    }
+
     pub fn new_empty() -> ElementDomNode {
         return ElementDomNode {
             internal_id: 0,

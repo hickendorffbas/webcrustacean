@@ -8,15 +8,16 @@
 
 goals for 0.4.0:
        - basic html form support
-              - add input elements
-                     DONE - wrap the components in an Rc<RefCell>
-                     DONE - register them in some list for the page (seperate from UI for now)
-                     DONE - set focus in the correct cases, and update the focus enum I have in the UI state
-                     DONE - handle keypresses (redirect them to the correct component)
-                     DONE - in the click handler, check this list as well, and fire click() if positions match
-                     - implement setting the cursor at the right position when clicking in the text field
-                     - make sure we clean the page_components in the right cases (basically rebuild it every frame if the dom changed?)
               - add the ability to do a POST on formsubmit
+                     - we should be able to bind a trigger to a button (or a dom node, rather. in this case click())
+                            store those triggers somewhere, and have an enum with actions that we can use there, in this case form submit?
+                            then we also need information about the other fields in the form. Those values are in the dom, so this should be a DOM
+                            operation in any case, traversing the tree below the form. So on submit, we go up until the form, and then DFS to all inputs
+                                   - first goal: add a click() method to the dom, and look up a form if it is a submit input
+                                          - first move <a> clicks to there...
+                                          - so click() on dom should possibly return a NavigationAction
+                                          - the click() on a button component should be implemented, but not currently do anything (later it could animate the click)
+                     - we also need a way to communicate the navigation out of that method (we don't want to navigate deep in dom code)
        - better testing setup
               - some way to test with actual webpage examples in files
               - make parse tests nicer by comparing json

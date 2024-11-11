@@ -9,12 +9,16 @@ use crate::network::url::Url;
 use crate::platform::Platform;
 use crate::resource_loader::{
     self,
+    ResourceRequestJobTracker,
     ResourceThreadPool,
-    ResourceRequestJobTracker
 };
 use crate::script::js_ast::Script;
 use crate::style::StyleContext;
-use crate::ui_components::{Button, PageComponent, TextField};
+use crate::ui_components::{
+    Button,
+    PageComponent,
+    TextField
+};
 
 
 static NEXT_DOM_NODE_INTERNAL_ID: AtomicUsize = AtomicUsize::new(1);
@@ -43,7 +47,6 @@ impl Document {
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub enum TagName {
-    A,
     B,
     Br,
     Img,
@@ -58,7 +61,6 @@ impl TagName {
     pub fn from_string(tag_being_parsed: &String) -> TagName {
         return match tag_being_parsed.as_str() {
 
-            "a" => TagName::A,
             "b" => TagName::B,
             "br" => TagName::Br,
             "img" => TagName::Img,
@@ -198,14 +200,30 @@ impl ElementDomNode {
         return any_child_dirty || self.dirty;
     }
 
-    pub fn click(&self, x: f32, y: f32) {
-        //TODO: move possible other click behaviour here (some things might make more sense on layout maybe? , but just plain links can be here for example)
+    pub fn click(&self, x: f32, y: f32, document: &Document) -> Option<Url> {
+
+        let mut node_id_to_check = self.parent_id;
+        while node_id_to_check != 0 {
+
+            let node_to_check = document.all_nodes[&node_id_to_check].borrow();
+
+            if node_to_check.name.is_some() && node_to_check.name.as_ref().unwrap().as_str() == "a" {
+                let opt_href = node_to_check.get_attribute_value("href");
+                if opt_href.is_some() {
+                    return Some(Url::from_base_url(&opt_href.unwrap(), Some(&document.base_url)));
+                }
+            }
+
+            node_id_to_check = node_to_check.parent_id;
+        }
 
         if self.page_component.is_some() {
             self.page_component.as_ref().unwrap().borrow_mut().click(x, y);
         }
 
         //TODO: check for submit input, if so, try to find a form in a node above, and call sumbit() on that node
+
+        return None;
     }
 
     pub fn new_empty() -> ElementDomNode {

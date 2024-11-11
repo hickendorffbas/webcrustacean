@@ -92,13 +92,13 @@ fn frame_time_check(start_instant: &Instant) {
 }
 
 
-fn handle_left_click(ui_state: &mut UIState, x: f32, y: f32, page_relative_mouse_y: f32, full_layout: &FullLayout) -> Option<Url> {
+fn handle_left_click(ui_state: &mut UIState, x: f32, y: f32, page_relative_mouse_y: f32, full_layout: &FullLayout, document: &Document) -> Option<Url> {
     let possible_url = ui::handle_possible_ui_click(ui_state, x, y);
     if possible_url.is_some() {
         return possible_url;
     }
 
-    return full_layout.root_node.borrow().click(x, page_relative_mouse_y, ui_state.current_scroll_y);
+    return full_layout.root_node.borrow().click(x, page_relative_mouse_y, document);
 }
 
 
@@ -437,7 +437,7 @@ fn main() -> Result<(), String> {
 
                     if !was_dragging {
                         let page_relative_mouse_y = mouse_y as f32 + ui_state.current_scroll_y;
-                        let optional_url = handle_left_click(&mut ui_state, mouse_x as f32, mouse_y as f32, page_relative_mouse_y, &full_layout_tree.borrow());
+                        let optional_url = handle_left_click(&mut ui_state, mouse_x as f32, mouse_y as f32, page_relative_mouse_y, &full_layout_tree.borrow(), &document.borrow());
 
                         if optional_url.is_some() {
                             let url = optional_url.unwrap();

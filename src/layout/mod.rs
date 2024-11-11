@@ -157,9 +157,6 @@ pub struct LayoutNode {
     pub visible: bool,
 
     pub content: LayoutNodeContent,
-
-    pub optional_link_url: Option<Url>, //TODO: This is not really nice, there are other things that could happen on click as well. Refactor to a more
-                                        //      general setup of what should happen on click (or, better defer to the DOM for that, should not be on layout nodes)
 }
 impl LayoutNode {
     pub fn all_childnodes_have_given_display(&self, display: Display) -> bool {
@@ -260,37 +257,12 @@ impl LayoutNode {
         return None;
     }
 
-    pub fn click(&self, x: f32, y: f32, current_scroll_y: f32) -> Option<Url> {
+    pub fn click(&self, x: f32, y: f32, document: &Document) -> Option<Url> {
         let possible_dom_node = self.find_dom_node_at_position(x, y);
 
         if possible_dom_node.is_some() {
-            possible_dom_node.unwrap().borrow().click(x, y);
+            return possible_dom_node.unwrap().borrow().click(x, y, document);
         }
-
-
-        //TODO: below is all temporary until we move out the link clicking to the DOM
-
-        if !self.visible_on_y_location(current_scroll_y) {
-            return None;
-        }
-
-        if self.content.is_inside(x, y) {
-            if self.optional_link_url.is_some() {
-                return self.optional_link_url.clone();
-            }
-        }
-
-        if self.children.is_some() {
-            for child in self.children.as_ref().unwrap() {
-                if RefCell::borrow(child).visible {
-                    let opt_url = RefCell::borrow(child).click(x, y, current_scroll_y);
-                    if opt_url.is_some() {
-                        return opt_url;
-                    }
-                }
-            }
-        }
-
         return None;
     }
 
@@ -302,7 +274,6 @@ impl LayoutNode {
             children: None,
             from_dom_node: None,
             content: LayoutNodeContent::NoContent,
-            optional_link_url: None,
         };
     }
 
@@ -478,7 +449,6 @@ pub fn build_full_layout(document: &Document, font_context: &FontContext, main_u
             location: Rect::empty(),
             background_color: Color::WHITE,
         }),
-        optional_link_url: None,
     };
 
     let rc_root_node = Rc::new(RefCell::from(root_node));
@@ -902,7 +872,6 @@ fn get_display_type(node: &Rc<RefCell<ElementDomNode>>) -> Display {
 fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Document, font_context: &FontContext, main_url: &Url,
                      state: &mut LayoutBuildState, optional_new_text: Option<String>) -> Rc<RefCell<LayoutNode>> {
     let mut partial_node_visible = true;
-    let mut partial_node_optional_link_url = None;
     let mut partial_node_optional_img = None;
     let mut partial_node_line_break = false;
     let mut partial_node_styles = resolve_full_styles_for_layout_node(&Rc::clone(main_node), &document.all_nodes, &document.style_context);
@@ -939,14 +908,6 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
         childs_to_recurse_on = &main_node.children;
 
         match &main_node.name_for_layout {
-            TagName::A => {
-                let opt_href = main_node.get_attribute_value("href");
-                if opt_href.is_some() {
-                    partial_node_optional_link_url = Some(Url::from_base_url(&opt_href.unwrap(), Some(main_url)));
-                } else {
-                    partial_node_optional_link_url = None;
-                }
-            }
 
             TagName::B => {
                 //TODO: can this style not be in the general stylesheet?
@@ -1133,7 +1094,6 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
         children: partial_node_children,
         from_dom_node: Some(Rc::clone(&main_node_refcell)),
         content: content,
-        optional_link_url: partial_node_optional_link_url,
     };
 
     return Rc::new(RefCell::from(new_node));
@@ -1223,7 +1183,6 @@ fn build_anonymous_block_layout_node(visible: bool, inline_children: Vec<Rc<RefC
         children: Some(inline_children),
         from_dom_node: None,
         content: LayoutNodeContent::BoxLayoutNode(empty_box_layout_node),
-        optional_link_url: None,
     };
 
     return Rc::new(RefCell::from(anonymous_node));

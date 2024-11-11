@@ -24,13 +24,13 @@ fn test_basic_style_resolving() {
     let document_node_id = 0;
     let dom_node_id = get_next_test_id();
     let dom_node = Rc::new(RefCell::from(ElementDomNode { internal_id: dom_node_id, parent_id: document_node_id, text: None, is_document_node: false, dirty: false,
-                                                          name: Some("a".to_owned()), name_for_layout: TagName::A, children: Some(Vec::new()),
+                                                          name: Some("b".to_owned()), name_for_layout: TagName::B, children: Some(Vec::new()),
                                                           attributes: None, image: None, img_job_tracker: None, scripts: None, page_component: None }));
 
     let mut all_dom_nodes = HashMap::new();
     all_dom_nodes.insert(dom_node_id, Rc::clone(&dom_node));
 
-    let style_rules = vec![ StyleRule { selector: Selector { nodes: Some(vec!["a".to_owned()]) },
+    let style_rules = vec![ StyleRule { selector: Selector { nodes: Some(vec!["b".to_owned()]) },
                                         property: "prop".to_owned(), value: "some value".to_owned() } ];
 
     let style_context = StyleContext { user_agent_sheet: Vec::new(), author_sheet: style_rules };
@@ -46,7 +46,7 @@ fn test_inherit_style_from_parent() {
     let main_node_id = get_next_test_id();
     let parent_node_id = get_next_test_id();
     let main_node = Rc::new(RefCell::from(ElementDomNode { internal_id: main_node_id, parent_id: parent_node_id, text: None, is_document_node: false, dirty: false,
-                                                           name: Some("a".to_owned()), name_for_layout: TagName::A, children: Some(Vec::new()),
+                                                           name: Some("b".to_owned()), name_for_layout: TagName::B, children: Some(Vec::new()),
                                                            attributes: None, image: None, img_job_tracker: None, scripts: None, page_component: None }));
     let parent_node = Rc::new(RefCell::from(ElementDomNode { internal_id: parent_node_id, parent_id: document_node_id, text: None, dirty: false,
                                                              is_document_node: false, name: Some("h3".to_owned()), name_for_layout: TagName::Other,
@@ -73,17 +73,17 @@ fn test_cascade() {
     let document_node_id = 0;
     let dom_node_id = get_next_test_id();
     let dom_node = Rc::new(RefCell::from(ElementDomNode { internal_id: dom_node_id, parent_id: document_node_id, text: None, is_document_node: false, dirty: false,
-                                                          name: Some("a".to_owned()), name_for_layout: TagName::A, children: Some(Vec::new()),
+                                                          name: Some("b".to_owned()), name_for_layout: TagName::B, children: Some(Vec::new()),
                                                           attributes: None, image: None, img_job_tracker: None, scripts: None, page_component: None }));
 
     let mut all_dom_nodes = HashMap::new();
     all_dom_nodes.insert(dom_node_id, Rc::clone(&dom_node));
 
-    let style_rules = vec![ StyleRule { selector: Selector { nodes: Some(vec!["a".to_owned()]) },
+    let style_rules = vec![ StyleRule { selector: Selector { nodes: Some(vec!["b".to_owned()]) },
                                         property: "color".to_owned(), value: "red".to_owned() },
-                            StyleRule { selector: Selector { nodes: Some(vec!["a".to_owned()]) },
+                            StyleRule { selector: Selector { nodes: Some(vec!["b".to_owned()]) },
                                         property: "font-size".to_owned(), value: "25".to_owned() } ];
-    let ua_styles = vec![ StyleRule { selector: Selector { nodes: Some(vec!["a".to_owned()]) },
+    let ua_styles = vec![ StyleRule { selector: Selector { nodes: Some(vec!["b".to_owned()]) },
                                       property: "color".to_owned(), value: "red".to_owned() } ];
 
     let style_context = StyleContext { user_agent_sheet: ua_styles, author_sheet: style_rules };

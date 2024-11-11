@@ -14,8 +14,7 @@ goals for 0.4.0:
                             then we also need information about the other fields in the form. Those values are in the dom, so this should be a DOM
                             operation in any case, traversing the tree below the form. So on submit, we go up until the form, and then DFS to all inputs
                                    - first goal: add a click() method to the dom, and look up a form if it is a submit input
-                                          - first move <a> clicks to there...
-                                          - so click() on dom should possibly return a NavigationAction
+                                          - so click() on dom should possibly return a NavigationAction (because we also need to store post with params)
                                           - the click() on a button component should be implemented, but not currently do anything (later it could animate the click)
                      - we also need a way to communicate the navigation out of that method (we don't want to navigate deep in dom code)
        - better testing setup

@@ -34,7 +34,7 @@ use sdl2::{
 use threadpool::ThreadPool;
 
 use crate::debug::debug_log_warn;
-use crate::dom::Document;
+use crate::dom::{Document, NavigationAction};
 use crate::layout::{
     collect_content_nodes_in_walk_order,
     compute_layout,
@@ -92,10 +92,10 @@ fn frame_time_check(start_instant: &Instant) {
 }
 
 
-fn handle_left_click(ui_state: &mut UIState, x: f32, y: f32, page_relative_mouse_y: f32, full_layout: &FullLayout, document: &Document) -> Option<Url> {
+fn handle_left_click(ui_state: &mut UIState, x: f32, y: f32, page_relative_mouse_y: f32, full_layout: &FullLayout, document: &Document) -> NavigationAction {
     let possible_url = ui::handle_possible_ui_click(ui_state, x, y);
     if possible_url.is_some() {
-        return possible_url;
+        return NavigationAction::Get(possible_url.unwrap());
     }
 
     return full_layout.root_node.borrow().click(x, page_relative_mouse_y, document);
@@ -111,39 +111,57 @@ pub struct MouseState {
 }
 
 
-pub fn start_navigate(url: &Url, ui_state: &mut UIState, resource_thread_pool: &mut ResourceThreadPool) -> ResourceRequestJobTracker<String> {
-    //TODO: we should wrap the history logic in a function or module somewhere...
-    if !ui_state.history.currently_navigating_from_history {
-        if ui_state.history.list.len() > (ui_state.history.position + 1) {
-            let last_idx_to_keep = ui_state.history.position;
-            for idx in ((last_idx_to_keep + 1)..ui_state.history.list.len()).rev() {
-                ui_state.history.list.remove(idx);
+pub fn start_navigate(navigation_action: &NavigationAction, platform: &Platform, ui_state: &mut UIState,
+                      resource_thread_pool: &mut ResourceThreadPool) -> ResourceRequestJobTracker<String> {
+
+    let tracker = match navigation_action {
+        NavigationAction::None => {
+            panic!("Illegal state"); // we should not get in this method if we have nothing to navigate to...
+        },
+        NavigationAction::Get(url) => {
+            ui_state.addressbar.set_text(platform, url.to_string());
+
+            if !ui_state.history.currently_navigating_from_history {
+                ui::register_in_history(ui_state, url);
             }
+
+            resource_loader::schedule_load_text(&url, resource_thread_pool) //TODO: should this be a different thread pool, or rename it?
+        },
+        NavigationAction::Post(post_data) => {
+            ui_state.addressbar.set_text(platform, post_data.url.to_string());
+
+            if !ui_state.history.currently_navigating_from_history {
+                //TODO: we should actually record the postdata in the history. Or actually the whole page, and not request again? How do other browsers do this?
+                ui::register_in_history(ui_state, &post_data.url);
+            }
+
+
+            todo!("implement");
         }
-        ui_state.history.list.push(url.clone());
-        ui_state.history.position = ui_state.history.list.len() - 1;
-        if ui_state.history.position > 0 {
-            ui_state.back_button.enabled = true;
-        }
-    }
+    };
+
 
     ui_state.currently_loading_page = true;
-
-    //TODO: this code belongs in a history module somewhere as well...
-    ui_state.forward_button.enabled = ui_state.history.list.len() > ui_state.history.position + 1;
-    ui_state.back_button.enabled = ui_state.history.position > 0;
-
     ui_state.history.currently_navigating_from_history = false;
-    let main_page_job_tracker = resource_loader::schedule_load_text(&url, resource_thread_pool); //TODO: should this be a different thread pool, or rename it?
+    ui::update_history_buttons(ui_state);
 
-    return main_page_job_tracker;
+    return tracker;
 }
 
 
-fn finish_navigate(url: &Url, ui_state: &mut UIState, page_content: &String, document: &RefCell<Document>, full_layout: &RefCell<FullLayout>,
-                   platform: &mut Platform, resource_thread_pool: &mut ResourceThreadPool) {
+fn finish_navigate(navigation_action: &NavigationAction, ui_state: &mut UIState, page_content: &String, document: &RefCell<Document>,
+                   full_layout: &RefCell<FullLayout>, platform: &mut Platform, resource_thread_pool: &mut ResourceThreadPool) {
+
+    let url = match navigation_action {
+        NavigationAction::None => {
+            panic!("Illegal state"); // we should not get in this method if we have nothing to navigate to...
+        },
+        NavigationAction::Get(url) => { url },
+        NavigationAction::Post(post_data) => { &post_data.url },
+    };
+
     let lex_result = html_lexer::lex_html(&page_content);
-    document.replace(html_parser::parse(lex_result, url));
+    document.replace(html_parser::parse(lex_result, &url));
 
     document.borrow_mut().document_node.borrow_mut().post_construct(platform);
     document.borrow_mut().update_all_dom_nodes(resource_thread_pool);
@@ -154,7 +172,7 @@ fn finish_navigate(url: &Url, ui_state: &mut UIState, page_content: &String, doc
     interpreter.run_scripts_in_document(document);
 
     #[cfg(feature="timings")] let start_layout_instant = Instant::now();
-    full_layout.replace(layout::build_full_layout(&document.borrow(), &platform.font_context, &url));
+    full_layout.replace(layout::build_full_layout(&document.borrow(), &platform.font_context));
 
     ui_state.current_scroll_y = 0.0;
     ui_state.currently_loading_page = false;
@@ -313,20 +331,9 @@ fn main() -> Result<(), String> {
 
     let mut resource_thread_pool = ResourceThreadPool { pool: ThreadPool::new(NR_RESOURCE_LOADING_THREADS) };
 
-    let args: Vec<String> = env::args().collect();
-
-    let mut url = if args.len() < 2 {
-        Url::from(&DEFAULT_LOCATION_TO_LOAD.to_owned())
-    } else {
-        Url::from(&args[1])
-    };
-
-
     let mut mouse_state = MouseState { x: 0, y: 0, click_start_x: 0, click_start_y: 0, left_down: false };
-    let addressbar_text = url.to_string();
 
-    let mut addressbar_text_field = TextField::new(100.0, 10.0, SCREEN_WIDTH - 200.0, 35.0, true);
-    addressbar_text_field.set_text(&mut platform, addressbar_text);
+    let addressbar_text_field = TextField::new(100.0, 10.0, SCREEN_WIDTH - 200.0, 35.0, true);
 
     //TODO: this setting up of components should happen in the ui module eventually
     let main_scrollbar = Scrollbar {
@@ -356,18 +363,26 @@ fn main() -> Result<(), String> {
     let document = RefCell::from(Document::new_empty());
     let full_layout_tree = RefCell::from(FullLayout::new_empty());
 
-    let mut main_page_job_tracker = start_navigate(&url, &mut ui_state, &mut resource_thread_pool);
-    let mut currently_loading_new_page = true;
+    let args: Vec<String> = env::args().collect();
+    let start_url = if args.len() < 2 {
+        Url::from(&DEFAULT_LOCATION_TO_LOAD.to_owned())
+    } else {
+        Url::from(&args[1])
+    };
+    document.borrow_mut().base_url = start_url.clone();
+    let mut ongoing_navigation = Some(NavigationAction::Get(start_url));
+
+    let mut main_page_job_tracker = start_navigate(&ongoing_navigation.as_ref().unwrap(), &platform, &mut ui_state, &mut resource_thread_pool);
 
     let mut event_pump = platform.sdl_context.event_pump()?;
     'main_loop: loop {
         let start_loop_instant = Instant::now();
 
-        if currently_loading_new_page {
+        if ongoing_navigation.is_some() {
             let try_recv_result = main_page_job_tracker.receiver.try_recv();
             if try_recv_result.is_ok() {
-                finish_navigate(&url, &mut ui_state, &try_recv_result.ok().unwrap(), &document, &full_layout_tree, &mut platform, &mut resource_thread_pool);
-                currently_loading_new_page = false;
+                finish_navigate(&ongoing_navigation.unwrap(), &mut ui_state, &try_recv_result.ok().unwrap(), &document, &full_layout_tree, &mut platform, &mut resource_thread_pool);
+                ongoing_navigation = None;
             }
         }
 
@@ -437,14 +452,12 @@ fn main() -> Result<(), String> {
 
                     if !was_dragging {
                         let page_relative_mouse_y = mouse_y as f32 + ui_state.current_scroll_y;
-                        let optional_url = handle_left_click(&mut ui_state, mouse_x as f32, mouse_y as f32, page_relative_mouse_y, &full_layout_tree.borrow(), &document.borrow());
+                        let navigation_action = handle_left_click(&mut ui_state, mouse_x as f32, mouse_y as f32, page_relative_mouse_y, &full_layout_tree.borrow(), &document.borrow());
 
-                        if optional_url.is_some() {
-                            let url = optional_url.unwrap();
-                            //TODO: this should be done via a nicer "navigate" method or something (also below when pressing enter in the addressbar)
-                            ui_state.addressbar.set_text(&mut platform, url.to_string());
-                            main_page_job_tracker = start_navigate(&url, &mut ui_state, &mut resource_thread_pool); //TODO: we should do this above in the next loop, just schedule the url for reload
-                            currently_loading_new_page = true;
+                        //TODO: we should do this above in the next loop, just schedule the action for the next loop?
+                        if navigation_action != NavigationAction::None {
+                            main_page_job_tracker = start_navigate(&navigation_action, &platform, &mut ui_state, &mut resource_thread_pool);
+                            ongoing_navigation = Some(navigation_action);
                         }
                     }
                 },
@@ -466,9 +479,9 @@ fn main() -> Result<(), String> {
 
                         if ui_state.addressbar.has_focus && keycode.unwrap().name() == "Return" {
                             //TODO: This is here for now because we need to load another page, not sure how to correctly trigger that from inside the component
-                            url = Url::from(&ui_state.addressbar.text);
-                            main_page_job_tracker = start_navigate(&url, &mut ui_state, &mut resource_thread_pool);
-                            currently_loading_new_page = true;
+                            let navigation_action = NavigationAction::Get(Url::from(&ui_state.addressbar.text));
+                            main_page_job_tracker = start_navigate(&navigation_action, &platform, &mut ui_state, &mut resource_thread_pool);
+                            ongoing_navigation = Some(navigation_action);
                         }
 
                         if keymod.contains(SdlKeyMod::LCTRLMOD) {
@@ -489,7 +502,7 @@ fn main() -> Result<(), String> {
                                 match ui_state.focus_target {
                                     FocusTarget::AddressBar => {
                                         let clipboard_text = Clipboard::new().unwrap().get_text().expect("Unhandled clipboard error");
-                                        ui_state.addressbar.insert_text(&mut platform, &clipboard_text);
+                                        ui_state.addressbar.insert_text(&platform, &clipboard_text);
                                     },
                                     _ => {},
                                 }
@@ -510,7 +523,7 @@ fn main() -> Result<(), String> {
         let document_has_dirty_nodes = document.borrow_mut().update_all_dom_nodes(&mut resource_thread_pool);
 
         if document_has_dirty_nodes {
-            rebuild_dirty_layout_childs(&full_layout_tree.borrow().root_node, &document.borrow(), &platform.font_context, &url);
+            rebuild_dirty_layout_childs(&full_layout_tree.borrow().root_node, &document.borrow(), &platform.font_context);
 
             let mut nodes_in_selection_order = Vec::new();
             collect_content_nodes_in_walk_order(&full_layout_tree.borrow().root_node, &mut nodes_in_selection_order);

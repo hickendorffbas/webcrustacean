@@ -71,6 +71,27 @@ pub fn render_ui(platform: &mut Platform, ui_state: &mut UIState) {
 }
 
 
+pub fn register_in_history(ui_state: &mut UIState, url: &Url) {
+    if ui_state.history.list.len() > (ui_state.history.position + 1) {
+        let last_idx_to_keep = ui_state.history.position;
+        for idx in ((last_idx_to_keep + 1)..ui_state.history.list.len()).rev() {
+            ui_state.history.list.remove(idx);
+        }
+    }
+    ui_state.history.list.push(url.clone());
+    ui_state.history.position = ui_state.history.list.len() - 1;
+    if ui_state.history.position > 0 {
+        ui_state.back_button.enabled = true;
+    }
+}
+
+
+pub fn update_history_buttons(ui_state: &mut UIState) {
+    ui_state.forward_button.enabled = ui_state.history.list.len() > ui_state.history.position + 1;
+    ui_state.back_button.enabled = ui_state.history.position > 0;
+}
+
+
 pub fn handle_keyboard_input(platform: &mut Platform, input: Option<&String>, key_code: Option<KeyCode>, ui_state: &mut UIState) {
 
     match &ui_state.focus_target {

@@ -10,14 +10,12 @@ goals for 0.4.0:
        - basic html form support
               - add the ability to do a POST on formsubmit
                      - we should be able to bind a trigger to a button (or a dom node, rather. in this case click())
-                            store those triggers somewhere, and have an enum with actions that we can use there, in this case form submit?
-                            then we also need information about the other fields in the form. Those values are in the dom, so this should be a DOM
                             operation in any case, traversing the tree below the form. So on submit, we go up until the form, and then DFS to all inputs
                                    - first goal: add a click() method to the dom, and look up a form if it is a submit input
-                                          - so click() on dom should possibly return a NavigationAction (because we also need to store post with params)
+                                          - so click() on dom should look for a form above it, collect the data, and return the navagion action
                                           - the click() on a button component should be implemented, but not currently do anything (later it could animate the click)
-                     - we also need a way to communicate the navigation out of that method (we don't want to navigate deep in dom code)
        - better testing setup
+              - implement mocking (with a type alias) of the platform
               - some way to test with actual webpage examples in files
               - make parse tests nicer by comparing json
                      - this works, but we need to make a generic function so we can have a nice way of having many tests

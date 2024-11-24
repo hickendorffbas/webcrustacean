@@ -11,9 +11,9 @@ use crate::debug::debug_log_warn;
 use crate::dom::{
     Document,
     ElementDomNode,
+    NavigationAction,
     TagName,
 };
-use crate::network::url::Url;
 use crate::platform::fonts::{
     Font,
     FontContext,
@@ -257,13 +257,13 @@ impl LayoutNode {
         return None;
     }
 
-    pub fn click(&self, x: f32, y: f32, document: &Document) -> Option<Url> {
+    pub fn click(&self, x: f32, y: f32, document: &Document) -> NavigationAction {
         let possible_dom_node = self.find_dom_node_at_position(x, y);
 
         if possible_dom_node.is_some() {
             return possible_dom_node.unwrap().borrow().click(x, y, document);
         }
-        return None;
+        return NavigationAction::None;
     }
 
     pub fn new_empty() -> LayoutNode {
@@ -427,14 +427,14 @@ struct LayoutBuildState {
 }
 
 
-pub fn build_full_layout(document: &Document, font_context: &FontContext, main_url: &Url) -> FullLayout {
+pub fn build_full_layout(document: &Document, font_context: &FontContext) -> FullLayout {
     let mut top_level_layout_nodes: Vec<Rc<RefCell<LayoutNode>>> = Vec::new();
 
     let id_of_node_being_built = get_next_layout_node_interal_id();
 
     let mut state = LayoutBuildState { last_char_was_space: false };
 
-    let layout_node = build_layout_tree(&document.document_node, document, font_context, main_url, &mut state, None);
+    let layout_node = build_layout_tree(&document.document_node, document, font_context, &mut state, None);
     top_level_layout_nodes.push(layout_node);
 
     //Note: we need a node above the first node actually containing any content or styles, since for updates to content or styles we re-assign
@@ -869,8 +869,8 @@ fn get_display_type(node: &Rc<RefCell<ElementDomNode>>) -> Display {
 }
 
 
-fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Document, font_context: &FontContext, main_url: &Url,
-                     state: &mut LayoutBuildState, optional_new_text: Option<String>) -> Rc<RefCell<LayoutNode>> {
+fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Document, font_context: &FontContext, state: &mut LayoutBuildState,
+                     optional_new_text: Option<String>) -> Rc<RefCell<LayoutNode>> {
     let mut partial_node_visible = true;
     let mut partial_node_optional_img = None;
     let mut partial_node_line_break = false;
@@ -1006,7 +1006,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
                 if get_display_type(&child) == Display::Block {
                     if !temp_inline_child_buffer.is_empty() {
-                        let layout_childs = build_layout_for_inline_nodes(&temp_inline_child_buffer, document, font_context, main_url, state);
+                        let layout_childs = build_layout_for_inline_nodes(&temp_inline_child_buffer, document, font_context, state);
 
                         let anon_block = build_anonymous_block_layout_node(true, layout_childs, background_color);
                         partial_node_children.as_mut().unwrap().push(anon_block);
@@ -1015,7 +1015,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
                     }
 
                     state.last_char_was_space = false;
-                    let layout_child = build_layout_tree(child, document, font_context, main_url, state, None);
+                    let layout_child = build_layout_tree(child, document, font_context, state, None);
                     partial_node_children.as_mut().unwrap().push(layout_child);
 
                 } else {
@@ -1024,7 +1024,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
             }
 
             if !temp_inline_child_buffer.is_empty() {
-                let layout_childs = build_layout_for_inline_nodes(&temp_inline_child_buffer, document, font_context, main_url, state);
+                let layout_childs = build_layout_for_inline_nodes(&temp_inline_child_buffer, document, font_context, state);
 
                 let anon_block = build_anonymous_block_layout_node(true, layout_childs, background_color);
                 partial_node_children.as_mut().unwrap().push(anon_block);
@@ -1036,7 +1036,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
             for child in childs_to_recurse_on.as_ref().unwrap() {
                 inline_nodes_to_layout.push(child);
             }
-            let layout_childs = build_layout_for_inline_nodes(&inline_nodes_to_layout, document, font_context, main_url, state);
+            let layout_childs = build_layout_for_inline_nodes(&inline_nodes_to_layout, document, font_context, state);
 
             for layout_child in layout_childs {
                 partial_node_children.as_mut().unwrap().push(layout_child);
@@ -1046,7 +1046,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
             for child in childs_to_recurse_on.as_ref().unwrap() {
                 state.last_char_was_space = false;
-                let layout_child = build_layout_tree(child, document, font_context, main_url, state, None);
+                let layout_child = build_layout_tree(child, document, font_context, state, None);
                 partial_node_children.as_mut().unwrap().push(layout_child);
             }
         }
@@ -1100,7 +1100,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 }
 
 
-pub fn rebuild_dirty_layout_childs(main_node: &Rc<RefCell<LayoutNode>>, document: &Document, font_context: &FontContext, main_url: &Url) {
+pub fn rebuild_dirty_layout_childs(main_node: &Rc<RefCell<LayoutNode>>, document: &Document, font_context: &FontContext) {
     let mut main_node_mut = RefCell::borrow_mut(main_node);
     let main_node_children = &mut main_node_mut.children;
 
@@ -1111,11 +1111,11 @@ pub fn rebuild_dirty_layout_childs(main_node: &Rc<RefCell<LayoutNode>>, document
             if child.borrow().from_dom_node.is_some() && child.borrow().from_dom_node.as_ref().unwrap().borrow().dirty {
                 let mut layout_build_state = LayoutBuildState { last_char_was_space: false }; //TODO: is there ever a case where this needs to be not false?
                                                                                               //      maybe when replacing in a series of inline nodes?
-                let new_child = build_layout_tree(&child.borrow().from_dom_node.as_ref().unwrap(), document, font_context, main_url, &mut layout_build_state, None);
+                let new_child = build_layout_tree(&child.borrow().from_dom_node.as_ref().unwrap(), document, font_context, &mut layout_build_state, None);
                 main_node_children.as_mut().unwrap()[child_idx] = new_child;
 
             } else {
-                rebuild_dirty_layout_childs(&child, document, font_context, main_url);
+                rebuild_dirty_layout_childs(&child, document, font_context);
             }
 
         }
@@ -1124,7 +1124,7 @@ pub fn rebuild_dirty_layout_childs(main_node: &Rc<RefCell<LayoutNode>>, document
 
 
 fn build_layout_for_inline_nodes(inline_nodes: &Vec<&Rc<RefCell<ElementDomNode>>>, document: &Document, font_context: &FontContext,
-                                 main_url: &Url, state: &mut LayoutBuildState) -> Vec<Rc<RefCell<LayoutNode>>> {
+                                 state: &mut LayoutBuildState) -> Vec<Rc<RefCell<LayoutNode>>> {
 
     let mut optional_new_text;
     let mut layout_nodes = Vec::new();
@@ -1160,7 +1160,7 @@ fn build_layout_for_inline_nodes(inline_nodes: &Vec<&Rc<RefCell<ElementDomNode>>
             optional_new_text = None;
         }
 
-        let layout_child = build_layout_tree(node, document, font_context, main_url, state, optional_new_text);
+        let layout_child = build_layout_tree(node, document, font_context, state, optional_new_text);
         layout_nodes.push(layout_child);
     }
 

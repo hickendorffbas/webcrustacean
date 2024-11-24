@@ -120,7 +120,7 @@ impl TextField {
         self.height = height;
     }
 
-    pub fn set_text(&mut self, platform: &mut Platform, text: String) { //TODO: use this everywhere...
+    pub fn set_text(&mut self, platform: &Platform, text: String) { //TODO: use this everywhere...
         self.clear_selection();
         self.text = text;
 
@@ -131,7 +131,7 @@ impl TextField {
         self.char_position_mapping = platform.font_context.compute_char_position_mapping(&self.font, &self.text);
     }
 
-    pub fn insert_text(&mut self, platform: &mut Platform, text: &String) {
+    pub fn insert_text(&mut self, platform: &Platform, text: &String) {
         if self.has_selection_active() {
             self.remove_selected_text(platform);
         }
@@ -231,7 +231,7 @@ impl TextField {
         return self.text.chars().skip(self.selection_start_idx).take(selection_size).collect::<String>();
     }
 
-    fn remove_selected_text(&mut self, platform: &mut Platform) {
+    fn remove_selected_text(&mut self, platform: &Platform) {
         if self.has_selection_active() {
             for _ in self.selection_start_idx..(self.selection_end_idx+1) {
                 self.text.remove(self.selection_start_idx);
@@ -246,7 +246,7 @@ impl TextField {
         return self.selection_start_idx != self.selection_end_idx;
     }
 
-    pub fn handle_keyboard_input(&mut self, platform: &mut Platform, input: Option<&String>, key_code: Option<KeyCode>) {
+    pub fn handle_keyboard_input(&mut self, platform: &Platform, input: Option<&String>, key_code: Option<KeyCode>) {
         if input.is_some() {
             self.insert_text(platform, &input.unwrap());
             return;

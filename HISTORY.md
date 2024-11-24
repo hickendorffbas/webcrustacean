@@ -1,6 +1,7 @@
 0.4.0 [UNRELEASED]
 ===================
 - Scrollbar bugfixes
+- Added textfields and submit buttons for forms
 
 
 0.3.0

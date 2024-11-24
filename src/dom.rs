@@ -78,6 +78,22 @@ impl TagName {
 }
 
 
+#[derive(PartialEq)]
+pub enum NavigationAction {
+    None,
+    Get(Url),
+    Post(PostData),
+}
+
+
+//TODO: this should be moved to a network related module (just a seperate thing in network?)
+#[derive(PartialEq)]
+pub struct PostData {
+    pub url: Url,
+    pub fields: HashMap<String, String>,
+}
+
+
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct ElementDomNode {
     //TODO: we are already getting many optional fiels here again, so we need something similar as in layout nodes. Probably just enum variants
@@ -200,7 +216,7 @@ impl ElementDomNode {
         return any_child_dirty || self.dirty;
     }
 
-    pub fn click(&self, x: f32, y: f32, document: &Document) -> Option<Url> {
+    pub fn click(&self, x: f32, y: f32, document: &Document) -> NavigationAction {
 
         let mut node_id_to_check = self.parent_id;
         while node_id_to_check != 0 {
@@ -210,7 +226,7 @@ impl ElementDomNode {
             if node_to_check.name.is_some() && node_to_check.name.as_ref().unwrap().as_str() == "a" {
                 let opt_href = node_to_check.get_attribute_value("href");
                 if opt_href.is_some() {
-                    return Some(Url::from_base_url(&opt_href.unwrap(), Some(&document.base_url)));
+                    return NavigationAction::Get(Url::from_base_url(&opt_href.unwrap(), Some(&document.base_url)));
                 }
             }
 
@@ -221,9 +237,9 @@ impl ElementDomNode {
             self.page_component.as_ref().unwrap().borrow_mut().click(x, y);
         }
 
-        //TODO: check for submit input, if so, try to find a form in a node above, and call sumbit() on that node
+        //TODO: check for submit input, if so, try to find a form in a node above, and call a function to make a navigation action on that node
 
-        return None;
+        return NavigationAction::None;
     }
 
     pub fn new_empty() -> ElementDomNode {

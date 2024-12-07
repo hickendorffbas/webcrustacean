@@ -11,9 +11,8 @@ goals for 0.4.0:
               - add the ability to do a POST on formsubmit
                      - we should be able to bind a trigger to a button (or a dom node, rather. in this case click())
                             operation in any case, traversing the tree below the form. So on submit, we go up until the form, and then DFS to all inputs
-                                   - first goal: add a click() method to the dom, and look up a form if it is a submit input
-                                          - so click() on dom should look for a form above it, collect the data, and return the navagion action
-                                          - the click() on a button component should be implemented, but not currently do anything (later it could animate the click)
+                                   - click() on the DOM still needs to collect the form fields
+                     - add post to network module
        - better testing setup
               - implement mocking (with a type alias) of the platform
               - some way to test with actual webpage examples in files

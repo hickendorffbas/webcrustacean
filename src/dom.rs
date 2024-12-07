@@ -42,6 +42,21 @@ impl Document {
 
         return self.document_node.borrow_mut().update(resource_thread_pool, self);
     }
+    pub fn find_parent_with_name(&self, start_node: &ElementDomNode, name_to_match: &str) -> Option<Rc<RefCell<ElementDomNode>>> {
+        let mut node_id_to_check = start_node.parent_id;
+
+        while node_id_to_check != 0 {
+            let node_to_check = self.all_nodes[&node_id_to_check].clone();
+
+            if node_to_check.borrow().name.is_some() && node_to_check.borrow().name.as_ref().unwrap().as_str() == name_to_match {
+                return Some(node_to_check);
+            }
+
+            node_id_to_check = node_to_check.borrow().parent_id;
+        }
+
+        return None;
+    }
 }
 
 
@@ -218,26 +233,43 @@ impl ElementDomNode {
 
     pub fn click(&self, x: f32, y: f32, document: &Document) -> NavigationAction {
 
-        let mut node_id_to_check = self.parent_id;
-        while node_id_to_check != 0 {
-
-            let node_to_check = document.all_nodes[&node_id_to_check].borrow();
-
-            if node_to_check.name.is_some() && node_to_check.name.as_ref().unwrap().as_str() == "a" {
-                let opt_href = node_to_check.get_attribute_value("href");
-                if opt_href.is_some() {
-                    return NavigationAction::Get(Url::from_base_url(&opt_href.unwrap(), Some(&document.base_url)));
-                }
-            }
-
-            node_id_to_check = node_to_check.parent_id;
-        }
-
         if self.page_component.is_some() {
             self.page_component.as_ref().unwrap().borrow_mut().click(x, y);
         }
 
-        //TODO: check for submit input, if so, try to find a form in a node above, and call a function to make a navigation action on that node
+        let possible_link_parent = document.find_parent_with_name(self, "a");
+
+        if possible_link_parent.is_some() {
+            let link_parent = possible_link_parent.unwrap();
+            let opt_href = link_parent.borrow().get_attribute_value("href");
+            if opt_href.is_some() {
+                return NavigationAction::Get(Url::from_base_url(&opt_href.unwrap(), Some(&document.base_url)));
+            }
+        }
+
+        if self.name.is_some() {
+            let name = self.name.as_ref().unwrap();
+
+            if name.as_str() == "input" {
+                let input_type = self.get_attribute_value("type");
+                if input_type.is_some() && input_type.unwrap().as_str() == "submit" {
+
+                    let possible_form_parent = document.find_parent_with_name(self, "form");
+                    if possible_form_parent.is_some() {
+
+                        let post_url_text = possible_form_parent.unwrap().borrow().get_attribute_value("action");
+                        if post_url_text.is_some() {
+                            let postdata = PostData {
+                                url: Url::from_base_url(&post_url_text.unwrap(), Some(&document.base_url)),
+                                fields: HashMap::new(), //TODO: fill in the fields by walking the DOM
+                            };
+
+                            return NavigationAction::Post(postdata);
+                        }
+                    }
+                }
+            }
+        }
 
         return NavigationAction::None;
     }

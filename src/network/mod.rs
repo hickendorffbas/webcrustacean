@@ -49,6 +49,33 @@ pub fn http_get_text(url: &Url) -> Result<String, ResourceNotLoadedError>  {
 }
 
 
+//TODO: there is too much duplication here with the get case...
+pub fn http_post(url: &Url, body: String) -> Result<String, ResourceNotLoadedError>  {
+
+    //TODO: should I cache the client somewhere for performance?
+    let client = reqwest::blocking::Client::builder()
+        .user_agent(UA_FIREFOX_WINDOWS)  //TODO: make this configurable, and use an actual webcrustacean useragent normally
+        .build().unwrap();
+
+    let bytes_result = client.post(url.to_string()).body(body).send();
+
+    if !bytes_result.is_ok() {
+        return Err(ResourceNotLoadedError(url.to_string()));
+    }
+
+    //TODO: we might receive other things than text, so split this out to another method
+    let text_result = bytes_result.unwrap().text();
+
+    if text_result.is_ok() {
+        return Ok(text_result.unwrap());
+    } else {
+        debug_log_warn(format!("Could not load text: {}", url.to_string()));
+        return Err(ResourceNotLoadedError(url.to_string()));
+    }
+}
+
+
+
 //TODO: eventually this should be a http_get_binary, and the image stuff should be seperated out, because we will load other binary resources.
 pub fn http_get_image(url: &Url) -> Result<DynamicImage, ResourceNotLoadedError> {
 

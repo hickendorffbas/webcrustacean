@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::env;
 use std::fs::{self, metadata};
 use std::path::PathBuf;
@@ -13,16 +14,25 @@ use crate::network::url::Url;
 use crate::network::{
     http_get_image,
     http_get_text,
+    http_post,
 };
 
 
 static NEXT_JOB_ID: AtomicUsize = AtomicUsize::new(1);
 pub fn get_next_job_id() -> usize { NEXT_JOB_ID.fetch_add(1, Ordering::Relaxed) }
 
+#[derive(PartialEq)]
+enum RequestType {
+    Get,
+    Post,
+}
+
 struct ResourceRequestJob<T> {
     #[allow(dead_code)] job_id: usize, //TODO: check if we want to use this (probably for logging / debugging?)
     url: Url,
     sender: Sender<T>,
+    request_type: RequestType,
+    body: Option<String>,
 }
 #[derive(Debug)]
 pub struct ResourceRequestJobTracker<T> {
@@ -43,7 +53,7 @@ impl ResourceThreadPool {
     }
     fn fire_and_forget_load_text(&mut self, job: ResourceRequestJob<String>) {
         self.pool.execute(move || {
-            let result = load_text(&job.url);
+            let result = load_text(&job.url, job.request_type, job.body);
             job.sender.send(result).expect("Could not send over channel");
         });
     }
@@ -54,7 +64,7 @@ pub fn schedule_load_text(url: &Url, resource_thread_pool: &mut ResourceThreadPo
     let (sender, receiver) = channel::<String>();
     let job_id = get_next_job_id();
 
-    let job = ResourceRequestJob { job_id, url: url.clone(), sender };
+    let job = ResourceRequestJob { job_id, url: url.clone(), sender, request_type: RequestType::Get, body: None };
     let job_tracker = ResourceRequestJobTracker { job_id, receiver };
 
     resource_thread_pool.fire_and_forget_load_text(job);
@@ -63,25 +73,52 @@ pub fn schedule_load_text(url: &Url, resource_thread_pool: &mut ResourceThreadPo
 }
 
 
-fn load_text(url: &Url) -> String {
+pub fn submit_post(url: &Url, fields: &HashMap<String, String>, resource_thread_pool: &mut ResourceThreadPool) -> ResourceRequestJobTracker<String> {
+    let (sender, receiver) = channel::<String>();
+    let job_id = get_next_job_id();
+
+    //TODO: we need to esape values here I think, what if "&" is in a post value?
+    let body = fields.iter().map(|(k, v)| format!("{}={}", k, v)).collect::<Vec<String>>().join("&");
+
+    let job = ResourceRequestJob { job_id, url: url.clone(), sender, request_type: RequestType::Post, body: Some(body) };
+    let job_tracker = ResourceRequestJobTracker { job_id, receiver };
+
+    resource_thread_pool.fire_and_forget_load_text(job);
+
+    return job_tracker;
+}
+
+
+fn load_text(url: &Url, request_type: RequestType, body: Option<String>) -> String { //TODO: this should not be text specific, we need to refactor this a bit
 
     if url.scheme == "about" {
-        return build_about_page(&url);
+        if request_type == RequestType::Get {
+            return build_about_page(&url);
+        } else {
+            todo!(); //TODO: report some kind of non-crashing error
+        }
     }
 
     if url.scheme == "file" {
-        let mut local_path = String::from("//");
-        local_path.push_str(&url.path.join("/"));
-        let read_result = fs::read_to_string(local_path);
-        if read_result.is_err() {
-            debug_log_warn(format!("Could not load text: {}", url.to_string()));
-            return String::new();
-        }
+        if request_type == RequestType::Get {
+            let mut local_path = String::from("//");
+            local_path.push_str(&url.path.join("/"));
+            let read_result = fs::read_to_string(local_path);
+            if read_result.is_err() {
+                debug_log_warn(format!("Could not load text: {}", url.to_string()));
+                return String::new();
+            }
 
-        return read_result.unwrap();
+            return read_result.unwrap();
+        } else {
+            todo!(); //TODO: report some kind of non-crashing error
+        }
     }
 
-    let file_content_result = http_get_text(url);
+    let file_content_result = match request_type {
+        RequestType::Get => http_get_text(url),
+        RequestType::Post => http_post(url, body.unwrap_or(String::new())),
+    };
 
     if file_content_result.is_err() {
         //TODO: this error should not just be debug-logged, it should return this, and then render the 404 page, if this was the main page load...
@@ -137,7 +174,7 @@ pub fn schedule_load_image(url: &Url, resource_thread_pool: &mut ResourceThreadP
     let (sender, receiver) = channel::<DynamicImage>();
     let job_id = get_next_job_id();
 
-    let job = ResourceRequestJob { job_id, url: url.clone(), sender };
+    let job = ResourceRequestJob { job_id, url: url.clone(), sender, request_type: RequestType::Get, body: None };
     let job_tracker = ResourceRequestJobTracker { job_id, receiver };
 
     resource_thread_pool.fire_and_forget_load_image(job);

@@ -135,8 +135,7 @@ pub fn start_navigate(navigation_action: &NavigationAction, platform: &Platform,
                 ui::register_in_history(ui_state, &post_data.url);
             }
 
-
-            todo!("implement");
+            resource_loader::submit_post(&post_data.url, &post_data.fields, resource_thread_pool) //TODO: should this be a different thread pool, or rename it?
         }
     };
 

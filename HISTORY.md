@@ -2,7 +2,7 @@
 ===================
 - Scrollbar bugfixes
 - Added textfields and submit buttons for forms
-- Added the ability to do POST requests
+- Added the ability to do POST requests from forms
 
 
 0.3.0

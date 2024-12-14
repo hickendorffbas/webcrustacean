@@ -57,7 +57,15 @@ pub fn http_post(url: &Url, body: String) -> Result<String, ResourceNotLoadedErr
         .user_agent(UA_FIREFOX_WINDOWS)  //TODO: make this configurable, and use an actual webcrustacean useragent normally
         .build().unwrap();
 
-    let bytes_result = client.post(url.to_string()).body(body).send();
+    let body_len = body.len();
+
+    let bytes_result = client.post(url.to_string()).body(body)
+
+        .header("Content-Length", body_len.to_string())
+        .header("Content-Type", "application/x-www-form-urlencoded")  //TODO: not sure if this is always correct for all posts
+                                                                      //   (probably not in general, but for forms it might be)
+
+        .send();
 
     if !bytes_result.is_ok() {
         return Err(ResourceNotLoadedError(url.to_string()));
@@ -73,7 +81,6 @@ pub fn http_post(url: &Url, body: String) -> Result<String, ResourceNotLoadedErr
         return Err(ResourceNotLoadedError(url.to_string()));
     }
 }
-
 
 
 //TODO: eventually this should be a http_get_binary, and the image stuff should be seperated out, because we will load other binary resources.

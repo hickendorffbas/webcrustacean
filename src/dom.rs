@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
+use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -257,11 +258,14 @@ impl ElementDomNode {
                     let possible_form_parent = document.find_parent_with_name(self, "form");
                     if possible_form_parent.is_some() {
 
+                        let mut all_fields = HashMap::new();
+                        possible_form_parent.as_ref().unwrap().borrow().collect_all_inputs(&mut all_fields);
+
                         let post_url_text = possible_form_parent.unwrap().borrow().get_attribute_value("action");
                         if post_url_text.is_some() {
                             let postdata = PostData {
                                 url: Url::from_base_url(&post_url_text.unwrap(), Some(&document.base_url)),
-                                fields: HashMap::new(), //TODO: fill in the fields by walking the DOM
+                                fields: all_fields,
                             };
 
                             return NavigationAction::Post(postdata);
@@ -272,6 +276,35 @@ impl ElementDomNode {
         }
 
         return NavigationAction::None;
+    }
+
+    fn collect_all_inputs(&self, fields: &mut HashMap<String, String>) {
+
+        if self.name.is_some() && self.name.as_ref().unwrap().as_str() == "input" && self.page_component.is_some() {
+
+            let input_name = self.get_attribute_value("name");
+            if input_name.is_some() { //According to spec, elements without name should not be sent
+
+                let component = self.page_component.as_ref().unwrap().borrow();
+                let input_value = match component.deref() {
+                    PageComponent::Button(_) => {
+                        //TODO: should a non-pressed button also have its value sent? (the key should be sent in any case, but maybe with empty value)
+                        String::new()
+                    },
+                    PageComponent::TextField(text_field) => {
+                        text_field.text.clone()
+                    },
+                };
+
+                fields.insert(input_name.unwrap(), input_value);
+            }
+        }
+
+        if self.children.is_some() {
+            for child in self.children.as_ref().unwrap() {
+                child.borrow().collect_all_inputs(fields);
+            }
+        }
     }
 
     pub fn new_empty() -> ElementDomNode {

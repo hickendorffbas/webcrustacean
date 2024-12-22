@@ -476,13 +476,6 @@ fn main() -> Result<(), String> {
                         let key_code = platform.convert_key_code(&keycode.unwrap());
                         ui::handle_keyboard_input(&mut platform, None, key_code, &mut ui_state);
 
-                        if ui_state.addressbar.has_focus && keycode.unwrap().name() == "Return" {
-                            //TODO: This is here for now because we need to load another page, not sure how to correctly trigger that from inside the component
-                            let navigation_action = NavigationAction::Get(Url::from(&ui_state.addressbar.text));
-                            main_page_job_tracker = start_navigate(&navigation_action, &platform, &mut ui_state, &mut resource_thread_pool);
-                            ongoing_navigation = Some(navigation_action);
-                        }
-
                         if keymod.contains(SdlKeyMod::LCTRLMOD) {
                             if keycode.unwrap().name() == "C" {
                                 let mut text_for_clipboard = String::new();
@@ -508,6 +501,28 @@ fn main() -> Result<(), String> {
                             }
                         }
 
+                        match ui_state.focus_target {
+                            FocusTarget::None => {},
+                            FocusTarget::MainContent => {},
+                            FocusTarget::ScrollBlock => {},
+                            FocusTarget::AddressBar => {
+                                //TODO: I still don't understand how this interacts with TextInput below. Why only handle enter here?s
+                                if keycode.unwrap().name() == "Return" {
+                                    let navigation_action = NavigationAction::Get(Url::from(&ui_state.addressbar.text));
+                                    main_page_job_tracker = start_navigate(&navigation_action, &platform, &mut ui_state, &mut resource_thread_pool);
+                                    ongoing_navigation = Some(navigation_action);
+                                }
+                            },
+
+                            FocusTarget::Component(ref component) => {
+                                if keycode.unwrap().name() == "Return" {
+                                    let dom_node = dom::find_dom_node_for_component(&component.borrow(), &document.borrow());
+                                    let navigation_action = dom_node.borrow().submit_form(&document.borrow());
+                                    main_page_job_tracker = start_navigate(&navigation_action, &platform, &mut ui_state, &mut resource_thread_pool);
+                                    ongoing_navigation = Some(navigation_action);
+                                }
+                            },
+                        }
 
                     }
                 },

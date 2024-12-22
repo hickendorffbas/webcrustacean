@@ -254,27 +254,31 @@ impl ElementDomNode {
             if name.as_str() == "input" {
                 let input_type = self.get_attribute_value("type");
                 if input_type.is_some() && input_type.unwrap().as_str() == "submit" {
-
-                    let possible_form_parent = document.find_parent_with_name(self, "form");
-                    if possible_form_parent.is_some() {
-
-                        let mut all_fields = HashMap::new();
-                        possible_form_parent.as_ref().unwrap().borrow().collect_all_inputs(&mut all_fields);
-
-                        let post_url_text = possible_form_parent.unwrap().borrow().get_attribute_value("action");
-                        if post_url_text.is_some() {
-                            let postdata = PostData {
-                                url: Url::from_base_url(&post_url_text.unwrap(), Some(&document.base_url)),
-                                fields: all_fields,
-                            };
-
-                            return NavigationAction::Post(postdata);
-                        }
-                    }
+                    return self.submit_form(document);
                 }
             }
         }
 
+        return NavigationAction::None;
+    }
+
+    pub fn submit_form(&self, document: &Document) -> NavigationAction {
+        let possible_form_parent = document.find_parent_with_name(self, "form");
+        if possible_form_parent.is_some() {
+
+            let mut all_fields = HashMap::new();
+            possible_form_parent.as_ref().unwrap().borrow().collect_all_inputs(&mut all_fields);
+
+            let post_url_text = possible_form_parent.unwrap().borrow().get_attribute_value("action");
+            if post_url_text.is_some() {
+                let postdata = PostData {
+                    url: Url::from_base_url(&post_url_text.unwrap(), Some(&document.base_url)),
+                    fields: all_fields,
+                };
+
+                return NavigationAction::Post(postdata);
+            }
+        }
         return NavigationAction::None;
     }
 
@@ -339,4 +343,19 @@ pub struct AttributeDomNode {
 pub struct DomText {
     pub text_content: String,
     pub non_breaking_space_positions: Option<HashSet<usize>>,
+}
+
+
+pub fn find_dom_node_for_component(component: &PageComponent, document: &Document) -> Rc<RefCell<ElementDomNode>> {
+
+    for node in document.all_nodes.values() {
+        if node.borrow().page_component.is_some() {
+            if node.borrow().page_component.as_ref().unwrap().borrow().get_id() == component.get_id() {
+                return node.clone();
+            }
+        }
+    }
+
+    //We panic here, since if we have a component, it should be somewhere in the DOM, otherwise we have a bug
+    panic!("Component not found");
 }

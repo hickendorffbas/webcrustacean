@@ -163,7 +163,7 @@ pub fn handle_possible_ui_mouse_down(root_layout_node: &Rc<RefCell<LayoutNode>>,
 
         let mut component_found = false;
 
-        let possible_dom_node = root_layout_node.borrow().find_dom_node_at_position(x, y);
+        let possible_dom_node = root_layout_node.borrow().find_dom_node_at_position(x, y + ui_state.current_scroll_y);
         if possible_dom_node.is_some() {
             let dom_node = possible_dom_node.unwrap();
             let borr_dom_node = dom_node.borrow();
@@ -216,7 +216,7 @@ fn render_header(platform: &mut Platform, ui_state: &UIState) {
 
     ui_state.back_button.render(platform);
     ui_state.forward_button.render(platform);
-    ui_state.addressbar.render(&ui_state, platform);
+    ui_state.addressbar.render(&ui_state, platform, 0.0);
 }
 
 

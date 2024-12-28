@@ -54,7 +54,7 @@ fn render_layout_node(platform: &mut Platform, ui_state: &mut UIState, layout_no
             let dom_node = layout_node.from_dom_node.as_ref().unwrap().borrow();
             let component = dom_node.page_component.as_ref().unwrap().borrow();
             match component.deref() {
-                PageComponent::Button(button) => { button.render(platform); }
+                PageComponent::Button(button) => { button.render(platform, scroll_y); }
                 PageComponent::TextField(_) => { panic!("Invalid state"); }
             }
         },
@@ -63,7 +63,7 @@ fn render_layout_node(platform: &mut Platform, ui_state: &mut UIState, layout_no
             let component = dom_node.page_component.as_ref().unwrap().borrow();
             match component.deref() {
                 PageComponent::Button(_) => { panic!("Invalid state"); }
-                PageComponent::TextField(text_field) => { text_field.render(ui_state, platform); }
+                PageComponent::TextField(text_field) => { text_field.render(ui_state, platform, scroll_y); }
             }
         },
         LayoutNodeContent::BoxLayoutNode(box_node) => {

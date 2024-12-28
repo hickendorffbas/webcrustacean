@@ -78,8 +78,8 @@ impl TextField {
         return TextField { id: get_next_component_id(), x, y, width, height, has_focus: false, cursor_text_position: 0, text: String::new(), select_on_first_click,
                            selection_start_x: 0.0, selection_end_x: 0.0, selection_start_idx: 0, selection_end_idx: 0, font, char_position_mapping: Vec::new() };
     }
-    pub fn render(&self, ui_state: &UIState, platform: &mut Platform) {
-        platform.draw_square(self.x, self.y, self.width, self.height, Color::BLACK, 255);
+    pub fn render(&self, ui_state: &UIState, platform: &mut Platform, y_offset: f32) {
+        platform.draw_square(self.x, self.y - y_offset, self.width, self.height, Color::BLACK, 255);
 
         if self.selection_start_x != self.selection_end_x {
             let start_x = if self.selection_start_x < self.selection_end_x { self.selection_start_x } else { self.selection_end_x };
@@ -87,10 +87,10 @@ impl TextField {
 
             let y_start = self.y + TEXT_FIELD_OFFSET_FROM_BORDER;
             let height = self.height - (TEXT_FIELD_OFFSET_FROM_BORDER * 2.0);
-            platform.fill_rect(start_x, y_start, end_x - start_x, height, Color::DEFAULT_SELECTION_COLOR, 255);
+            platform.fill_rect(start_x, y_start - y_offset, end_x - start_x, height, Color::DEFAULT_SELECTION_COLOR, 255);
         }
 
-        platform.render_text(&self.text, self.x + TEXT_FIELD_OFFSET_FROM_BORDER, self.y + TEXT_FIELD_OFFSET_FROM_BORDER, &self.font, Color::BLACK);
+        platform.render_text(&self.text, self.x + TEXT_FIELD_OFFSET_FROM_BORDER, self.y + TEXT_FIELD_OFFSET_FROM_BORDER - y_offset, &self.font, Color::BLACK);
 
         if self.has_focus && !self.has_selection_active() {
 
@@ -106,8 +106,8 @@ impl TextField {
                 let cursor_position = relative_cursor_position + self.x + TEXT_FIELD_OFFSET_FROM_BORDER;
                 let cursor_top_bottom_margin = 2.0;
                 let cursor_bottom_pos = (self.y + self.height) - cursor_top_bottom_margin;
-                platform.draw_line(Position { x: cursor_position, y: self.y + cursor_top_bottom_margin},
-                                   Position { x: cursor_position, y: cursor_bottom_pos },
+                platform.draw_line(Position { x: cursor_position, y: self.y + cursor_top_bottom_margin - y_offset},
+                                   Position { x: cursor_position, y: cursor_bottom_pos - y_offset },
                                    Color::BLACK);
             }
         }
@@ -305,9 +305,9 @@ impl Button {
         return Button { id: get_next_component_id(), x, y, width, height, has_focus: false, text, font: Font::default()};
     }
 
-    pub fn render(&self, platform: &mut Platform) {
-        platform.draw_square(self.x, self.y, self.width, self.height, Color::BLACK, 255);
-        platform.render_text(&self.text, self.x + BUTTON_TEXT_OFFSET_FROM_BORDER, self.y + BUTTON_TEXT_OFFSET_FROM_BORDER, &self.font, Color::BLACK);
+    pub fn render(&self, platform: &mut Platform, y_offset: f32) {
+        platform.draw_square(self.x, self.y - y_offset, self.width, self.height, Color::BLACK, 255);
+        platform.render_text(&self.text, self.x + BUTTON_TEXT_OFFSET_FROM_BORDER, self.y + BUTTON_TEXT_OFFSET_FROM_BORDER - y_offset, &self.font, Color::BLACK);
     }
 
     pub fn click(&mut self) {

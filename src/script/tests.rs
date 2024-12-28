@@ -113,3 +113,18 @@ fn test_basic_function_call_no_args() {
 
     assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(150)));
 }
+
+
+#[test]
+fn test_string_with_escape() {
+    let code = r#"
+        x = "test \" test";
+        tester.export(x);"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens);
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::String(String::from("test \" test"))));
+}

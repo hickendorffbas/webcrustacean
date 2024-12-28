@@ -86,14 +86,23 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
             eat_whitespace(&mut js_iterator);
         }
         else if js_iterator.peek() == Some(&'"') || js_iterator.peek() == Some(&'\'') || js_iterator.peek() == Some(&'`') {
-            //TODO: this does not account for escaped quotes yet...
             //TODO: this would also match "bla ' " , but by matching the ', not the corresponding "
             //TODO: the backtick is for string tempates and is actually more complicated
             //      see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Template_literals#tagged_templates
 
             let quote_type_used = js_iterator.next();
             let mut literal = String::new();
-            while js_iterator.has_next() && js_iterator.peek().unwrap() != &quote_type_used {
+            let mut next_char_is_escaped = false;
+            while js_iterator.has_next() && (js_iterator.peek().unwrap() != &quote_type_used || next_char_is_escaped) {
+
+                if js_iterator.peek() == Some(&'\\') {
+                    next_char_is_escaped = true;
+                    js_iterator.next();
+                    continue;
+                } else {
+                    next_char_is_escaped = false;
+                }
+
                 literal.push(js_iterator.next());
             }
 

@@ -3,6 +3,7 @@
 - Scrollbar bugfixes
 - Added textfields and submit buttons for forms
 - Added the ability to do POST requests from forms
+- Button clicks are registered more reliably
 
 
 0.3.0

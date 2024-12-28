@@ -12,7 +12,6 @@ goals for 0.4.0:
               - some way to test with actual webpage examples in files
               - make parse tests nicer by comparing json
                      - this works, but we need to make a generic function so we can have a nice way of having many tests
-       - BUG: back button seems to not always work?
 
 
 other things (later versions):

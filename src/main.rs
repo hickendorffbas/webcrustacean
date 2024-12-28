@@ -447,7 +447,7 @@ fn main() -> Result<(), String> {
                     };
 
                     let abs_movement = (mouse_state.x - mouse_state.click_start_x).abs() + (mouse_state.y - mouse_state.click_start_y).abs();
-                    let was_dragging = abs_movement > 1;
+                    let was_dragging = abs_movement > 4;
 
                     if !was_dragging {
                         let page_relative_mouse_y = mouse_y as f32 + ui_state.current_scroll_y;

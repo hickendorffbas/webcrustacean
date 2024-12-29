@@ -20,6 +20,7 @@ use std::{
     cell::RefCell,
     cmp,
     env,
+    ops::DerefMut,
     rc::Rc,
     thread,
     time::{Duration, Instant},
@@ -418,9 +419,13 @@ fn main() -> Result<(), String> {
                             FocusTarget::ScrollBlock => {
                                 ui_state.current_scroll_y = ui_state.main_scrollbar.scroll(yrel as f32, ui_state.current_scroll_y);
                             },
-                            FocusTarget::Component(_) => {
-                                //TODO: I would need to pass the mouse movement at least to text fields to make selection work
-                                //      or is that already working in another way
+                            FocusTarget::Component(ref component) => {
+                                match component.borrow_mut().deref_mut() {
+                                    ui_components::PageComponent::Button(_) => {},
+                                    ui_components::PageComponent::TextField(text_field) => {
+                                        text_field.update_selection(&selection_rect);
+                                    },
+                                }
                             }
                         }
                     }

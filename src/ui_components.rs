@@ -37,10 +37,10 @@ impl PageComponent {
             PageComponent::TextField(text_field) => text_field.id,
         }
     }
-    pub fn click(&mut self, x: f32, y: f32) {
+    pub fn click(&mut self) {
         match self {
             PageComponent::Button(button) => button.click(),
-            PageComponent::TextField(text_field) => text_field.click(x, y),
+            PageComponent::TextField(_) => {},
         }
     }
 }
@@ -147,9 +147,8 @@ impl TextField {
                y > self.y && y < (self.y + self.height);
     }
 
-    pub fn click(&mut self, x: f32, _: f32) {
-
-        if self.select_on_first_click && !self.has_focus {  //TODO: this no longer works because focus is already set on mouse down
+    pub fn mouse_down(&mut self, x: f32, _: f32) {
+        if self.select_on_first_click && !self.has_focus {
             self.selection_start_idx = 0;
             self.selection_end_idx = self.text.len() - 1;
             self.selection_start_x = self.x + TEXT_FIELD_OFFSET_FROM_BORDER;
@@ -158,7 +157,7 @@ impl TextField {
             return;
         }
 
-        self.has_focus = true; //TODO: this should happen already in the mouse down
+        self.has_focus = true;
 
         let mut found = false;
         for (idx, x_position) in self.char_position_mapping.iter().enumerate() {

@@ -261,7 +261,7 @@ impl LayoutNode {
         let possible_dom_node = self.find_dom_node_at_position(x, y);
 
         if possible_dom_node.is_some() {
-            return possible_dom_node.unwrap().borrow().click(x, y, document);
+            return possible_dom_node.unwrap().borrow().click(document);
         }
         return NavigationAction::None;
     }

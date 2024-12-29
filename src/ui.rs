@@ -3,6 +3,7 @@ use std::ops::DerefMut;
 use std::rc::Rc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::dom::Document;
 use crate::layout::LayoutNode;
 use crate::{SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::color::Color;
@@ -116,11 +117,6 @@ pub fn handle_keyboard_input(platform: &mut Platform, input: Option<&String>, ke
 
 
 pub fn handle_possible_ui_click(ui_state: &mut UIState, x: f32, y: f32) -> Option<Url> {
-    if ui_state.addressbar.is_inside(x, y) {
-        ui_state.addressbar.click(x, y);
-        return None;
-    }
-
     let possible_url = ui_state.back_button.click(x, y, &mut ui_state.history);
     if possible_url.is_some() {
         return possible_url;
@@ -133,29 +129,12 @@ pub fn handle_possible_ui_click(ui_state: &mut UIState, x: f32, y: f32) -> Optio
     return None;
 }
 
-
-pub fn handle_possible_ui_mouse_down(root_layout_node: &Rc<RefCell<LayoutNode>>, platform: &mut Platform, ui_state: &mut UIState, x: f32, y: f32) -> Option<Url> {
+pub fn handle_possible_ui_mouse_down(root_layout_node: &Rc<RefCell<LayoutNode>>, document: &RefCell<Document>, platform: &mut Platform, ui_state: &mut UIState, x: f32, y: f32) -> Option<Url> {
     let mut any_text_field_has_focus = false;
-
-    ui_state.addressbar.has_focus = false;
-    ui_state.addressbar.clear_selection();
-
-    match &ui_state.focus_target {
-        FocusTarget::Component(component) => {
-            match component.borrow_mut().deref_mut() {
-                PageComponent::Button(button) => { button.has_focus = false },
-                PageComponent::TextField(text_field) => {
-                    text_field.has_focus = false;
-                    text_field.clear_selection();
-                },
-            }
-        },
-        _ => {},
-    }
 
     if ui_state.addressbar.is_inside(x, y) {
         ui_state.focus_target = FocusTarget::AddressBar;
-        ui_state.addressbar.has_focus = true;
+        ui_state.addressbar.mouse_down(x, y);
         any_text_field_has_focus = true;
     } else if ui_state.main_scrollbar.is_on_scrollblock(x, y) {
         ui_state.focus_target = FocusTarget::ScrollBlock;
@@ -178,9 +157,9 @@ pub fn handle_possible_ui_mouse_down(root_layout_node: &Rc<RefCell<LayoutNode>>,
                     },
                     PageComponent::TextField(text_field) => {
                         ui_state.focus_target = FocusTarget::Component(rc_component_clone);
-                        text_field.has_focus = true;
                         component_found = true;
                         any_text_field_has_focus = true;
+                        text_field.mouse_down(x, y);
                     },
                 }
             }
@@ -199,7 +178,49 @@ pub fn handle_possible_ui_mouse_down(root_layout_node: &Rc<RefCell<LayoutNode>>,
         platform.disable_text_input();
     }
 
+    clear_other_focus(ui_state, document);
+
     return None;
+}
+
+
+fn clear_other_focus(ui_state: &mut UIState, document: &RefCell<Document>) {
+
+    let mut component_id_with_focus = None;
+    let mut addressbar_has_focus = false;
+
+    match &ui_state.focus_target {
+        FocusTarget::None => {},
+        FocusTarget::MainContent => {},
+        FocusTarget::ScrollBlock => {},
+        FocusTarget::AddressBar => { addressbar_has_focus = true; },
+        FocusTarget::Component(component) => {
+            component_id_with_focus = Some(component.borrow().get_id())
+        }
+    }
+
+    if !addressbar_has_focus {
+        ui_state.addressbar.has_focus = false;
+        ui_state.addressbar.clear_selection();
+    }
+
+    for node in document.borrow().all_nodes.values() {
+        let node_borr = node.borrow();
+        if node_borr.page_component.is_some() {
+            if component_id_with_focus.is_none() || node_borr.page_component.as_ref().unwrap().borrow().get_id() != component_id_with_focus.unwrap() {
+                match node_borr.page_component.as_ref().unwrap().borrow_mut().deref_mut() {
+                    PageComponent::Button(button) => {
+                        button.has_focus = false;
+                    }
+                    PageComponent::TextField(text_field) => {
+                        text_field.has_focus = false;
+                        text_field.clear_selection();
+                    },
+                }
+            }
+        }
+    }
+
 }
 
 

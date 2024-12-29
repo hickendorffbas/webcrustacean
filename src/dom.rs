@@ -232,10 +232,10 @@ impl ElementDomNode {
         return any_child_dirty || self.dirty;
     }
 
-    pub fn click(&self, x: f32, y: f32, document: &Document) -> NavigationAction {
+    pub fn click(&self, document: &Document) -> NavigationAction {
 
         if self.page_component.is_some() {
-            self.page_component.as_ref().unwrap().borrow_mut().click(x, y);
+            self.page_component.as_ref().unwrap().borrow_mut().click();
         }
 
         let possible_link_parent = document.find_parent_with_name(self, "a");

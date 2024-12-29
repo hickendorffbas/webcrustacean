@@ -434,7 +434,7 @@ fn main() -> Result<(), String> {
 
                     RefCell::borrow_mut(&full_layout_tree.borrow_mut().root_node).reset_selection();
 
-                    ui::handle_possible_ui_mouse_down(&full_layout_tree.borrow().root_node, &mut platform, &mut ui_state, mouse_x as f32, mouse_y as f32);
+                    ui::handle_possible_ui_mouse_down(&full_layout_tree.borrow().root_node, &document, &mut platform, &mut ui_state, mouse_x as f32, mouse_y as f32);
                 },
                 SdlEvent::MouseButtonUp { mouse_btn: MouseButton::Left, x: mouse_x, y: mouse_y, .. } => {
                     mouse_state.x = mouse_x;

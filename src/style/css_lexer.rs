@@ -24,7 +24,7 @@ pub enum CssToken {
 pub fn lex_css(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec<CssTokenWithLocation> {
     let mut tokens = Vec::new();
 
-    //TODO: handle comments
+    //TODO: handle comments (maybe reuse the iterator implementation that I have for javascript?)
 
     let mut css_iterator = TrackingIterator {
         iter: document.chars().peekable(),

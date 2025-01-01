@@ -146,3 +146,16 @@ fn test_not_parsing_comments() {
 
     assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(1)));
 }
+
+
+#[test]
+fn test_double_slash_in_string_is_not_a_comment() {
+    let code = r#"x = "https://www.reddit.com"; tester.export(x);"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens);
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::String("https://www.reddit.com".to_owned())));
+}

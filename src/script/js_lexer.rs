@@ -72,6 +72,8 @@ pub struct JsSourceIterator<'document> {
 
     pub iter: TrackingIterator<'document>,
     next: Option<char>,
+    prev: Option<char>,
+    current_string_starter: Option<char>,
 }
 impl <'document> JsSourceIterator<'document> {
     pub fn new(inner_iter: Peekable<Chars<'document>>, current_line: u32, current_char: u32) -> JsSourceIterator {
@@ -83,6 +85,8 @@ impl <'document> JsSourceIterator<'document> {
         return JsSourceIterator {
             iter,
             next: None,
+            prev: None,
+            current_string_starter: None,
         }
     }
     pub fn has_next(&mut self) -> bool {
@@ -97,20 +101,34 @@ impl <'document> JsSourceIterator<'document> {
     }
     pub fn next(&mut self) -> char {
         self.skip_possible_comment();
-        if self.next.is_some() {
+        let next_char = if self.next.is_some() {
             let c = self.next;
             self.next = None;
-            return c.unwrap();
+            c.unwrap()
+        } else {
+            self.iter.next()
+        };
+        if (next_char == '"' || next_char == '\'') && self.prev != Some('\\') {
+            if self.current_string_starter.is_none() {
+                self.current_string_starter = Some(next_char);
+            } else {
+                if self.current_string_starter == Some(next_char) { // we check if the string was started with the same kind of quote
+                    self.current_string_starter = None;
+                }
+            }
         }
-        return self.iter.next();
+        self.prev = Some(next_char);
+        return next_char;
     }
     fn skip_possible_comment(&mut self) {
         if !self.iter.has_next() {
             return;
         }
-
         if self.next.is_none() {
             self.next = Some(self.iter.next());
+        }
+        if self.current_string_starter.is_some() {
+            return;  //we are currently reading inside a string, so a comment can't be started
         }
 
         if self.next == Some('/') && self.iter.peek() == Some(&'/') {

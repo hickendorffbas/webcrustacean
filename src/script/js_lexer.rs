@@ -1,3 +1,8 @@
+use std::{
+    iter::Peekable,
+    str::Chars
+};
+
 use crate::html_lexer::TrackingIterator;
 
 
@@ -9,8 +14,8 @@ pub struct JsTokenWithLocation {
     pub character: u32
 }
 impl JsTokenWithLocation {
-    fn make(js_iterator: &TrackingIterator, token: JsToken) -> JsTokenWithLocation {
-        return JsTokenWithLocation { token: token, line: js_iterator.current_line, character: js_iterator.current_char };
+    fn make(js_iterator: &JsSourceIterator, token: JsToken) -> JsTokenWithLocation {
+        return JsTokenWithLocation { token: token, line: js_iterator.iter.current_line, character: js_iterator.iter.current_char };
     }
 }
 
@@ -60,14 +65,79 @@ pub enum JsToken {
 }
 
 
+pub struct JsSourceIterator<'document> {
+    //This is a trackingIterator wrapper that treats commented code as whitespace
+    //    we do this so we can implement the comment logic in one place, without
+    //    allocating new strings as we would do with a pre-process pass.
+
+    pub iter: TrackingIterator<'document>,
+    next: Option<char>,
+}
+impl <'document> JsSourceIterator<'document> {
+    pub fn new(inner_iter: Peekable<Chars<'document>>, current_line: u32, current_char: u32) -> JsSourceIterator {
+        let iter = TrackingIterator {
+            iter: inner_iter,
+            current_line,
+            current_char,
+        };
+        return JsSourceIterator {
+            iter,
+            next: None,
+        }
+    }
+    pub fn has_next(&mut self) -> bool {
+        return self.next.is_some() || self.iter.has_next();
+    }
+    pub fn peek(&mut self) -> Option<char> {
+        self.skip_possible_comment();
+        if self.next.is_some() {
+            return self.next;
+        }
+        return self.iter.peek().copied();
+    }
+    pub fn next(&mut self) -> char {
+        self.skip_possible_comment();
+        if self.next.is_some() {
+            let c = self.next;
+            self.next = None;
+            return c.unwrap();
+        }
+        return self.iter.next();
+    }
+    fn skip_possible_comment(&mut self) {
+        if !self.iter.has_next() {
+            return;
+        }
+
+        if self.next.is_none() {
+            self.next = Some(self.iter.next());
+        }
+
+        if self.next == Some('/') && self.iter.peek() == Some(&'/') {
+            while self.iter.peek() != Some(&'\n') {
+                self.iter.next();
+            }
+            self.next = None;
+        }
+
+        if self.next == Some('/') && self.iter.peek() == Some(&'*') {
+            loop {
+                self.next = Some(self.iter.next());
+                if self.next == Some('*') && self.iter.peek() == Some(&'/') {
+                    self.iter.next();
+                    self.next = None;
+                    break;
+                }
+            }
+        }
+    }
+}
+
+
 pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec<JsTokenWithLocation> {
     let mut tokens = Vec::new();
 
-    let mut js_iterator = TrackingIterator {
-        iter: document.chars().peekable(),
-        current_line: starting_line,
-        current_char: starting_char_idx,
-    };
+    let mut js_iterator = JsSourceIterator::new(document.chars().peekable(), starting_line, starting_char_idx);
 
     while js_iterator.has_next() {
 
@@ -81,11 +151,11 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
             //TODO: using "make" below is not correct, because it will give the end position of the literal, instead of the start
             tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Number(number_text)));
         }
-        else if js_iterator.peek() == Some(&' ') || js_iterator.peek() == Some(&'\t') || js_iterator.peek() == Some(&'\r') {
+        else if js_iterator.peek() == Some(' ') || js_iterator.peek() == Some('\t') || js_iterator.peek() == Some('\r') {
             tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Whitespace));
             eat_whitespace(&mut js_iterator);
         }
-        else if js_iterator.peek() == Some(&'"') || js_iterator.peek() == Some(&'\'') || js_iterator.peek() == Some(&'`') {
+        else if js_iterator.peek() == Some('"') || js_iterator.peek() == Some('\'') || js_iterator.peek() == Some('`') {
             //TODO: this would also match "bla ' " , but by matching the ', not the corresponding "
             //TODO: the backtick is for string tempates and is actually more complicated
             //      see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Template_literals#tagged_templates
@@ -93,9 +163,9 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
             let quote_type_used = js_iterator.next();
             let mut literal = String::new();
             let mut next_char_is_escaped = false;
-            while js_iterator.has_next() && (js_iterator.peek().unwrap() != &quote_type_used || next_char_is_escaped) {
+            while js_iterator.has_next() && (js_iterator.peek().unwrap() != quote_type_used || next_char_is_escaped) {
 
-                if js_iterator.peek() == Some(&'\\') {
+                if js_iterator.peek() == Some('\\') {
                     next_char_is_escaped = true;
                     js_iterator.next();
                     continue;
@@ -110,12 +180,10 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
             tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::LiteralString(literal)));
             js_iterator.next(); //eat the closing "
         }
-        else if js_iterator.peek() == Some(&'/') {
+        else if js_iterator.peek() == Some('/') {
             //This is either a token on its own (for division), or it is the start of a literal regex. Figuring this out actually requires
             //  parsing rather then lexing. For now we rely on heuristics as described in
             //  https://stackoverflow.com/questions/5519596/when-parsing-javascript-what-determines-the-meaning-of-a-slash
-
-            //TODO: this can also be a comment, but we should strip those in an earlier pass
 
             //TODO: put this in a better place where we don't need to instatiate it so often
             const TOKENS_PROBABLY_PRECEDING_REGEX_LITERAL: [JsToken; 14] = [
@@ -152,13 +220,13 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
 
                 let mut prev_was_escape_char = false;
                 'literal_regex_parse: while js_iterator.has_next() {
-                    if js_iterator.peek() == Some(&'\\') {
+                    if js_iterator.peek() == Some('\\') {
                         prev_was_escape_char = true;
                         js_iterator.next();
                         continue;
                     }
 
-                    if !prev_was_escape_char && js_iterator.peek() == Some(&'/') {
+                    if !prev_was_escape_char && js_iterator.peek() == Some('/') {
                         buffer.push(js_iterator.next());  // read the closing slash
 
                         //TODO: put this in a better place where we don't need to instatiate it so often
@@ -187,10 +255,10 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
             }
 
         }
-        else if js_iterator.peek().is_some() && is_valid_first_char_of_identifier(*js_iterator.peek().unwrap()) {
+        else if js_iterator.peek().is_some() && is_valid_first_char_of_identifier(js_iterator.peek().unwrap()) {
             let mut identifier = String::new();
 
-            while js_iterator.has_next() && is_valid_identifier_char(*js_iterator.peek().unwrap()) {
+            while js_iterator.has_next() && is_valid_identifier_char(js_iterator.peek().unwrap()) {
                 identifier.push(js_iterator.next());
             }
 
@@ -253,16 +321,13 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
 }
 
 
-fn eat_whitespace(iterator: &mut TrackingIterator) {
+fn eat_whitespace(iterator: &mut JsSourceIterator) {
     loop {
         let opt_peek = iterator.peek();
         if opt_peek.is_none() {
             return
         }
-
-        let peek = *opt_peek.unwrap();
-
-        if is_whitespace(peek) {
+        if is_whitespace(opt_peek.unwrap()) {
             iterator.next();
         } else {
             return

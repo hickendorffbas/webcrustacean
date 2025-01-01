@@ -43,7 +43,7 @@ pub struct AttributeContent {
 }
 
 
-//TODO: move this iterator to a parsing.rs or something
+//TODO: move this iterator to a parsing.rs or something, since it is also used for javascript
 pub struct TrackingIterator<'document> {
     pub iter: Peekable<Chars<'document>>,
     pub current_line: u32,

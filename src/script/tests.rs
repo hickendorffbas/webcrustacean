@@ -128,3 +128,21 @@ fn test_string_with_escape() {
 
     assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::String(String::from("test \" test"))));
 }
+
+
+#[test]
+fn test_not_parsing_comments() {
+    let code = r#"
+        x = 1;
+        // x = 2;
+        /* x = 3;
+            this is extra text */
+        tester.export(x);"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens);
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(1)));
+}

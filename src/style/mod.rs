@@ -208,12 +208,20 @@ pub fn has_style_value(styles: &HashMap<String, String>, style_name: &str, style
 }
 
 
-pub fn get_color_style_value(styles: &HashMap<String, String>, style_name: &str) -> Option<Color> {
-    let item = get_property_from_computed_styles(styles, style_name);
+pub fn get_color_style_value(styles: &HashMap<String, String>, property: &str) -> Option<Color> {
+    let item = get_property_from_computed_styles(styles, property);
     if item.is_none() {
-        return None;
+        return None; //this is not an error, it means the property was not set
     }
-    return Color::from_string(&item.unwrap());
+    let color = Color::from_string(item.as_ref().unwrap());
+
+    if color.is_none() {
+        //color is none, but item was something, so this means a color value is set, but we could not parse it. We fall back to black here
+        //note this this is not the css default, because those might be different per property and are implemented elsewere
+        debug_log_warn(format!("css value could not be parsed as a color: {:?}", item.unwrap()));
+        return Some(Color::BLACK);
+    }
+    return color;
 }
 
 

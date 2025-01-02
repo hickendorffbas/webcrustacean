@@ -242,7 +242,8 @@ impl JsAstAssign {
                             current_object_address = Some(*address);
                         },
                         None => {
-                            todo!();  //TODO: this is an error, var not found
+                            js_console::log_js_error(format!("Variable not found: {}", variable_path[idx]).as_str());
+                            return;
                         }
                     }
                 }

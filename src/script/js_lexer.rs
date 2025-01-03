@@ -76,7 +76,7 @@ pub struct JsSourceIterator<'document> {
     current_string_starter: Option<char>,
 }
 impl <'document> JsSourceIterator<'document> {
-    pub fn new(inner_iter: Peekable<Chars<'document>>, current_line: u32, current_char: u32) -> JsSourceIterator {
+    pub fn new(inner_iter: Peekable<Chars<'document>>, current_line: u32, current_char: u32) -> JsSourceIterator<'document> {
         let iter = TrackingIterator {
             iter: inner_iter,
             current_line,

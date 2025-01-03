@@ -6,7 +6,7 @@ use std::sync::atomic::{Ordering, AtomicUsize};
 use std::sync::mpsc::{channel, Receiver, Sender};
 
 use image::DynamicImage;
-use image::io::Reader as ImageReader;
+use image::ImageReader;
 use threadpool::ThreadPool;
 
 use crate::debug::debug_log_warn;

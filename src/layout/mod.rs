@@ -117,8 +117,8 @@ pub struct TableLayoutNode {
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct TableCellLayoutNode {
     pub location: Rect,
-    pub slot_x: usize,
-    pub slot_y: usize,
+    pub slot_x_idx: usize,
+    pub slot_y_idx: usize,
 }
 
 
@@ -561,6 +561,7 @@ fn compute_layout_for_node(node: &Rc<RefCell<LayoutNode>>, style_context: &Style
         if let LayoutNodeContent::TableLayoutNode(_) = mut_node.content {
             todo!();
             //TODO: we need to so something here that is neither block nor inline, and go in a seperate method, that method should call this method recursively
+            //      this is the logic that computes size of the cells based on their slot indexes (set in the build pass)
         }
 
         if mut_node.all_childnodes_have_given_display(Display::Block) {
@@ -922,7 +923,7 @@ fn get_display_type(node: &Rc<RefCell<ElementDomNode>>) -> Display {
 }
 
 
-fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Document, font_context: &FontContext, state: &mut LayoutBuildState,
+fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Document, font_context: &FontContext, layout_state: &mut LayoutBuildState,
                      optional_new_text: Option<String>) -> Rc<RefCell<LayoutNode>> {
     let mut partial_node_visible = true;
     let mut partial_node_optional_img = None;
@@ -1015,7 +1016,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
             TagName::Table => {
                 childs_to_recurse_on = &None; // we handle the children in our own method //TODO: it would still be nice to re-use the block/inline logic below
                 drop(main_node);
-                prebuilt_node = Some(build_layout_tree_for_table(main_node_refcell));
+                prebuilt_node = Some(build_layout_tree_for_table(main_node_refcell, document, font_context, layout_state));
             }
 
             TagName::Other => {}
@@ -1067,7 +1068,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
                 if get_display_type(&child) == Display::Block {
                     if !temp_inline_child_buffer.is_empty() {
-                        let layout_childs = build_layout_for_inline_nodes(&temp_inline_child_buffer, document, font_context, state);
+                        let layout_childs = build_layout_for_inline_nodes(&temp_inline_child_buffer, document, font_context, layout_state);
 
                         let anon_block = build_anonymous_block_layout_node(true, layout_childs, background_color);
                         partial_node_children.as_mut().unwrap().push(anon_block);
@@ -1075,8 +1076,8 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
                         temp_inline_child_buffer = Vec::new();
                     }
 
-                    state.last_char_was_space = false;
-                    let layout_child = build_layout_tree(child, document, font_context, state, None);
+                    layout_state.last_char_was_space = false;
+                    let layout_child = build_layout_tree(child, document, font_context, layout_state, None);
                     partial_node_children.as_mut().unwrap().push(layout_child);
 
                 } else {
@@ -1085,7 +1086,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
             }
 
             if !temp_inline_child_buffer.is_empty() {
-                let layout_childs = build_layout_for_inline_nodes(&temp_inline_child_buffer, document, font_context, state);
+                let layout_childs = build_layout_for_inline_nodes(&temp_inline_child_buffer, document, font_context, layout_state);
 
                 let anon_block = build_anonymous_block_layout_node(true, layout_childs, background_color);
                 partial_node_children.as_mut().unwrap().push(anon_block);
@@ -1097,7 +1098,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
             for child in childs_to_recurse_on.as_ref().unwrap() {
                 inline_nodes_to_layout.push(child);
             }
-            let layout_childs = build_layout_for_inline_nodes(&inline_nodes_to_layout, document, font_context, state);
+            let layout_childs = build_layout_for_inline_nodes(&inline_nodes_to_layout, document, font_context, layout_state);
 
             for layout_child in layout_childs {
                 partial_node_children.as_mut().unwrap().push(layout_child);
@@ -1106,8 +1107,8 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
         } else { //This means all childs are Display::Block
 
             for child in childs_to_recurse_on.as_ref().unwrap() {
-                state.last_char_was_space = false;
-                let layout_child = build_layout_tree(child, document, font_context, state, None);
+                layout_state.last_char_was_space = false;
+                let layout_child = build_layout_tree(child, document, font_context, layout_state, None);
                 partial_node_children.as_mut().unwrap().push(layout_child);
             }
         }
@@ -1166,21 +1167,75 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 }
 
 
-fn build_layout_tree_for_table(dom_node: &Rc<RefCell<ElementDomNode>>) -> LayoutNode {
+fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>, document: &Document,
+                               font_context: &FontContext, layout_state: &mut LayoutBuildState) -> LayoutNode {
+    let mut layout_children = Vec::new();
+    if table_dom_node.borrow().children.is_some() {
 
-    //TODO: process all the <tr> and <td> and recurse into general layout tree build function for cell content
+        let mut slot_x_idx = 0;
+        let mut slot_y_idx = 0;
+
+        for dom_table_child in table_dom_node.borrow().children.as_ref().unwrap() {
+
+            let dom_table_child = dom_table_child.borrow();
+            if dom_table_child.name.is_some() && dom_table_child.name.as_ref().unwrap() == &String::from("tr") {
+
+                if dom_table_child.children.is_some() {
+                    for dom_row_child in dom_table_child.children.as_ref().unwrap() {
+
+                        let borr_dom_row_child = dom_row_child.borrow();
+                        if borr_dom_row_child.name.is_some() && borr_dom_row_child.name.as_ref().unwrap() == &String::from("td") {
+
+                            let mut cell_children = Vec::new();
+
+                            if borr_dom_row_child.children.is_some() {
+                                for dom_cell_child in borr_dom_row_child.children.as_ref().unwrap() {
+                                    let layout_child = build_layout_tree(dom_cell_child, document, font_context, layout_state, None);
+                                    cell_children.push(layout_child);
+                                }
+                            }
+
+                            let cell_layout_node = LayoutNode {
+                                internal_id: get_next_layout_node_interal_id(),
+                                children: Some(cell_children),
+                                from_dom_node: Some(dom_row_child.clone()),
+                                display: Display::Block,
+                                visible: true,
+                                content: LayoutNodeContent::TableCellLayoutNode(TableCellLayoutNode {
+                                    location: Rect::empty(),
+                                    slot_x_idx,
+                                    slot_y_idx,
+                                })
+                            };
+
+                            layout_children.push(Rc::from(RefCell::from(cell_layout_node)));
+                        }
+
+                        //TODO: handle other cases, we at least also have table body, in which case we need to recurse somehow
+                        //      there might also be text (at the very least whitespace that we should ignore) in between rows and cells
+
+                        slot_x_idx += 1;
+                    }
+                }
+            }
+
+            //TODO: handle other cases, we at least also have table body, in which case we need to recurse somehow
+            //      there might also be text (at the very least whitespace that we should ignore) in between rows and cells
+
+            slot_y_idx += 1;
+        }
+    }
 
     return LayoutNode {
         internal_id: get_next_layout_node_interal_id(),
-        children: None,
-        from_dom_node: Some(dom_node.clone()),
+        children: Some(layout_children),
+        from_dom_node: Some(table_dom_node.clone()),
         display: Display::Block,
         visible: true,
         content: LayoutNodeContent::TableLayoutNode(TableLayoutNode {
             location: Rect::empty(),
         })
     }
-
 }
 
 

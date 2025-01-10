@@ -69,6 +69,7 @@ pub enum TagName {
     Input,
     Script,
     Style,
+    Table,
     Title,
 
     Other,
@@ -83,6 +84,7 @@ impl TagName {
             "input" => TagName::Input,
             "script" => TagName::Script,
             "style" => TagName::Style,
+            "table" => TagName::Table,
             "title" => TagName::Title,
 
             _ => {

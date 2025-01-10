@@ -118,7 +118,9 @@ fn debug_print_layout_tree_with_indent(node: &Rc<RefCell<LayoutNode>>, indent_cn
         crate::layout::LayoutNodeContent::ButtonLayoutNode(_) => todo!(),  //TODO: implement
         crate::layout::LayoutNodeContent::TextInputLayoutNode(_) => todo!(),  //TODO: implement
         crate::layout::LayoutNodeContent::BoxLayoutNode(_) => todo!(),  //TODO: implement
-        crate::layout::LayoutNodeContent::NoContent => todo!(),  //TODO: implement
+        crate::layout::LayoutNodeContent::NoContent => todo!(), //TODO: implement
+        crate::layout::LayoutNodeContent::TableLayoutNode(_) => todo!(), //TODO: implement
+        crate::layout::LayoutNodeContent::TableCellLayoutNode(_) => todo!(),  //TODO: implement
     };
 
     let visible = if node.visible {

@@ -73,6 +73,14 @@ fn render_layout_node(platform: &mut Platform, ui_state: &mut UIState, layout_no
                 platform.fill_rect(location.x, location.y - scroll_y, location.width, location.height, box_node.background_color, 255);
             }
         },
+        LayoutNodeContent::TableLayoutNode(_) => {
+            //eventually we might have something to render here, like a border or something (or is that also on cell level?)
+            //for now we render nothing
+        }
+        LayoutNodeContent::TableCellLayoutNode(_) => {
+            //TODO: implement (is there anything to render here aside from potential borders in the future?)
+            todo!();
+        }
         LayoutNodeContent::NoContent => {},
     }
 

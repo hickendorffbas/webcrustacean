@@ -10,6 +10,10 @@ goals for 0.5.0:
               in layout. Or do we accept that and just get better at mocking?
                      -> use lazy_static , but figure out mocking for tests
        - implement basic html tables
+              - see https://html.spec.whatwg.org/multipage/tables.html#table-model , take the basics from that
+                     - build the layout logic that puts the correct positions on the nodes by scanning the whole table
+                     - I have a lot of cases on the layout node where I need to match on the content variant, and then do the same for all that have a
+                            location, can I do that more generically? (maybe have a method to get the location if present or something?)
 
 
 other things (later versions):

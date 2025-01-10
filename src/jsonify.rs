@@ -12,10 +12,10 @@ use crate::dom::{
 };
 use crate::layout::{
     LayoutNode,
+    LayoutNodeContent,
     Rect,
     TextLayoutRect
 };
-
 
 //TODO: this function should have some tests by itself
 pub fn compare_json(json1: &String, json2: &String) -> bool {
@@ -72,14 +72,14 @@ pub fn layout_node_to_json(layout_node: &LayoutNode) -> String {
     buffer += "{";
 
     match &layout_node.content {
-        crate::layout::LayoutNodeContent::TextLayoutNode(text_layout_node) => {
+        LayoutNodeContent::TextLayoutNode(text_layout_node) => {
             buffer += "\"color\":";
             buffer += color_to_json(&text_layout_node.background_color).as_str();
 
             buffer += ", \"rects\":";
             buffer += text_rects_to_json(&text_layout_node.rects).as_str();
         },
-        crate::layout::LayoutNodeContent::BoxLayoutNode(box_layout_node) => {
+        LayoutNodeContent::BoxLayoutNode(box_layout_node) => {
             buffer += "\"color\":";
             buffer += color_to_json(&box_layout_node.background_color).as_str();
 
@@ -89,10 +89,12 @@ pub fn layout_node_to_json(layout_node: &LayoutNode) -> String {
             buffer += ", \"childs\":";
             buffer += childs_to_json(&layout_node.children).as_str();
         },
-        crate::layout::LayoutNodeContent::ImageLayoutNode(_) => todo!(),  //TODO: implement
-        crate::layout::LayoutNodeContent::ButtonLayoutNode(_) => todo!(),  //TODO: implement
-        crate::layout::LayoutNodeContent::TextInputLayoutNode(_) => todo!(),  //TODO: implement
-        crate::layout::LayoutNodeContent::NoContent => { },
+        LayoutNodeContent::ImageLayoutNode(_) => todo!(),  //TODO: implement
+        LayoutNodeContent::ButtonLayoutNode(_) => todo!(),  //TODO: implement
+        LayoutNodeContent::TextInputLayoutNode(_) => todo!(),  //TODO: implement
+        LayoutNodeContent::TableLayoutNode(_) => todo!(),  //TODO: implement
+        LayoutNodeContent::TableCellLayoutNode(_) => todo!(),  //TODO: implement
+        LayoutNodeContent::NoContent => { },
     }
 
     buffer += "}";

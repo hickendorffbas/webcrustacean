@@ -109,6 +109,18 @@ pub struct BoxLayoutNode {
     #[allow(dead_code)] pub background_color: Color,  //TODO: use
 }
 
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub struct TableLayoutNode {
+    pub location: Rect,
+}
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub struct TableCellLayoutNode {
+    pub location: Rect,
+    pub slot_x: usize,
+    pub slot_y: usize,
+}
+
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub enum LayoutNodeContent {
@@ -117,6 +129,8 @@ pub enum LayoutNodeContent {
     ButtonLayoutNode(ButtonLayoutNode),
     TextInputLayoutNode(TextInputLayoutNode),
     BoxLayoutNode(BoxLayoutNode),
+    TableLayoutNode(TableLayoutNode),
+    TableCellLayoutNode(TableCellLayoutNode),
     NoContent,
 }
 impl LayoutNodeContent {
@@ -139,6 +153,12 @@ impl LayoutNodeContent {
             }
             LayoutNodeContent::TextInputLayoutNode(text_input_node) => {
                 return text_input_node.location.is_inside(x, y);
+            }
+            LayoutNodeContent::TableLayoutNode(_) => {
+                todo!(); //TODO: implement
+            },
+            LayoutNodeContent::TableCellLayoutNode(_) => {
+                todo!(); //TODO: implement
             }
             LayoutNodeContent::NoContent => { return false; },
         }
@@ -176,6 +196,8 @@ impl LayoutNode {
             LayoutNodeContent::ButtonLayoutNode(node) => { node.location = new_location; },
             LayoutNodeContent::TextInputLayoutNode(node) => { node.location = new_location; },
             LayoutNodeContent::BoxLayoutNode(node) => { node.location = new_location; },
+            LayoutNodeContent::TableLayoutNode(node) => { node.location = new_location; }
+            LayoutNodeContent::TableCellLayoutNode(node) => { node.location = new_location; }
             LayoutNodeContent::NoContent => { }
         }
     }
@@ -191,6 +213,8 @@ impl LayoutNode {
             LayoutNodeContent::ButtonLayoutNode(button_node) => { button_node.location.y }
             LayoutNodeContent::TextInputLayoutNode(text_input_node) => { text_input_node.location.y }
             LayoutNodeContent::BoxLayoutNode(box_node) => { box_node.location.y }
+            LayoutNodeContent::TableLayoutNode(table_node) => { table_node.location.y }
+            LayoutNodeContent::TableCellLayoutNode(cell_node) => { cell_node.location.y }
             LayoutNodeContent::NoContent => { panic!("can't get a position of something without content") },
         }
     }
@@ -215,10 +239,12 @@ impl LayoutNode {
                 let bounding_box_height = max_y - lowest_y;
                 return (bounding_box_width, bounding_box_height);
             },
-            LayoutNodeContent::ImageLayoutNode(img_node) => { return (img_node.location.width, img_node.location.height) },
-            LayoutNodeContent::ButtonLayoutNode(button_node)  => { return (button_node.location.width, button_node.location.height) },
-            LayoutNodeContent::TextInputLayoutNode(input_node) => { return (input_node.location.width, input_node.location.height) },
-            LayoutNodeContent::BoxLayoutNode(box_node) => { return (box_node.location.width, box_node.location.height) },
+            LayoutNodeContent::ImageLayoutNode(img_node) => { return (img_node.location.width, img_node.location.height); },
+            LayoutNodeContent::ButtonLayoutNode(button_node)  => { return (button_node.location.width, button_node.location.height); },
+            LayoutNodeContent::TextInputLayoutNode(input_node) => { return (input_node.location.width, input_node.location.height); },
+            LayoutNodeContent::BoxLayoutNode(box_node) => { return (box_node.location.width, box_node.location.height); },
+            LayoutNodeContent::TableLayoutNode(table_node) => { return (table_node.location.width, table_node.location.height); }
+            LayoutNodeContent::TableCellLayoutNode(cell_node) => { return (cell_node.location.width, cell_node.location.height); }
             LayoutNodeContent::NoContent => { panic!("invalid state") },
         }
     }
@@ -232,6 +258,8 @@ impl LayoutNode {
             LayoutNodeContent::ButtonLayoutNode(button_node) => { return button_node.location.is_visible_on_y_location(current_scroll_y); }
             LayoutNodeContent::TextInputLayoutNode(text_input_node) => { return text_input_node.location.is_visible_on_y_location(current_scroll_y); }
             LayoutNodeContent::BoxLayoutNode(box_node) => { return box_node.location.is_visible_on_y_location(current_scroll_y); },
+            LayoutNodeContent::TableLayoutNode(table_node) => { return table_node.location.is_visible_on_y_location(current_scroll_y); }
+            LayoutNodeContent::TableCellLayoutNode(cell_node) => { return cell_node.location.is_visible_on_y_location(current_scroll_y); }
             LayoutNodeContent::NoContent => { return false; }
         }
     }
@@ -298,6 +326,9 @@ impl LayoutNode {
             LayoutNodeContent::BoxLayoutNode(_) => {
                 //Note: this is a no-op for now, since there is nothing to select in a box node itself (just in its children)
             },
+            LayoutNodeContent::TableLayoutNode(_) | LayoutNodeContent::TableCellLayoutNode(_) => {
+                //Note: for now this is a no-op. There is a usecase of selecing and copying tables, but we don't support it for now
+            },
             LayoutNodeContent::NoContent => {},
         }
 
@@ -321,6 +352,8 @@ impl LayoutNode {
             LayoutNodeContent::ImageLayoutNode(_) => todo!(),  //TODO: implement
             LayoutNodeContent::ButtonLayoutNode(_) => todo!(),  //TODO: implement
             LayoutNodeContent::TextInputLayoutNode(_) => todo!(),  //TODO: implement
+            LayoutNodeContent::TableLayoutNode(_) => todo!(),  //TODO: implement
+            LayoutNodeContent::TableCellLayoutNode(_) => todo!(),  //TODO: implement
             LayoutNodeContent::BoxLayoutNode(_) => {},
             LayoutNodeContent::NoContent => {},
         }
@@ -358,6 +391,8 @@ impl LayoutNode {
             LayoutNodeContent::ButtonLayoutNode(button_node) => { button_node.location.y += y_diff; }
             LayoutNodeContent::TextInputLayoutNode(text_input_node) => { text_input_node.location.y += y_diff; }
             LayoutNodeContent::BoxLayoutNode(box_node) => { box_node.location.y += y_diff; }
+            LayoutNodeContent::TableLayoutNode(table_node) => { table_node.location.y += y_diff; }
+            LayoutNodeContent::TableCellLayoutNode(table_cell_node) => { table_cell_node.location.y += y_diff; }
             LayoutNodeContent::NoContent => { panic!("Cant adjust position of something without content"); }
         }
 
@@ -470,6 +505,8 @@ pub fn collect_content_nodes_in_walk_order(node: &Rc<RefCell<LayoutNode>>, resul
         LayoutNodeContent::ButtonLayoutNode(_) => { result.push(Rc::clone(&node)); },
         LayoutNodeContent::TextInputLayoutNode(_) => { result.push(Rc::clone(&node)); },
         LayoutNodeContent::BoxLayoutNode(_) => {},
+        LayoutNodeContent::TableLayoutNode(_) => {},
+        LayoutNodeContent::TableCellLayoutNode(_) => { result.push(Rc::clone(&node)); },
         LayoutNodeContent::NoContent => {},
     }
 
@@ -520,6 +557,12 @@ fn compute_layout_for_node(node: &Rc<RefCell<LayoutNode>>, style_context: &Style
         mut_node.update_single_rect_location(Rect { x: top_left_x, y: top_left_y, width: 0.0, height: 0.0 });
 
     } else if mut_node.children.is_some() {
+
+        if let LayoutNodeContent::TableLayoutNode(_) = mut_node.content {
+            todo!();
+            //TODO: we need to so something here that is neither block nor inline, and go in a seperate method, that method should call this method recursively
+        }
+
         if mut_node.all_childnodes_have_given_display(Display::Block) {
             apply_block_layout(&mut mut_node, style_context, top_left_x, top_left_y, current_scroll_y, font_context, force_full_layout);
         } else if mut_node.all_childnodes_have_given_display(Display::Inline) {
@@ -594,7 +637,17 @@ fn compute_layout_for_node(node: &Rc<RefCell<LayoutNode>>, style_context: &Style
                 //TODO: for now generating 1 by 1 sized, this might not be correct given styling.
                 box_node.location = Rect { x: top_left_x, y: top_left_y, width: 1.0, height: 1.0 };
             },
-            LayoutNodeContent::NoContent => todo!(),  //TODO: implement
+            LayoutNodeContent::NoContent => todo!(), //TODO: should we still compute a position? Maybe it is always 0 by 0 pixels?
+            LayoutNodeContent::TableLayoutNode(table_layout_node) => {
+                //This is a table without children, so it has no size (the case with children is handled above...)
+                table_layout_node.location = Rect { x: top_left_x, y: top_left_y, width: 0.0, height: 0.0 };
+
+            },
+            LayoutNodeContent::TableCellLayoutNode(cell_layout_node) => {
+                //This is the case where the cell has no children, which means no content, which means no size for rendering
+                //(the position of other cells has already been computed when their parent was computed)
+                cell_layout_node.location = Rect { x: top_left_x, y: top_left_y, width: 0.0, height: 0.0 };
+            },
         }
 
     }
@@ -883,6 +936,8 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
     let mut partial_node_font_color = None;
     let mut partial_node_non_breaking_space_positions = None;
 
+    let mut prebuilt_node = None; //TODO: I think it is a good idea to transition all cases to pre built the node? needs checking
+
     let partial_node_background_color = get_color_style_value(&partial_node_styles, "background-color").unwrap_or(Color::WHITE);
 
     let mut childs_to_recurse_on: &Option<Vec<Rc<RefCell<ElementDomNode>>>> = &None;
@@ -956,6 +1011,12 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
             //TODO: eventually we want to do something else with the title (update the window title or so)
             TagName::Title => { partial_node_visible = false; }
+
+            TagName::Table => {
+                childs_to_recurse_on = &None; // we handle the children in our own method //TODO: it would still be nice to re-use the block/inline logic below
+                drop(main_node);
+                prebuilt_node = Some(build_layout_tree_for_table(main_node_refcell));
+            }
 
             TagName::Other => {}
         }
@@ -1053,6 +1114,11 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
     }
 
+    if prebuilt_node.is_some() {
+        //TODO: we could just return this prebuilt_node everywhere we build it, but I want to investigate what to do with the inline/block child logic in between
+        return Rc::new(RefCell::from(prebuilt_node.unwrap()));
+    }
+
     let content = if partial_node_text.is_some() {
         let rect = TextLayoutRect {
             char_position_mapping: font_context.compute_char_position_mapping(&partial_node_font.as_ref().unwrap(), &partial_node_text.as_ref().unwrap()),
@@ -1097,6 +1163,24 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
     };
 
     return Rc::new(RefCell::from(new_node));
+}
+
+
+fn build_layout_tree_for_table(dom_node: &Rc<RefCell<ElementDomNode>>) -> LayoutNode {
+
+    //TODO: process all the <tr> and <td> and recurse into general layout tree build function for cell content
+
+    return LayoutNode {
+        internal_id: get_next_layout_node_interal_id(),
+        children: None,
+        from_dom_node: Some(dom_node.clone()),
+        display: Display::Block,
+        visible: true,
+        content: LayoutNodeContent::TableLayoutNode(TableLayoutNode {
+            location: Rect::empty(),
+        })
+    }
+
 }
 
 

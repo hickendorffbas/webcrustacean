@@ -275,6 +275,8 @@ fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_re
             //Note: this is a no-op for now, since there is nothing to select in a box node itself (just in its children)
         },
         layout::LayoutNodeContent::NoContent => {},
+        layout::LayoutNodeContent::TableLayoutNode(_) => todo!(), //TODO: implement
+        layout::LayoutNodeContent::TableCellLayoutNode(_) => todo!(), //TODO: implement
     }
 
     if selection_start_found {
@@ -312,6 +314,8 @@ fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_re
                     layout::LayoutNodeContent::TextInputLayoutNode(_) => {},
                     layout::LayoutNodeContent::BoxLayoutNode(_) => {},
                     layout::LayoutNodeContent::NoContent => {},
+                    layout::LayoutNodeContent::TableLayoutNode(_) => todo!(), //TODO: implement
+                    layout::LayoutNodeContent::TableCellLayoutNode(_) => todo!(), //TODO: implement
                 }
             }
         }

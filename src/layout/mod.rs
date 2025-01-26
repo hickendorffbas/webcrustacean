@@ -558,13 +558,9 @@ fn compute_layout_for_node(node: &Rc<RefCell<LayoutNode>>, style_context: &Style
 
     } else if mut_node.children.is_some() {
 
-        if let LayoutNodeContent::TableLayoutNode(_) = mut_node.content {
-            todo!();
-            //TODO: we need to so something here that is neither block nor inline, and go in a seperate method, that method should call this method recursively
-            //      this is the logic that computes size of the cells based on their slot indexes (set in the build pass)
-        }
-
-        if mut_node.all_childnodes_have_given_display(Display::Block) {
+        if let LayoutNodeContent::TableLayoutNode(table_node) = &mut_node.content {
+            compute_layout_for_table(&table_node);
+        } else if mut_node.all_childnodes_have_given_display(Display::Block) {
             apply_block_layout(&mut mut_node, style_context, top_left_x, top_left_y, current_scroll_y, font_context, force_full_layout);
         } else if mut_node.all_childnodes_have_given_display(Display::Inline) {
             apply_inline_layout(&mut mut_node, style_context, top_left_x, top_left_y, CONTENT_WIDTH - top_left_x, current_scroll_y, font_context, force_full_layout);
@@ -653,6 +649,18 @@ fn compute_layout_for_node(node: &Rc<RefCell<LayoutNode>>, style_context: &Style
 
     }
 }
+
+
+fn compute_layout_for_table(table_dom_node: &TableLayoutNode) {
+
+
+
+    //TODO: use slots to compute positions, for that we need to know the side of all the content within each cell, and then take the max() of that
+    //TODO: how should this combine with wrapping?
+    todo!();
+
+}
+
 
 
 pub fn get_font_given_styles(styles: &HashMap<String, String>) -> (Font, Color) {

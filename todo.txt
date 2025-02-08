@@ -15,6 +15,53 @@ goals for 0.5.0:
                      - I have a lot of cases on the layout node where I need to match on the content variant, and then do the same for all that have a
                             location, can I do that more generically? (maybe have a method to get the location if present or something?)
 
+              - check: https://drafts.csswg.org/css2/#auto-table-layout
+                     - first fix width computation in layout
+
+       - fix width computation in layout
+              width should only be passed top down (there are cases where an element can overflow, but they don't affect parent or childs)
+              height should only be passed bottom up (from child to parent)
+              text wrapping should be less special cased I think, it is just inline layout
+
+              what is my layout algoritm (the positioning, not building the tree...) doing currently?
+                     we are going in with (x,y) of top left, and we set the rect on each node, bottom up (children first, then the parent based on children)
+
+              inline elements and table columns will have their width dependent on their content
+
+              -> a probably safe change is to pass in a parents_width
+                     -> is there any case where the width of the parent is changed because of changes in a child? what about a table in a table
+                            -> this is similar to inline elements growing in the space that they have, based on the space in the container
+                                   -> for tables this is the same for the full table, the columns have their own algo
+
+
+              -> I need to model the positioning schemes (normal flow, float, absolute) on a box
+                     -> it would also be nice to actually have boxes (they are probably close to layout rects, and can probably live on the layout node)
+                            -> what is the exact function of the layout node? It has the content, the box has the layout properties
+
+                     -> the positioning scheme "normal flow" needs 2 formatting contexts (block and inline)
+
+              -> see https://www.w3.org/TR/CSS2/visuren.html
+              -> this might be useful: https://.w3.org/TR/2016/WD-css-sizing-3-20160510/ and https://www.w3.org/TR/css-sizing-3/#width-height
+
+              -> inline context needs line-boxes
+
+              -> formatting a layout node (making a list of boxes), means coming in with a top left (x, y) and the parents width and its top left (x, y)
+                     going out with a full position on the box
+
+              -> it would be good in the new code to be clearer on what the scope of the function is, layouting its children, the node itself, both?
+                     -> this might be the first thing I want to tackle. A function that takes a node, a set width from the parent, computes a positioning scheme
+                        and then layouts its children (via this method recursively), and sets its own position
+
+
+              STEPS TO FIX THINGS:
+                     1) change from rects to boxes (probably same objects)
+                     2) make responsibility of methods in the layout module more clear
+                            -> this relates to the role of layout nodes, I build layout nodes to correspond to the DOM tree, and bring in context of displaying them
+                                   they each have a list of boxes (rects for now)
+                     3) implement positioning scheme computation per layout node
+                     4) handle width and height in the correct way (width on the way down, height on the way up)
+
+
 
 other things (later versions):
        - fix transparancy in png's (loading works, rendering in SDL does not)

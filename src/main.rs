@@ -27,6 +27,7 @@ use std::{
 };
 
 use arboard::Clipboard;
+use layout::CssTextBox;
 use sdl2::{
     event::Event as SdlEvent,
     keyboard::{Keycode, Mod as SdlKeyMod},
@@ -42,8 +43,6 @@ use crate::layout::{
     FullLayout,
     LayoutNode,
     rebuild_dirty_layout_childs,
-    Rect,
-    TextLayoutRect,
 };
 use crate::network::url::Url;
 use crate::platform::Platform;
@@ -184,29 +183,40 @@ fn finish_navigate(navigation_action: &NavigationAction, ui_state: &mut UIState,
 }
 
 
-fn build_selection_rect_on_text_layout_rect(text_layout_rect: &mut TextLayoutRect, selection_rect: &Rect, start_for_selection_rect_on_layout_rect: f32,
+//TOOD: move this and selection code to a selection.rs module
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone)]
+pub struct SelectionRect {
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
+
+fn build_selection_rect_on_text_layout_rect(css_text_box: &mut CssTextBox, selection_rect: &SelectionRect, start_for_selection_rect_on_layout_rect: f32,
                                             start_idx_for_selection: usize) {
-    let mut matching_offset = text_layout_rect.location.width;
+    let mut matching_offset = css_text_box.css_box.width;
 
     let mut end_idx_for_selection = 0;
-    for (idx, offset) in text_layout_rect.char_position_mapping.iter().enumerate() {
-        if text_layout_rect.location.x + offset > selection_rect.x + selection_rect.width {
+    for (idx, offset) in css_text_box.char_position_mapping.iter().enumerate() {
+        if css_text_box.css_box.x + offset > selection_rect.x + selection_rect.width {
             matching_offset = *offset;
             end_idx_for_selection = idx;
             break;
         }
     }
 
-    let selection_rect_for_layout_rect = Rect { x: start_for_selection_rect_on_layout_rect,
-                y: text_layout_rect.location.y,
-                width: (text_layout_rect.location.x + matching_offset) - start_for_selection_rect_on_layout_rect,
-                height: text_layout_rect.location.height };
-    text_layout_rect.selection_rect = Some(selection_rect_for_layout_rect);
-    text_layout_rect.selection_char_range = Some( (start_idx_for_selection, end_idx_for_selection) );
+    let selection_rect_for_layout_rect = SelectionRect { x: start_for_selection_rect_on_layout_rect,
+                y: css_text_box.css_box.y,
+                width: (css_text_box.css_box.x + matching_offset) - start_for_selection_rect_on_layout_rect,
+                height: css_text_box.css_box.height };
+    css_text_box.selection_rect = Some(selection_rect_for_layout_rect);
+    css_text_box.selection_char_range = Some( (start_idx_for_selection, end_idx_for_selection) );
 }
 
 
-fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_rect: &Rect, current_scroll_y: f32, nodes_in_selection_order: &Vec<Rc<RefCell<LayoutNode>>>) {
+fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_rect: &SelectionRect, current_scroll_y: f32, nodes_in_selection_order: &Vec<Rc<RefCell<LayoutNode>>>) {
     if !layout_node.borrow().visible_on_y_location(current_scroll_y) {
         return;
     }
@@ -222,14 +232,14 @@ fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_re
         layout::LayoutNodeContent::TextLayoutNode(ref mut text_layout_node) => {
             let mut start_x_for_selection_rect_on_layout_rect = 0.0;
             let mut start_idx_for_selection = 0;
-            for mut layout_rect in text_layout_node.rects.iter_mut() {
-                if layout_rect.location.is_inside(selection_rect.x, selection_rect.y) {
+            for mut css_text_box in text_layout_node.css_text_boxes.iter_mut() {
+                if css_text_box.css_box.is_inside(selection_rect.x, selection_rect.y) {
                     selection_start_found = true;
 
                     let mut previous_offset = 0.0;
-                    for (idx, offset) in layout_rect.char_position_mapping.iter().enumerate() {
-                        if layout_rect.location.x + offset > selection_rect.x {
-                            start_x_for_selection_rect_on_layout_rect = layout_rect.location.x + previous_offset;
+                    for (idx, offset) in css_text_box.char_position_mapping.iter().enumerate() {
+                        if css_text_box.css_box.x + offset > selection_rect.x {
+                            start_x_for_selection_rect_on_layout_rect = css_text_box.css_box.x + previous_offset;
                             start_idx_for_selection = idx;
                             break;
                         }
@@ -238,30 +248,30 @@ fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_re
                     }
 
                     //Handle the special case where both the top left and the bottom right of the selection rect are in the same layout rect:
-                    if layout_rect.location.is_inside(selection_end_x, selection_end_y) {
-                        build_selection_rect_on_text_layout_rect(&mut layout_rect, selection_rect, start_x_for_selection_rect_on_layout_rect, start_idx_for_selection);
+                    if css_text_box.css_box.is_inside(selection_end_x, selection_end_y) {
+                        build_selection_rect_on_text_layout_rect(&mut css_text_box, selection_rect, start_x_for_selection_rect_on_layout_rect, start_idx_for_selection);
                         return;
                     } else {
-                        let selection_rect_for_layout_rect = Rect { x: start_x_for_selection_rect_on_layout_rect,
-                                                                    y: layout_rect.location.y,
-                                                                    width: layout_rect.location.width - start_x_for_selection_rect_on_layout_rect,
-                                                                    height: layout_rect.location.height };
-                        layout_rect.selection_rect = Some(selection_rect_for_layout_rect);
-                        layout_rect.selection_char_range = Some( (start_idx_for_selection, layout_rect.text.len()) );
+                        let selection_rect_for_layout_rect = SelectionRect { x: start_x_for_selection_rect_on_layout_rect,
+                                                                             y: css_text_box.css_box.y,
+                                                                             width: css_text_box.css_box.width - start_x_for_selection_rect_on_layout_rect,
+                                                                            height: css_text_box.css_box.height };
+                        css_text_box.selection_rect = Some(selection_rect_for_layout_rect);
+                        css_text_box.selection_char_range = Some( (start_idx_for_selection, css_text_box.text.len()) );
 
                     }
                 } else if selection_start_found {
                     // Now we check for other rects on the same layout node that might contain the bottom right point:
-                    if layout_rect.location.is_inside(selection_end_x, selection_end_y) {
-                        let start_selection_pos = layout_rect.location.x;
-                        build_selection_rect_on_text_layout_rect(&mut layout_rect, selection_rect, start_selection_pos, 0);
+                    if css_text_box.css_box.is_inside(selection_end_x, selection_end_y) {
+                        let start_selection_pos = css_text_box.css_box.x;
+                        build_selection_rect_on_text_layout_rect(&mut css_text_box, selection_rect, start_selection_pos, 0);
                         return;
                     } else {
                         //This rect is in between the start and end node, so we fully set it as selected:
-                        let selection_rect_for_layout_rect = Rect { x: layout_rect.location.x, y: layout_rect.location.y,
-                                                                    width: layout_rect.location.width, height: layout_rect.location.height };
-                        layout_rect.selection_rect = Some(selection_rect_for_layout_rect);
-                        layout_rect.selection_char_range = Some( (0, layout_rect.text.len()) );
+                        let selection_rect_for_layout_rect = SelectionRect { x: css_text_box.css_box.x, y: css_text_box.css_box.y,
+                                                                             width: css_text_box.css_box.width, height: css_text_box.css_box.height };
+                        css_text_box.selection_rect = Some(selection_rect_for_layout_rect);
+                        css_text_box.selection_char_range = Some( (0, css_text_box.text.len()) );
                     }
                 }
             }
@@ -271,7 +281,7 @@ fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_re
         }
         layout::LayoutNodeContent::ButtonLayoutNode(_) => {}
         layout::LayoutNodeContent::TextInputLayoutNode(_) => {}
-        layout::LayoutNodeContent::BoxLayoutNode(_) => {
+        layout::LayoutNodeContent::AreaLayoutNode(_) => {
             //Note: this is a no-op for now, since there is nothing to select in a box node itself (just in its children)
         },
         layout::LayoutNodeContent::NoContent => {},
@@ -295,24 +305,24 @@ fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_re
                 match &mut next_selection_node.borrow_mut().content {
                     layout::LayoutNodeContent::TextLayoutNode(ref mut text_layout_node) => {
 
-                        for mut layout_rect in text_layout_node.rects.iter_mut() {
-                            if layout_rect.location.is_inside(selection_end_x, selection_end_y) {
-                                let start_selection_pos = layout_rect.location.x;
-                                build_selection_rect_on_text_layout_rect(&mut layout_rect, selection_rect, start_selection_pos, 0);
+                        for mut css_text_box in text_layout_node.css_text_boxes.iter_mut() {
+                            if css_text_box.css_box.is_inside(selection_end_x, selection_end_y) {
+                                let start_selection_pos = css_text_box.css_box.x;
+                                build_selection_rect_on_text_layout_rect(&mut css_text_box, selection_rect, start_selection_pos, 0);
                                 return;
                             } else {
                                 //This node is in between the start and end node, so we fully set it as selected:
-                                let selection_rect_for_layout_rect = Rect { x: layout_rect.location.x, y: layout_rect.location.y,
-                                                                            width: layout_rect.location.width, height: layout_rect.location.height };
-                                layout_rect.selection_rect = Some(selection_rect_for_layout_rect);
-                                layout_rect.selection_char_range = Some( (0, layout_rect.text.len()) );
+                                let selection_rect_for_layout_rect = SelectionRect { x: css_text_box.css_box.x, y: css_text_box.css_box.y,
+                                                                                     width: css_text_box.css_box.width, height: css_text_box.css_box.height };
+                                css_text_box.selection_rect = Some(selection_rect_for_layout_rect);
+                                css_text_box.selection_char_range = Some( (0, css_text_box.text.len()) );
                             }
                         }
                     },
                     layout::LayoutNodeContent::ImageLayoutNode(_) => {},
                     layout::LayoutNodeContent::ButtonLayoutNode(_) => {},
                     layout::LayoutNodeContent::TextInputLayoutNode(_) => {},
-                    layout::LayoutNodeContent::BoxLayoutNode(_) => {},
+                    layout::LayoutNodeContent::AreaLayoutNode(_) => {},
                     layout::LayoutNodeContent::NoContent => {},
                     layout::LayoutNodeContent::TableLayoutNode(_) => todo!(), //TODO: implement
                     layout::LayoutNodeContent::TableCellLayoutNode(_) => todo!(), //TODO: implement
@@ -407,7 +417,7 @@ fn main() -> Result<(), String> {
                         let top_left_y = cmp::min(mouse_state.click_start_y, mouse_y) as f32 + ui_state.current_scroll_y;
                         let bottom_right_x = cmp::max(mouse_state.click_start_x, mouse_x) as f32;
                         let bottom_right_y = cmp::max(mouse_state.click_start_y, mouse_y) as f32 + ui_state.current_scroll_y;
-                        let selection_rect = Rect { x: top_left_x, y: top_left_y, width: bottom_right_x - top_left_x, height: bottom_right_y - top_left_y };
+                        let selection_rect = SelectionRect { x: top_left_x, y: top_left_y, width: bottom_right_x - top_left_x, height: bottom_right_y - top_left_y };
 
                         match ui_state.focus_target {
                             FocusTarget::None => {},

@@ -31,24 +31,24 @@ fn render_layout_node(platform: &mut Platform, ui_state: &mut UIState, layout_no
 
     match &layout_node.content {
         LayoutNodeContent::TextLayoutNode(text_layout_node) => {
-            for layout_rect in text_layout_node.rects.iter() {
+            for css_text_box in text_layout_node.css_text_boxes.iter() {
 
                 if text_layout_node.background_color != Color::WHITE {
-                    let location = &layout_rect.location;
+                    let location = &css_text_box.css_box;
                     platform.fill_rect(location.x, location.y - scroll_y, location.width, location.height, text_layout_node.background_color, 255);
                 }
 
-                if layout_rect.selection_rect.is_some() {
-                    let selection_rect = layout_rect.selection_rect.as_ref().unwrap();
+                if css_text_box.selection_rect.is_some() {
+                    let selection_rect = css_text_box.selection_rect.as_ref().unwrap();
                     platform.fill_rect(selection_rect.x, selection_rect.y - scroll_y, selection_rect.width, selection_rect.height, Color::DEFAULT_SELECTION_COLOR, 255);
                 }
 
-                let render_y = layout_rect.location.y - scroll_y;
-                platform.render_text(&layout_rect.text, layout_rect.location.x, render_y, &layout_rect.font, layout_rect.font_color);
+                let render_y = css_text_box.css_box.y - scroll_y;
+                platform.render_text(&css_text_box.text, css_text_box.css_box.x, render_y, &text_layout_node.font, text_layout_node.font_color);
             }
         },
         LayoutNodeContent::ImageLayoutNode(image_layout_node) => {
-            platform.render_image(&image_layout_node.image, image_layout_node.location.x, image_layout_node.location.y - scroll_y);
+            platform.render_image(&image_layout_node.image, image_layout_node.css_box.x, image_layout_node.css_box.y - scroll_y);
         },
         LayoutNodeContent::ButtonLayoutNode(_) => {
             let dom_node = layout_node.from_dom_node.as_ref().unwrap().borrow();
@@ -66,11 +66,11 @@ fn render_layout_node(platform: &mut Platform, ui_state: &mut UIState, layout_no
                 PageComponent::TextField(text_field) => { text_field.render(ui_state, platform, scroll_y); }
             }
         },
-        LayoutNodeContent::BoxLayoutNode(box_node) => {
-            if box_node.background_color != Color::WHITE { //TODO: don't think this check is correct (also for text nodes,
+        LayoutNodeContent::AreaLayoutNode(area_node) => {
+            if area_node.background_color != Color::WHITE { //TODO: don't think this check is correct (also for text nodes,
                                                            //      because you can have this inside another colored node)
-                let location = &box_node.location;
-                platform.fill_rect(location.x, location.y - scroll_y, location.width, location.height, box_node.background_color, 255);
+                let css_box = &area_node.css_box;
+                platform.fill_rect(css_box.x, css_box.y - scroll_y, css_box.width, css_box.height, area_node.background_color, 255);
             }
         },
         LayoutNodeContent::TableLayoutNode(_) => {

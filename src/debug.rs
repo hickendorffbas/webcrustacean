@@ -109,15 +109,15 @@ fn debug_print_layout_tree_with_indent(node: &Rc<RefCell<LayoutNode>>, indent_cn
     let rect_str = match &node.content {
         crate::layout::LayoutNodeContent::TextLayoutNode(text_node) => {
             let mut rect_str = String::new();
-            for rect in text_node.rects.iter() {
-                rect_str.push_str(format!("LayoutRect({:?} {:?})", rect.location, rect.text).as_str());
+            for css_text_box in text_node.css_text_boxes.iter() {
+                rect_str.push_str(format!("LayoutRect({:?} {:?})", css_text_box.css_box, css_text_box.text).as_str());
             };
             rect_str
         },
         crate::layout::LayoutNodeContent::ImageLayoutNode(_) => todo!(),  //TODO: implement
         crate::layout::LayoutNodeContent::ButtonLayoutNode(_) => todo!(),  //TODO: implement
         crate::layout::LayoutNodeContent::TextInputLayoutNode(_) => todo!(),  //TODO: implement
-        crate::layout::LayoutNodeContent::BoxLayoutNode(_) => todo!(),  //TODO: implement
+        crate::layout::LayoutNodeContent::AreaLayoutNode(_) => todo!(),  //TODO: implement
         crate::layout::LayoutNodeContent::NoContent => todo!(), //TODO: implement
         crate::layout::LayoutNodeContent::TableLayoutNode(_) => todo!(), //TODO: implement
         crate::layout::LayoutNodeContent::TableCellLayoutNode(_) => todo!(),  //TODO: implement

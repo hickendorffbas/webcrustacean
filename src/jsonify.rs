@@ -11,10 +11,10 @@ use crate::dom::{
     get_next_dom_node_interal_id
 };
 use crate::layout::{
+    CssBox,
+    CssTextBox,
     LayoutNode,
     LayoutNodeContent,
-    Rect,
-    TextLayoutRect
 };
 
 //TODO: this function should have some tests by itself
@@ -77,14 +77,14 @@ pub fn layout_node_to_json(layout_node: &LayoutNode) -> String {
             buffer += color_to_json(&text_layout_node.background_color).as_str();
 
             buffer += ", \"rects\":";
-            buffer += text_rects_to_json(&text_layout_node.rects).as_str();
+            buffer += css_text_boxes_to_json(&text_layout_node.css_text_boxes).as_str();
         },
-        LayoutNodeContent::BoxLayoutNode(box_layout_node) => {
+        LayoutNodeContent::AreaLayoutNode(area_layout_node) => {
             buffer += "\"color\":";
-            buffer += color_to_json(&box_layout_node.background_color).as_str();
+            buffer += color_to_json(&area_layout_node.background_color).as_str();
 
             buffer += ", \"location\":";
-            buffer += rect_to_json(&box_layout_node.location).as_str();
+            buffer += css_box_to_json(&area_layout_node.css_box).as_str();
 
             buffer += ", \"childs\":";
             buffer += childs_to_json(&layout_node.children).as_str();
@@ -112,23 +112,23 @@ pub fn color_to_json(color: &Color) -> String {
 }
 
 
-pub fn text_rects_to_json(rects: &Vec<TextLayoutRect>) -> String {
+pub fn css_text_boxes_to_json(css_text_boxes: &Vec<CssTextBox>) -> String {
     let mut buffer = String::new();
     buffer.push('[');
 
     let mut first = true;
 
-    for rect in rects {
+    for css_text_box in css_text_boxes {
         if !first {
             buffer.push(',');
         }
 
         buffer += "{ \"text\": \"";
-        buffer += rect.text.as_str();
+        buffer += css_text_box.text.as_str();
         buffer += "\", ";
 
         buffer += "\"position\":";
-        buffer += rect_to_json(&rect.location).as_str();
+        buffer += css_box_to_json(&css_text_box.css_box).as_str();
 
         buffer.push('}');
         first = false;
@@ -139,8 +139,8 @@ pub fn text_rects_to_json(rects: &Vec<TextLayoutRect>) -> String {
 }
 
 
-fn rect_to_json(rect: &Rect) -> String {
-    return format!("[{:.0}, {:.0}, {:.0}, {:.0}]", rect.x, rect.y, rect.width, rect.height);
+fn css_box_to_json(css_box: &CssBox) -> String {
+    return format!("[{:.0}, {:.0}, {:.0}, {:.0}]", css_box.x, css_box.y, css_box.width, css_box.height);
 }
 
 

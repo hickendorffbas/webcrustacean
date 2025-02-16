@@ -2,7 +2,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::color::Color;
 use crate::debug::debug_log_warn;
-use crate::layout::Rect;
 use crate::network::url::Url;
 use crate::platform::{
     fonts::Font,
@@ -16,6 +15,7 @@ use crate::ui::{
     UI_BASIC_DARKER_COLOR,
     UIState
 };
+use crate::SelectionRect;
 
 
 const TEXT_FIELD_OFFSET_FROM_BORDER: f32 = 5.0;
@@ -174,7 +174,7 @@ impl TextField {
         self.clear_selection();
     }
 
-    pub fn update_selection(&mut self, selection_rect: &Rect) {
+    pub fn update_selection(&mut self, selection_rect: &SelectionRect) {
         let min_x = selection_rect.x;
         let max_x = min_x + selection_rect.width;
         let text_start_x = self.x + TEXT_FIELD_OFFSET_FROM_BORDER;

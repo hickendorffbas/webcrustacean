@@ -194,8 +194,8 @@ pub struct SelectionRect {
 }
 
 
-fn build_selection_rect_on_text_layout_rect(css_text_box: &mut CssTextBox, selection_rect: &SelectionRect, start_for_selection_rect_on_layout_rect: f32,
-                                            start_idx_for_selection: usize) {
+fn build_selection_rect_on_css_text_box(css_text_box: &mut CssTextBox, selection_rect: &SelectionRect, start_for_selection_rect_on_css_text_box: f32,
+                                        start_idx_for_selection: usize) {
     let mut matching_offset = css_text_box.css_box.width;
 
     let mut end_idx_for_selection = 0;
@@ -207,11 +207,11 @@ fn build_selection_rect_on_text_layout_rect(css_text_box: &mut CssTextBox, selec
         }
     }
 
-    let selection_rect_for_layout_rect = SelectionRect { x: start_for_selection_rect_on_layout_rect,
+    let selection_rect_for_css_text_box = SelectionRect { x: start_for_selection_rect_on_css_text_box,
                 y: css_text_box.css_box.y,
-                width: (css_text_box.css_box.x + matching_offset) - start_for_selection_rect_on_layout_rect,
+                width: (css_text_box.css_box.x + matching_offset) - start_for_selection_rect_on_css_text_box,
                 height: css_text_box.css_box.height };
-    css_text_box.selection_rect = Some(selection_rect_for_layout_rect);
+    css_text_box.selection_rect = Some(selection_rect_for_css_text_box);
     css_text_box.selection_char_range = Some( (start_idx_for_selection, end_idx_for_selection) );
 }
 
@@ -230,7 +230,7 @@ fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_re
 
     match &mut layout_node.borrow_mut().content {
         layout::LayoutNodeContent::TextLayoutNode(ref mut text_layout_node) => {
-            let mut start_x_for_selection_rect_on_layout_rect = 0.0;
+            let mut start_x_for_selection_rect_on_css_text_box = 0.0;
             let mut start_idx_for_selection = 0;
             for mut css_text_box in text_layout_node.css_text_boxes.iter_mut() {
                 if css_text_box.css_box.is_inside(selection_rect.x, selection_rect.y) {
@@ -239,7 +239,7 @@ fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_re
                     let mut previous_offset = 0.0;
                     for (idx, offset) in css_text_box.char_position_mapping.iter().enumerate() {
                         if css_text_box.css_box.x + offset > selection_rect.x {
-                            start_x_for_selection_rect_on_layout_rect = css_text_box.css_box.x + previous_offset;
+                            start_x_for_selection_rect_on_css_text_box = css_text_box.css_box.x + previous_offset;
                             start_idx_for_selection = idx;
                             break;
                         }
@@ -247,30 +247,30 @@ fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_re
                         previous_offset = *offset;
                     }
 
-                    //Handle the special case where both the top left and the bottom right of the selection rect are in the same layout rect:
+                    //Handle the special case where both the top left and the bottom right of the selection rect are in the same css box:
                     if css_text_box.css_box.is_inside(selection_end_x, selection_end_y) {
-                        build_selection_rect_on_text_layout_rect(&mut css_text_box, selection_rect, start_x_for_selection_rect_on_layout_rect, start_idx_for_selection);
+                        build_selection_rect_on_css_text_box(&mut css_text_box, selection_rect, start_x_for_selection_rect_on_css_text_box, start_idx_for_selection);
                         return;
                     } else {
-                        let selection_rect_for_layout_rect = SelectionRect { x: start_x_for_selection_rect_on_layout_rect,
-                                                                             y: css_text_box.css_box.y,
-                                                                             width: css_text_box.css_box.width - start_x_for_selection_rect_on_layout_rect,
-                                                                            height: css_text_box.css_box.height };
-                        css_text_box.selection_rect = Some(selection_rect_for_layout_rect);
+                        let selection_rect_for_css_text_box = SelectionRect { x: start_x_for_selection_rect_on_css_text_box,
+                                                                              y: css_text_box.css_box.y,
+                                                                              width: css_text_box.css_box.width - start_x_for_selection_rect_on_css_text_box,
+                                                                              height: css_text_box.css_box.height };
+                        css_text_box.selection_rect = Some(selection_rect_for_css_text_box);
                         css_text_box.selection_char_range = Some( (start_idx_for_selection, css_text_box.text.len()) );
 
                     }
                 } else if selection_start_found {
-                    // Now we check for other rects on the same layout node that might contain the bottom right point:
+                    // Now we check for other boxes on the same layout node that might contain the bottom right point:
                     if css_text_box.css_box.is_inside(selection_end_x, selection_end_y) {
                         let start_selection_pos = css_text_box.css_box.x;
-                        build_selection_rect_on_text_layout_rect(&mut css_text_box, selection_rect, start_selection_pos, 0);
+                        build_selection_rect_on_css_text_box(&mut css_text_box, selection_rect, start_selection_pos, 0);
                         return;
                     } else {
-                        //This rect is in between the start and end node, so we fully set it as selected:
-                        let selection_rect_for_layout_rect = SelectionRect { x: css_text_box.css_box.x, y: css_text_box.css_box.y,
-                                                                             width: css_text_box.css_box.width, height: css_text_box.css_box.height };
-                        css_text_box.selection_rect = Some(selection_rect_for_layout_rect);
+                        //This box is in between the start and end node, so we fully set it as selected:
+                        let selection_rect_for_css_text_box = SelectionRect { x: css_text_box.css_box.x, y: css_text_box.css_box.y,
+                                                                              width: css_text_box.css_box.width, height: css_text_box.css_box.height };
+                        css_text_box.selection_rect = Some(selection_rect_for_css_text_box);
                         css_text_box.selection_char_range = Some( (0, css_text_box.text.len()) );
                     }
                 }
@@ -308,13 +308,13 @@ fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_re
                         for mut css_text_box in text_layout_node.css_text_boxes.iter_mut() {
                             if css_text_box.css_box.is_inside(selection_end_x, selection_end_y) {
                                 let start_selection_pos = css_text_box.css_box.x;
-                                build_selection_rect_on_text_layout_rect(&mut css_text_box, selection_rect, start_selection_pos, 0);
+                                build_selection_rect_on_css_text_box(&mut css_text_box, selection_rect, start_selection_pos, 0);
                                 return;
                             } else {
                                 //This node is in between the start and end node, so we fully set it as selected:
-                                let selection_rect_for_layout_rect = SelectionRect { x: css_text_box.css_box.x, y: css_text_box.css_box.y,
-                                                                                     width: css_text_box.css_box.width, height: css_text_box.css_box.height };
-                                css_text_box.selection_rect = Some(selection_rect_for_layout_rect);
+                                let selection_rect_for_css_text_box = SelectionRect { x: css_text_box.css_box.x, y: css_text_box.css_box.y,
+                                                                                      width: css_text_box.css_box.width, height: css_text_box.css_box.height };
+                                css_text_box.selection_rect = Some(selection_rect_for_css_text_box);
                                 css_text_box.selection_char_range = Some( (0, css_text_box.text.len()) );
                             }
                         }

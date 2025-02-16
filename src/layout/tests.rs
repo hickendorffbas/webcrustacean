@@ -45,7 +45,7 @@ fn test_basic_paragraph_layout() {
             "childs": [
                 {
                     "color": [255, 255, 255],
-                    "rects": [
+                    "boxes": [
                         {
                             "text": "this is a test",
                             "position": [0, 0, 87, 19]

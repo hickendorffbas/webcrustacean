@@ -32,7 +32,7 @@ goals for 0.5.0:
                      -> is there any case where the width of the parent is changed because of changes in a child? what about a table in a table
                             -> this is similar to inline elements growing in the space that they have, based on the space in the container
                                    -> for tables this is the same for the full table, the columns have their own algo
-g
+
 
               -> I need to model the positioning schemes (normal flow, float, absolute) on a box
                      -> it would also be nice to actually have boxes (they are probably close to layout rects, and can probably live on the layout node)
@@ -55,9 +55,7 @@ g
 
               STEPS TO FIX THINGS:
                      DONE 1) change from rects to boxes (probably same objects)
-                     2) make responsibility of methods in the layout module more clear
-                            -> this relates to the role of layout nodes, I build layout nodes to correspond to the DOM tree, and bring in context of displaying them
-                                   they each have a list of boxes (rects for now)
+                     DONE 2) make responsibility of methods in the layout module more clear
                      3) implement positioning scheme computation per layout node
                      4) handle width and height in the correct way (width on the way down, height on the way up)
 

@@ -41,7 +41,7 @@ pub fn get_next_layout_node_interal_id() -> usize { NEXT_LAYOUT_NODE_INTERNAL.fe
 
 pub struct FullLayout {
     pub root_node: Rc<RefCell<LayoutNode>>,
-    pub nodes_in_selection_order: Vec<Rc<RefCell<LayoutNode>>>,
+    pub nodes_in_selection_order: Vec<Rc<RefCell<LayoutNode>>>, //TODO: we should not have this in the future. We need to check (x,y) for each node
 }
 impl FullLayout {
     pub fn page_height(&self) -> f32 {
@@ -175,7 +175,7 @@ pub struct LayoutNode {
 
     pub from_dom_node: Option<Rc<RefCell<ElementDomNode>>>,
 
-    pub display: Display,
+    pub display: Display, //TODO: this should be replaced with formatting context
     pub visible: bool,
 
     pub content: LayoutNodeContent,
@@ -205,6 +205,7 @@ impl LayoutNode {
     }
 
     pub fn can_wrap(&self) -> bool {
+        //wrapping here means being able to split its css box into mutliple css boxes
         return if let LayoutNodeContent::TextLayoutNode(_) = self.content { true } else { false };
     }
 
@@ -251,17 +252,17 @@ impl LayoutNode {
         }
     }
 
-    pub fn visible_on_y_location(&self, current_scroll_y: f32) -> bool {
+    pub fn visible_on_y_location(&self, y_location: f32) -> bool {
         match &self.content {
             LayoutNodeContent::TextLayoutNode(text_node) => {
-                return text_node.css_text_boxes.iter().any(|text_box| -> bool {text_box.css_box.is_visible_on_y_location(current_scroll_y)});
+                return text_node.css_text_boxes.iter().any(|text_box| -> bool {text_box.css_box.is_visible_on_y_location(y_location)});
             },
-            LayoutNodeContent::ImageLayoutNode(image_node) => { return image_node.css_box.is_visible_on_y_location(current_scroll_y); },
-            LayoutNodeContent::ButtonLayoutNode(button_node) => { return button_node.css_box.is_visible_on_y_location(current_scroll_y); }
-            LayoutNodeContent::TextInputLayoutNode(text_input_node) => { return text_input_node.css_box.is_visible_on_y_location(current_scroll_y); }
-            LayoutNodeContent::AreaLayoutNode(box_node) => { return box_node.css_box.is_visible_on_y_location(current_scroll_y); },
-            LayoutNodeContent::TableLayoutNode(table_node) => { return table_node.css_box.is_visible_on_y_location(current_scroll_y); }
-            LayoutNodeContent::TableCellLayoutNode(cell_node) => { return cell_node.css_box.is_visible_on_y_location(current_scroll_y); }
+            LayoutNodeContent::ImageLayoutNode(image_node) => { return image_node.css_box.is_visible_on_y_location(y_location); },
+            LayoutNodeContent::ButtonLayoutNode(button_node) => { return button_node.css_box.is_visible_on_y_location(y_location); }
+            LayoutNodeContent::TextInputLayoutNode(text_input_node) => { return text_input_node.css_box.is_visible_on_y_location(y_location); }
+            LayoutNodeContent::AreaLayoutNode(box_node) => { return box_node.css_box.is_visible_on_y_location(y_location); },
+            LayoutNodeContent::TableLayoutNode(table_node) => { return table_node.css_box.is_visible_on_y_location(y_location); }
+            LayoutNodeContent::TableCellLayoutNode(cell_node) => { return cell_node.css_box.is_visible_on_y_location(y_location); }
             LayoutNodeContent::NoContent => { return false; }
         }
     }
@@ -412,6 +413,7 @@ impl LayoutNode {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(PartialEq)]
 pub enum Display { //TODO: this is a CSS property, of which we will have many, we should probably define those somewhere else
+                   //      update: this is going to be replaced by a formatting context
     Block,
     Inline
 }
@@ -451,15 +453,9 @@ impl CssBox {
 pub struct CssTextBox {
     pub css_box: CssBox,
     pub text: String,
-
     pub char_position_mapping: Vec<f32>,
-
     pub selection_rect: Option<SelectionRect>,
     pub selection_char_range: Option<(usize, usize)>,
-
-    //TODO: remove the below properties once they live on the textLayoutNode
-    //pub font: Font,
-    //pub font_color: Color,
 }
 
 
@@ -471,8 +467,6 @@ struct LayoutBuildState {
 pub fn build_full_layout(document: &Document, font_context: &FontContext) -> FullLayout {
     let mut top_level_layout_nodes: Vec<Rc<RefCell<LayoutNode>>> = Vec::new();
 
-    let id_of_node_being_built = get_next_layout_node_interal_id();
-
     let mut state = LayoutBuildState { last_char_was_space: false };
 
     let layout_node = build_layout_tree(&document.document_node, document, font_context, &mut state, None);
@@ -481,7 +475,7 @@ pub fn build_full_layout(document: &Document, font_context: &FontContext) -> Ful
     //Note: we need a node above the first node actually containing any content or styles, since for updates to content or styles we re-assign
     //      children to the parent, so we need all nodes that could update to have a valid parent. That is this root_node for the toplevel node(s).
     let root_node = LayoutNode {
-        internal_id: id_of_node_being_built,
+        internal_id: get_next_layout_node_interal_id(),
         display: Display::Block,
         visible: true,
         children: Some(top_level_layout_nodes),
@@ -546,7 +540,7 @@ fn reset_dirtyness(node: &Rc<RefCell<LayoutNode>>) {
     }
 }
 
-//This function is responsible for setting the location rects on the node, and all its children, and updating content if needed (sync with DOM)
+//This function is responsible for setting the correct css boxes on the node, and all its children, and updating content if needed (sync with DOM)
 //TODO: we now pass in top_left x and y, but I think we should compute the positions just for layout, and offset for UI in the render phase...
 fn compute_layout_for_node(node: &Rc<RefCell<LayoutNode>>, style_context: &StyleContext, top_left_x: f32, top_left_y: f32, font_context: &FontContext,
                            current_scroll_y: f32, only_update_block_vertical_position: bool, force_full_layout: bool) {
@@ -668,7 +662,6 @@ fn compute_layout_for_table(table_dom_node: &TableLayoutNode) {
 }
 
 
-
 pub fn get_font_given_styles(styles: &HashMap<String, String>) -> (Font, Color) {
     let font_bold = has_style_value(&styles, "font-weight", &"bold".to_owned());
     let _font_underline = has_style_value(&styles, "text-decoration", &"underline".to_owned()); //TODO: we need to use this in a different way
@@ -754,7 +747,7 @@ fn apply_inline_layout(node: &mut LayoutNode, style_context: &StyleContext, top_
         if (cursor_x - top_left_x + child_width) > max_allowed_width {
 
             if child_borrow.children.is_none() && child_borrow.can_wrap() {
-                // in this case, we might be able to split rects, and put part of the node on this line
+                // in this case, we might be able to split the css boxes, and put part of the node on this line
 
                 let mut new_css_text_boxes;
                 let css_text_box_backup;

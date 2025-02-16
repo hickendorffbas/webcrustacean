@@ -76,7 +76,7 @@ pub fn layout_node_to_json(layout_node: &LayoutNode) -> String {
             buffer += "\"color\":";
             buffer += color_to_json(&text_layout_node.background_color).as_str();
 
-            buffer += ", \"rects\":";
+            buffer += ", \"boxes\":";
             buffer += css_text_boxes_to_json(&text_layout_node.css_text_boxes).as_str();
         },
         LayoutNodeContent::AreaLayoutNode(area_layout_node) => {

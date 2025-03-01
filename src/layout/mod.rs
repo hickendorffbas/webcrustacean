@@ -9,7 +9,11 @@ use image::DynamicImage;
 use crate::color::Color;
 use crate::debug::debug_log_warn;
 use crate::dom::{
-    Document, DomPropertyDisplay, ElementDomNode, NavigationAction, TagName
+    Document,
+    DomPropertyDisplay,
+    ElementDomNode,
+    NavigationAction,
+    TagName,
 };
 use crate::platform::fonts::{
     Font,
@@ -184,7 +188,7 @@ pub struct LayoutNode {
 
     pub visible: bool,
 
-    pub formatting_context: FormattingContext, //The context for laying out the children of this node  //TODO: make this true, for now its still how its parent lays out its children
+    pub formatting_context: FormattingContext, //The context for laying out the children of this node
     pub positioning_scheme: PositioningScheme, //The positioning scheme is used for the node itself
 
     pub content: LayoutNodeContent,

@@ -169,6 +169,16 @@ impl LayoutNodeContent {
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]
+pub enum PositioningScheme {
+    Static,
+    #[allow(dead_code)] Relative, //TODO: use
+    #[allow(dead_code)] Absolute, //TODO: use
+    #[allow(dead_code)] Fixed, //TODO: use
+    #[allow(dead_code)] Sticky, //TODO: use
+}
+
+
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct LayoutNode {
     pub internal_id: usize,
     pub children: Option<Vec<Rc<RefCell<LayoutNode>>>>,
@@ -177,6 +187,7 @@ pub struct LayoutNode {
 
     pub display: Display, //TODO: this should be replaced with formatting context
     pub visible: bool,
+    pub positioning_scheme: PositioningScheme,
 
     pub content: LayoutNodeContent,
 }
@@ -305,6 +316,7 @@ impl LayoutNode {
             children: None,
             from_dom_node: None,
             content: LayoutNodeContent::NoContent,
+            positioning_scheme: PositioningScheme::Static,
         };
     }
 
@@ -396,7 +408,7 @@ impl LayoutNode {
             LayoutNodeContent::AreaLayoutNode(box_node) => { box_node.css_box.y += y_diff; }
             LayoutNodeContent::TableLayoutNode(table_node) => { table_node.css_box.y += y_diff; }
             LayoutNodeContent::TableCellLayoutNode(table_cell_node) => { table_cell_node.css_box.y += y_diff; }
-            LayoutNodeContent::NoContent => { panic!("Cant adjust position of something without content"); }
+            LayoutNodeContent::NoContent => { panic!("Cant adjust position of a node without content"); }
         }
 
         if self.children.is_some() {
@@ -484,6 +496,7 @@ pub fn build_full_layout(document: &Document, font_context: &FontContext) -> Ful
             css_box: CssBox::empty(),
             background_color: Color::WHITE,
         }),
+        positioning_scheme: PositioningScheme::Static,
     };
 
     let rc_root_node = Rc::new(RefCell::from(root_node));
@@ -555,98 +568,113 @@ fn compute_layout_for_node(node: &Rc<RefCell<LayoutNode>>, style_context: &Style
 
     if !mut_node.visible {
         mut_node.update_css_box(CssBox { x: top_left_x, y: top_left_y, width: 0.0, height: 0.0 });
+        return;
+    }
 
-    } else if mut_node.children.is_some() {
+    match mut_node.positioning_scheme {
+        PositioningScheme::Static => {
 
-        if let LayoutNodeContent::TableLayoutNode(table_node) = &mut_node.content {
-            compute_layout_for_table(&table_node);
-        } else if mut_node.all_childnodes_have_given_display(Display::Block) {
-            apply_block_layout(&mut mut_node, style_context, top_left_x, top_left_y, current_scroll_y, font_context, force_full_layout);
-        } else if mut_node.all_childnodes_have_given_display(Display::Inline) {
-            apply_inline_layout(&mut mut_node, style_context, top_left_x, top_left_y, CONTENT_WIDTH - top_left_x, current_scroll_y, font_context, force_full_layout);
-        } else {
-            panic!("Not all children are either inline or block, earlier in the process this should already have been fixed with anonymous blocks");
-        }
-
-    } else {
-
-        let opt_dom_node = if mut_node.from_dom_node.is_some() {
-            Some(Rc::clone(&mut_node.from_dom_node.as_ref().unwrap()))
-        } else {
-            None
-        };
-
-        match &mut mut_node.content {
-            LayoutNodeContent::TextLayoutNode(ref mut text_layout_node) => {
-
-                if opt_dom_node.is_some() && opt_dom_node.as_ref().unwrap().borrow().dirty {
-                    text_layout_node.undo_split_boxes();
-                }
-
-                for css_text_box in text_layout_node.css_text_boxes.iter_mut() {
-                    let (box_width, box_height) = font_context.get_text_dimension(&css_text_box.text, &text_layout_node.font);
-                    css_text_box.css_box = CssBox { x: top_left_x, y: top_left_y, width: box_width, height: box_height };
-                }
-            },
-            LayoutNodeContent::ImageLayoutNode(image_layout_node) => {
-                image_layout_node.css_box =
-                    CssBox { x: top_left_x, y: top_left_y, width: image_layout_node.image.width() as f32, height: image_layout_node.image.height() as f32 };
-            },
-            LayoutNodeContent::ButtonLayoutNode(button_node) => {
-                //TODO: for now we are setting a default size here, but that should actually retreived from the DOM
-                let button_width = 100.0;  //TODO: this needs to be dependent on the text size. How do we do that? Compute it here?
-                let button_height = 40.0;
-
-                button_node.css_box = CssBox { x: top_left_x, y: top_left_y, width: button_width, height: button_height };
-                let mut_dom_node = mut_node.from_dom_node.as_ref().unwrap().borrow();
-                let mut page_component = mut_dom_node.page_component.as_ref().unwrap().borrow_mut();
-
-                match page_component.deref_mut() {
-                    PageComponent::Button(button) => {
-                        //TODO: here we get the text size, and then add margins, but that is knowledge that should be inside the ui component...
-                        //      (for example the exact size of the margins)
-                        let text_dimension = font_context.get_text_dimension(&button.text, &button.font);
-                        button.update_position(top_left_x, top_left_y - current_scroll_y, text_dimension.0 + 10.0, text_dimension.1 + 10.0);
+            match mut_node.children {
+                Some(_) => {
+                    //TODO: the options below should be checked with the formatting context:
+                    if let LayoutNodeContent::TableLayoutNode(table_node) = &mut_node.content {
+                        compute_layout_for_table(&table_node);
+                    } else if mut_node.all_childnodes_have_given_display(Display::Block) {
+                        apply_block_layout(&mut mut_node, style_context, top_left_x, top_left_y, current_scroll_y, font_context, force_full_layout);
+                    } else if mut_node.all_childnodes_have_given_display(Display::Inline) {
+                        apply_inline_layout(&mut mut_node, style_context, top_left_x, top_left_y, CONTENT_WIDTH - top_left_x, current_scroll_y, font_context, force_full_layout);
+                    } else {
+                        panic!("Not all children are either inline or block, earlier in the process this should already have been fixed with anonymous blocks");
                     }
-                    PageComponent::TextField(_) => { panic!("Invalid state"); },
-                }
-
+                },
+                None => {
+                    set_css_boxes_for_node_without_children(&mut mut_node, top_left_x, top_left_y, font_context, current_scroll_y);
+                },
             }
-            LayoutNodeContent::TextInputLayoutNode(text_input_node) => {
-                //TODO: for now we are setting a default size here, but that should actually retreived from the DOM
-                let field_width = 500.0;
-                let field_height = 40.0;
+        },
+        _ => todo!("Positioning scheme not yet implemented"),
+    }
 
-                text_input_node.css_box = CssBox { x: top_left_x, y: top_left_y, width: field_width, height: field_height };
-                let dom_node = mut_node.from_dom_node.as_ref().unwrap().borrow();
-                let mut page_component = dom_node.page_component.as_ref().unwrap().borrow_mut();
+}
 
-                match page_component.deref_mut() {
-                    PageComponent::Button(_) => { panic!("Invalid state"); },
-                    PageComponent::TextField(text_field) => {
-                        text_field.update_position(top_left_x, top_left_y - current_scroll_y, field_width, field_height);
-                    }
+
+fn set_css_boxes_for_node_without_children(node: &mut LayoutNode, top_left_x: f32, top_left_y: f32, font_context: &FontContext, current_scroll_y: f32) {
+
+    let opt_dom_node = if node.from_dom_node.is_some() {
+        Some(Rc::clone(&node.from_dom_node.as_ref().unwrap()))
+    } else {
+        None
+    };
+
+    match &mut node.content {
+        LayoutNodeContent::TextLayoutNode(ref mut text_layout_node) => {
+
+            if opt_dom_node.is_some() && opt_dom_node.as_ref().unwrap().borrow().dirty {
+                text_layout_node.undo_split_boxes();
+            }
+
+            for css_text_box in text_layout_node.css_text_boxes.iter_mut() {
+                let (box_width, box_height) = font_context.get_text_dimension(&css_text_box.text, &text_layout_node.font);
+                css_text_box.css_box = CssBox { x: top_left_x, y: top_left_y, width: box_width, height: box_height };
+            }
+        },
+        LayoutNodeContent::ImageLayoutNode(image_layout_node) => {
+            image_layout_node.css_box =
+                CssBox { x: top_left_x, y: top_left_y, width: image_layout_node.image.width() as f32, height: image_layout_node.image.height() as f32 };
+        },
+        LayoutNodeContent::ButtonLayoutNode(button_node) => {
+            //TODO: for now we are setting a default size here, but that should actually retreived from the DOM
+            let button_width = 100.0;  //TODO: this needs to be dependent on the text size. How do we do that? Compute it here?
+            let button_height = 40.0;
+
+            button_node.css_box = CssBox { x: top_left_x, y: top_left_y, width: button_width, height: button_height };
+            let mut_dom_node = node.from_dom_node.as_ref().unwrap().borrow();
+            let mut page_component = mut_dom_node.page_component.as_ref().unwrap().borrow_mut();
+
+            match page_component.deref_mut() {
+                PageComponent::Button(button) => {
+                    //TODO: here we get the text size, and then add margins, but that is knowledge that should be inside the ui component...
+                    //      (for example the exact size of the margins)
+                    let text_dimension = font_context.get_text_dimension(&button.text, &button.font);
+                    button.update_position(top_left_x, top_left_y - current_scroll_y, text_dimension.0 + 10.0, text_dimension.1 + 10.0);
                 }
-            },
-            LayoutNodeContent::AreaLayoutNode(area_node) => {
-                //Note: this is a boxlayoutnode, but without children (because that is a seperate case above), so no content.
+                PageComponent::TextField(_) => { panic!("Invalid state"); },
+            }
 
-                //TODO: for now generating 1 by 1 sized, this might not be correct given styling.
-                area_node.css_box = CssBox { x: top_left_x, y: top_left_y, width: 1.0, height: 1.0 };
-            },
-            LayoutNodeContent::NoContent => todo!(), //TODO: should we still compute a position? Maybe it is always 0 by 0 pixels?
-            LayoutNodeContent::TableLayoutNode(table_layout_node) => {
-                //This is a table without children, so it has no size (the case with children is handled above...)
-                table_layout_node.css_box = CssBox { x: top_left_x, y: top_left_y, width: 0.0, height: 0.0 };
-
-            },
-            LayoutNodeContent::TableCellLayoutNode(cell_layout_node) => {
-                //This is the case where the cell has no children, which means no content, which means no size for rendering
-                //(the position of other cells has already been computed when their parent was computed)
-                cell_layout_node.css_box = CssBox { x: top_left_x, y: top_left_y, width: 0.0, height: 0.0 };
-            },
         }
+        LayoutNodeContent::TextInputLayoutNode(text_input_node) => {
+            //TODO: for now we are setting a default size here, but that should actually retreived from the DOM
+            let field_width = 500.0;
+            let field_height = 40.0;
 
+            text_input_node.css_box = CssBox { x: top_left_x, y: top_left_y, width: field_width, height: field_height };
+            let dom_node = node.from_dom_node.as_ref().unwrap().borrow();
+            let mut page_component = dom_node.page_component.as_ref().unwrap().borrow_mut();
+
+            match page_component.deref_mut() {
+                PageComponent::Button(_) => { panic!("Invalid state"); },
+                PageComponent::TextField(text_field) => {
+                    text_field.update_position(top_left_x, top_left_y - current_scroll_y, field_width, field_height);
+                }
+            }
+        },
+        LayoutNodeContent::AreaLayoutNode(area_node) => {
+            //Note: this is a boxlayoutnode, but without children (because that is a seperate case above), so no content.
+
+            //TODO: for now generating 1 by 1 sized, this might not be correct given styling.
+            area_node.css_box = CssBox { x: top_left_x, y: top_left_y, width: 1.0, height: 1.0 };
+        },
+        LayoutNodeContent::NoContent => todo!(), //TODO: should we still compute a position? Maybe it is always 0 by 0 pixels?
+        LayoutNodeContent::TableLayoutNode(table_layout_node) => {
+            //This is a table without children, so it has no size (the case with children is handled above...)
+            table_layout_node.css_box = CssBox { x: top_left_x, y: top_left_y, width: 0.0, height: 0.0 };
+
+        },
+        LayoutNodeContent::TableCellLayoutNode(cell_layout_node) => {
+            //This is the case where the cell has no children, which means no content, which means no size for rendering
+            //(the position of other cells has already been computed when their parent was computed)
+            cell_layout_node.css_box = CssBox { x: top_left_x, y: top_left_y, width: 0.0, height: 0.0 };
+        },
     }
 }
 
@@ -943,6 +971,8 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
     let partial_node_background_color = get_color_style_value(&partial_node_styles, "background-color").unwrap_or(Color::WHITE);
 
+    let positioning_scheme = PositioningScheme::Static; //TODO: this should be derived from the position attribute on the DOM node
+
     let mut childs_to_recurse_on: &Option<Vec<Rc<RefCell<ElementDomNode>>>> = &None;
 
     let main_node_refcell = main_node;
@@ -1163,6 +1193,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
         children: partial_node_children,
         from_dom_node: Some(Rc::clone(&main_node_refcell)),
         content: content,
+        positioning_scheme,
     };
 
     return Rc::new(RefCell::from(new_node));
@@ -1207,7 +1238,8 @@ fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>, doc
                                     css_box: CssBox::empty(),
                                     slot_x_idx,
                                     slot_y_idx,
-                                })
+                                }),
+                                positioning_scheme: PositioningScheme::Static,
                             };
 
                             layout_children.push(Rc::from(RefCell::from(cell_layout_node)));
@@ -1236,7 +1268,8 @@ fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>, doc
         visible: true,
         content: LayoutNodeContent::TableLayoutNode(TableLayoutNode {
             css_box: CssBox::empty(),
-        })
+        }),
+        positioning_scheme: PositioningScheme::Static,
     }
 }
 
@@ -1324,6 +1357,7 @@ fn build_anonymous_block_layout_node(visible: bool, inline_children: Vec<Rc<RefC
         children: Some(inline_children),
         from_dom_node: None,
         content: LayoutNodeContent::AreaLayoutNode(empty_box_layout_node),
+        positioning_scheme: PositioningScheme::Static,
     };
 
     return Rc::new(RefCell::from(anonymous_node));

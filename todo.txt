@@ -56,8 +56,9 @@ goals for 0.5.0:
               STEPS TO FIX THINGS:
                      DONE 1) change from rects to boxes (probably same objects)
                      DONE 2) make responsibility of methods in the layout module more clear
-                     3) implement positioning scheme computation per layout node
-                     4) handle width and height in the correct way (width on the way down, height on the way up)
+                     DONE 3) implement positioning scheme per layout node
+                     4) compute / load the formatting context correctly, and implement block and inline in those terms, fix my Display (block, inline) enum as well
+                     5) handle width and height in the correct way (width on the way down, height on the way up)
 
 
 

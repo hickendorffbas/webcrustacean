@@ -58,8 +58,7 @@ goals for 0.5.0:
                      DONE 2) make responsibility of methods in the layout module more clear
                      DONE 3) implement positioning scheme per layout node
                      DONE 4) compute / load the formatting context correctly, and implement block and inline in those terms
-                     5) we now have leading spaces in paragraphs again. We probably need to handle whitespace different (at least for inline elements?)
-                     6) handle width and height in the correct way (width on the way down, height on the way up)
+                     5) handle width and height in the correct way (width on the way down, height on the way up)
 
 
 

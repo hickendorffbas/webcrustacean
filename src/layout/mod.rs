@@ -738,19 +738,21 @@ fn apply_inline_layout(node: &mut LayoutNode, style_context: &StyleContext, top_
                 cursor_y += max_height_of_line;
                 child_height = max_height_of_line;
             } else {
-                //TODO: we need to make the height of the newline dependent on the font size, but
-                //we don't have the styles anymore. Should we just make sure the font is set for
-                //newline as well? It seems we don't have a rect in that case?
 
-                let random_char_height = 16.0; //TODO: temporary hardcoded value
+                let char_height = if let LayoutNodeContent::TextLayoutNode(text_node) = &RefCell::borrow(child).content {
+                    //we take the height of an arbitrary character here, because whitespace may have no height in some fonts
+                    let (_, char_height) = font_context.get_text_dimension(&String::from("X"), &text_node.font);
+                    char_height
+                } else {
+                    panic!("Linebreak should always be a text node");
+                };
 
                 cursor_x = top_left_x;
-                cursor_y += random_char_height;
-                child_height = random_char_height;
+                cursor_y += char_height;
+                child_height = char_height;
             }
 
             RefCell::borrow_mut(child).update_css_box(CssBox { x: top_left_x, y: top_left_y, width: max_width, height: child_height });
-
             continue;
         }
 

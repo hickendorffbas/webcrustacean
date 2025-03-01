@@ -57,8 +57,9 @@ goals for 0.5.0:
                      DONE 1) change from rects to boxes (probably same objects)
                      DONE 2) make responsibility of methods in the layout module more clear
                      DONE 3) implement positioning scheme per layout node
-                     4) compute / load the formatting context correctly, and implement block and inline in those terms, fix my Display (block, inline) enum as well
-                     5) handle width and height in the correct way (width on the way down, height on the way up)
+                     DONE 4) compute / load the formatting context correctly, and implement block and inline in those terms
+                     5) we now have leading spaces in paragraphs again. We probably need to handle whitespace different (at least for inline elements?)
+                     6) handle width and height in the correct way (width on the way down, height on the way up)
 
 
 

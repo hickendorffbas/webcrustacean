@@ -330,6 +330,41 @@ impl ElementDomNode {
             page_component: None,
         };
     }
+
+    pub fn dom_property_display(&self) -> DomPropertyDisplay {
+        //TODO: check styles for any setting of the display property, and return if set
+
+        if self.name.is_some() {
+            let node_name = self.name.as_ref().unwrap();
+
+            if node_name == "a" ||  //TODO: should we check a static array of str here?
+               node_name == "b" ||
+               node_name == "br" ||
+               node_name == "img" ||
+               node_name == "span" {
+                    return DomPropertyDisplay::Inline;
+            }
+            return DomPropertyDisplay::Block;
+
+        }
+        if self.text.is_some() {
+            return DomPropertyDisplay::Inline;
+        }
+        if self.is_document_node {
+            return DomPropertyDisplay::Block;
+        }
+
+        panic!("No other cases should exist")
+    }
+}
+
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(PartialEq)]
+pub enum DomPropertyDisplay {
+    Block,
+    Inline,
+    #[allow(dead_code)] None,  //TODO: add this case (needs to be parsed from css property)
 }
 
 

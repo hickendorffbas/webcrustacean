@@ -55,7 +55,7 @@ impl FullLayout {
         }
     }
     pub fn new_empty() -> FullLayout {
-        //Note that we we create a 1x1 rect even for an empty layout, since we need a rect to render it (for example when the first page is still loading)
+        //Note that we we create a 1x1 box even for an empty layout, since we need a box to render it (for example when the first page is still loading)
 
         let area_node = AreaLayoutNode {
             background_color: Color::WHITE,
@@ -422,7 +422,8 @@ impl LayoutNode {
 #[derive(PartialEq)]
 pub enum FormattingContext {
     Block,
-    Inline
+    Inline,
+    Table,
 }
 
 
@@ -564,18 +565,24 @@ fn compute_layout_for_node(node: &Rc<RefCell<LayoutNode>>, style_context: &Style
 
             match mut_node.children {
                 Some(_) => {
-                    //TODO: this first check for table here is ugly, it probably belowings in some formatting context or something
-                    if let LayoutNodeContent::TableLayoutNode(table_node) = &mut_node.content {
-                        compute_layout_for_table(&table_node);
-                    } else {
-                        match mut_node.formatting_context {
-                            FormattingContext::Block => {
-                                apply_block_layout(&mut mut_node, style_context, top_left_x, top_left_y, current_scroll_y, font_context, force_full_layout);
-                            },
-                            FormattingContext::Inline => {
-                                apply_inline_layout(&mut mut_node, style_context, top_left_x, top_left_y, CONTENT_WIDTH - top_left_x, current_scroll_y, font_context, force_full_layout);
-                            },
-                        }
+                    match mut_node.formatting_context {
+                        FormattingContext::Block => {
+                            apply_block_layout(&mut mut_node, style_context, top_left_x, top_left_y, current_scroll_y, font_context, force_full_layout);
+                        },
+                        FormattingContext::Inline => {
+                            apply_inline_layout(&mut mut_node, style_context, top_left_x, top_left_y, CONTENT_WIDTH - top_left_x, current_scroll_y, font_context, force_full_layout);
+                        },
+                        FormattingContext::Table => {
+                            match &mut_node.content {
+                                LayoutNodeContent::TableLayoutNode(table_layout_node) => {
+                                    compute_layout_for_table(&table_layout_node);
+                                },
+                                LayoutNodeContent::TableCellLayoutNode(_) => {
+                                    todo!(); //TODO: not completely sure if we ever get here, or that we recurse into different methods from the main table node...
+                                },
+                                _ => panic!("Table formatting context on non-table layout node")
+                            }
+                        },
                     }
                 },
                 None => {
@@ -1186,7 +1193,7 @@ fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>, doc
 
                             if borr_dom_row_child.children.is_some() {
                                 for dom_cell_child in borr_dom_row_child.children.as_ref().unwrap() {
-                                    let layout_child = build_layout_tree(dom_cell_child, document, font_context, FormattingContext::Block);
+                                    let layout_child = build_layout_tree(dom_cell_child, document, font_context, FormattingContext::Table);
                                     cell_children.push(layout_child);
                                 }
                             }
@@ -1195,7 +1202,7 @@ fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>, doc
                                 internal_id: get_next_layout_node_interal_id(),
                                 children: Some(cell_children),
                                 from_dom_node: Some(dom_row_child.clone()),
-                                formatting_context: FormattingContext::Block,
+                                formatting_context: FormattingContext::Table,
                                 visible: true,
                                 content: LayoutNodeContent::TableCellLayoutNode(TableCellLayoutNode {
                                     css_box: CssBox::empty(),
@@ -1227,7 +1234,7 @@ fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>, doc
         internal_id: get_next_layout_node_interal_id(),
         children: Some(layout_children),
         from_dom_node: Some(table_dom_node.clone()),
-        formatting_context: FormattingContext::Block,
+        formatting_context: FormattingContext::Table,
         visible: true,
         content: LayoutNodeContent::TableLayoutNode(TableLayoutNode {
             css_box: CssBox::empty(),

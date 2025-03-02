@@ -33,13 +33,6 @@ goals for 0.5.0:
                             -> this is similar to inline elements growing in the space that they have, based on the space in the container
                                    -> for tables this is the same for the full table, the columns have their own algo
 
-
-              -> I need to model the positioning schemes (normal flow, float, absolute) on a box
-                     -> it would also be nice to actually have boxes (they are probably close to layout rects, and can probably live on the layout node)
-                            -> what is the exact function of the layout node? It has the content, the box has the layout properties
-
-                     -> the positioning scheme "normal flow" needs 2 formatting contexts (block and inline)
-
               -> see https://www.w3.org/TR/CSS2/visuren.html
               -> this might be useful: https://.w3.org/TR/2016/WD-css-sizing-3-20160510/ and https://www.w3.org/TR/css-sizing-3/#width-height
 

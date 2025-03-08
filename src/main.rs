@@ -53,6 +53,7 @@ use crate::ui::{
     CONTENT_HEIGHT,
     CONTENT_TOP_LEFT_X,
     CONTENT_TOP_LEFT_Y,
+    CONTENT_WIDTH,
     FocusTarget,
     HEADER_HEIGHT,
     History,
@@ -177,7 +178,7 @@ fn finish_navigate(navigation_action: &NavigationAction, ui_state: &mut UIState,
     ui_state.currently_loading_page = false;
 
     compute_layout(&full_layout.borrow().root_node, &document.borrow().style_context, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y,
-                   &platform.font_context, ui_state.current_scroll_y, false, true);
+                   &platform.font_context, ui_state.current_scroll_y, false, true, CONTENT_WIDTH);
 
     #[cfg(feature="timings")] println!("layout elapsed millis: {}", start_layout_instant.elapsed().as_millis());
 }
@@ -563,7 +564,7 @@ fn main() -> Result<(), String> {
             full_layout_tree.borrow_mut().nodes_in_selection_order = nodes_in_selection_order;
 
             compute_layout(&full_layout_tree.borrow().root_node, &document.borrow().style_context, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y,
-                           &platform.font_context, ui_state.current_scroll_y, false, false);
+                           &platform.font_context, ui_state.current_scroll_y, false, false, CONTENT_WIDTH);
         }
 
         #[cfg(feature="timings")] let start_render_instant = Instant::now();

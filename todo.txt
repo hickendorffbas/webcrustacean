@@ -18,43 +18,13 @@ goals for 0.5.0:
               - check: https://drafts.csswg.org/css2/#auto-table-layout
                      - first fix width computation in layout
 
-       - fix width computation in layout
-              width should only be passed top down (there are cases where an element can overflow, but they don't affect parent or childs)
-              height should only be passed bottom up (from child to parent)
-              text wrapping should be less special cased I think, it is just inline layout
-
-              what is my layout algoritm (the positioning, not building the tree...) doing currently?
-                     we are going in with (x,y) of top left, and we set the rect on each node, bottom up (children first, then the parent based on children)
-
-              inline elements and table columns will have their width dependent on their content
-
-              -> a probably safe change is to pass in a parents_width
-                     -> is there any case where the width of the parent is changed because of changes in a child? what about a table in a table
-                            -> this is similar to inline elements growing in the space that they have, based on the space in the container
-                                   -> for tables this is the same for the full table, the columns have their own algo
-
               -> see https://www.w3.org/TR/CSS2/visuren.html
               -> this might be useful: https://.w3.org/TR/2016/WD-css-sizing-3-20160510/ and https://www.w3.org/TR/css-sizing-3/#width-height
 
-              -> inline context needs line-boxes
-
-              -> formatting a layout node (making a list of boxes), means coming in with a top left (x, y) and the parents width and its top left (x, y)
-                     going out with a full position on the box
-
-              -> it would be good in the new code to be clearer on what the scope of the function is, layouting its children, the node itself, both?
-                     -> this might be the first thing I want to tackle. A function that takes a node, a set width from the parent, computes a positioning scheme
-                        and then layouts its children (via this method recursively), and sets its own position
-
-
-              STEPS TO FIX THINGS:
-                     DONE 1) change from rects to boxes (probably same objects)
-                     DONE 2) make responsibility of methods in the layout module more clear
-                     DONE 3) implement positioning scheme per layout node
-                     DONE 4) compute / load the formatting context correctly, and implement block and inline in those terms
-                     5) handle width and height in the correct way (width on the way down, height on the way up)
 
 
 
 other things (later versions):
+       - for layout, in inline context we might need to implement line-boxes
        - fix transparancy in png's (loading works, rendering in SDL does not)
        - figure out how do build standalone binaries

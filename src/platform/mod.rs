@@ -8,12 +8,15 @@ use sdl2::{
     keyboard::Keycode as SdlKeycode,
     pixels::{Color as SdlColor, PixelFormatEnum},
     rect::{Point as SdlPoint, Rect as SdlRect},
-    render::{BlendMode, TextureAccess, WindowCanvas},
+    render::{
+        BlendMode,
+        TextureAccess,
+        WindowCanvas
+    },
     Sdl,
     VideoSubsystem,
 };
 
-use crate::{SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::color::Color;
 use crate::platform::fonts::{Font, FontContext};
 
@@ -177,14 +180,15 @@ pub fn to_sdl_color(color: Color, alpha: u8) -> SdlColor {
 }
 
 
-pub fn init_platform(sdl_context: Sdl) -> Result<Platform, String> {
+pub fn init_platform(sdl_context: Sdl, screen_width: f32, screen_height: f32) -> Result<Platform, String> {
     let video_subsystem = sdl_context.video()
         .expect("Could not get the video subsystem");
 
     let image_context = SdlImage::init(SdlImage::InitFlag::PNG | SdlImage::InitFlag::JPG)?;
 
-    let window = video_subsystem.window("Webcrustacean", SCREEN_WIDTH as u32, SCREEN_HEIGHT as u32)
+    let window = video_subsystem.window("Webcrustacean", screen_width as u32, screen_height as u32)
         .position_centered()
+        .resizable()
         .build()
         .expect("could not initialize video subsystem");
 

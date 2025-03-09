@@ -356,6 +356,16 @@ impl ElementDomNode {
 
         panic!("No other cases should exist")
     }
+
+    pub fn mark_all_as_dirty(&mut self) {
+        self.dirty = true;
+
+        if self.children.is_some() {
+            for child in self.children.as_ref().unwrap() {
+                child.borrow_mut().mark_all_as_dirty();
+            }
+        }
+    }
 }
 
 

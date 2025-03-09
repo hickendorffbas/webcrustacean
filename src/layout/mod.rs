@@ -22,7 +22,7 @@ use crate::platform::fonts::{
     FontFace,
 };
 use crate::ui_components::PageComponent;
-use crate::{SelectionRect, SCREEN_HEIGHT};
+use crate::SelectionRect;
 use crate::style::{
     get_color_style_value,
     get_property_from_computed_styles,
@@ -258,17 +258,17 @@ impl LayoutNode {
         }
     }
 
-    pub fn visible_on_y_location(&self, y_location: f32) -> bool {
+    pub fn visible_on_y_location(&self, y_location: f32, screen_height: f32) -> bool {
         match &self.content {
             LayoutNodeContent::TextLayoutNode(text_node) => {
-                return text_node.css_text_boxes.iter().any(|text_box| -> bool {text_box.css_box.is_visible_on_y_location(y_location)});
+                return text_node.css_text_boxes.iter().any(|text_box| -> bool {text_box.css_box.is_visible_on_y_location(y_location, screen_height)});
             },
-            LayoutNodeContent::ImageLayoutNode(image_node) => { return image_node.css_box.is_visible_on_y_location(y_location); },
-            LayoutNodeContent::ButtonLayoutNode(button_node) => { return button_node.css_box.is_visible_on_y_location(y_location); }
-            LayoutNodeContent::TextInputLayoutNode(text_input_node) => { return text_input_node.css_box.is_visible_on_y_location(y_location); }
-            LayoutNodeContent::AreaLayoutNode(box_node) => { return box_node.css_box.is_visible_on_y_location(y_location); },
-            LayoutNodeContent::TableLayoutNode(table_node) => { return table_node.css_box.is_visible_on_y_location(y_location); }
-            LayoutNodeContent::TableCellLayoutNode(cell_node) => { return cell_node.css_box.is_visible_on_y_location(y_location); }
+            LayoutNodeContent::ImageLayoutNode(image_node) => { return image_node.css_box.is_visible_on_y_location(y_location, screen_height); },
+            LayoutNodeContent::ButtonLayoutNode(button_node) => { return button_node.css_box.is_visible_on_y_location(y_location, screen_height); }
+            LayoutNodeContent::TextInputLayoutNode(text_input_node) => { return text_input_node.css_box.is_visible_on_y_location(y_location, screen_height); }
+            LayoutNodeContent::AreaLayoutNode(box_node) => { return box_node.css_box.is_visible_on_y_location(y_location, screen_height); },
+            LayoutNodeContent::TableLayoutNode(table_node) => { return table_node.css_box.is_visible_on_y_location(y_location, screen_height); }
+            LayoutNodeContent::TableCellLayoutNode(cell_node) => { return cell_node.css_box.is_visible_on_y_location(y_location, screen_height); }
             LayoutNodeContent::NoContent => { return false; }
         }
     }
@@ -445,11 +445,12 @@ impl CssBox {
     pub fn empty() -> CssBox {
         return CssBox { x: 0.0, y: 0.0, width: 0.0, height: 0.0 };
     }
-    pub fn is_visible_on_y_location(&self, y: f32) -> bool {
+    pub fn is_visible_on_y_location(&self, y: f32, screen_height: f32) -> bool {
+        //TODO: we are asking for "screen_height" here. Should that not be "content_height" ?
         let top_of_node = self.y;
         let top_of_view = y;
         let bottom_of_node = top_of_node + self.height;
-        let bottom_of_view = top_of_view + SCREEN_HEIGHT;
+        let bottom_of_view = top_of_view + screen_height;
 
         return !(top_of_node > bottom_of_view || bottom_of_node < top_of_view);
     }

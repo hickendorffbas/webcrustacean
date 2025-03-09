@@ -5,7 +5,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::dom::Document;
 use crate::layout::LayoutNode;
-use crate::{SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::color::Color;
 use crate::network::url::Url;
 use crate::platform::{
@@ -21,8 +20,6 @@ use crate::ui_components::{
 };
 
 
-pub const CONTENT_HEIGHT: f32 = SCREEN_HEIGHT - HEADER_HEIGHT;
-pub const CONTENT_WIDTH: f32 = SCREEN_WIDTH - MAIN_SCROLLBAR_WIDTH;
 pub const CONTENT_TOP_LEFT_X: f32 = 0.0;
 pub const CONTENT_TOP_LEFT_Y: f32 = HEADER_HEIGHT;
 
@@ -32,8 +29,6 @@ pub const UI_BASIC_COLOR: Color = Color::new(212, 208, 200);
 pub const UI_BASIC_DARKER_COLOR: Color = Color::new(116, 107, 90);
 
 pub const MAIN_SCROLLBAR_WIDTH: f32 = 20.0;
-pub const MAIN_SCROLLBAR_HEIGHT: f32 = SCREEN_HEIGHT - HEADER_HEIGHT;
-pub const MAIN_SCROLLBAR_X_POS: f32 = SCREEN_WIDTH - MAIN_SCROLLBAR_WIDTH;
 
 
 pub struct History {
@@ -51,6 +46,13 @@ pub enum FocusTarget {
     Component(Rc<RefCell<PageComponent>>),
 }
 
+pub struct WindowDimensions {
+    pub screen_width: f32,
+    pub screen_height: f32,
+    pub content_viewport_width: f32,
+    pub content_viewport_height: f32,
+}
+
 pub struct UIState {
     pub addressbar: TextField,
     pub current_scroll_y: f32,
@@ -61,8 +63,55 @@ pub struct UIState {
     pub animation_tick: u32,
     pub focus_target: FocusTarget,
     pub main_scrollbar: Scrollbar, //TODO: eventually this should become a dynamic page component in the list, because there might be more than 1 scrollbar
+    pub window_dimensions: WindowDimensions,
 }
+impl UIState {
+    pub fn new(screen_width: f32, screen_height: f32) -> UIState {
 
+        let scrollbar_x_pos = screen_width - MAIN_SCROLLBAR_WIDTH;
+        let scrollbar_height = screen_height - HEADER_HEIGHT;
+        let main_scrollbar = Scrollbar {
+            x: scrollbar_x_pos,
+            y: HEADER_HEIGHT,
+            width: screen_width - scrollbar_x_pos,
+            height: scrollbar_height,
+            content_size: 0.0,
+            content_viewport_height: 0.0, //TODO: make sure we set this correctly in the update_window_dimensions method
+            block_height: scrollbar_height,
+            block_y: HEADER_HEIGHT,
+            enabled: false,
+        };
+
+        let mut ui_state = UIState {
+            addressbar: TextField::new(100.0, 10.0, screen_width - 200.0, 35.0, true),
+            current_scroll_y: 0.0,
+            back_button: NavigationButton { x: 15.0, y: 15.0, forward: false, enabled: false },
+            forward_button: NavigationButton { x: 55.0, y: 15.0, forward: true, enabled: false },
+            history: History { list: Vec::new(), position: 0, currently_navigating_from_history: false },
+            currently_loading_page: false,
+            animation_tick: 0,
+            focus_target: FocusTarget::None,
+            main_scrollbar: main_scrollbar,
+            window_dimensions: WindowDimensions { screen_height, screen_width, content_viewport_height: 0.0, content_viewport_width: 0.0 },
+        };
+
+        ui_state.update_window_dimensions(screen_width, screen_height);
+
+        return ui_state;
+    }
+
+    pub fn update_window_dimensions(&mut self, screen_width: f32, screen_height: f32) {
+        self.window_dimensions.screen_width = screen_width;
+        self.window_dimensions.screen_height = screen_height;
+
+        self.window_dimensions.content_viewport_width = screen_width - MAIN_SCROLLBAR_WIDTH;
+        self.window_dimensions.content_viewport_height = screen_height - HEADER_HEIGHT;
+
+        self.main_scrollbar.update_content_viewport_size(self.window_dimensions.content_viewport_width,
+                                                         self.window_dimensions.content_viewport_height, self.current_scroll_y);
+        self.addressbar.width = screen_width - 200.0;
+    }
+}
 
 pub fn render_ui(platform: &mut Platform, ui_state: &mut UIState) {
     update_animation_state(ui_state);
@@ -225,10 +274,10 @@ fn clear_other_focus(ui_state: &mut UIState, document: &RefCell<Document>) {
 
 
 fn render_header(platform: &mut Platform, ui_state: &UIState) {
-    platform.fill_rect(0.0, 0.0, SCREEN_WIDTH, HEADER_HEIGHT, Color::WHITE, 255);
+    platform.fill_rect(0.0, 0.0, ui_state.window_dimensions.screen_width, HEADER_HEIGHT, Color::WHITE, 255);
 
     platform.draw_line(Position { x: 0.0, y: HEADER_HEIGHT - 1.0 },
-                       Position { x: SCREEN_WIDTH, y: HEADER_HEIGHT - 1.0 },
+                       Position { x: ui_state.window_dimensions.screen_width, y: HEADER_HEIGHT - 1.0 },
                        Color::BLACK);
 
     if ui_state.currently_loading_page {

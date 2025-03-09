@@ -50,28 +50,17 @@ use crate::resource_loader::{ResourceRequestJobTracker, ResourceThreadPool};
 use crate::renderer::render;
 use crate::script::js_interpreter;
 use crate::ui::{
-    CONTENT_HEIGHT,
     CONTENT_TOP_LEFT_X,
     CONTENT_TOP_LEFT_Y,
-    CONTENT_WIDTH,
     FocusTarget,
-    HEADER_HEIGHT,
-    History,
-    MAIN_SCROLLBAR_HEIGHT,
-    MAIN_SCROLLBAR_X_POS,
     UIState,
-};
-use crate::ui_components::{
-    NavigationButton,
-    TextField,
-    Scrollbar,
 };
 
 
 //Config:
 const TARGET_FPS: u32 = if cfg!(debug_assertions) { 20 } else { 60 };
-const SCREEN_WIDTH: f32 = 1400.0;
-const SCREEN_HEIGHT: f32 = 800.0;
+const STARTING_SCREEN_WIDTH: f32 = 1400.0;
+const STARTING_SCREEN_HEIGHT: f32 = 800.0;
 const DEFAULT_LOCATION_TO_LOAD: &str = "about:home";
 const SCROLL_SPEED: i32 = 25;
 const NR_RESOURCE_LOADING_THREADS: usize = 4;
@@ -178,7 +167,7 @@ fn finish_navigate(navigation_action: &NavigationAction, ui_state: &mut UIState,
     ui_state.currently_loading_page = false;
 
     compute_layout(&full_layout.borrow().root_node, &document.borrow().style_context, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y,
-                   &platform.font_context, ui_state.current_scroll_y, false, true, CONTENT_WIDTH);
+                   &platform.font_context, ui_state.current_scroll_y, false, true, ui_state.window_dimensions.content_viewport_width);
 
     #[cfg(feature="timings")] println!("layout elapsed millis: {}", start_layout_instant.elapsed().as_millis());
 }
@@ -217,8 +206,8 @@ fn build_selection_rect_on_css_text_box(css_text_box: &mut CssTextBox, selection
 }
 
 
-fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_rect: &SelectionRect, current_scroll_y: f32, nodes_in_selection_order: &Vec<Rc<RefCell<LayoutNode>>>) {
-    if !layout_node.borrow().visible_on_y_location(current_scroll_y) {
+fn compute_selection_regions(ui_state: &UIState, layout_node: &Rc<RefCell<LayoutNode>>, selection_rect: &SelectionRect, current_scroll_y: f32, nodes_in_selection_order: &Vec<Rc<RefCell<LayoutNode>>>) {
+    if !layout_node.borrow().visible_on_y_location(current_scroll_y, ui_state.window_dimensions.screen_height) {
         return;
     }
 
@@ -334,7 +323,7 @@ fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_re
 
     if layout_node.borrow().children.is_some() {
         for child in layout_node.borrow().children.as_ref().unwrap() {
-            compute_selection_regions(&child, selection_rect, current_scroll_y, nodes_in_selection_order);
+            compute_selection_regions(&ui_state, &child, selection_rect, current_scroll_y, nodes_in_selection_order);
         }
     }
 }
@@ -342,38 +331,12 @@ fn compute_selection_regions(layout_node: &Rc<RefCell<LayoutNode>>, selection_re
 
 fn main() -> Result<(), String> {
     let sdl_context = sdl2::init()?;
-    let mut platform = platform::init_platform(sdl_context).unwrap();
+    let mut platform = platform::init_platform(sdl_context, STARTING_SCREEN_WIDTH, STARTING_SCREEN_HEIGHT).unwrap();
 
     let mut resource_thread_pool = ResourceThreadPool { pool: ThreadPool::new(NR_RESOURCE_LOADING_THREADS) };
 
     let mut mouse_state = MouseState { x: 0, y: 0, click_start_x: 0, click_start_y: 0, left_down: false };
-
-    let addressbar_text_field = TextField::new(100.0, 10.0, SCREEN_WIDTH - 200.0, 35.0, true);
-
-    //TODO: this setting up of components should happen in the ui module eventually
-    let main_scrollbar = Scrollbar {
-        x: MAIN_SCROLLBAR_X_POS,
-        y: HEADER_HEIGHT,
-        width: SCREEN_WIDTH,
-        height: MAIN_SCROLLBAR_HEIGHT,
-        content_size: 0.0,
-        content_visible_height: CONTENT_HEIGHT,
-        block_height: MAIN_SCROLLBAR_HEIGHT,
-        block_y: HEADER_HEIGHT,
-        enabled: false,
-    };
-
-    let mut ui_state = UIState {
-        addressbar: addressbar_text_field,
-        current_scroll_y: 0.0,
-        back_button: NavigationButton { x: 15.0, y: 15.0, forward: false, enabled: false },
-        forward_button: NavigationButton { x: 55.0, y: 15.0, forward: true, enabled: false },
-        history: History { list: Vec::new(), position: 0, currently_navigating_from_history: false },
-        currently_loading_page: false,
-        animation_tick: 0,
-        focus_target: FocusTarget::None,
-        main_scrollbar: main_scrollbar,
-    };
+    let mut ui_state = UIState::new(STARTING_SCREEN_WIDTH, STARTING_SCREEN_HEIGHT);
 
     let document = RefCell::from(Document::new_empty());
     let full_layout_tree = RefCell::from(FullLayout::new_empty());
@@ -409,6 +372,15 @@ fn main() -> Result<(), String> {
                 SdlEvent::Quit {..} | SdlEvent::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     break 'main_loop;
                 },
+                SdlEvent::Window { win_event, .. } => {
+                    match win_event {
+                        sdl2::event::WindowEvent::SizeChanged(width, height) => {
+                            ui_state.update_window_dimensions(width as f32, height as f32);
+                            document.borrow_mut().document_node.borrow_mut().mark_all_as_dirty();
+                        },
+                        _ => {},
+                    }
+                }
                 SdlEvent::MouseMotion { x: mouse_x, y: mouse_y, yrel, .. } => {
                     mouse_state.x = mouse_x;
                     mouse_state.y = mouse_y;
@@ -425,7 +397,7 @@ fn main() -> Result<(), String> {
                             FocusTarget::MainContent => {
                                 RefCell::borrow_mut(&full_layout_tree.borrow_mut().root_node).reset_selection();
                                 let full_layout_tree = full_layout_tree.borrow();
-                                compute_selection_regions(&full_layout_tree.root_node, &selection_rect, ui_state.current_scroll_y,
+                                compute_selection_regions(&ui_state, &full_layout_tree.root_node, &selection_rect, ui_state.current_scroll_y,
                                                           &full_layout_tree.nodes_in_selection_order);
                             },
                             FocusTarget::AddressBar => {
@@ -564,7 +536,7 @@ fn main() -> Result<(), String> {
             full_layout_tree.borrow_mut().nodes_in_selection_order = nodes_in_selection_order;
 
             compute_layout(&full_layout_tree.borrow().root_node, &document.borrow().style_context, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y,
-                           &platform.font_context, ui_state.current_scroll_y, false, false, CONTENT_WIDTH);
+                           &platform.font_context, ui_state.current_scroll_y, false, false, ui_state.window_dimensions.content_viewport_width);
         }
 
         #[cfg(feature="timings")] let start_render_instant = Instant::now();

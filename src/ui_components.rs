@@ -13,7 +13,7 @@ use crate::ui::{
     History,
     UI_BASIC_COLOR,
     UI_BASIC_DARKER_COLOR,
-    UIState
+    UIState,
 };
 use crate::SelectionRect;
 
@@ -406,7 +406,7 @@ pub struct Scrollbar {
     pub block_y: f32,
 
     pub content_size: f32,
-    pub content_visible_height: f32,
+    pub content_viewport_height: f32,
 
     pub enabled: bool,
 }
@@ -425,15 +425,22 @@ impl Scrollbar {
 
         let movable_space = self.height - self.block_height;
         let relatively_moved = moved_y / movable_space;
-        let content_scroll_y_diff = (self.content_size - self.content_visible_height) * relatively_moved;
+        let content_scroll_y_diff = (self.content_size - self.content_viewport_height) * relatively_moved;
         return self.update_scroll(content_scroll_y + content_scroll_y_diff);
+    }
+
+    pub fn update_content_viewport_size(&mut self, content_viewport_width: f32, content_viewport_height: f32, content_scroll_y: f32) {
+        self.content_viewport_height = content_viewport_height;
+        self.height = content_viewport_height;
+        self.x = content_viewport_width;
+        self.update_content_size(self.content_size, content_scroll_y);
     }
 
     pub fn update_content_size(&mut self, new_content_size: f32, content_scroll_y: f32) -> f32 {
         self.content_size = new_content_size;
 
-        self.enabled = self.content_size > self.content_visible_height;
-        let relative_size_of_scroll_block = f32::min(self.content_visible_height / self.content_size, 1.0);
+        self.enabled = self.content_size > self.content_viewport_height;
+        let relative_size_of_scroll_block = f32::min(self.content_viewport_height / self.content_size, 1.0);
         self.block_height = f32::max(relative_size_of_scroll_block * self.height, MINIMUM_SCOLLBLOCK_HEIGHT);
 
         return self.update_scroll(content_scroll_y);
@@ -442,7 +449,7 @@ impl Scrollbar {
     pub fn update_scroll(&mut self, content_scroll_y: f32) -> f32 {
         let new_content_scroll_y = self.clamp_scroll_position(content_scroll_y);
 
-        let scrollblock_distance_per_page_y = (self.height - self.block_height) / (self.content_size - self.content_visible_height);
+        let scrollblock_distance_per_page_y = (self.height - self.block_height) / (self.content_size - self.content_viewport_height);
         self.block_y = scrollblock_distance_per_page_y * new_content_scroll_y + self.y;
 
         return new_content_scroll_y;
@@ -457,7 +464,7 @@ impl Scrollbar {
         if content_scroll_y < 0.0 {
             return 0.0;
         }
-        let mut max_scroll_y = (self.content_size + 1.0) - self.content_visible_height;
+        let mut max_scroll_y = (self.content_size + 1.0) - self.content_viewport_height;
         if max_scroll_y < 0.0 {
             max_scroll_y = 0.0;
         }

@@ -7,7 +7,7 @@ use crate::layout::{
     LayoutNodeContent
 };
 use crate::platform::Platform;
-use crate::ui::{UIState, render_ui};
+use crate::ui::{render_ui, UIState};
 use crate::ui_components::PageComponent;
 
 
@@ -25,7 +25,7 @@ pub fn render(platform: &mut Platform, full_layout: &FullLayout, ui_state: &mut 
 fn render_layout_node(platform: &mut Platform, ui_state: &mut UIState, layout_node: &LayoutNode) {
     let scroll_y = ui_state.current_scroll_y;
 
-    if !layout_node.visible_on_y_location(scroll_y) {
+    if !layout_node.visible_on_y_location(scroll_y, ui_state.window_dimensions.screen_height) {
         return;
     }
 

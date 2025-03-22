@@ -79,7 +79,7 @@ fn render_layout_node(platform: &mut Platform, ui_state: &mut UIState, layout_no
         }
         LayoutNodeContent::TableCellLayoutNode(_) => {
             //TODO: implement (is there anything to render here aside from potential borders in the future?)
-            todo!();
+            //for now we render nothing
         }
         LayoutNodeContent::NoContent => {},
     }

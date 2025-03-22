@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::f32;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -114,6 +113,8 @@ pub struct AreaLayoutNode {
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct TableLayoutNode {
+    pub width_in_slots: usize,
+    pub height_in_slots: usize,
     pub css_box: CssBox,
 }
 
@@ -145,24 +146,12 @@ impl LayoutNodeContent {
                 }
                 return false;
             },
-            LayoutNodeContent::ImageLayoutNode(image_node) => {
-                return image_node.css_box.is_inside(x, y);
-            }
-            LayoutNodeContent::AreaLayoutNode(area_node) => {
-                return area_node.css_box.is_inside(x, y);
-            }
-            LayoutNodeContent::ButtonLayoutNode(button_node) => {
-                return button_node.css_box.is_inside(x, y);
-            }
-            LayoutNodeContent::TextInputLayoutNode(text_input_node) => {
-                return text_input_node.css_box.is_inside(x, y);
-            }
-            LayoutNodeContent::TableLayoutNode(_) => {
-                todo!(); //TODO: implement
-            },
-            LayoutNodeContent::TableCellLayoutNode(_) => {
-                todo!(); //TODO: implement
-            }
+            LayoutNodeContent::ImageLayoutNode(image_node) => { return image_node.css_box.is_inside(x, y); }
+            LayoutNodeContent::AreaLayoutNode(area_node) => { return area_node.css_box.is_inside(x, y); }
+            LayoutNodeContent::ButtonLayoutNode(button_node) => { return button_node.css_box.is_inside(x, y); }
+            LayoutNodeContent::TextInputLayoutNode(text_input_node) => { return text_input_node.css_box.is_inside(x, y); }
+            LayoutNodeContent::TableLayoutNode(table_layout_node) => { return table_layout_node.css_box.is_inside(x, y); },
+            LayoutNodeContent::TableCellLayoutNode(table_cell_layout_node) => { return table_cell_layout_node.css_box.is_inside(x, y); }
             LayoutNodeContent::NoContent => { return false; },
         }
     }
@@ -575,10 +564,10 @@ fn compute_layout_for_node(node: &Rc<RefCell<LayoutNode>>, style_context: &Style
                             apply_inline_layout(&mut mut_node, style_context, top_left_x, top_left_y, available_width, current_scroll_y, font_context, force_full_layout);
                         },
                         FormattingContext::Table => {
-                            //TODO: use available_width correctly in this case
                             match &mut_node.content {
-                                LayoutNodeContent::TableLayoutNode(table_layout_node) => {
-                                    compute_layout_for_table(&table_layout_node);
+                                LayoutNodeContent::TableLayoutNode(_) => {
+                                    compute_layout_for_table(&mut mut_node, style_context, top_left_x, top_left_y, font_context, current_scroll_y,
+                                                             only_update_block_vertical_position, force_full_layout, available_width);
                                 },
                                 LayoutNodeContent::TableCellLayoutNode(_) => {
                                     todo!(); //TODO: not completely sure if we ever get here, or that we recurse into different methods from the main table node...
@@ -684,12 +673,119 @@ fn set_css_boxes_for_node_without_children(node: &mut LayoutNode, top_left_x: f3
 }
 
 
-fn compute_layout_for_table(table_dom_node: &TableLayoutNode) {
+fn compute_layout_for_table(table_layout_node: &mut LayoutNode, style_context: &StyleContext, top_left_x: f32, top_left_y: f32, font_context: &FontContext,
+    current_scroll_y: f32, only_update_block_vertical_position: bool, force_full_layout: bool, available_width: f32) {
 
-    //TODO: use slots to compute positions, for that we need to know the side of all the content within each cell, and then take the max() of that
-    //TODO: how should this combine with wrapping?
-    todo!();
+    debug_assert!(matches!(table_layout_node.content, LayoutNodeContent::TableLayoutNode { .. }));
 
+    let (table_width_in_slots, table_height_in_slots) = if let LayoutNodeContent::TableLayoutNode(node) = &table_layout_node.content {
+        (node.width_in_slots, node.height_in_slots)
+    } else {
+        (0, 0)
+    };
+
+    let mut cells_in_order = Vec::with_capacity(table_width_in_slots * table_height_in_slots);
+    for _idx in 0..(table_width_in_slots * table_height_in_slots) {
+        cells_in_order.push(None);
+    }
+
+    let mut element_minimum_widths = Vec::with_capacity(table_width_in_slots);
+    let mut element_potential_widths = Vec::with_capacity(table_width_in_slots);
+    for _idx in 0..table_width_in_slots {
+        element_minimum_widths.push(0.0);
+        element_potential_widths.push(0.0);
+    }
+
+    for child in table_layout_node.children.as_ref().unwrap() {
+        let child_borrow = child.borrow();
+        match &child_borrow.content {
+            LayoutNodeContent::TableCellLayoutNode(table_cell_layout_node) => {
+                debug_assert!(child_borrow.children.is_some() && child_borrow.children.as_ref().unwrap().len() < 2);
+
+                if child_borrow.children.is_some() && child_borrow.children.as_ref().unwrap().len() > 0 {
+                    let table_cell_content_node = child_borrow.children.as_ref().unwrap().get(0).unwrap();
+                    let slot_x_idx = table_cell_layout_node.slot_x_idx;
+                    let slot_y_idx = table_cell_layout_node.slot_y_idx;
+
+                    cells_in_order[(slot_y_idx * table_width_in_slots) + slot_x_idx] = Some(child.clone());
+
+                    let (minimum_element_width, potentential_element_width) = compute_potential_widths(table_cell_content_node);
+
+                    if minimum_element_width > element_minimum_widths[slot_x_idx] {
+                        element_minimum_widths[slot_x_idx] = minimum_element_width;
+                    };
+                    if potentential_element_width > element_potential_widths[slot_x_idx] {
+                        element_potential_widths[slot_x_idx] = potentential_element_width;
+                    };
+                }
+            },
+            _ => panic!("Expecting only table cell layout nodes here")
+        }
+    }
+
+    //TODO: for each column, I need to compute the width the content minimally requires and the amount it could take up without wrapping
+    //      then, I need to give each column the minmal width
+    //      then, add more width (until the available width for the table) until the amount the elements can take, but not more than the potential width
+    let mut column_widths = Vec::with_capacity(table_width_in_slots);
+    for idx in 0..table_width_in_slots {
+        column_widths.push(element_minimum_widths[idx]);
+    }
+
+
+    let mut cursor_x = top_left_x;
+    let mut cursor_y = top_left_y;
+    let mut max_height_of_row = 0.0;
+
+    let mut max_cursor_x_seen = 0.0;
+    let mut max_cursor_y_seen = 0.0;
+
+    for cell in cells_in_order {
+        let cell = cell.unwrap();
+        let cell_borrow = cell.borrow();
+        match &cell_borrow.content {
+            LayoutNodeContent::TableCellLayoutNode(table_cell_layout_node) => {
+                debug_assert!(cell_borrow.children.is_some() && cell_borrow.children.as_ref().unwrap().len() < 2);
+
+                if cell_borrow.children.is_some() && cell_borrow.children.as_ref().unwrap().len() > 0 {
+                    let table_cell_content_node = cell_borrow.children.as_ref().unwrap().get(0).unwrap();
+                    let slot_x_idx = table_cell_layout_node.slot_x_idx;
+
+                    compute_layout_for_node(table_cell_content_node, style_context, cursor_x, cursor_y, font_context, current_scroll_y,
+                                            only_update_block_vertical_position, force_full_layout, column_widths[slot_x_idx]);
+
+                    let element_height = table_cell_content_node.borrow().get_size_of_bounding_box().1;
+                    if element_height > max_height_of_row {
+                        max_height_of_row = element_height;
+                    }
+
+                    cursor_x += column_widths[slot_x_idx];
+                    if max_cursor_x_seen < cursor_x {
+                        max_cursor_x_seen = cursor_x;
+                    }
+
+                    if slot_x_idx == table_width_in_slots - 1 {
+                        cursor_x = top_left_x;
+                        cursor_y += max_height_of_row;
+                        if max_cursor_y_seen < cursor_y {
+                            max_cursor_y_seen = cursor_y;
+                        }
+                        max_height_of_row = 0.0;
+                    }
+                }
+            },
+            _ => panic!("Expecting only table cell layout nodes here")
+        }
+    }
+
+    table_layout_node.update_css_box(CssBox { x: top_left_x, y: top_left_y, width: max_cursor_x_seen, height: max_cursor_y_seen });
+}
+
+
+//This returns (the minimal width needed for the element, the potential width the element can take up)
+fn compute_potential_widths(_node: &Rc<RefCell<LayoutNode>>) -> (f32, f32) {
+
+    //TODO: replace hardcoded values by actual width computations
+    return (100.0, 100.0);
 }
 
 
@@ -1185,15 +1281,15 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
 fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>, document: &Document, font_context: &FontContext) -> LayoutNode {
     let mut layout_children = Vec::new();
+    let mut slot_x_idx = 0;
+    let mut slot_y_idx = 0;
+
     if table_dom_node.borrow().children.is_some() {
-
-        let mut slot_x_idx = 0;
-        let mut slot_y_idx = 0;
-
         for dom_table_child in table_dom_node.borrow().children.as_ref().unwrap() {
 
             let dom_table_child = dom_table_child.borrow();
             if dom_table_child.name.is_some() && dom_table_child.name.as_ref().unwrap() == &String::from("tr") {
+                slot_x_idx = 0;
 
                 if dom_table_child.children.is_some() {
                     for dom_row_child in dom_table_child.children.as_ref().unwrap() {
@@ -1225,20 +1321,20 @@ fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>, doc
                             };
 
                             layout_children.push(Rc::from(RefCell::from(cell_layout_node)));
+
+                            slot_x_idx += 1;
                         }
 
                         //TODO: handle other cases, we at least also have table body, in which case we need to recurse somehow
                         //      there might also be text (at the very least whitespace that we should ignore) in between rows and cells
-
-                        slot_x_idx += 1;
                     }
                 }
+
+                slot_y_idx += 1;
             }
 
             //TODO: handle other cases, we at least also have table body, in which case we need to recurse somehow
             //      there might also be text (at the very least whitespace that we should ignore) in between rows and cells
-
-            slot_y_idx += 1;
         }
     }
 
@@ -1250,6 +1346,8 @@ fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>, doc
         visible: true,
         content: LayoutNodeContent::TableLayoutNode(TableLayoutNode {
             css_box: CssBox::empty(),
+            width_in_slots: slot_x_idx,
+            height_in_slots: slot_y_idx,
         }),
         positioning_scheme: PositioningScheme::Static,
     }

@@ -76,7 +76,7 @@ impl UIState {
             width: screen_width - scrollbar_x_pos,
             height: scrollbar_height,
             content_size: 0.0,
-            content_viewport_height: 0.0, //TODO: make sure we set this correctly in the update_window_dimensions method
+            content_viewport_height: 0.0,
             block_height: scrollbar_height,
             block_y: HEADER_HEIGHT,
             enabled: false,

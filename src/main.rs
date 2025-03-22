@@ -275,8 +275,12 @@ fn compute_selection_regions(ui_state: &UIState, layout_node: &Rc<RefCell<Layout
             //Note: this is a no-op for now, since there is nothing to select in a box node itself (just in its children)
         },
         layout::LayoutNodeContent::NoContent => {},
-        layout::LayoutNodeContent::TableLayoutNode(_) => todo!(), //TODO: implement
-        layout::LayoutNodeContent::TableCellLayoutNode(_) => todo!(), //TODO: implement
+        layout::LayoutNodeContent::TableLayoutNode(_) => {
+            //This is a no-op for now, children of this node will keep the range
+        }
+        layout::LayoutNodeContent::TableCellLayoutNode(_) => {
+            //TODO: implement
+        }
     }
 
     if selection_start_found {
@@ -309,13 +313,7 @@ fn compute_selection_regions(ui_state: &UIState, layout_node: &Rc<RefCell<Layout
                             }
                         }
                     },
-                    layout::LayoutNodeContent::ImageLayoutNode(_) => {},
-                    layout::LayoutNodeContent::ButtonLayoutNode(_) => {},
-                    layout::LayoutNodeContent::TextInputLayoutNode(_) => {},
-                    layout::LayoutNodeContent::AreaLayoutNode(_) => {},
-                    layout::LayoutNodeContent::NoContent => {},
-                    layout::LayoutNodeContent::TableLayoutNode(_) => todo!(), //TODO: implement
-                    layout::LayoutNodeContent::TableCellLayoutNode(_) => todo!(), //TODO: implement
+                    _ => {},
                 }
             }
         }

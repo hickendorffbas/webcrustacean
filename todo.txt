@@ -12,7 +12,6 @@ goals for 0.5.0:
        - implement basic html tables
               - compute proper width for tables
 
-
 other things (later versions):
        - for layout, in inline context we might need to implement line-boxes
        - fix transparancy in png's (loading works, rendering in SDL does not)

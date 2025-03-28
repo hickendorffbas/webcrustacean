@@ -566,11 +566,9 @@ fn compute_layout_for_node(node: &Rc<RefCell<LayoutNode>>, style_context: &Style
                         FormattingContext::Table => {
                             match &mut_node.content {
                                 LayoutNodeContent::TableLayoutNode(_) => {
-                                    compute_layout_for_table(&mut mut_node, style_context, top_left_x, top_left_y, font_context, current_scroll_y,
+                                    drop(mut_node);
+                                    compute_layout_for_table(node, style_context, top_left_x, top_left_y, font_context, current_scroll_y,
                                                              only_update_block_vertical_position, force_full_layout, available_width);
-                                },
-                                LayoutNodeContent::TableCellLayoutNode(_) => {
-                                    todo!(); //TODO: not completely sure if we ever get here, or that we recurse into different methods from the main table node...
                                 },
                                 _ => panic!("Table formatting context on non-table layout node")
                             }
@@ -673,12 +671,12 @@ fn set_css_boxes_for_node_without_children(node: &mut LayoutNode, top_left_x: f3
 }
 
 
-fn compute_layout_for_table(table_layout_node: &mut LayoutNode, style_context: &StyleContext, top_left_x: f32, top_left_y: f32, font_context: &FontContext,
+fn compute_layout_for_table(table_layout_node: &Rc<RefCell<LayoutNode>>, style_context: &StyleContext, top_left_x: f32, top_left_y: f32, font_context: &FontContext,
     current_scroll_y: f32, only_update_block_vertical_position: bool, force_full_layout: bool, available_width: f32) {
 
-    debug_assert!(matches!(table_layout_node.content, LayoutNodeContent::TableLayoutNode { .. }));
+    debug_assert!(matches!(table_layout_node.borrow().content, LayoutNodeContent::TableLayoutNode { .. }));
 
-    let (table_width_in_slots, table_height_in_slots) = if let LayoutNodeContent::TableLayoutNode(node) = &table_layout_node.content {
+    let (table_width_in_slots, table_height_in_slots) = if let LayoutNodeContent::TableLayoutNode(node) = &table_layout_node.borrow().content {
         (node.width_in_slots, node.height_in_slots)
     } else {
         (0, 0)
@@ -696,28 +694,23 @@ fn compute_layout_for_table(table_layout_node: &mut LayoutNode, style_context: &
         element_potential_widths.push(0.0);
     }
 
-    for child in table_layout_node.children.as_ref().unwrap() {
+    for child in table_layout_node.borrow().children.as_ref().unwrap() {
         let child_borrow = child.borrow();
         match &child_borrow.content {
             LayoutNodeContent::TableCellLayoutNode(table_cell_layout_node) => {
-                debug_assert!(child_borrow.children.is_some() && child_borrow.children.as_ref().unwrap().len() < 2);
+                let slot_x_idx = table_cell_layout_node.slot_x_idx;
+                let slot_y_idx = table_cell_layout_node.slot_y_idx;
 
-                if child_borrow.children.is_some() && child_borrow.children.as_ref().unwrap().len() > 0 {
-                    let table_cell_content_node = child_borrow.children.as_ref().unwrap().get(0).unwrap();
-                    let slot_x_idx = table_cell_layout_node.slot_x_idx;
-                    let slot_y_idx = table_cell_layout_node.slot_y_idx;
+                cells_in_order[(slot_y_idx * table_width_in_slots) + slot_x_idx] = Some(child.clone());
 
-                    cells_in_order[(slot_y_idx * table_width_in_slots) + slot_x_idx] = Some(child.clone());
+                let (minimum_element_width, potentential_element_width) = compute_potential_widths(table_layout_node);
 
-                    let (minimum_element_width, potentential_element_width) = compute_potential_widths(table_cell_content_node);
-
-                    if minimum_element_width > element_minimum_widths[slot_x_idx] {
-                        element_minimum_widths[slot_x_idx] = minimum_element_width;
-                    };
-                    if potentential_element_width > element_potential_widths[slot_x_idx] {
-                        element_potential_widths[slot_x_idx] = potentential_element_width;
-                    };
-                }
+                if minimum_element_width > element_minimum_widths[slot_x_idx] {
+                    element_minimum_widths[slot_x_idx] = minimum_element_width;
+                };
+                if potentential_element_width > element_potential_widths[slot_x_idx] {
+                    element_potential_widths[slot_x_idx] = potentential_element_width;
+                };
             },
             _ => panic!("Expecting only table cell layout nodes here")
         }
@@ -744,40 +737,36 @@ fn compute_layout_for_table(table_layout_node: &mut LayoutNode, style_context: &
         let cell_borrow = cell.borrow();
         match &cell_borrow.content {
             LayoutNodeContent::TableCellLayoutNode(table_cell_layout_node) => {
-                debug_assert!(cell_borrow.children.is_some() && cell_borrow.children.as_ref().unwrap().len() < 2);
+                let slot_x_idx = table_cell_layout_node.slot_x_idx;
 
-                if cell_borrow.children.is_some() && cell_borrow.children.as_ref().unwrap().len() > 0 {
-                    let table_cell_content_node = cell_borrow.children.as_ref().unwrap().get(0).unwrap();
-                    let slot_x_idx = table_cell_layout_node.slot_x_idx;
+                drop(cell_borrow);
+                compute_layout_for_node(&cell, style_context, cursor_x, cursor_y, font_context, current_scroll_y,
+                                        only_update_block_vertical_position, force_full_layout, column_widths[slot_x_idx]);
 
-                    compute_layout_for_node(table_cell_content_node, style_context, cursor_x, cursor_y, font_context, current_scroll_y,
-                                            only_update_block_vertical_position, force_full_layout, column_widths[slot_x_idx]);
+                let element_height = cell.borrow().get_size_of_bounding_box().1;
+                if element_height > max_height_of_row {
+                    max_height_of_row = element_height;
+                }
 
-                    let element_height = table_cell_content_node.borrow().get_size_of_bounding_box().1;
-                    if element_height > max_height_of_row {
-                        max_height_of_row = element_height;
+                cursor_x += column_widths[slot_x_idx];
+                if max_cursor_x_seen < cursor_x {
+                    max_cursor_x_seen = cursor_x;
+                }
+
+                if slot_x_idx == table_width_in_slots - 1 {
+                    cursor_x = top_left_x;
+                    cursor_y += max_height_of_row;
+                    if max_cursor_y_seen < cursor_y {
+                        max_cursor_y_seen = cursor_y;
                     }
-
-                    cursor_x += column_widths[slot_x_idx];
-                    if max_cursor_x_seen < cursor_x {
-                        max_cursor_x_seen = cursor_x;
-                    }
-
-                    if slot_x_idx == table_width_in_slots - 1 {
-                        cursor_x = top_left_x;
-                        cursor_y += max_height_of_row;
-                        if max_cursor_y_seen < cursor_y {
-                            max_cursor_y_seen = cursor_y;
-                        }
-                        max_height_of_row = 0.0;
-                    }
+                    max_height_of_row = 0.0;
                 }
             },
             _ => panic!("Expecting only table cell layout nodes here")
         }
     }
 
-    table_layout_node.update_css_box(CssBox { x: top_left_x, y: top_left_y, width: max_cursor_x_seen, height: max_cursor_y_seen });
+    table_layout_node.borrow_mut().update_css_box(CssBox { x: top_left_x, y: top_left_y, width: max_cursor_x_seen, height: max_cursor_y_seen });
 }
 
 
@@ -1295,13 +1284,16 @@ fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>, doc
                     for dom_row_child in dom_table_child.children.as_ref().unwrap() {
 
                         let borr_dom_row_child = dom_row_child.borrow();
-                        if borr_dom_row_child.name.is_some() && borr_dom_row_child.name.as_ref().unwrap() == &String::from("td") {
+                        if borr_dom_row_child.name.is_some() && (borr_dom_row_child.name.as_ref().unwrap() == &String::from("td") ||
+                                                                 borr_dom_row_child.name.as_ref().unwrap() == &String::from("th")) {
 
                             let mut cell_children = Vec::new();
 
                             if borr_dom_row_child.children.is_some() {
                                 for dom_cell_child in borr_dom_row_child.children.as_ref().unwrap() {
-                                    let layout_child = build_layout_tree(dom_cell_child, document, font_context, FormattingContext::Table);
+                                    let layout_child = build_layout_tree(dom_cell_child, document, font_context,
+                                        FormattingContext::Block //TODO: this should be based on css properties
+                                    );
                                     cell_children.push(layout_child);
                                 }
                             }
@@ -1310,7 +1302,7 @@ fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>, doc
                                 internal_id: get_next_layout_node_interal_id(),
                                 children: Some(cell_children),
                                 from_dom_node: Some(dom_row_child.clone()),
-                                formatting_context: FormattingContext::Table,
+                                formatting_context: FormattingContext::Block, //TODO: this should be based on the css properties
                                 visible: true,
                                 content: LayoutNodeContent::TableCellLayoutNode(TableCellLayoutNode {
                                     css_box: CssBox::empty(),

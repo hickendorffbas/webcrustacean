@@ -590,7 +590,7 @@ fn set_css_boxes_for_node_without_children(node: &mut LayoutNode, top_left_x: f3
                                            font_context: &FontContext, current_scroll_y: f32, _available_width: f32) {
 
     //TODO: _available_width is currently unused, because we don't do wrapping or inline layout here. There might be other cases where
-    //      the availble width matters (such as images), but we first need to undestand when and how that does or does not happen (an image resize for example)
+    //      the available width matters (such as images), but we first need to undestand when and how that does or does not happen (an image resize for example)
 
     let opt_dom_node = if node.from_dom_node.is_some() {
         Some(Rc::clone(&node.from_dom_node.as_ref().unwrap()))
@@ -703,7 +703,8 @@ fn compute_layout_for_table(table_layout_node: &Rc<RefCell<LayoutNode>>, style_c
 
                 cells_in_order[(slot_y_idx * table_width_in_slots) + slot_x_idx] = Some(child.clone());
 
-                let (minimum_element_width, potentential_element_width) = compute_potential_widths(table_layout_node);
+                drop(child_borrow);
+                let (minimum_element_width, potentential_element_width) = compute_potential_widths(child, font_context, style_context);
 
                 if minimum_element_width > element_minimum_widths[slot_x_idx] {
                     element_minimum_widths[slot_x_idx] = minimum_element_width;
@@ -771,10 +772,16 @@ fn compute_layout_for_table(table_layout_node: &Rc<RefCell<LayoutNode>>, style_c
 
 
 //This returns (the minimal width needed for the element, the potential width the element can take up)
-fn compute_potential_widths(_node: &Rc<RefCell<LayoutNode>>) -> (f32, f32) {
+fn compute_potential_widths(node: &Rc<RefCell<LayoutNode>>, font_context: &FontContext, style_context: &StyleContext) -> (f32, f32) {
 
-    //TODO: replace hardcoded values by actual width computations
-    return (100.0, 100.0);
+    compute_layout_for_node(node, style_context, 0.0, 0.0, font_context, 0.0, false, true, 1.0);
+    let minimal_width = node.borrow().get_size_of_bounding_box().0;
+
+    compute_layout_for_node(node, style_context, 0.0, 0.0, font_context, 0.0, false, true, 1000000000.0);
+    let potential_width = node.borrow().get_size_of_bounding_box().0;
+
+    println!("min: {}, potential: {}", minimal_width, potential_width);
+    return (minimal_width, potential_width);
 }
 
 

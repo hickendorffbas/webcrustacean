@@ -183,7 +183,7 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
             let mut next_char_is_escaped = false;
             while js_iterator.has_next() && (js_iterator.peek().unwrap() != quote_type_used || next_char_is_escaped) {
 
-                if js_iterator.peek() == Some('\\') {
+                if js_iterator.peek() == Some('\\') && !next_char_is_escaped {
                     next_char_is_escaped = true;
                     js_iterator.next();
                     continue;

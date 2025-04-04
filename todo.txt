@@ -9,10 +9,6 @@ goals for 0.5.0:
        - I need to think about where I want to introduce the platform. Now its a bit messy, since to measure font size we need the platform, therefore needing it
               in layout. Or do we accept that and just get better at mocking?
                      -> use lazy_static , but figure out mocking for tests
-       - implement basic html tables
-              - compute proper width for tables
-                     - we need to be able to get the size of a text element, also when it is not in a container
-                            - this might also mean we can remove some hack to start inline formatting on a single text node's parent when it is not inline
 
 other things (later versions):
        - fix transparancy in png's (loading works, rendering in SDL does not)

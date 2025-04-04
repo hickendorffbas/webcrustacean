@@ -732,12 +732,30 @@ fn compute_layout_for_table(table_layout_node: &Rc<RefCell<LayoutNode>>, style_c
         }
     }
 
-    //TODO: for each column, I need to compute the width the content minimally requires and the amount it could take up without wrapping
-    //      then, I need to give each column the minmal width
-    //      then, add more width (until the available width for the table) until the amount the elements can take, but not more than the potential width
-    let mut column_widths = Vec::with_capacity(table_width_in_slots);
+    let mut total_min_width = 0.0;
+    let mut total_potential_width = 0.0;
     for idx in 0..table_width_in_slots {
-        column_widths.push(element_minimum_widths[idx]);
+        total_min_width += element_minimum_widths[idx];
+        total_potential_width += element_potential_widths[idx];
+    }
+
+    let mut column_widths = Vec::with_capacity(table_width_in_slots);
+
+    if total_potential_width <= available_width {
+        for idx in 0..table_width_in_slots {
+            column_widths.push(element_potential_widths[idx]);
+        }
+    } else {
+        let remaining_space = available_width - total_min_width;
+        let needed_extra_space = total_potential_width - total_min_width;
+        let shrink_factor = remaining_space / needed_extra_space;
+
+        for idx in 0..table_width_in_slots {
+            let min_for_col = element_minimum_widths[idx];
+            let potential_for_col = element_potential_widths[idx];
+            let potential_added_per_col = potential_for_col - min_for_col;
+            column_widths.push(min_for_col + (potential_added_per_col * shrink_factor));
+        }
     }
 
 
@@ -795,7 +813,6 @@ fn compute_potential_widths(node: &Rc<RefCell<LayoutNode>>, font_context: &FontC
     compute_layout_for_node(node, style_context, 0.0, 0.0, font_context, 0.0, false, true, 1000000000.0, true);
     let potential_width = node.borrow().get_size_of_bounding_box().0;
 
-    println!("min: {}, potential: {}", minimal_width, potential_width);
     return (minimal_width, potential_width);
 }
 
@@ -1013,7 +1030,7 @@ fn wrap_text(css_text_box: &CssTextBox, non_breaking_space_positions: &Option<Ha
         undecided_buffer.push(character);
 
         let potential_line_length = char_positions[idx] - consumed_size;
-        if potential_line_length >= width_to_check {
+        if potential_line_length > width_to_check {
             lines.push(current_line_buffer);
             current_line_buffer = String::new();
             consumed_size = char_positions[last_decided_idx];
@@ -1030,7 +1047,7 @@ fn wrap_text(css_text_box: &CssTextBox, non_breaking_space_positions: &Option<Ha
     if !undecided_buffer.is_empty() {
         let potential_line_length = char_positions.last().unwrap() - consumed_size;
         let width_to_check = if lines.len() == 0 { width_remaining_on_current_line } else { max_width };
-        if potential_line_length >= width_to_check {
+        if potential_line_length > width_to_check {
             lines.push(current_line_buffer);
             current_line_buffer = String::new();
         }

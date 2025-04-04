@@ -513,7 +513,7 @@ pub fn collect_content_nodes_in_walk_order(node: &Rc<RefCell<LayoutNode>>, resul
 pub fn compute_layout(node: &Rc<RefCell<LayoutNode>>, style_context: &StyleContext, top_left_x: f32, top_left_y: f32, font_context: &FontContext,
                       current_scroll_y: f32, only_update_block_vertical_position: bool, force_full_layout: bool, available_width: f32) {
     compute_layout_for_node(node, style_context, top_left_x, top_left_y, font_context, current_scroll_y,
-                            only_update_block_vertical_position, force_full_layout, available_width);
+                            only_update_block_vertical_position, force_full_layout, available_width, true);
 
     reset_dirtyness(node);
 }
@@ -536,7 +536,7 @@ fn reset_dirtyness(node: &Rc<RefCell<LayoutNode>>) {
 //This function is responsible for setting the correct css boxes on the node, and all its children, and updating content if needed (sync with DOM)
 //TODO: we now pass in top_left x and y, but I think we should compute the positions just for layout, and offset for UI in the render phase...
 fn compute_layout_for_node(node: &Rc<RefCell<LayoutNode>>, style_context: &StyleContext, top_left_x: f32, top_left_y: f32, font_context: &FontContext,
-                           current_scroll_y: f32, only_update_block_vertical_position: bool, force_full_layout: bool, available_width: f32) {
+                           current_scroll_y: f32, only_update_block_vertical_position: bool, force_full_layout: bool, available_width: f32, allow_single_node_wrap: bool) {
 
     let mut mut_node = RefCell::borrow_mut(node);
 
@@ -576,7 +576,7 @@ fn compute_layout_for_node(node: &Rc<RefCell<LayoutNode>>, style_context: &Style
                     }
                 },
                 None => {
-                    set_css_boxes_for_node_without_children(&mut mut_node, top_left_x, top_left_y, font_context, current_scroll_y, available_width);
+                    set_css_boxes_for_node_without_children(&mut mut_node, top_left_x, top_left_y, font_context, current_scroll_y, available_width, allow_single_node_wrap);
                 },
             }
         },
@@ -586,28 +586,43 @@ fn compute_layout_for_node(node: &Rc<RefCell<LayoutNode>>, style_context: &Style
 }
 
 
-fn set_css_boxes_for_node_without_children(node: &mut LayoutNode, top_left_x: f32, top_left_y: f32,
-                                           font_context: &FontContext, current_scroll_y: f32, _available_width: f32) {
-
-    //TODO: _available_width is currently unused, because we don't do wrapping or inline layout here. There might be other cases where
-    //      the available width matters (such as images), but we first need to undestand when and how that does or does not happen (an image resize for example)
-
-    let opt_dom_node = if node.from_dom_node.is_some() {
-        Some(Rc::clone(&node.from_dom_node.as_ref().unwrap()))
-    } else {
-        None
-    };
+fn set_css_boxes_for_node_without_children(node: &mut LayoutNode, top_left_x: f32, top_left_y: f32, font_context: &FontContext,
+                                           current_scroll_y: f32, available_width: f32, allow_single_node_wrap: bool) {
 
     match &mut node.content {
         LayoutNodeContent::TextLayoutNode(ref mut text_layout_node) => {
+            text_layout_node.undo_split_boxes();
 
-            if opt_dom_node.is_some() && opt_dom_node.as_ref().unwrap().borrow().dirty {
-                text_layout_node.undo_split_boxes();
-            }
+            if allow_single_node_wrap && text_layout_node.css_text_boxes.len() != 0 {
+                let first_and_only_box = &text_layout_node.css_text_boxes[0];
 
-            for css_text_box in text_layout_node.css_text_boxes.iter_mut() {
-                let (box_width, box_height) = font_context.get_text_dimension(&css_text_box.text, &text_layout_node.font);
-                css_text_box.css_box = CssBox { x: top_left_x, y: top_left_y, width: box_width, height: box_height };
+                text_layout_node.pre_wrap_box_backup = Some(first_and_only_box.clone());
+                let wrapped_lines = wrap_text(first_and_only_box, &text_layout_node.non_breaking_space_positions, available_width, available_width);
+
+                let mut css_text_boxes = Vec::new();
+                let mut cursor_y = top_left_y;
+                for line in wrapped_lines {
+                    let (box_width, box_height) = font_context.get_text_dimension(&line, &text_layout_node.font);
+                    let text_box = CssTextBox {
+                        css_box: CssBox { x: top_left_x, y: cursor_y, width: box_width, height: box_height },
+                        char_position_mapping: font_context.compute_char_position_mapping(&text_layout_node.font, &line),
+                        text: line,
+                        selection_rect: None,
+                        selection_char_range: None,
+                    };
+                    cursor_y += box_height;
+
+                    css_text_boxes.push(text_box);
+                }
+
+                text_layout_node.css_text_boxes = css_text_boxes;
+
+            } else {
+
+                for css_text_box in text_layout_node.css_text_boxes.iter_mut() {
+                    let (box_width, box_height) = font_context.get_text_dimension(&css_text_box.text, &text_layout_node.font);
+                    css_text_box.css_box = CssBox { x: top_left_x, y: top_left_y, width: box_width, height: box_height };
+                }
             }
         },
         LayoutNodeContent::ImageLayoutNode(image_layout_node) => {
@@ -742,7 +757,7 @@ fn compute_layout_for_table(table_layout_node: &Rc<RefCell<LayoutNode>>, style_c
 
                 drop(cell_borrow);
                 compute_layout_for_node(&cell, style_context, cursor_x, cursor_y, font_context, current_scroll_y,
-                                        only_update_block_vertical_position, force_full_layout, column_widths[slot_x_idx]);
+                                        only_update_block_vertical_position, force_full_layout, column_widths[slot_x_idx], true);
 
                 let element_height = cell.borrow().get_size_of_bounding_box().1;
                 if element_height > max_height_of_row {
@@ -774,10 +789,10 @@ fn compute_layout_for_table(table_layout_node: &Rc<RefCell<LayoutNode>>, style_c
 //This returns (the minimal width needed for the element, the potential width the element can take up)
 fn compute_potential_widths(node: &Rc<RefCell<LayoutNode>>, font_context: &FontContext, style_context: &StyleContext) -> (f32, f32) {
 
-    compute_layout_for_node(node, style_context, 0.0, 0.0, font_context, 0.0, false, true, 1.0);
+    compute_layout_for_node(node, style_context, 0.0, 0.0, font_context, 0.0, false, true, 1.0, true);
     let minimal_width = node.borrow().get_size_of_bounding_box().0;
 
-    compute_layout_for_node(node, style_context, 0.0, 0.0, font_context, 0.0, false, true, 1000000000.0);
+    compute_layout_for_node(node, style_context, 0.0, 0.0, font_context, 0.0, false, true, 1000000000.0, true);
     let potential_width = node.borrow().get_size_of_bounding_box().0;
 
     println!("min: {}, potential: {}", minimal_width, potential_width);
@@ -806,11 +821,10 @@ fn apply_block_layout(node: &mut LayoutNode, style_context: &StyleContext, top_l
     let mut cursor_y = top_left_y;
     let mut max_width: f32 = 0.0;
 
-    //TODO: check how block layout should take into account the passed available_width, and implement that
-
     for child in node.children.as_ref().unwrap() {
         let only_update_block_vertical_position = !child.borrow().is_dirty_anywhere(); //Since the parent node is block layout, we can shift the while block up and down if its not dirty
-        compute_layout_for_node(&child, style_context, top_left_x, cursor_y, font_context, current_scroll_y, only_update_block_vertical_position, force_full_layout, available_width);
+        compute_layout_for_node(&child, style_context, top_left_x, cursor_y, font_context, current_scroll_y,
+                                only_update_block_vertical_position, force_full_layout, available_width, true);
         let (bounding_box_width, bounding_box_height) = RefCell::borrow(child).get_size_of_bounding_box();
 
         cursor_y += bounding_box_height;
@@ -832,7 +846,10 @@ fn apply_inline_layout(node: &mut LayoutNode, style_context: &StyleContext, top_
     for child in node.children.as_ref().unwrap() {
         let only_update_block_vertical_position = false; //we can only do this if the parent is block layout, but in this case its inline. Inline might cause horizontally cascading changes.
         let space_left = available_width - (cursor_x - top_left_x);
-        compute_layout_for_node(&child, style_context, cursor_x, cursor_y, font_context, current_scroll_y, only_update_block_vertical_position, force_full_layout, space_left);
+        compute_layout_for_node(&child, style_context, cursor_x, cursor_y, font_context, current_scroll_y, only_update_block_vertical_position,
+                                force_full_layout, space_left,
+                                false //Note: we don't allow wrapping here, because we want to do the wrapping later here combined with other inline elements
+        );
 
         let is_line_break = if let LayoutNodeContent::TextLayoutNode(text_node) = &RefCell::borrow(child).content {
             text_node.line_break
@@ -947,9 +964,11 @@ fn apply_inline_layout(node: &mut LayoutNode, style_context: &StyleContext, top_
                     cursor_x = top_left_x;
                     cursor_y += max_height_of_line;
 
-                    let only_update_block_vertical_position = false; //we can only do this if the parent is block layout, but in this case its inline. Inline might cause horizonal cascading changes.
+                    let only_update_block_vertical_position = false; // We can only do this if the parent is block layout, but in this case its inline.
+                                                                     // Inline might cause horizonal cascading changes.
                     drop(child_borrow);
-                    compute_layout_for_node(&child, style_context, cursor_x, cursor_y, font_context, current_scroll_y, only_update_block_vertical_position, force_full_layout, available_width);
+                    compute_layout_for_node(&child, style_context, cursor_x, cursor_y, font_context, current_scroll_y,
+                                            only_update_block_vertical_position, force_full_layout, available_width, false);
                     let (child_width, child_height) = RefCell::borrow(child).get_size_of_bounding_box();
 
                     cursor_x += child_width;

@@ -12,12 +12,8 @@ goals for 0.5.0:
        - implement basic html tables
               - compute proper width for tables
                      - we need to be able to get the size of a text element, also when it is not in a container
-                            - so a bit of the inline logic should be moved to the logic positioning a piece of text (it should probably exist in both locations
-                              because when inline with other elements we cannot wrap the text by itself, but if the text element is the only node we are formatting
-                              we need to do that)
                             - this might also mean we can remove some hack to start inline formatting on a single text node's parent when it is not inline
 
 other things (later versions):
-       - for layout, in inline context we might need to implement line-boxes
        - fix transparancy in png's (loading works, rendering in SDL does not)
        - figure out how do build standalone binaries

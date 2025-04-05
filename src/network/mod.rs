@@ -9,7 +9,7 @@ pub mod url;
 #[cfg(test)] mod tests;
 
 
-const UA_FIREFOX_WINDOWS: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/118.0";
+const UA_FIREFOX_UBUNTU: &str = "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:137.0) Gecko/20100101 Firefox/137.0";
 
 
 #[derive(Clone, Debug)] //note: debug here is not conditional on the debug build attribute, because we also need to print errors in release mode
@@ -28,7 +28,7 @@ pub fn http_get_text(url: &Url) -> Result<String, ResourceNotLoadedError>  {
 
     //TODO: should I cache the client somewhere for performance?
     let client = reqwest::blocking::Client::builder()
-        .user_agent(UA_FIREFOX_WINDOWS)  //TODO: make this configurable, and use an actual webcrustacean useragent normally
+        .user_agent(UA_FIREFOX_UBUNTU)  //TODO: make this configurable, and use an actual webcrustacean useragent normally
         .build().unwrap();
 
     let bytes_result = client.get(url.to_string()).send();
@@ -54,7 +54,7 @@ pub fn http_post(url: &Url, body: String) -> Result<String, ResourceNotLoadedErr
 
     //TODO: should I cache the client somewhere for performance?
     let client = reqwest::blocking::Client::builder()
-        .user_agent(UA_FIREFOX_WINDOWS)  //TODO: make this configurable, and use an actual webcrustacean useragent normally
+        .user_agent(UA_FIREFOX_UBUNTU)  //TODO: make this configurable, and use an actual webcrustacean useragent normally
         .build().unwrap();
 
     let body_len = body.len();
@@ -88,7 +88,7 @@ pub fn http_get_image(url: &Url) -> Result<DynamicImage, ResourceNotLoadedError>
 
     //TODO: should I cache the client somewhere for performance?
     let client = reqwest::blocking::Client::builder()
-        .user_agent(UA_FIREFOX_WINDOWS)  //TODO: make this configurable, and use an actual webcrustacean useragent normally
+        .user_agent(UA_FIREFOX_UBUNTU)  //TODO: make this configurable, and use an actual webcrustacean useragent normally
         .build().unwrap();
 
     let response = client.get(url.to_string()).send().unwrap();

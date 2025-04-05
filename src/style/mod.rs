@@ -187,6 +187,10 @@ pub fn resolve_css_numeric_type_value(value: &String) -> f32 {
     } else if value.len() > 3 && &value.as_str()[value.len() - 3..] == "rem" {
         //TODO: implement this case (we probably need to bring in more context)
         todo!("css rem unit not implemented");
+    } else if value.len() > 5 && &value.as_str()[0..4] == "var(" && value.chars().last() == Some(')') {
+        //TODO: These kind of things should be parsed in the parser already, into some structure that we can just evaluate here (the eval should happen here)
+        //      for now we are just ignoring this case and returning a temp value, because it happens a lot
+        18.0
     } else {
         let parsed_unwrapped = value.parse::<f32>();
         if parsed_unwrapped.is_err() {
@@ -213,12 +217,20 @@ pub fn get_color_style_value(styles: &HashMap<String, String>, property: &str) -
     if item.is_none() {
         return None; //this is not an error, it means the property was not set
     }
-    let color = Color::from_string(item.as_ref().unwrap());
+    let item = item.unwrap();
+
+    if item.len() > 5 && &item.as_str()[0..4] == "var(" && item.chars().last() == Some(')') {
+        //TODO: These kind of things should be parsed in the parser already, into some structure that we can just evaluate here (the eval should happen here)
+        //      for now we are just ignoring this case because it happens a lot
+        return Some(Color::BLACK);
+    }
+
+    let color = Color::from_string(&item);
 
     if color.is_none() {
         //color is none, but item was something, so this means a color value is set, but we could not parse it. We fall back to black here
         //note this this is not the css default, because those might be different per property and are implemented elsewere
-        debug_log_warn(format!("css value could not be parsed as a color: {:?}", item.unwrap()));
+        debug_log_warn(format!("css value could not be parsed as a color: {:?}", item));
         return Some(Color::BLACK);
     }
     return color;

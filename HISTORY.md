@@ -2,6 +2,7 @@
 ===================
 - The main window is now resizable
 - Added basic html tables
+- More whitespace correctness (less whitespace shown in general)
 
 
 0.4.0

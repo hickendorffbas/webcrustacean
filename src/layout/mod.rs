@@ -861,6 +861,20 @@ fn apply_inline_layout(node: &mut LayoutNode, style_context: &StyleContext, top_
     let mut max_height_of_line: f32 = 0.0;
 
     for child in node.children.as_ref().unwrap() {
+
+        if child.borrow().from_dom_node.is_some() {
+            let child_borr = child.borrow();
+            let dom_node = child_borr.from_dom_node.as_ref().unwrap().borrow();
+            if dom_node.text.is_some() {
+                let text = dom_node.text.as_ref().unwrap();
+                if text.text_content.trim().is_empty() {
+                    //we are ignoring whitespace only text elements, to implement the rule that whitespace outside elements is ignored
+                    continue;
+                }
+            }
+        }
+
+
         let only_update_block_vertical_position = false; //we can only do this if the parent is block layout, but in this case its inline. Inline might cause horizontally cascading changes.
         let space_left = available_width - (cursor_x - top_left_x);
         compute_layout_for_node(&child, style_context, cursor_x, cursor_y, font_context, current_scroll_y, only_update_block_vertical_position,

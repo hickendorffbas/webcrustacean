@@ -1,6 +1,7 @@
-use crate::script::js_interpreter::JsInterpreter;
+use std::collections::HashMap;
 
-use super::js_execution_context::JsValue;
+use super::js_execution_context::{JsObject, JsValue};
+use super::js_interpreter::JsInterpreter;
 use super::js_lexer;
 use super::js_parser;
 
@@ -23,7 +24,12 @@ fn js_values_are_equal(one: &JsValue, two: &JsValue) -> bool {
             }
         },
         JsValue::Boolean(_) => todo!(),
-        JsValue::Object(_) => todo!(),
+        JsValue::Object(obj_one) => {
+            match two {
+                JsValue::Object(obj_two) => { return obj_one.members == obj_two.members; }
+                _ => { return false; }
+            }
+        },
         JsValue::Function(_) => todo!(),
         JsValue::Undefined => {
             match two {
@@ -34,7 +40,6 @@ fn js_values_are_equal(one: &JsValue, two: &JsValue) -> bool {
         JsValue::Address(_) => todo!(),
     }
 }
-
 
 
 #[test]
@@ -174,4 +179,18 @@ fn test_escaping_the_escape_char() {
     interpreter.run_script(&script);
 
     assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::String(String::from("\\"))));
+}
+
+
+#[test]
+fn test_create_empty_object() {
+    let code = r#" x1 = {};
+        tester.export(x1); "#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens);
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Object(JsObject {members: HashMap::new()})));
 }

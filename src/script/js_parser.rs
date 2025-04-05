@@ -755,7 +755,12 @@ fn parse_object_literal(iterator: &mut JsParserSliceIterator, tokens: &Vec<JsTok
             JsParserSliceIterator { next_idx: iterator.next_idx, end_idx: iterator.end_idx }
         };
 
-        let mut property_key_iterator = property_iterator.split_and_advance_until_next_token(&masked_token_types, JsToken::Colon).unwrap();
+        let possible_property_key_iterator = property_iterator.split_and_advance_until_next_token(&masked_token_types, JsToken::Colon);
+        if last_element_seen && possible_property_key_iterator.is_none() {
+            //This happens with the empty object, we are with the "last" element because no comma is present, but also no colon is present
+            break;
+        }
+        let mut property_key_iterator = possible_property_key_iterator.unwrap();
 
         let key_expression = {
             let possible_literal_key = property_key_iterator.read_only_literal_string(tokens);

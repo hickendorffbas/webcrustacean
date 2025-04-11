@@ -123,8 +123,9 @@ pub struct TableCellLayoutNode {
     pub css_box: CssBox,
     pub slot_x_idx: usize,
     pub slot_y_idx: usize,
+    pub cell_width: usize,
+    pub cell_height: usize,
 }
-
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub enum LayoutNodeContent {
@@ -713,19 +714,20 @@ fn compute_layout_for_table(table_layout_node: &Rc<RefCell<LayoutNode>>, style_c
         let child_borrow = child.borrow();
         match &child_borrow.content {
             LayoutNodeContent::TableCellLayoutNode(table_cell_layout_node) => {
-                let slot_x_idx = table_cell_layout_node.slot_x_idx;
-                let slot_y_idx = table_cell_layout_node.slot_y_idx;
+                let slot_anchor_x_idx = table_cell_layout_node.slot_x_idx;
+                let slot_anchor_y_idx = table_cell_layout_node.slot_y_idx;
+                //TODO: work out how to take the non-anchor indexes into account here
 
-                cells_in_order[(slot_y_idx * table_width_in_slots) + slot_x_idx] = Some(child.clone());
+                cells_in_order[(slot_anchor_y_idx * table_width_in_slots) + slot_anchor_x_idx] = Some(child.clone());
 
                 drop(child_borrow);
                 let (minimum_element_width, potentential_element_width) = compute_potential_widths(child, font_context, style_context);
 
-                if minimum_element_width > element_minimum_widths[slot_x_idx] {
-                    element_minimum_widths[slot_x_idx] = minimum_element_width;
+                if minimum_element_width > element_minimum_widths[slot_anchor_x_idx] {
+                    element_minimum_widths[slot_anchor_x_idx] = minimum_element_width;
                 };
-                if potentential_element_width > element_potential_widths[slot_x_idx] {
-                    element_potential_widths[slot_x_idx] = potentential_element_width;
+                if potentential_element_width > element_potential_widths[slot_anchor_x_idx] {
+                    element_potential_widths[slot_anchor_x_idx] = potentential_element_width;
                 };
             },
             _ => panic!("Expecting only table cell layout nodes here")
@@ -746,7 +748,7 @@ fn compute_layout_for_table(table_layout_node: &Rc<RefCell<LayoutNode>>, style_c
             column_widths.push(element_potential_widths[idx]);
         }
     } else {
-        let remaining_space = available_width - total_min_width;
+        let remaining_space = f32::max(0.0, available_width - total_min_width);
         let needed_extra_space = total_potential_width - total_min_width;
         let shrink_factor = remaining_space / needed_extra_space;
 
@@ -771,23 +773,24 @@ fn compute_layout_for_table(table_layout_node: &Rc<RefCell<LayoutNode>>, style_c
         let cell_borrow = cell.borrow();
         match &cell_borrow.content {
             LayoutNodeContent::TableCellLayoutNode(table_cell_layout_node) => {
-                let slot_x_idx = table_cell_layout_node.slot_x_idx;
+                let slot_anchor_x_idx = table_cell_layout_node.slot_x_idx;
+                //TODO: work out how to take the non-anchor indexes into account here
 
                 drop(cell_borrow);
                 compute_layout_for_node(&cell, style_context, cursor_x, cursor_y, font_context, current_scroll_y,
-                                        only_update_block_vertical_position, force_full_layout, column_widths[slot_x_idx], true);
+                                        only_update_block_vertical_position, force_full_layout, column_widths[slot_anchor_x_idx], true);
 
                 let element_height = cell.borrow().get_size_of_bounding_box().1;
                 if element_height > max_height_of_row {
                     max_height_of_row = element_height;
                 }
 
-                cursor_x += column_widths[slot_x_idx];
+                cursor_x += column_widths[slot_anchor_x_idx];
                 if max_cursor_x_seen < cursor_x {
                     max_cursor_x_seen = cursor_x;
                 }
 
-                if slot_x_idx == table_width_in_slots - 1 {
+                if slot_anchor_x_idx == table_width_in_slots - 1 {
                     cursor_x = top_left_x;
                     cursor_y += max_height_of_row;
                     if max_cursor_y_seen < cursor_y {
@@ -1329,12 +1332,15 @@ fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>, doc
     let mut layout_children = Vec::new();
     let mut slot_x_idx = 0;
     let mut slot_y_idx = 0;
+    let mut highest_slot_x_idx = 0;
 
     if table_dom_node.borrow().children.is_some() {
         for dom_table_child in table_dom_node.borrow().children.as_ref().unwrap() {
 
             let dom_table_child = dom_table_child.borrow();
             if dom_table_child.name.is_some() && dom_table_child.name.as_ref().unwrap() == &String::from("tr") {
+
+                if slot_x_idx > highest_slot_x_idx { highest_slot_x_idx = slot_x_idx; }
                 slot_x_idx = 0;
 
                 if dom_table_child.children.is_some() {
@@ -1343,6 +1349,39 @@ fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>, doc
                         let borr_dom_row_child = dom_row_child.borrow();
                         if borr_dom_row_child.name.is_some() && (borr_dom_row_child.name.as_ref().unwrap() == &String::from("td") ||
                                                                  borr_dom_row_child.name.as_ref().unwrap() == &String::from("th")) {
+
+                            let colspan_str = borr_dom_row_child.get_attribute_value("colspan");
+                            let colspan = if colspan_str.is_some() {
+                                //TODO: this parsing to numeric should probably live on the dom node somewhere
+                                colspan_str.unwrap().parse::<usize>().unwrap_or(1)
+                            } else {
+                                1
+                            };
+
+                            let rowspan_str = borr_dom_row_child.get_attribute_value("rowspan");
+                            let _rowspan = if rowspan_str.is_some() {  //TODO: use the rowspan
+                                //TODO: this parsing to numeric should probably live on the dom node somewhere
+                                rowspan_str.unwrap().parse::<usize>().unwrap_or(1)
+                            } else {
+                                1
+                            };
+
+                            let mut can_fit = false;
+                            while !can_fit {
+                                let mut all_are_free = true;
+                                for pos in 1..colspan {
+
+                                    if find_node_at_table_slot(&layout_children, slot_x_idx + pos - 1, slot_y_idx, false).is_some() {
+                                        all_are_free = false;
+                                        break;
+                                    }
+                                }
+                                if all_are_free {
+                                    can_fit = true;
+                                } else {
+                                    slot_x_idx += 1;
+                                }
+                            }
 
                             let mut cell_children = Vec::new();
 
@@ -1365,13 +1404,15 @@ fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>, doc
                                     css_box: CssBox::empty(),
                                     slot_x_idx,
                                     slot_y_idx,
+                                    cell_width: colspan,
+                                    cell_height: 1,
                                 }),
                                 positioning_scheme: PositioningScheme::Static,
                             };
 
                             layout_children.push(Rc::from(RefCell::from(cell_layout_node)));
 
-                            slot_x_idx += 1;
+                            slot_x_idx += colspan;
                         }
 
                         //TODO: handle other cases, we at least also have table body, in which case we need to recurse somehow
@@ -1387,6 +1428,8 @@ fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>, doc
         }
     }
 
+    if slot_x_idx > highest_slot_x_idx { highest_slot_x_idx = slot_x_idx; }
+
     return LayoutNode {
         internal_id: get_next_layout_node_interal_id(),
         children: Some(layout_children),
@@ -1395,11 +1438,42 @@ fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>, doc
         visible: true,
         content: LayoutNodeContent::TableLayoutNode(TableLayoutNode {
             css_box: CssBox::empty(),
-            width_in_slots: slot_x_idx,
+            width_in_slots: highest_slot_x_idx + 1,
             height_in_slots: slot_y_idx,
         }),
         positioning_scheme: PositioningScheme::Static,
     }
+}
+
+
+//TODO: use this function for skipping cols that are already in use by a cell above it with rowspan (only_match_anchor=false), and to iterate over the cells
+fn find_node_at_table_slot(cells: &Vec<Rc<RefCell<LayoutNode>>>, slot_x_idx: usize, slot_y_idx: usize, only_match_anchor: bool) -> Option<Rc<RefCell<LayoutNode>>> {
+    for cell in cells {
+
+        match &cell.borrow().content {
+            LayoutNodeContent::TableCellLayoutNode(table_cell_layout_node) => {
+                let x = table_cell_layout_node.slot_x_idx;
+                let y = table_cell_layout_node.slot_y_idx;
+                let width = table_cell_layout_node.cell_width;
+                let height = table_cell_layout_node.cell_height;
+
+                if only_match_anchor {
+                    if x == slot_x_idx && y == slot_y_idx {
+                        return Some(cell.clone());
+                    }
+                } else {
+                    if x <= slot_x_idx && slot_x_idx <= (x + width - 1) && y <= slot_y_idx && slot_y_idx <= (y + height - 1) {
+                        return Some(cell.clone());
+                    }
+                }
+            },
+            _ => {
+                panic!("Only expecting table cell nodes here");
+            }
+        }
+    }
+
+    return None;
 }
 
 

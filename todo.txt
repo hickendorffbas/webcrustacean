@@ -13,6 +13,47 @@ goals for 0.5.0:
               on https://developer.mozilla.org/en-US/docs/Web/API/Document_Object_Model/Whitespace:
                      In the case of HTML, whitespace is largely ignored — whitespace in between words is treated as a single character,
                      and whitespace at the start and end of elements and outside elements is ignored.
+       - add col and row span to tables:
+              - we now store a width and height on the cell's
+                     - this means we should probably stop using cells in order (because the order is not really that linear anymore), switch to slot iteration (x,y)
+                            - we probably need to keep a list of minimal and optimal sizes for each column and each row, and update them for every cell
+                                   - a cell might span multiple rows and/or columns, so we need to each time update them such that the full cell will fit
+                                          - I think I still actually only need to track columns for the inital 2 passes, and then do height only in the
+                                            last pass.
+                                   - in the final grid, there will be unoccupied spaces. check the spec and make sure the layout compute can handle that
+
+              plan:
+
+
+              DONE step 1) build
+                     - for rowspan in table build, I can just occupy the slots, and then we only distribute the next rows over the free slots
+                     - check that table dimensions are set correctly (slots can be added while building because of spans)
+
+
+              step 2) make layout not crash
+                     - make sure it iterates over the whole range of slots , and does "something" for each slot (checking if something is anchored there)
+
+
+              step 3) include colspan in row width calc
+
+                     for cell_x , cell_y, if a node is anchored here {
+                            //compute both sizes (min and optimal)
+                            //check width of node, find current min and optimal for that amount of cols from current col
+                                   // if not enough: increase each touched column with (missing_width / nr_columns)
+                     }
+
+              step 4) include rowspan in the layout algo
+
+                     for cell_x , cell_y, if a node is anchored here {
+                            //given the already known widths, format the node, store the height.
+
+                            //TODO: we need to know where to start each row. So for that, keep a list in which the minmal starting point
+                            //      is tracked for each row? (with rowspan, just update the one "height" further down?)
+                            //           (double check what the reference here then is, can't be height per row, so needs to be absolute positioning)
+                     }
+              
+
+
 
 
 other things (later versions):

@@ -38,13 +38,11 @@ goals for 0.5.0:
                      - set correct dimensions on cell, and expand the can_fit logic
 
 
-              step 4) include colspan in row width calc
+              DONE step 4) include colspan in row width calc
 
-                     for cell_x , cell_y, if a node is anchored here {
-                            //compute both sizes (min and optimal)
-                            //check width of node, find current min and optimal for that amount of cols from current col
-                                   // if not enough: increase each touched column with (missing_width / nr_columns)
-                     }
+                     we already update a list of optimal and minimal values for column widths
+                     I just keep doing that, except that the logic needs to be more general, where we do logic over the set of relevant columns
+
 
               step 5) include rowspan in the layout algo
 

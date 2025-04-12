@@ -713,14 +713,38 @@ fn compute_layout_for_table(table_layout_node: &Rc<RefCell<LayoutNode>>, style_c
 
             let cell = find_node_at_table_slot(cell_nodes, x_pos, y_pos, true);
             if cell.is_some() {
-                let (minimum_element_width, potentential_element_width) = compute_potential_widths(&cell.unwrap(), font_context, style_context);
+                let (minimum_element_width, potentential_element_width) = compute_potential_widths(cell.as_ref().unwrap(), font_context, style_context);
 
-                if minimum_element_width > element_minimum_widths[x_pos] {
-                    element_minimum_widths[x_pos] = minimum_element_width;
+                let nr_slots_wide = match &cell.as_ref().unwrap().borrow().content {
+                    LayoutNodeContent::TableCellLayoutNode(table_cell_layout_node) => table_cell_layout_node.cell_width,
+                    _ => panic!("expected a TableCellLayoutNode"),
                 };
-                if potentential_element_width > element_potential_widths[x_pos] {
-                    element_potential_widths[x_pos] = potentential_element_width;
-                };
+
+                let prev_minimum_widths: f32 = element_minimum_widths[x_pos..x_pos+nr_slots_wide].iter().sum();
+                if minimum_element_width > prev_minimum_widths {
+                    if nr_slots_wide == 1 {
+                        element_minimum_widths[x_pos] = minimum_element_width;
+                    } else {
+                        let missing = minimum_element_width - prev_minimum_widths;
+                        let missing_per_col = missing / nr_slots_wide as f32;
+                        for col_idx in 0..nr_slots_wide {
+                            element_minimum_widths[col_idx] += missing_per_col;
+                        }
+                    }
+                }
+
+                let prev_potential_widths: f32 = element_potential_widths[x_pos..x_pos+nr_slots_wide].iter().sum();
+                if potentential_element_width > prev_potential_widths {
+                    if nr_slots_wide == 1 {
+                        element_potential_widths[x_pos] = potentential_element_width;
+                    } else {
+                        let missing = potentential_element_width - prev_potential_widths;
+                        let missing_per_col = missing / nr_slots_wide as f32;
+                        for col_idx in 0..nr_slots_wide {
+                            element_potential_widths[col_idx] += missing_per_col;
+                        }
+                    }
+                }
             }
         }
     }
@@ -765,18 +789,26 @@ fn compute_layout_for_table(table_layout_node: &Rc<RefCell<LayoutNode>>, style_c
             if cell.is_some() {
                 let cell = cell.unwrap();
 
+                let nr_slots_wide = match &cell.borrow().content {
+                    LayoutNodeContent::TableCellLayoutNode(table_cell_layout_node) => {
+                        table_cell_layout_node.cell_width
+                    },
+                    _ => panic!("expected a TableCellLayoutNode"),
+                };
+                let available_cell_width: f32 = column_widths[x_pos..x_pos+nr_slots_wide].iter().sum();
+
                 compute_layout_for_node(&cell, style_context, cursor_x, cursor_y, font_context, current_scroll_y,
-                                        only_update_block_vertical_position, force_full_layout, column_widths[x_pos], true);
+                                        only_update_block_vertical_position, force_full_layout, available_cell_width, true);
 
                 let element_height = cell.borrow().get_size_of_bounding_box().1;
                 if element_height > max_height_of_row {
                     max_height_of_row = element_height;
                 }
+            }
 
-                cursor_x += column_widths[x_pos];
-                if max_cursor_x_seen < cursor_x {
-                    max_cursor_x_seen = cursor_x;
-                }
+            cursor_x += column_widths[x_pos];
+            if max_cursor_x_seen < cursor_x {
+                max_cursor_x_seen = cursor_x;
             }
         }
 
@@ -1315,7 +1347,6 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
 fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>, document: &Document, font_context: &FontContext) -> LayoutNode {
     let mut layout_children = Vec::new();
-    let mut slot_x_idx = 0;
     let mut slot_y_idx = 0;
     let mut highest_slot_x_idx = 0;
     let mut highest_slot_y_idx = 0;
@@ -1326,7 +1357,7 @@ fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>, doc
             let dom_table_child = dom_table_child.borrow();
             if dom_table_child.name.is_some() && dom_table_child.name.as_ref().unwrap() == &String::from("tr") {
 
-                slot_x_idx = 0;
+                let mut slot_x_idx = 0;
 
                 if dom_table_child.children.is_some() {
                     for dom_row_child in dom_table_child.children.as_ref().unwrap() {

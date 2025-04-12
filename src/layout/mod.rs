@@ -698,11 +698,6 @@ fn compute_layout_for_table(table_layout_node: &Rc<RefCell<LayoutNode>>, style_c
         (0, 0)
     };
 
-    let mut cells_in_order = Vec::with_capacity(table_width_in_slots * table_height_in_slots);
-    for _idx in 0..(table_width_in_slots * table_height_in_slots) {
-        cells_in_order.push(None);
-    }
-
     let mut element_minimum_widths = Vec::with_capacity(table_width_in_slots);
     let mut element_potential_widths = Vec::with_capacity(table_width_in_slots);
     for _idx in 0..table_width_in_slots {
@@ -710,27 +705,23 @@ fn compute_layout_for_table(table_layout_node: &Rc<RefCell<LayoutNode>>, style_c
         element_potential_widths.push(0.0);
     }
 
-    for child in table_layout_node.borrow().children.as_ref().unwrap() {
-        let child_borrow = child.borrow();
-        match &child_borrow.content {
-            LayoutNodeContent::TableCellLayoutNode(table_cell_layout_node) => {
-                let slot_anchor_x_idx = table_cell_layout_node.slot_x_idx;
-                let slot_anchor_y_idx = table_cell_layout_node.slot_y_idx;
-                //TODO: work out how to take the non-anchor indexes into account here
+    let layout_node_borrow = table_layout_node.borrow();
+    let cell_nodes = layout_node_borrow.children.as_ref().unwrap();
 
-                cells_in_order[(slot_anchor_y_idx * table_width_in_slots) + slot_anchor_x_idx] = Some(child.clone());
+    for y_pos in 0..table_height_in_slots {
+        for x_pos in 0..table_width_in_slots {
 
-                drop(child_borrow);
-                let (minimum_element_width, potentential_element_width) = compute_potential_widths(child, font_context, style_context);
+            let cell = find_node_at_table_slot(cell_nodes, x_pos, y_pos, true);
+            if cell.is_some() {
+                let (minimum_element_width, potentential_element_width) = compute_potential_widths(&cell.unwrap(), font_context, style_context);
 
-                if minimum_element_width > element_minimum_widths[slot_anchor_x_idx] {
-                    element_minimum_widths[slot_anchor_x_idx] = minimum_element_width;
+                if minimum_element_width > element_minimum_widths[x_pos] {
+                    element_minimum_widths[x_pos] = minimum_element_width;
                 };
-                if potentential_element_width > element_potential_widths[slot_anchor_x_idx] {
-                    element_potential_widths[slot_anchor_x_idx] = potentential_element_width;
+                if potentential_element_width > element_potential_widths[x_pos] {
+                    element_potential_widths[x_pos] = potentential_element_width;
                 };
-            },
-            _ => panic!("Expecting only table cell layout nodes here")
+            }
         }
     }
 
@@ -760,49 +751,43 @@ fn compute_layout_for_table(table_layout_node: &Rc<RefCell<LayoutNode>>, style_c
         }
     }
 
-
     let mut cursor_x = top_left_x;
     let mut cursor_y = top_left_y;
-    let mut max_height_of_row = 0.0;
 
     let mut max_cursor_x_seen = 0.0;
     let mut max_cursor_y_seen = 0.0;
 
-    for cell in cells_in_order {
-        let cell = cell.unwrap();
-        let cell_borrow = cell.borrow();
-        match &cell_borrow.content {
-            LayoutNodeContent::TableCellLayoutNode(table_cell_layout_node) => {
-                let slot_anchor_x_idx = table_cell_layout_node.slot_x_idx;
-                //TODO: work out how to take the non-anchor indexes into account here
+    for y_pos in 0..table_height_in_slots {
+        let mut max_height_of_row = 0.0;
 
-                drop(cell_borrow);
+        for x_pos in 0..table_width_in_slots {
+            let cell = find_node_at_table_slot(cell_nodes, x_pos, y_pos, true);
+            if cell.is_some() {
+                let cell = cell.unwrap();
+
                 compute_layout_for_node(&cell, style_context, cursor_x, cursor_y, font_context, current_scroll_y,
-                                        only_update_block_vertical_position, force_full_layout, column_widths[slot_anchor_x_idx], true);
+                                        only_update_block_vertical_position, force_full_layout, column_widths[x_pos], true);
 
                 let element_height = cell.borrow().get_size_of_bounding_box().1;
                 if element_height > max_height_of_row {
                     max_height_of_row = element_height;
                 }
 
-                cursor_x += column_widths[slot_anchor_x_idx];
+                cursor_x += column_widths[x_pos];
                 if max_cursor_x_seen < cursor_x {
                     max_cursor_x_seen = cursor_x;
                 }
+            }
+        }
 
-                if slot_anchor_x_idx == table_width_in_slots - 1 {
-                    cursor_x = top_left_x;
-                    cursor_y += max_height_of_row;
-                    if max_cursor_y_seen < cursor_y {
-                        max_cursor_y_seen = cursor_y;
-                    }
-                    max_height_of_row = 0.0;
-                }
-            },
-            _ => panic!("Expecting only table cell layout nodes here")
+        cursor_x = top_left_x;
+        cursor_y += max_height_of_row;
+        if max_cursor_y_seen < cursor_y {
+            max_cursor_y_seen = cursor_y;
         }
     }
 
+    drop(layout_node_borrow);
     table_layout_node.borrow_mut().update_css_box(CssBox { x: top_left_x, y: top_left_y, width: max_cursor_x_seen, height: max_cursor_y_seen });
 }
 

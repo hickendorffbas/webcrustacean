@@ -30,11 +30,15 @@ goals for 0.5.0:
                      - check that table dimensions are set correctly (slots can be added while building because of spans)
 
 
-              step 2) make layout not crash
+              DONE step 2) make layout not crash
                      - make sure it iterates over the whole range of slots , and does "something" for each slot (checking if something is anchored there)
 
 
-              step 3) include colspan in row width calc
+              step 3) take rowspan into account in table build
+                     - set correct dimensions on cell, and expand the can_fit logic
+
+
+              step 4) include colspan in row width calc
 
                      for cell_x , cell_y, if a node is anchored here {
                             //compute both sizes (min and optimal)
@@ -42,7 +46,7 @@ goals for 0.5.0:
                                    // if not enough: increase each touched column with (missing_width / nr_columns)
                      }
 
-              step 4) include rowspan in the layout algo
+              step 5) include rowspan in the layout algo
 
                      for cell_x , cell_y, if a node is anchored here {
                             //given the already known widths, format the node, store the height.
@@ -52,6 +56,9 @@ goals for 0.5.0:
                             //           (double check what the reference here then is, can't be height per row, so needs to be absolute positioning)
                      }
               
+              step 6) move the table only functions to their own module
+
+
 
 
 

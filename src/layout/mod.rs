@@ -1318,6 +1318,7 @@ fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>, doc
     let mut slot_x_idx = 0;
     let mut slot_y_idx = 0;
     let mut highest_slot_x_idx = 0;
+    let mut highest_slot_y_idx = 0;
 
     if table_dom_node.borrow().children.is_some() {
         for dom_table_child in table_dom_node.borrow().children.as_ref().unwrap() {
@@ -1325,7 +1326,6 @@ fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>, doc
             let dom_table_child = dom_table_child.borrow();
             if dom_table_child.name.is_some() && dom_table_child.name.as_ref().unwrap() == &String::from("tr") {
 
-                if slot_x_idx > highest_slot_x_idx { highest_slot_x_idx = slot_x_idx; }
                 slot_x_idx = 0;
 
                 if dom_table_child.children.is_some() {
@@ -1344,7 +1344,7 @@ fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>, doc
                             };
 
                             let rowspan_str = borr_dom_row_child.get_attribute_value("rowspan");
-                            let _rowspan = if rowspan_str.is_some() {  //TODO: use the rowspan
+                            let rowspan = if rowspan_str.is_some() {
                                 //TODO: this parsing to numeric should probably live on the dom node somewhere
                                 rowspan_str.unwrap().parse::<usize>().unwrap_or(1)
                             } else {
@@ -1354,11 +1354,12 @@ fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>, doc
                             let mut can_fit = false;
                             while !can_fit {
                                 let mut all_are_free = true;
-                                for pos in 1..colspan {
-
-                                    if find_node_at_table_slot(&layout_children, slot_x_idx + pos - 1, slot_y_idx, false).is_some() {
-                                        all_are_free = false;
-                                        break;
+                                for x_offset in 0..(colspan - 1) {
+                                    for y_offset in 0..(rowspan - 1) {
+                                        if find_node_at_table_slot(&layout_children, slot_x_idx + x_offset, slot_y_idx + y_offset, false).is_some() {
+                                            all_are_free = false;
+                                            break;
+                                        }
                                     }
                                 }
                                 if all_are_free {
@@ -1390,10 +1391,12 @@ fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>, doc
                                     slot_x_idx,
                                     slot_y_idx,
                                     cell_width: colspan,
-                                    cell_height: 1,
+                                    cell_height: rowspan,
                                 }),
                                 positioning_scheme: PositioningScheme::Static,
                             };
+                            if slot_x_idx + colspan - 1 > highest_slot_x_idx { highest_slot_x_idx = slot_x_idx + colspan - 1; }
+                            if slot_y_idx + rowspan - 1 > highest_slot_y_idx { highest_slot_y_idx = slot_y_idx + rowspan - 1; }
 
                             layout_children.push(Rc::from(RefCell::from(cell_layout_node)));
 
@@ -1413,8 +1416,6 @@ fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>, doc
         }
     }
 
-    if slot_x_idx > highest_slot_x_idx { highest_slot_x_idx = slot_x_idx; }
-
     return LayoutNode {
         internal_id: get_next_layout_node_interal_id(),
         children: Some(layout_children),
@@ -1424,7 +1425,7 @@ fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>, doc
         content: LayoutNodeContent::TableLayoutNode(TableLayoutNode {
             css_box: CssBox::empty(),
             width_in_slots: highest_slot_x_idx + 1,
-            height_in_slots: slot_y_idx,
+            height_in_slots: highest_slot_y_idx + 1,
         }),
         positioning_scheme: PositioningScheme::Static,
     }

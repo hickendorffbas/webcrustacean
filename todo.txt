@@ -34,7 +34,7 @@ goals for 0.5.0:
                      - make sure it iterates over the whole range of slots , and does "something" for each slot (checking if something is anchored there)
 
 
-              step 3) take rowspan into account in table build
+              DONE step 3) take rowspan into account in table build
                      - set correct dimensions on cell, and expand the can_fit logic
 
 

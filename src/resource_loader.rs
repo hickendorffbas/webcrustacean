@@ -166,6 +166,7 @@ fn get_all_html_in_folder(folder_path: PathBuf, local_file_urls: &mut Vec<PathBu
             }
         }
     }
+    local_file_urls.sort();
 }
 
 

@@ -781,17 +781,27 @@ fn compute_layout_for_table(table_layout_node: &Rc<RefCell<LayoutNode>>, style_c
     let mut max_cursor_x_seen = 0.0;
     let mut max_cursor_y_seen = 0.0;
 
+    let mut minimal_starting_point_per_row = Vec::with_capacity(table_height_in_slots);
+    for _idx in 0..table_height_in_slots {
+        minimal_starting_point_per_row.push(0.0);
+    }
+
     for y_pos in 0..table_height_in_slots {
         let mut max_height_of_row = 0.0;
+
+        let minimal_starting_point = minimal_starting_point_per_row[y_pos];
+        if cursor_y < minimal_starting_point {
+            cursor_y = minimal_starting_point;
+        }
 
         for x_pos in 0..table_width_in_slots {
             let cell = find_node_at_table_slot(cell_nodes, x_pos, y_pos, true);
             if cell.is_some() {
                 let cell = cell.unwrap();
 
-                let nr_slots_wide = match &cell.borrow().content {
+                let (nr_slots_wide, nr_slots_high) = match &cell.borrow().content {
                     LayoutNodeContent::TableCellLayoutNode(table_cell_layout_node) => {
-                        table_cell_layout_node.cell_width
+                        (table_cell_layout_node.cell_width, table_cell_layout_node.cell_height)
                     },
                     _ => panic!("expected a TableCellLayoutNode"),
                 };
@@ -801,9 +811,20 @@ fn compute_layout_for_table(table_layout_node: &Rc<RefCell<LayoutNode>>, style_c
                                         only_update_block_vertical_position, force_full_layout, available_cell_width, true);
 
                 let element_height = cell.borrow().get_size_of_bounding_box().1;
-                if element_height > max_height_of_row {
-                    max_height_of_row = element_height;
+
+                if nr_slots_high == 1 {
+                    if element_height > max_height_of_row {
+                        max_height_of_row = element_height;
+                    }
+                } else {
+                    let first_row_below = y_pos + nr_slots_high;
+                    let minimal_starting_point = cursor_y + element_height;
+
+                    if minimal_starting_point > minimal_starting_point_per_row[first_row_below] {
+                        minimal_starting_point_per_row[first_row_below] = minimal_starting_point;
+                    }
                 }
+
             }
 
             cursor_x += column_widths[x_pos];
@@ -1382,19 +1403,18 @@ fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>, doc
                                 1
                             };
 
-                            let mut can_fit = false;
-                            while !can_fit {
+                            loop {
                                 let mut all_are_free = true;
-                                for x_offset in 0..(colspan - 1) {
-                                    for y_offset in 0..(rowspan - 1) {
+                                'offset_loops: for x_offset in 0..colspan {
+                                    for y_offset in 0..rowspan {
                                         if find_node_at_table_slot(&layout_children, slot_x_idx + x_offset, slot_y_idx + y_offset, false).is_some() {
                                             all_are_free = false;
-                                            break;
+                                            break 'offset_loops;
                                         }
                                     }
                                 }
                                 if all_are_free {
-                                    can_fit = true;
+                                    break;
                                 } else {
                                     slot_x_idx += 1;
                                 }
@@ -1415,7 +1435,8 @@ fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>, doc
                                 internal_id: get_next_layout_node_interal_id(),
                                 children: Some(cell_children),
                                 from_dom_node: Some(dom_row_child.clone()),
-                                formatting_context: FormattingContext::Block, //TODO: this should be based on the css properties
+                                formatting_context: FormattingContext::Inline, //TODO: this should be based on the css properties
+                                                                               //      its now inline to make text work, but this is not always correct
                                 visible: true,
                                 content: LayoutNodeContent::TableCellLayoutNode(TableCellLayoutNode {
                                     css_box: CssBox::empty(),
@@ -1471,14 +1492,14 @@ fn find_node_at_table_slot(cells: &Vec<Rc<RefCell<LayoutNode>>>, slot_x_idx: usi
             LayoutNodeContent::TableCellLayoutNode(table_cell_layout_node) => {
                 let x = table_cell_layout_node.slot_x_idx;
                 let y = table_cell_layout_node.slot_y_idx;
-                let width = table_cell_layout_node.cell_width;
-                let height = table_cell_layout_node.cell_height;
 
                 if only_match_anchor {
                     if x == slot_x_idx && y == slot_y_idx {
                         return Some(cell.clone());
                     }
                 } else {
+                    let width = table_cell_layout_node.cell_width;
+                    let height = table_cell_layout_node.cell_height;
                     if x <= slot_x_idx && slot_x_idx <= (x + width - 1) && y <= slot_y_idx && slot_y_idx <= (y + height - 1) {
                         return Some(cell.clone());
                     }

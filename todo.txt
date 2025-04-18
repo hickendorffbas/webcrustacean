@@ -14,51 +14,6 @@ goals for 0.5.0:
                      In the case of HTML, whitespace is largely ignored — whitespace in between words is treated as a single character,
                      and whitespace at the start and end of elements and outside elements is ignored.
        - links on the homepage to testinput files is not sorted
-       - add col and row span to tables:
-              - we now store a width and height on the cell's
-                     - this means we should probably stop using cells in order (because the order is not really that linear anymore), switch to slot iteration (x,y)
-                            - we probably need to keep a list of minimal and optimal sizes for each column and each row, and update them for every cell
-                                   - a cell might span multiple rows and/or columns, so we need to each time update them such that the full cell will fit
-                                          - I think I still actually only need to track columns for the inital 2 passes, and then do height only in the
-                                            last pass.
-                                   - in the final grid, there will be unoccupied spaces. check the spec and make sure the layout compute can handle that
-
-              plan:
-
-
-              DONE step 1) build
-                     - for rowspan in table build, I can just occupy the slots, and then we only distribute the next rows over the free slots
-                     - check that table dimensions are set correctly (slots can be added while building because of spans)
-
-
-              DONE step 2) make layout not crash
-                     - make sure it iterates over the whole range of slots , and does "something" for each slot (checking if something is anchored there)
-
-
-              DONE step 3) take rowspan into account in table build
-                     - set correct dimensions on cell, and expand the can_fit logic
-
-
-              DONE step 4) include colspan in row width calc
-
-                     we already update a list of optimal and minimal values for column widths
-                     I just keep doing that, except that the logic needs to be more general, where we do logic over the set of relevant columns
-
-
-              DONE step 5) include rowspan in the layout algo
-
-                     basically, if rowspan is 2, this should not do anything to the cursor_y, but store the minimum position to start on row later
-                     so we need a list of future rows, with the amount they should minimally start at. We only need to update the exact ending row
-                     (the start of the next row, actually)
-                     but we can only ever increase this value. Then when starting a new row, add the hight of the past line, then increase to
-                     the number we stored for that row, if it is larger.
-                            the position we store is the actual pixel position (so top_left_y plus whatever is already added from earlier rows), same as the cursors
-              
-              step 6) move the table only functions to their own module
-
-
-
-
 
 
 other things (later versions):

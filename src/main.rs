@@ -14,7 +14,9 @@ mod script;
 mod style;
 mod ui;
 mod ui_components;
-#[cfg(test)] mod test_util; //TODO: is there a better (test-specific) place to define this?
+
+#[cfg(test)] mod reftests;
+#[cfg(test)] mod test_util;
 
 use std::{
     cell::RefCell,
@@ -329,7 +331,7 @@ fn compute_selection_regions(ui_state: &UIState, layout_node: &Rc<RefCell<Layout
 
 fn main() -> Result<(), String> {
     let sdl_context = sdl2::init()?;
-    let mut platform = platform::init_platform(sdl_context, STARTING_SCREEN_WIDTH, STARTING_SCREEN_HEIGHT).unwrap();
+    let mut platform = platform::init_platform(sdl_context, STARTING_SCREEN_WIDTH, STARTING_SCREEN_HEIGHT, false).unwrap();
 
     let mut resource_thread_pool = ResourceThreadPool { pool: ThreadPool::new(NR_RESOURCE_LOADING_THREADS) };
 

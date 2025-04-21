@@ -46,7 +46,9 @@ pub struct Platform {
     pub sdl_context: Sdl,
     pub font_context: FontContext,
 
-    canvas: WindowCanvas,
+    #[cfg(test)] pub canvas: WindowCanvas,
+    #[cfg(not(test))] canvas: WindowCanvas,
+
     video_subsystem: VideoSubsystem,
 
     //the image_context is not used by our code, but needs to be kept alive in order to work with images in SDL2:
@@ -180,17 +182,20 @@ pub fn to_sdl_color(color: Color, alpha: u8) -> SdlColor {
 }
 
 
-pub fn init_platform(sdl_context: Sdl, screen_width: f32, screen_height: f32) -> Result<Platform, String> {
+pub fn init_platform(sdl_context: Sdl, screen_width: f32, screen_height: f32, headless: bool) -> Result<Platform, String> {
     let video_subsystem = sdl_context.video()
         .expect("Could not get the video subsystem");
 
     let image_context = SdlImage::init(SdlImage::InitFlag::PNG | SdlImage::InitFlag::JPG)?;
 
-    let window = video_subsystem.window("Webcrustacean", screen_width as u32, screen_height as u32)
-        .position_centered()
-        .resizable()
-        .build()
-        .expect("could not initialize video subsystem");
+    let mut window_builder = video_subsystem.window("Webcrustacean", screen_width as u32, screen_height as u32);
+    window_builder.position_centered().resizable();
+
+    if headless {
+        window_builder.hidden();
+    }
+
+    let window = window_builder.build().expect("could not initialize video subsystem");
 
     let canvas = window.into_canvas().build()
         .expect("could not make a canvas");

@@ -3,7 +3,7 @@ goals for 0.5.0:
        - better testing setup
               - implement mocking (with a type alias) of the platform
               - reftests
-                     - enable the first one once whitespace issues are fixed
+                     - ui's are compared, but the content is not rendering yet, not sure what the issue is yet
               - make parse tests nicer by comparing json
                      - this works, but we need to make a generic function so we can have a nice way of having many tests
               - we can probably test layout by converting the layout tree to json, and assert specific things (not equals on the whole tree)
@@ -11,11 +11,8 @@ goals for 0.5.0:
        - I need to think about where I want to introduce the platform. Now its a bit messy, since to measure font size we need the platform, therefore needing it
               in layout. Or do we accept that and just get better at mocking?
                      -> use lazy_static , but figure out mocking for tests
-       - fix whitespace
-              on https://developer.mozilla.org/en-US/docs/Web/API/Document_Object_Model/Whitespace:
-                     In the case of HTML, whitespace is largely ignored — whitespace in between words is treated as a single character,
-                     and whitespace at the start and end of elements and outside elements is ignored.
        - config a directory path for the files on the home screen, so that we can configure it to not show all the reftests
+       - bold does not seem to work anymore
 
 
 other things (later versions):

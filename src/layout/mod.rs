@@ -721,12 +721,45 @@ fn apply_block_layout(node: &mut LayoutNode, style_context: &StyleContext, top_l
 }
 
 
+fn fix_inline_whitespace(node: &mut LayoutNode) {
+    //We remove whitespace at the beginning or end of the sequence of inline nodes because it should not show,
+    //      and we can't really handle this earlier in the process (like other whitespace correctness) since we don't know what the inline nodes will be then.
+
+    if !node.children.as_ref().unwrap().is_empty() {
+        {
+            let mut first_child = node.children.as_ref().unwrap().first().unwrap().borrow_mut();
+
+            if let LayoutNodeContent::TextLayoutNode(text_node) = &mut first_child.content {
+                let first_box = text_node.css_text_boxes.first_mut().unwrap();
+                if first_box.text.starts_with(" ") {
+                    first_box.text = first_box.text.trim_start_matches(' ').to_string();
+                }
+            }
+        }
+
+        {
+            let mut last_child = node.children.as_ref().unwrap().last().unwrap().borrow_mut();
+
+            if let LayoutNodeContent::TextLayoutNode(text_node) = &mut last_child.content {
+                let last_box = text_node.css_text_boxes.last_mut().unwrap();
+                if last_box.text.ends_with(" ") {
+                    last_box.text = last_box.text.trim_end_matches(' ').to_string();
+                }
+            }
+        }
+    }
+}
+
+
 fn apply_inline_layout(node: &mut LayoutNode, style_context: &StyleContext, top_left_x: f32, top_left_y: f32, available_width: f32,
                        current_scroll_y: f32, font_context: &FontContext, force_full_layout: bool) {
     let mut cursor_x = top_left_x;
     let mut cursor_y = top_left_y;
     let mut max_width: f32 = 0.0;
     let mut max_height_of_line: f32 = 0.0;
+
+
+    fix_inline_whitespace(node);
 
     for child in node.children.as_ref().unwrap() {
 

@@ -1,10 +1,13 @@
 use std::{
     fs::File,
     io::Read,
-    path::Path
+    path::Path,
+    thread,
+    time
 };
 
-use sdl2::pixels;
+use image::ImageBuffer;
+use image::Rgba;
 use sdl2::rect::Rect as SdlRect;
 use threadpool::ThreadPool;
 
@@ -20,6 +23,7 @@ use crate::ui::UIState;
 
 const DEFAULT_SCREEN_WIDTH: f32 = 600.0;
 const DEFAULT_SCREEN_HEIGHT: f32 = 600.0;
+const WAIT_FOR_SDL2_MILLIS: u64 = 250;
 
 
 fn read_file(file_path: &Path) -> String {
@@ -38,7 +42,7 @@ fn read_file(file_path: &Path) -> String {
 }
 
 
-fn render_doc(filename: &str, platform: &mut Platform) -> Vec<u8> {
+fn render_doc(filename: &str, platform: &mut Platform, save_output: bool) -> Vec<u8> {
     let html = read_file(Path::new(&filename));
 
     let url = Url::empty();
@@ -60,12 +64,22 @@ fn render_doc(filename: &str, platform: &mut Platform) -> Vec<u8> {
 
     renderer::render(platform, &full_layout, &mut ui_state);
 
+    thread::sleep(time::Duration::from_millis(WAIT_FOR_SDL2_MILLIS));
+
     let rect = SdlRect::new(0, 0, DEFAULT_SCREEN_WIDTH as u32, DEFAULT_SCREEN_HEIGHT as u32);
-    return platform.canvas.read_pixels(rect, pixels::PixelFormatEnum::RGB888).unwrap(); //TODO: I'm not sure the pixel format is correct...
+    let pixels = platform.canvas.read_pixels(rect, platform.canvas.default_pixel_format()).unwrap();
+
+    if save_output {
+        let img: ImageBuffer<Rgba<u8>, _> = ImageBuffer::from_raw(DEFAULT_SCREEN_WIDTH as u32, DEFAULT_SCREEN_HEIGHT as u32, pixels.clone()).unwrap();
+        let name = filename.split("/").last().unwrap().split(".").next().unwrap();
+        img.save(Path::new(&("/home/bas/code/webcrustacean/reftest_dump_".to_owned() + name + ".bmp"))).map_err(|e| e.to_string()).expect("ERROR");
+    }
+
+    return pixels;
 }
 
 
-fn run_ref_test(test_number: usize) {
+fn run_ref_test(test_number: usize, save_output: bool) {
 
     //TODO: platform init would be better to do once for all tests? Can we have state over tests even?
     let sdl_context = sdl2::init().unwrap();
@@ -74,17 +88,17 @@ fn run_ref_test(test_number: usize) {
     let file_name_a = String::from("reftest_data/") + test_number.to_string().as_str() + "a.html";
     let file_name_b = String::from("reftest_data/") + test_number.to_string().as_str() + "b.html";
 
-    let render1 = render_doc(&file_name_a, &mut platform);
-    let render2 = render_doc(&file_name_b, &mut platform);
+    let render1 = render_doc(&file_name_a, &mut platform, save_output);
+    let render2 = render_doc(&file_name_b, &mut platform, save_output);
 
     let renders_equal = render1 == render2;
-    //assert!(renders_equal); //TODO: enable when the whitespace issues are fixed
+    assert!(renders_equal);
 }
 
 
 #[test]
 fn reftest_1() {
     //Check that whitespace in the html does not lead to extra whitespace on the rendered page
-    run_ref_test(1);
+    run_ref_test(1, false);
 }
 

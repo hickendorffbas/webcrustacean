@@ -19,6 +19,8 @@ use crate::platform::{Platform, self};
 use crate::renderer;
 use crate::resource_loader::ResourceThreadPool;
 use crate::ui::UIState;
+use crate::ui::CONTENT_TOP_LEFT_X;
+use crate::ui::CONTENT_TOP_LEFT_Y;
 
 
 const DEFAULT_SCREEN_WIDTH: f32 = 600.0;
@@ -59,8 +61,8 @@ fn render_doc(filename: &str, platform: &mut Platform, save_output: bool) -> Vec
     ui_state.current_scroll_y = 0.0;
     ui_state.currently_loading_page = false;
 
-    layout::compute_layout(&full_layout.root_node, &document.style_context, 0.0, 0.0, &platform.font_context, ui_state.current_scroll_y,
-                           false, true, ui_state.window_dimensions.content_viewport_width);
+    layout::compute_layout(&full_layout.root_node, &document.style_context, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y, &platform.font_context,
+                           ui_state.current_scroll_y, false, true, ui_state.window_dimensions.content_viewport_width);
 
     renderer::render(platform, &full_layout, &mut ui_state);
 

@@ -7,9 +7,14 @@ use rusttype::{
 };
 
 
-//TODO: we need to add the bold, italic etc. versions and thefore name this more specific
-static FONT_DATA: [u8; include_bytes!("../../ubuntu_fonts/Ubuntu-Regular.ttf").len()] =
+static UNBUNTU_FONT_REGULAR: [u8; include_bytes!("../../ubuntu_fonts/Ubuntu-Regular.ttf").len()] =
     *include_bytes!("../../ubuntu_fonts/Ubuntu-Regular.ttf");
+static UNBUNTU_FONT_BOLD: [u8; include_bytes!("../../ubuntu_fonts/Ubuntu-Bold.ttf").len()] =
+    *include_bytes!("../../ubuntu_fonts/Ubuntu-Bold.ttf");
+static UNBUNTU_FONT_ITALIC: [u8; include_bytes!("../../ubuntu_fonts/Ubuntu-Italic.ttf").len()] =
+    *include_bytes!("../../ubuntu_fonts/Ubuntu-Italic.ttf");
+static UNBUNTU_FONT_BOLD_ITALIC: [u8; include_bytes!("../../ubuntu_fonts/Ubuntu-BoldItalic.ttf").len()] =
+    *include_bytes!("../../ubuntu_fonts/Ubuntu-BoldItalic.ttf");
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -33,8 +38,6 @@ impl Font {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Eq, PartialEq, Hash, Clone)]
 pub enum FontFace {
-    //TODO: we want bold and italic to be seperate fonts here (because they are loaded from different files)
-    //      but it would be nice if the enum items then have properties with those flags (bool)
     TimesNewRomanRegular,
 }
 
@@ -52,12 +55,19 @@ pub struct FontContext {
 }
 impl FontContext {
     pub fn new() -> FontContext {
-
         let mut font_context = FontContext { font_data: HashMap::new() };
 
-        //TODO: load the other font variants (bold, italic etc.)
-        let font = RustTypeFont::try_from_bytes(&FONT_DATA).expect("Failure loading font data");
-        font_context.font_data.insert(Font::default().to_font_key(), font);
+        let font = RustTypeFont::try_from_bytes(&UNBUNTU_FONT_REGULAR).expect("Failure loading font data");
+        font_context.font_data.insert(FontKey { face: FontFace::TimesNewRomanRegular, bold: false, italic: false }, font);
+
+        let font = RustTypeFont::try_from_bytes(&UNBUNTU_FONT_BOLD).expect("Failure loading font data");
+        font_context.font_data.insert(FontKey { face: FontFace::TimesNewRomanRegular, bold: true, italic: false }, font);
+
+        let font = RustTypeFont::try_from_bytes(&UNBUNTU_FONT_ITALIC).expect("Failure loading font data");
+        font_context.font_data.insert(FontKey { face: FontFace::TimesNewRomanRegular, bold: false, italic: true }, font);
+
+        let font = RustTypeFont::try_from_bytes(&UNBUNTU_FONT_BOLD_ITALIC).expect("Failure loading font data");
+        font_context.font_data.insert(FontKey { face: FontFace::TimesNewRomanRegular, bold: true, italic: true }, font);
 
         return font_context;
     }

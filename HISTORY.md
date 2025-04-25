@@ -3,6 +3,7 @@
 - The main window is now resizable
 - Added basic html tables
 - More whitespace correctness (less whitespace shown in general)
+- Bold and Italic text styles supported
 
 
 0.4.0

@@ -687,8 +687,9 @@ fn compute_potential_widths(node: &Rc<RefCell<LayoutNode>>, font_context: &FontC
 
 pub fn get_font_given_styles(styles: &HashMap<String, String>) -> (Font, Color) {
     let font_bold = has_style_value(&styles, "font-weight", &"bold".to_owned());
+    let font_italic = has_style_value(styles, "font-style", &"italic".to_owned());
     let _font_underline = has_style_value(&styles, "text-decoration", &"underline".to_owned()); //TODO: we need to use this in a different way
-    //TODO: we still need to parse italic (currently harcoded to false in the return below)
+
     let opt_font_size = get_property_from_computed_styles(&styles, "font-size");
     let font_size = resolve_css_numeric_type_value(&opt_font_size.unwrap()); //font-size has a default value, so this is a fatal error if not found
 
@@ -697,7 +698,7 @@ pub fn get_font_given_styles(styles: &HashMap<String, String>) -> (Font, Color) 
 
     let default_font_face = FontFace::TimesNewRomanRegular;
 
-    return (Font { face: default_font_face, bold: font_bold, italic: false, size: font_size as u16}, font_color);
+    return (Font { face: default_font_face, bold: font_bold, italic: font_italic, size: font_size as u16}, font_color);
 }
 
 
@@ -982,7 +983,6 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
     let mut partial_node_visible = true;
     let mut partial_node_optional_img = None;
     let mut partial_node_line_break = false;
-    let mut partial_node_styles = resolve_full_styles_for_layout_node(&Rc::clone(main_node), &document.all_nodes, &document.style_context);
     let mut partial_node_children = None;
     let mut partial_node_is_submit_button = false;
     let mut partial_node_is_text_input = false;
@@ -994,7 +994,8 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
     let mut prebuilt_node = None; //TODO: I think it is a good idea to transition all cases to pre built the node? needs checking
 
-    let partial_node_background_color = get_color_style_value(&partial_node_styles, "background-color").unwrap_or(Color::WHITE);
+    let node_styles = resolve_full_styles_for_layout_node(&Rc::clone(main_node), &document.all_nodes, &document.style_context);
+    let partial_node_background_color = get_color_style_value(&node_styles, "background-color").unwrap_or(Color::WHITE);
 
     let positioning_scheme = PositioningScheme::Static; //TODO: this should be derived from the position attribute on the DOM node
 
@@ -1005,7 +1006,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
     if main_node.text.is_some() {
         partial_node_text = Some(main_node.text.as_ref().unwrap().text_content.clone());
-        let font = get_font_given_styles(&partial_node_styles);
+        let font = get_font_given_styles(&node_styles);
         partial_node_font = Some(font.0);
         partial_node_font_color = Some(font.1);
         partial_node_non_breaking_space_positions = main_node.text.as_ref().unwrap().non_breaking_space_positions.clone();
@@ -1014,19 +1015,13 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
         childs_to_recurse_on = &main_node.children;
 
         match &main_node.name_for_layout {
-
-            TagName::B => {
-                //TODO: can this style not be in the general stylesheet?
-                partial_node_styles.insert("font-weight".to_owned(), "bold".to_owned());
-            }
-
             TagName::Br => {
                 //A newline does not have text, but we still want to make a text node, since things like fontsize affect how it looks
                 partial_node_text = Some(String::new());
 
                 partial_node_line_break = true;
 
-                let font = get_font_given_styles(&partial_node_styles);
+                let font = get_font_given_styles(&node_styles);
                 partial_node_font = Some(font.0);
                 partial_node_font_color = Some(font.1);
             }

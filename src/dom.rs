@@ -63,7 +63,6 @@ impl Document {
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub enum TagName {
-    B,
     Br,
     Img,
     Input,
@@ -78,7 +77,6 @@ impl TagName {
     pub fn from_string(tag_being_parsed: &String) -> TagName {
         return match tag_being_parsed.as_str() {
 
-            "b" => TagName::B,
             "br" => TagName::Br,
             "img" => TagName::Img,
             "input" => TagName::Input,
@@ -340,6 +338,7 @@ impl ElementDomNode {
             if node_name == "a" ||  //TODO: should we check a static array of str here?
                node_name == "b" ||
                node_name == "br" ||
+               node_name == "i" ||
                node_name == "img" ||
                node_name == "span" {
                     return DomPropertyDisplay::Inline;

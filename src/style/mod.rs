@@ -151,6 +151,11 @@ pub fn get_user_agent_style_sheet() -> Vec<StyleRule> {
         StyleRule { selector: Selector { nodes: Some(vec!["h6".to_owned()]) },
                     property: "font-size".to_owned(), value: "22".to_owned() },
 
+        StyleRule { selector: Selector { nodes: Some(vec!["b".to_owned()]) },
+                    property: "font-weight".to_owned(), value: "bold".to_owned() },
+        StyleRule { selector: Selector { nodes: Some(vec!["i".to_owned()]) },
+                    property: "font-style".to_owned(), value: "italic".to_owned() },
+
         StyleRule { selector: Selector { nodes: Some(vec!["a".to_owned()]) },
                     property: "color".to_owned(), value: "blue".to_owned() },
         StyleRule { selector: Selector { nodes: Some(vec!["a".to_owned()]) },
@@ -172,6 +177,7 @@ pub fn get_property_from_computed_styles(styles: &HashMap<String, String>, prope
     match property {
         "color" => return Some(String::from("black")),
         "font-size" => return Some(String::from("18")),
+        "font-style" => return Some(String::from("normal")),
         "font-weight" => return Some(String::from("normal")),
         _ => { return None }
     };

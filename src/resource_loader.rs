@@ -159,7 +159,10 @@ fn get_all_html_in_folder(folder_path: PathBuf, local_file_urls: &mut Vec<PathBu
     for file in files_in_current_folder {
         let path = file.as_ref().unwrap().path();
         if metadata(&path).unwrap().is_dir() {
-            get_all_html_in_folder(path, local_file_urls);
+            if !path.ends_with("reftest_data") { //TODO: this check is an ugly hack to filter out test data. We need to make a nicer about::home
+                                                 //      maybe with a configurable folder to list, or just a link to a folder listing page (file:://)
+                get_all_html_in_folder(path, local_file_urls);
+            }
         } else {
             if path.extension().is_some() && path.extension().unwrap().to_str().unwrap() == "html" {
                 local_file_urls.push(path);
@@ -168,7 +171,6 @@ fn get_all_html_in_folder(folder_path: PathBuf, local_file_urls: &mut Vec<PathBu
     }
     local_file_urls.sort();
 }
-
 
 
 pub fn schedule_load_image(url: &Url, resource_thread_pool: &mut ResourceThreadPool) -> ResourceRequestJobTracker<DynamicImage> {

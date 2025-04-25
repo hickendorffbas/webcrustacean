@@ -2,8 +2,6 @@
 goals for 0.5.0:
        - better testing setup
               - implement mocking (with a type alias) of the platform
-              - reftests
-                     - ui's are compared, but the content is not rendering yet, not sure what the issue is yet
               - make parse tests nicer by comparing json
                      - this works, but we need to make a generic function so we can have a nice way of having many tests
               - we can probably test layout by converting the layout tree to json, and assert specific things (not equals on the whole tree)
@@ -11,7 +9,6 @@ goals for 0.5.0:
        - I need to think about where I want to introduce the platform. Now its a bit messy, since to measure font size we need the platform, therefore needing it
               in layout. Or do we accept that and just get better at mocking?
                      -> use lazy_static , but figure out mocking for tests
-       - config a directory path for the files on the home screen, so that we can configure it to not show all the reftests
        - bold does not seem to work anymore
 
 

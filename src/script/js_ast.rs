@@ -186,6 +186,11 @@ impl JsAstBinOp {
                         }
 
                     },
+                    JsValue::Undefined => {
+                        js_console::log_js_error("Can't access property of undefined"); //TODO: this should include a line number (we need to build that generically)
+                        //TODO: we should stop evaluating on these kind of errors, so we should probably return a result or something
+                        return JsValue::Undefined;
+                    },
                     _ => {
                         todo!();
                     }

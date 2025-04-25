@@ -325,7 +325,7 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
 
                         _ => {
                             //TODO: when we are confident we have all relevant characters, we should just ignore here (don't give an error, maybe a warning in devconsole)
-                            todo!("unrecognized character in the js tokenizer: {:?}", js_iterator.peek());
+                            todo!("unrecognized character in the js tokenizer: {:?}", next_char);
                         }
                     };
 

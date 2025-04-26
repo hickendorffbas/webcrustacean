@@ -4,7 +4,7 @@ use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use image::DynamicImage;
+use image::RgbaImage;
 
 use crate::color::Color;
 use crate::debug::debug_log_warn;
@@ -92,7 +92,7 @@ impl TextLayoutNode {
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct ImageLayoutNode {
-    pub image: DynamicImage,
+    pub image: RgbaImage,
     pub css_box: CssBox,
 }
 

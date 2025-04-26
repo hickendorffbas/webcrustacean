@@ -4,6 +4,7 @@
 - Added basic html tables
 - More whitespace correctness (less whitespace shown in general)
 - Bold and Italic text styles supported
+- More image types supported in the rendering
 
 
 0.4.0

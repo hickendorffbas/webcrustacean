@@ -3,10 +3,17 @@ use std::env;
 use std::fs::{self, metadata};
 use std::path::PathBuf;
 use std::sync::atomic::{Ordering, AtomicUsize};
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{
+    channel,
+    Receiver,
+    Sender
+};
 
-use image::DynamicImage;
-use image::ImageReader;
+use image::{
+    ImageBuffer,
+    ImageReader,
+    RgbaImage
+};
 use threadpool::ThreadPool;
 
 use crate::debug::debug_log_warn;
@@ -45,7 +52,7 @@ pub struct ResourceThreadPool {
     pub pool: ThreadPool,
 }
 impl ResourceThreadPool {
-    fn fire_and_forget_load_image(&mut self, job: ResourceRequestJob<DynamicImage>) {
+    fn fire_and_forget_load_image(&mut self, job: ResourceRequestJob<RgbaImage>) {
         self.pool.execute(move || {
             let result = load_image(&job.url);
             job.sender.send(result).expect("Could not send over channel");
@@ -173,8 +180,8 @@ fn get_all_html_in_folder(folder_path: PathBuf, local_file_urls: &mut Vec<PathBu
 }
 
 
-pub fn schedule_load_image(url: &Url, resource_thread_pool: &mut ResourceThreadPool) -> ResourceRequestJobTracker<DynamicImage> {
-    let (sender, receiver) = channel::<DynamicImage>();
+pub fn schedule_load_image(url: &Url, resource_thread_pool: &mut ResourceThreadPool) -> ResourceRequestJobTracker<RgbaImage> {
+    let (sender, receiver) = channel::<RgbaImage>();
     let job_id = get_next_job_id();
 
     let job = ResourceRequestJob { job_id, url: url.clone(), sender, request_type: RequestType::Get, body: None };
@@ -186,7 +193,7 @@ pub fn schedule_load_image(url: &Url, resource_thread_pool: &mut ResourceThreadP
 }
 
 
-fn load_image(url: &Url) -> DynamicImage {
+fn load_image(url: &Url) -> RgbaImage { //TODO: this should probably return a result, since its not guaranteed that the loading will succeed
     if url.scheme == "file" {
         let mut local_path = String::from("//");
         local_path.push_str(&url.path.join("/"));
@@ -199,11 +206,13 @@ fn load_image(url: &Url) -> DynamicImage {
         let file_data = read_result.unwrap();
         let format_guess_result = file_data.with_guessed_format();
 
-        if format_guess_result.is_ok() {
-            return format_guess_result.ok().unwrap().decode().expect("decoding the image failed"); //TODO: we need to handle this in a better way
+        let dyn_image = if format_guess_result.is_ok() {
+            format_guess_result.ok().unwrap().decode().expect("decoding the image failed") //TODO: we need to handle this in a better way
         } else {
             panic!("decoding the image failed"); //TODO: we need to handle this in a better way
-        }
+        };
+
+        return dyn_image.to_rgba8();
     }
 
     let extension = url.file_extension();
@@ -226,11 +235,11 @@ fn load_image(url: &Url) -> DynamicImage {
         return fallback_image();
     }
 
-    return image_result.unwrap();
+    return image_result.unwrap().to_rgba8();
 }
 
 
-pub fn fallback_image() -> DynamicImage {
+pub fn fallback_image() -> RgbaImage {
     //TODO: this should become one of those "broken image"-images
-    return DynamicImage::new_rgb8(1, 1);
+    return ImageBuffer::new(1, 1);
 }

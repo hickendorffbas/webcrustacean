@@ -4,7 +4,7 @@ use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use image::DynamicImage;
+use image::RgbaImage;
 
 use crate::network::url::Url;
 use crate::platform::Platform;
@@ -129,8 +129,8 @@ pub struct ElementDomNode {
     pub children: Option<Vec<Rc<RefCell<ElementDomNode>>>>,
     pub attributes: Option<Vec<Rc<RefCell<AttributeDomNode>>>>,
 
-    pub image: Option<Rc<DynamicImage>>,
-    pub img_job_tracker: Option<ResourceRequestJobTracker<DynamicImage>>,
+    pub image: Option<Rc<RgbaImage>>,
+    pub img_job_tracker: Option<ResourceRequestJobTracker<RgbaImage>>,
 
     pub scripts: Option<Vec<Rc<Script>>>,
 

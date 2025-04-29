@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::iter::Peekable;
 use std::rc::Rc;
 use std::str::CharIndices;
@@ -17,7 +18,119 @@ use crate::layout::{
     LayoutNodeContent,
 };
 
-//TODO: this function should have some tests by itself
+
+#[derive(PartialEq)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub enum JsonValue {
+    Object(HashMap<String, JsonValue>),
+    Int(i32),
+    String(String),
+    List(Vec<JsonValue>),
+    Boolean(bool),
+}
+
+
+pub fn json_is_equal(json1: &String, json2: &String) -> bool {
+    let parsed1 = parse_json(json1);
+    let parsed2 = parse_json(json2);
+    return parsed1 == parsed2;
+}
+
+
+pub fn parse_json(json: &String) -> JsonValue {
+    return parse_json_with_state(&mut ParserState::make_for(&json));
+}
+
+
+fn parse_json_with_state(parser_state: &mut ParserState) -> JsonValue {
+    //Because this parser is not meant for webcontent, just internal things like tests and debugging, we panic on invalid json for now
+    //TODO: this parser does need some basic tests
+
+    parser_state.consume_until_next_relevant_char();
+    let peek = parser_state.peek_next_char().unwrap();
+
+    if peek == '{' {
+        parser_state.next();
+        parser_state.consume_until_next_relevant_char();
+
+        let mut object_map = HashMap::new();
+        while parser_state.peek_next_char().is_some() && parser_state.peek_next_char().unwrap() != '}' {
+
+            parser_state.consume_until_next_relevant_char();
+
+            if parser_state.peek_next_char().unwrap() == ',' {
+                parser_state.next();
+            }
+            parser_state.consume_until_next_relevant_char();
+
+            parser_state.next(); //eat the opening quote of the key
+
+            let mut key_buffer = String::new();
+            while parser_state.peek_next_char().unwrap() != '"' {
+                key_buffer.push(parser_state.next().unwrap());
+            }
+
+            parser_state.next(); // eat the closing quote of the key
+            parser_state.consume_until_next_relevant_char();
+            parser_state.next(); // eat the colon
+
+            let value = parse_json_with_state(parser_state);
+            object_map.insert(key_buffer, value);
+
+            parser_state.consume_until_next_relevant_char();
+        }
+        parser_state.next(); //eat the closing brace
+
+        return JsonValue::Object(object_map);
+    }
+
+    if peek == '[' {
+        parser_state.next();
+        parser_state.consume_until_next_relevant_char();
+
+        let mut values = Vec::new();
+        while parser_state.peek_next_char().is_some() && parser_state.peek_next_char().unwrap() != ']' {
+            if parser_state.peek_next_char().unwrap() == ',' {
+                parser_state.next();
+            }
+
+            values.push(parse_json_with_state(parser_state));
+            parser_state.consume_until_next_relevant_char();
+        }
+        parser_state.next(); //eat the closing bracket
+
+        return JsonValue::List(values);
+    }
+
+    if peek == '"' {
+        parser_state.next(); //eat the opening quote
+        return JsonValue::String(parser_state.consume_until('"').unwrap().to_owned());
+    }
+
+    let mut buffer = String::new();
+    while parser_state.peek_next_char().is_some() {
+        let next_char = parser_state.peek_next_char().unwrap();
+
+        if next_char == ',' || next_char == '}' || next_char == ']' {
+            if buffer.parse::<i32>().is_ok() {
+                return JsonValue::Int(buffer.parse::<i32>().unwrap())
+            }
+
+            if buffer == "true" || buffer == "false" {
+                return JsonValue::Boolean(buffer == "true")
+            }
+
+            panic!("Invalid JSON");
+        }
+
+        buffer.push(parser_state.next().unwrap());
+    }
+
+    panic!("Invalid JSON");
+}
+
+
+//TODO: its weird that key's need to be in order. I need to make a proper json compare some day. -> I have that now, migrate to it
 pub fn compare_json(json1: &String, json2: &String) -> bool {
     //compare the strings, but ignore whitespace (when not in quotes)
 
@@ -62,7 +175,6 @@ pub fn compare_json(json1: &String, json2: &String) -> bool {
     //if we have nothing left, they were equal
     return iter2.peek().is_none();
 }
-
 
 
 pub fn layout_node_to_json(layout_node: &LayoutNode) -> String {
@@ -230,6 +342,56 @@ impl ParserState<'_> {
         let (_, peeked) = peeked.unwrap();
         return Some(*peeked);
     }
+}
+
+
+pub fn dom_node_to_json(node: &Rc<RefCell<ElementDomNode>>, buffer: &mut String) {
+    let node = node.borrow();
+
+    buffer.push_str("{\"name\": \"");
+    match &node.name {
+        Some(node_name) => buffer.push_str(node_name.as_str()),
+        None => {},
+    }
+
+    buffer.push_str("\", \"text\": \"");
+    match &node.text {
+        Some(node_text) => buffer.push_str(node_text.text_content.as_str()),
+        None => {},
+    }
+
+    buffer.push_str("\", \"image\": ");
+    buffer.push_str(node.image.is_some().to_string().as_str());
+
+    buffer.push_str(", \"scripts\": ");
+    if node.scripts.is_some() {
+        buffer.push_str(node.scripts.as_ref().unwrap().len().to_string().as_str());
+    } else {
+        buffer.push('0');
+    }
+
+    buffer.push_str(", \"component\": ");
+    buffer.push_str(node.page_component.is_some().to_string().as_str());
+
+    buffer.push_str(", \"attributes:\": [");
+    if node.attributes.is_some() {
+        for attribute in node.attributes.as_ref().unwrap() {
+            buffer.push_str("{\"name\": ");
+            buffer.push_str(&attribute.borrow().name);
+            buffer.push_str("\", \"value\": \"");
+            buffer.push_str(&attribute.borrow().value);
+            buffer.push_str("\"}");
+        }
+    }
+
+    buffer.push_str("], \"children\": [");
+    if node.children.is_some() {
+        for child in node.children.as_ref().unwrap() {
+            dom_node_to_json(child, buffer);
+        }
+    }
+
+    buffer.push_str("]}");
 }
 
 

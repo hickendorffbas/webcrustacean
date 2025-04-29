@@ -1,33 +1,58 @@
 use crate::dom::ElementDomNode;
+use crate::html_lexer;
 use crate::html_parser;
+use crate::jsonify;
 use crate::network::url::Url;
 use crate::test_util::*;
 
 
+const DEFAULT_URL: &str = "http://www.google.com";
+
+
 #[test]
 fn test_basic_parsing_1() {
+    let code = r#"<b>test</b>"#;
 
-    let tokens = vec![
-        html_open("a"),
-        html_open_tag_end(),
-        html_text("text"),
-        html_close("a"),
-        html_whitespace(" "),
-    ];
+    let tokens = html_lexer::lex_html(code);
+    let main_url = Url::from(&DEFAULT_URL.to_string());
+    let document = html_parser::parse(tokens, &main_url);
 
-    let main_url = Url::from(&String::from("http://www.google.com")); //TODO: would be nice if we can define these as (lazy?) consts?
-    let parse_result = html_parser::parse(tokens, &main_url);
-    let document = parse_result;
-    let doc_node = &document.document_node.borrow();
-    assert_eq!(doc_node.children.as_ref().unwrap().len(), 2);
+    let mut json = String::new();
+    jsonify::dom_node_to_json(&document.document_node, &mut json);
 
-    let generic_a_node = doc_node.children.as_ref().unwrap()[0].borrow();
-    assert_element_name_is(&generic_a_node, "a");
+    let expected_json = r#"
+    {
+        "name":"",
+        "text":"",
+        "image":false,
+        "scripts":0,
+        "component":false,
+        "attributes:":[],
+        "children":[
+            {
+                "name":"b",
+                "text":"",
+                "image":false,
+                "scripts":0,
+                "component":false,
+                "attributes:":[],
+                "children":[
+                    {
+                    "name":"",
+                    "text":"test",
+                    "image":false,
+                    "scripts":0,
+                    "component":false,
+                    "attributes:":[],
+                    "children":[]
+                    }
+                ]
+            }
+        ]
+    }
+    "#.to_string();
 
-    let a_children = generic_a_node.children.as_ref().unwrap();
-    assert_eq!(a_children.len(), 1);
-
-    assert_text_on_node_is(&a_children[0].borrow(), "text");
+    assert!(jsonify::json_is_equal(&json, &expected_json));
 }
 
 
@@ -43,7 +68,7 @@ fn test_text_concatenation() {
         html_close("div"),
     ];
 
-    let main_url = Url::from(&String::from("http://www.google.com"));
+    let main_url = Url::from(&DEFAULT_URL.to_string());
     let parse_result = html_parser::parse(tokens, &main_url);
     let document = parse_result;
     let doc_node = &document.document_node.borrow();
@@ -75,7 +100,7 @@ fn test_not_closing_a_tag() {
         html_close("div"),
     ];
 
-    let main_url = Url::from(&String::from("http://www.google.com"));
+    let main_url = Url::from(&DEFAULT_URL.to_string());
     let parse_result = html_parser::parse(tokens, &main_url);
     let document = parse_result;
     let doc_node = &document.document_node.borrow();
@@ -114,7 +139,7 @@ fn test_closing_a_tag_we_did_not_open() {
         html_close("div"),
     ];
 
-    let main_url = Url::from(&String::from("http://www.google.com"));
+    let main_url = Url::from(&DEFAULT_URL.to_string());
     let parse_result = html_parser::parse(tokens, &main_url);
     let document = parse_result;
     let doc_node = &document.document_node.borrow();
@@ -143,7 +168,7 @@ fn test_missing_last_closing_tag() {
     ];
 
 
-    let main_url = Url::from(&String::from("http://www.google.com"));
+    let main_url = Url::from(&DEFAULT_URL.to_string());
     let parse_result = html_parser::parse(tokens, &main_url);
     let document = parse_result;
     let doc_node = &document.document_node.borrow();

@@ -2,11 +2,7 @@
 goals for 0.5.0:
        - better testing setup
               - implement mocking (with a type alias) of the platform
-              - make parse tests nicer
-                     - compare json instead of objects?
-                     - for the html parser, combine lexing and parsing in 1 test?
-                            - keep the test for the lexer, because current setup also tests things like token positions
-                            - move the other tests to the new json compare, and parsing from html instead of tokens
+                     - what is a test that needs this? (it probably does not exist yet)
               - we can probably test layout by converting the layout tree to json, and assert specific things (not equals on the whole tree)
        - I need to think about where I want to introduce the platform. Now its a bit messy, since to measure font size we need the platform, therefore needing it
               in layout. Or do we accept that and just get better at mocking?
@@ -16,11 +12,11 @@ goals for 0.5.0:
 goals for 0.6.0:
        - rewrite selection logic
               - BUG: when you go to a page with a lot of paragraphs, selection does not work correct, when in between paragraps, paragraphs below get selected
+       - implement cookies
 
 
 
 other things (later versions):
        - fix transparancy in png's (loading works, rendering in SDL does not)
        - figure out how do build standalone binaries
-       - implement cookies
        - vertical scroll

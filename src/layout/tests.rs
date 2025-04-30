@@ -4,8 +4,8 @@ use std::rc::Rc;
 
 use crate::dom::{Document, ElementDomNode};
 use crate::jsonify::{
-    compare_json,
     dom_node_from_json,
+    json_is_equal,
     layout_node_to_json,
 };
 use crate::layout::{build_full_layout, compute_layout};
@@ -59,7 +59,7 @@ fn test_basic_paragraph_layout() {
     compute_layout(&tree.root_node, &document.style_context, 0.0, 0.0, &font_context, 0.0, false, true, 1000.0);
     let tree_json = layout_node_to_json(&tree.root_node.borrow());
 
-    assert!(compare_json(&tree_json, &String::from(expected_layout_tree_json)));
+    assert!(json_is_equal(&tree_json, &String::from(expected_layout_tree_json)));
 }
 
 

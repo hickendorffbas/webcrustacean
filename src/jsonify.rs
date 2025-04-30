@@ -130,53 +130,6 @@ fn parse_json_with_state(parser_state: &mut ParserState) -> JsonValue {
 }
 
 
-//TODO: its weird that key's need to be in order. I need to make a proper json compare some day. -> I have that now, migrate to it
-pub fn compare_json(json1: &String, json2: &String) -> bool {
-    //compare the strings, but ignore whitespace (when not in quotes)
-
-    let mut in_quotes = false;
-
-    let mut iter1 = json1.chars().peekable();
-    let mut iter2 = json2.chars().peekable();
-
-    while iter1.peek().is_some() {
-
-        if !in_quotes {
-            while iter1.peek().is_some() && iter1.peek().unwrap().is_whitespace() {
-                iter1.next();
-            }
-            while iter2.peek().is_some() && iter2.peek().unwrap().is_whitespace() {
-                iter2.next();
-            }
-        }
-    
-        if iter1.peek().is_some() && iter2.peek().is_none() ||
-           iter1.peek().is_none() && iter2.peek().is_some() {
-                return false;
-        }
-
-        let char1 = iter1.next().unwrap();
-        let char2 = iter2.next().unwrap();
-
-        if char1 == '"' {
-            in_quotes = !in_quotes;
-        }
-
-        if char1 != char2 {
-            return false;
-        }
-    }
-
-    //remove any remaning whitespace from json2
-    while iter2.peek().is_some() && iter2.peek().unwrap().is_whitespace() {
-        iter2.next();
-    }
-
-    //if we have nothing left, they were equal
-    return iter2.peek().is_none();
-}
-
-
 pub fn layout_node_to_json(layout_node: &LayoutNode) -> String {
 
     let mut buffer = String::new();

@@ -245,6 +245,13 @@ impl JsParserSliceIterator {
                 let new_start_idx = self.next_idx;
                 self.next_idx += size;
 
+                if potential_end_idx == 0 {
+                    // if the ending token is at the first position, we need to have an iterator up to that first position. We can't do that since
+                    // the end index is inclusive, and unsigned (it would need to be -1 to represent not including the token at position 0)
+                    // so instead we make the iterator empty by returning a bigger next_idx.
+                    return Some(JsParserSliceIterator { end_idx: 0, next_idx: 1 });
+                }
+
                 return Some(JsParserSliceIterator {
                     end_idx: potential_end_idx - 1, //we remove the token_to_find
                     next_idx: new_start_idx,

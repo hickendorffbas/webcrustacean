@@ -194,3 +194,17 @@ fn test_create_empty_object() {
 
     assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Object(JsObject {members: HashMap::new()})));
 }
+
+
+#[test]
+fn test_empty_statement_in_front() {
+    let code = r#";x=1;
+        tester.export(x);"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens);
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(1)));
+}

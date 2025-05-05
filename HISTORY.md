@@ -1,4 +1,4 @@
-0.5.0 [UNRELEASED]
+0.5.0
 ===================
 - The main window is now resizable
 - Added basic html tables

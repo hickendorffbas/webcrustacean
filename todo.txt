@@ -1,19 +1,10 @@
 
-goals for 0.5.0:
-       - better testing setup
-              - implement mocking (with a type alias) of the platform
-                     - what is a test that needs this? (it probably does not exist yet)
-              - we can probably test layout by converting the layout tree to json, and assert specific things (not equals on the whole tree)
-       - I need to think about where I want to introduce the platform. Now its a bit messy, since to measure font size we need the platform, therefore needing it
-              in layout. Or do we accept that and just get better at mocking?
-                     -> use lazy_static , but figure out mocking for tests
-
-
 goals for 0.6.0:
        - rewrite selection logic
               - BUG: when you go to a page with a lot of paragraphs, selection does not work correct, when in between paragraps, paragraphs below get selected
        - implement cookies
-
+       - make page background colors work
+       - bug: make the post on https://old-search.marginalia.nu/ work (it does not submit the search query)
 
 
 other things (later versions):

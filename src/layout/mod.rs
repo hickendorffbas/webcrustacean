@@ -796,7 +796,7 @@ fn apply_inline_layout(node: &mut LayoutNode, style_context: &StyleContext, top_
                 cursor_x = top_left_x;
                 cursor_y += max_height_of_line;
                 child_height = max_height_of_line;
-                //TODO: should max_height_of_line not be reset here?
+                max_height_of_line = 0.0;
             } else {
 
                 let char_height = if let LayoutNodeContent::TextLayoutNode(text_node) = &RefCell::borrow(child).content {
@@ -810,9 +810,10 @@ fn apply_inline_layout(node: &mut LayoutNode, style_context: &StyleContext, top_
                 cursor_x = top_left_x;
                 cursor_y += char_height;
                 child_height = char_height;
+                max_height_of_line = 0.0;
             }
 
-            RefCell::borrow_mut(child).update_css_box(CssBox { x: top_left_x, y: top_left_y, width: max_width, height: child_height });
+            RefCell::borrow_mut(child).update_css_box(CssBox { x: cursor_x, y: cursor_y, width: 0.0, height: child_height });
             continue;
         }
 

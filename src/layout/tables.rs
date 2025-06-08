@@ -160,7 +160,7 @@ pub fn compute_layout_for_table(table_layout_node: &Rc<RefCell<LayoutNode>>, sty
                 compute_layout_for_node(&cell, style_context, cursor_x, cursor_y, font_context, current_scroll_y,
                                         only_update_block_vertical_position, force_full_layout, available_cell_width, true);
 
-                let element_height = cell.borrow().get_size_of_bounding_box().1;
+                let element_height = cell.borrow().get_bounding_box().3;
 
                 if nr_slots_high == 1 {
                     if element_height > max_height_of_row {

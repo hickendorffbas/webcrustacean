@@ -42,7 +42,7 @@ pub fn get_next_layout_node_interal_id() -> usize { NEXT_LAYOUT_NODE_INTERNAL.fe
 
 pub struct FullLayout {
     pub root_node: Rc<RefCell<LayoutNode>>,
-    pub nodes_in_selection_order: Vec<Rc<RefCell<LayoutNode>>>, //TODO: we should not have this in the future. We need to check (x,y) for each node
+    pub content_nodes_in_selection_order: Vec<Rc<RefCell<LayoutNode>>>, //this list only contains nodes without children
 }
 impl FullLayout {
     pub fn page_height(&self) -> f32 {
@@ -65,7 +65,7 @@ impl FullLayout {
         let mut layout_node = LayoutNode::new_empty();
         layout_node.content = LayoutNodeContent::AreaLayoutNode(area_node);
 
-        return FullLayout { root_node: Rc::from(RefCell::from(layout_node)), nodes_in_selection_order: Vec::new() };
+        return FullLayout { root_node: Rc::from(RefCell::from(layout_node)), content_nodes_in_selection_order: Vec::new() };
     }
 }
 
@@ -203,8 +203,7 @@ impl LayoutNode {
         }
     }
 
-    pub fn get_size_of_bounding_box(&self) -> (f32, f32) {
-
+    pub fn get_bounding_box(&self) -> (f32, f32, f32, f32) { //this returns (top_left_x, top_left_y, width, height)
         match &self.content {
             LayoutNodeContent::TextLayoutNode(text_node) => {
                 let mut lowest_x = f32::MAX;
@@ -221,19 +220,21 @@ impl LayoutNode {
 
                 let bounding_box_width = max_x - lowest_x;
                 let bounding_box_height = max_y - lowest_y;
-                return (bounding_box_width, bounding_box_height);
+                return (lowest_x, lowest_y, bounding_box_width, bounding_box_height);
             },
-            LayoutNodeContent::ImageLayoutNode(img_node) => { return (img_node.css_box.width, img_node.css_box.height); },
-            LayoutNodeContent::ButtonLayoutNode(button_node)  => { return (button_node.css_box.width, button_node.css_box.height); },
-            LayoutNodeContent::TextInputLayoutNode(input_node) => { return (input_node.css_box.width, input_node.css_box.height); },
-            LayoutNodeContent::AreaLayoutNode(box_node) => { return (box_node.css_box.width, box_node.css_box.height); },
-            LayoutNodeContent::TableLayoutNode(table_node) => { return (table_node.css_box.width, table_node.css_box.height); }
-            LayoutNodeContent::TableCellLayoutNode(cell_node) => { return (cell_node.css_box.width, cell_node.css_box.height); }
+            LayoutNodeContent::ImageLayoutNode(img_node) => { return (img_node.css_box.x, img_node.css_box.y, img_node.css_box.width, img_node.css_box.height); },
+            LayoutNodeContent::ButtonLayoutNode(button_node)  => { return (button_node.css_box.x, button_node.css_box.y, button_node.css_box.width, button_node.css_box.height); },
+            LayoutNodeContent::TextInputLayoutNode(input_node) => { return (input_node.css_box.x, input_node.css_box.y, input_node.css_box.width, input_node.css_box.height); },
+            LayoutNodeContent::AreaLayoutNode(box_node) => { return (box_node.css_box.x, box_node.css_box.y, box_node.css_box.width, box_node.css_box.height); },
+            LayoutNodeContent::TableLayoutNode(table_node) => { return (table_node.css_box.x, table_node.css_box.y, table_node.css_box.width, table_node.css_box.height); }
+            LayoutNodeContent::TableCellLayoutNode(cell_node) => { return (cell_node.css_box.x, cell_node.css_box.y, cell_node.css_box.width, cell_node.css_box.height); }
             LayoutNodeContent::NoContent => { panic!("invalid state") },
         }
     }
 
     pub fn visible_on_y_location(&self, y_location: f32, screen_height: f32) -> bool {
+        if !self.visible { return false; }
+
         match &self.content {
             LayoutNodeContent::TextLayoutNode(text_node) => {
                 return text_node.css_text_boxes.iter().any(|text_box| -> bool {text_box.css_box.is_visible_on_y_location(y_location, screen_height)});
@@ -263,6 +264,22 @@ impl LayoutNode {
 
             if self.from_dom_node.is_some() {
                 return Some(self.from_dom_node.as_ref().unwrap().clone());
+            }
+        }
+
+        return None;
+    }
+
+    pub fn find_content_child_at_position(&self, x: f32, y: f32) -> Option<Rc<RefCell<LayoutNode>>> {
+        if self.children.is_some() {
+            for child in self.children.as_ref().unwrap() {
+                if RefCell::borrow(child).visible && child.borrow().content.is_inside(x, y) {
+                    let possible_node = child.borrow().find_content_child_at_position(x, y);
+                    if possible_node.is_some() {
+                        return possible_node;
+                    }
+                    return Some(child.clone());
+                }
             }
         }
 
@@ -466,31 +483,32 @@ pub fn build_full_layout(document: &Document, font_context: &FontContext) -> Ful
 
     let rc_root_node = Rc::new(RefCell::from(root_node));
 
-    let mut nodes_in_selection_order = Vec::new();
-    collect_content_nodes_in_walk_order(&rc_root_node, &mut nodes_in_selection_order);
+    let mut content_nodes_in_selection_order = Vec::new();
+    collect_content_nodes_in_walk_order_for_normal_flow(&rc_root_node, &mut content_nodes_in_selection_order);
 
-    return FullLayout { root_node: rc_root_node, nodes_in_selection_order };
+    return FullLayout { root_node: rc_root_node, content_nodes_in_selection_order };
 }
 
 
-pub fn collect_content_nodes_in_walk_order(node: &Rc<RefCell<LayoutNode>>, result: &mut Vec<Rc<RefCell<LayoutNode>>>) {
-    //TODO: this is not correct, at least, not if we are using it for things like selection. Because absolutely positioned elements might have
-    //      very different positions, regardless of their place in the tree. We need to base this on all (x, y) postions (and keep that updated)
+pub fn collect_content_nodes_in_walk_order_for_normal_flow(node: &Rc<RefCell<LayoutNode>>, result: &mut Vec<Rc<RefCell<LayoutNode>>>) {
+    //TODO: we need to check if an item is not in normal flow, and not include it in that case (such as position: absolute items etc.)
 
     match RefCell::borrow(node).content {
         LayoutNodeContent::TextLayoutNode(_) => { result.push(Rc::clone(&node)); },
         LayoutNodeContent::ImageLayoutNode(_) => { result.push(Rc::clone(&node)); },
         LayoutNodeContent::ButtonLayoutNode(_) => { result.push(Rc::clone(&node)); },
         LayoutNodeContent::TextInputLayoutNode(_) => { result.push(Rc::clone(&node)); },
+
+        //nodes that have children, but no selectable content of their own
         LayoutNodeContent::AreaLayoutNode(_) => {},
         LayoutNodeContent::TableLayoutNode(_) => {},
-        LayoutNodeContent::TableCellLayoutNode(_) => { result.push(Rc::clone(&node)); },
+        LayoutNodeContent::TableCellLayoutNode(_) => {},
         LayoutNodeContent::NoContent => {},
     }
 
     if RefCell::borrow(node).children.as_ref().is_some() {
         for child in RefCell::borrow(node).children.as_ref().unwrap() {
-            collect_content_nodes_in_walk_order(&child, result);
+            collect_content_nodes_in_walk_order_for_normal_flow(&child, result);
         }
     }
 }
@@ -676,10 +694,10 @@ fn set_css_boxes_for_node_without_children(node: &mut LayoutNode, top_left_x: f3
 fn compute_potential_widths(node: &Rc<RefCell<LayoutNode>>, font_context: &FontContext, style_context: &StyleContext) -> (f32, f32) {
 
     compute_layout_for_node(node, style_context, 0.0, 0.0, font_context, 0.0, false, true, 1.0, true);
-    let minimal_width = node.borrow().get_size_of_bounding_box().0;
+    let minimal_width = node.borrow().get_bounding_box().2;
 
     compute_layout_for_node(node, style_context, 0.0, 0.0, font_context, 0.0, false, true, 1000000000.0, true);
-    let potential_width = node.borrow().get_size_of_bounding_box().0;
+    let potential_width = node.borrow().get_bounding_box().2;
 
     return (minimal_width, potential_width);
 }
@@ -711,7 +729,7 @@ fn apply_block_layout(node: &mut LayoutNode, style_context: &StyleContext, top_l
         let only_update_block_vertical_position = !child.borrow().is_dirty_anywhere(); //Since the parent node is block layout, we can shift the while block up and down if its not dirty
         compute_layout_for_node(&child, style_context, top_left_x, cursor_y, font_context, current_scroll_y,
                                 only_update_block_vertical_position, force_full_layout, available_width, true);
-        let (bounding_box_width, bounding_box_height) = RefCell::borrow(child).get_size_of_bounding_box();
+        let (_, _, bounding_box_width, bounding_box_height) = RefCell::borrow(child).get_bounding_box();
 
         cursor_y += bounding_box_height;
         max_width = max_width.max(bounding_box_width);
@@ -823,7 +841,7 @@ fn apply_inline_layout(node: &mut LayoutNode, style_context: &StyleContext, top_
         }
 
         let child_borrow = RefCell::borrow(child);
-        let (child_width, child_height) = child_borrow.get_size_of_bounding_box();
+        let (_, _, child_width, child_height) = child_borrow.get_bounding_box();
 
         if (cursor_x - top_left_x + child_width) > available_width {
 
@@ -903,7 +921,7 @@ fn apply_inline_layout(node: &mut LayoutNode, style_context: &StyleContext, top_
                     drop(child_borrow);
                     compute_layout_for_node(&child, style_context, cursor_x, cursor_y, font_context, current_scroll_y,
                                             only_update_block_vertical_position, force_full_layout, available_width, false);
-                    let (child_width, child_height) = RefCell::borrow(child).get_size_of_bounding_box();
+                    let (_, _, child_width, child_height) = RefCell::borrow(child).get_bounding_box();
 
                     cursor_x += child_width;
                     max_width = max_width.max(cursor_x);

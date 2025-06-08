@@ -9,13 +9,13 @@ use crate::platform::{
     Platform,
     Position
 };
+use crate::selection::Selection;
 use crate::ui::{
     History,
     UI_BASIC_COLOR,
     UI_BASIC_DARKER_COLOR,
     UIState,
 };
-use crate::SelectionRect;
 
 
 const TEXT_FIELD_OFFSET_FROM_BORDER: f32 = 5.0;
@@ -174,12 +174,13 @@ impl TextField {
         self.clear_selection();
     }
 
-    pub fn update_selection(&mut self, selection_rect: &SelectionRect) {
-        let min_x = selection_rect.x;
-        let max_x = min_x + selection_rect.width;
+    pub fn update_selection(&mut self, selection: &Selection) {
+
+        let min_x = if selection.point1_x < selection.point2_x { selection.point1_x } else { selection.point2_x };
+        let max_x = if selection.point1_x < selection.point2_x { selection.point2_x } else { selection.point1_x };
         let text_start_x = self.x + TEXT_FIELD_OFFSET_FROM_BORDER;
 
-        if (min_x > self.x && min_x < (self.x + self.width)) || (max_x > self.x && max_x < (self.x + self.width))  {
+        if (min_x > self.x && min_x < (self.x + self.width)) || (max_x > self.x && max_x < (self.x + self.width)) {
 
             let mut found = false;
             for (idx, x_position) in self.char_position_mapping.iter().enumerate() {

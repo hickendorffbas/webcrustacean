@@ -1,5 +1,6 @@
 0.6.0 [UNRELEASED]
 ===================
+- Improved content selection logic
 
 
 0.5.0

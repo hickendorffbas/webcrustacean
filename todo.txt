@@ -1,7 +1,9 @@
 
 goals for 0.6.0:
-       - rewrite selection logic
-              - BUG: when you go to a page with a lot of paragraphs, selection does not work correct, when in between paragraps, paragraphs below get selected
+       - rewrite selection logic, open issues:
+                     - for selection of pictures, if it is the last item we need to start seeing it as selected if we are a bit further from the top
+                     - we need to do something better when starting or ending selection in between paragraphs.
+
        - implement cookies
        - make page background colors work
        - bug: make the post on https://old-search.marginalia.nu/ work (it does not submit the search query)

@@ -11,6 +11,7 @@ mod platform;
 mod renderer;
 mod resource_loader;
 mod script;
+mod selection;
 mod style;
 mod ui;
 mod ui_components;
@@ -20,16 +21,13 @@ mod ui_components;
 
 use std::{
     cell::RefCell,
-    cmp,
     env,
     ops::DerefMut,
-    rc::Rc,
     thread,
     time::{Duration, Instant},
 };
 
 use arboard::Clipboard;
-use layout::CssTextBox;
 use sdl2::{
     event::Event as SdlEvent,
     keyboard::{Keycode, Mod as SdlKeyMod},
@@ -40,10 +38,9 @@ use threadpool::ThreadPool;
 use crate::debug::debug_log_warn;
 use crate::dom::{Document, NavigationAction};
 use crate::layout::{
-    collect_content_nodes_in_walk_order,
+    collect_content_nodes_in_walk_order_for_normal_flow,
     compute_layout,
     FullLayout,
-    LayoutNode,
     rebuild_dirty_layout_childs,
 };
 use crate::network::url::Url;
@@ -51,6 +48,11 @@ use crate::platform::Platform;
 use crate::resource_loader::{ResourceRequestJobTracker, ResourceThreadPool};
 use crate::renderer::render;
 use crate::script::js_interpreter;
+use crate::selection::{
+    Selection,
+    SelectionRect,
+    set_selection_regions
+};
 use crate::ui::{
     CONTENT_TOP_LEFT_X,
     CONTENT_TOP_LEFT_Y,
@@ -175,160 +177,6 @@ fn finish_navigate(navigation_action: &NavigationAction, ui_state: &mut UIState,
 }
 
 
-//TOOD: move this and selection code to a selection.rs module
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Clone)]
-pub struct SelectionRect {
-    pub x: f32,
-    pub y: f32,
-    pub width: f32,
-    pub height: f32,
-}
-
-
-fn build_selection_rect_on_css_text_box(css_text_box: &mut CssTextBox, selection_rect: &SelectionRect, start_for_selection_rect_on_css_text_box: f32,
-                                        start_idx_for_selection: usize) {
-    let mut matching_offset = css_text_box.css_box.width;
-
-    let mut end_idx_for_selection = 0;
-    for (idx, offset) in css_text_box.char_position_mapping.iter().enumerate() {
-        if css_text_box.css_box.x + offset > selection_rect.x + selection_rect.width {
-            matching_offset = *offset;
-            end_idx_for_selection = idx;
-            break;
-        }
-    }
-
-    let selection_rect_for_css_text_box = SelectionRect { x: start_for_selection_rect_on_css_text_box,
-                y: css_text_box.css_box.y,
-                width: (css_text_box.css_box.x + matching_offset) - start_for_selection_rect_on_css_text_box,
-                height: css_text_box.css_box.height };
-    css_text_box.selection_rect = Some(selection_rect_for_css_text_box);
-    css_text_box.selection_char_range = Some( (start_idx_for_selection, end_idx_for_selection) );
-}
-
-
-fn compute_selection_regions(ui_state: &UIState, layout_node: &Rc<RefCell<LayoutNode>>, selection_rect: &SelectionRect, current_scroll_y: f32, nodes_in_selection_order: &Vec<Rc<RefCell<LayoutNode>>>) {
-    if !layout_node.borrow().visible_on_y_location(current_scroll_y, ui_state.window_dimensions.screen_height) {
-        return;
-    }
-
-    //TODO: the algorithm here needs a full redesign. There are many cases not covered, such as the selection ending outside any node, and having several
-    //      nodes in block layout next to each other etc.
-
-    let mut selection_start_found = false;
-    let selection_end_x = selection_rect.x + selection_rect.width;
-    let selection_end_y = selection_rect.y + selection_rect.height;
-
-    match &mut layout_node.borrow_mut().content {
-        layout::LayoutNodeContent::TextLayoutNode(ref mut text_layout_node) => {
-            let mut start_x_for_selection_rect_on_css_text_box = 0.0;
-            let mut start_idx_for_selection = 0;
-            for mut css_text_box in text_layout_node.css_text_boxes.iter_mut() {
-                if css_text_box.css_box.is_inside(selection_rect.x, selection_rect.y) {
-                    selection_start_found = true;
-
-                    let mut previous_offset = 0.0;
-                    for (idx, offset) in css_text_box.char_position_mapping.iter().enumerate() {
-                        if css_text_box.css_box.x + offset > selection_rect.x {
-                            start_x_for_selection_rect_on_css_text_box = css_text_box.css_box.x + previous_offset;
-                            start_idx_for_selection = idx;
-                            break;
-                        }
-
-                        previous_offset = *offset;
-                    }
-
-                    //Handle the special case where both the top left and the bottom right of the selection rect are in the same css box:
-                    if css_text_box.css_box.is_inside(selection_end_x, selection_end_y) {
-                        build_selection_rect_on_css_text_box(&mut css_text_box, selection_rect, start_x_for_selection_rect_on_css_text_box, start_idx_for_selection);
-                        return;
-                    } else {
-                        let selection_rect_for_css_text_box = SelectionRect { x: start_x_for_selection_rect_on_css_text_box,
-                                                                              y: css_text_box.css_box.y,
-                                                                              width: css_text_box.css_box.width - start_x_for_selection_rect_on_css_text_box,
-                                                                              height: css_text_box.css_box.height };
-                        css_text_box.selection_rect = Some(selection_rect_for_css_text_box);
-                        css_text_box.selection_char_range = Some( (start_idx_for_selection, css_text_box.text.len()) );
-
-                    }
-                } else if selection_start_found {
-                    // Now we check for other boxes on the same layout node that might contain the bottom right point:
-                    if css_text_box.css_box.is_inside(selection_end_x, selection_end_y) {
-                        let start_selection_pos = css_text_box.css_box.x;
-                        build_selection_rect_on_css_text_box(&mut css_text_box, selection_rect, start_selection_pos, 0);
-                        return;
-                    } else {
-                        //This box is in between the start and end node, so we fully set it as selected:
-                        let selection_rect_for_css_text_box = SelectionRect { x: css_text_box.css_box.x, y: css_text_box.css_box.y,
-                                                                              width: css_text_box.css_box.width, height: css_text_box.css_box.height };
-                        css_text_box.selection_rect = Some(selection_rect_for_css_text_box);
-                        css_text_box.selection_char_range = Some( (0, css_text_box.text.len()) );
-                    }
-                }
-            }
-        },
-        layout::LayoutNodeContent::ImageLayoutNode(_) => {
-            //For now we don't do selection on images
-        }
-        layout::LayoutNodeContent::ButtonLayoutNode(_) => {}
-        layout::LayoutNodeContent::TextInputLayoutNode(_) => {}
-        layout::LayoutNodeContent::AreaLayoutNode(_) => {
-            //Note: this is a no-op for now, since there is nothing to select in a box node itself (just in its children)
-        },
-        layout::LayoutNodeContent::NoContent => {},
-        layout::LayoutNodeContent::TableLayoutNode(_) => {
-            //This is a no-op for now, children of this node will keep the range
-        }
-        layout::LayoutNodeContent::TableCellLayoutNode(_) => {
-            //TODO: implement
-        }
-    }
-
-    if selection_start_found {
-        //Now we are going to walk the layout nodes to find the node where the selection ends, and all nodes in between
-
-        let mut starting_node_found = false;
-        for next_selection_node in nodes_in_selection_order {
-
-            if !starting_node_found {
-                if next_selection_node.borrow().internal_id == layout_node.borrow().internal_id {
-                    starting_node_found = true;
-                }
-                continue;
-            } else {
-
-                match &mut next_selection_node.borrow_mut().content {
-                    layout::LayoutNodeContent::TextLayoutNode(ref mut text_layout_node) => {
-
-                        for mut css_text_box in text_layout_node.css_text_boxes.iter_mut() {
-                            if css_text_box.css_box.is_inside(selection_end_x, selection_end_y) {
-                                let start_selection_pos = css_text_box.css_box.x;
-                                build_selection_rect_on_css_text_box(&mut css_text_box, selection_rect, start_selection_pos, 0);
-                                return;
-                            } else {
-                                //This node is in between the start and end node, so we fully set it as selected:
-                                let selection_rect_for_css_text_box = SelectionRect { x: css_text_box.css_box.x, y: css_text_box.css_box.y,
-                                                                                      width: css_text_box.css_box.width, height: css_text_box.css_box.height };
-                                css_text_box.selection_rect = Some(selection_rect_for_css_text_box);
-                                css_text_box.selection_char_range = Some( (0, css_text_box.text.len()) );
-                            }
-                        }
-                    },
-                    _ => {},
-                }
-            }
-        }
-    }
-
-    if layout_node.borrow().children.is_some() {
-        for child in layout_node.borrow().children.as_ref().unwrap() {
-            compute_selection_regions(&ui_state, &child, selection_rect, current_scroll_y, nodes_in_selection_order);
-        }
-    }
-}
-
-
 fn main() -> Result<(), String> {
     let sdl_context = sdl2::init()?;
     let mut platform = platform::init_platform(sdl_context, STARTING_SCREEN_WIDTH, STARTING_SCREEN_HEIGHT, false).unwrap();
@@ -386,22 +234,21 @@ fn main() -> Result<(), String> {
                     mouse_state.y = mouse_y;
 
                     if mouse_state.left_down {
-                        let top_left_x = cmp::min(mouse_state.click_start_x, mouse_x) as f32;
-                        let top_left_y = cmp::min(mouse_state.click_start_y, mouse_y) as f32 + ui_state.current_scroll_y;
-                        let bottom_right_x = cmp::max(mouse_state.click_start_x, mouse_x) as f32;
-                        let bottom_right_y = cmp::max(mouse_state.click_start_y, mouse_y) as f32 + ui_state.current_scroll_y;
-                        let selection_rect = SelectionRect { x: top_left_x, y: top_left_y, width: bottom_right_x - top_left_x, height: bottom_right_y - top_left_y };
+                        let selection = Selection { point1_x: mouse_state.click_start_x as f32,
+                                                    point1_y: mouse_state.click_start_y as f32 + ui_state.current_scroll_y as f32,
+                                                    point2_x: mouse_x as f32,
+                                                    point2_y: mouse_y as f32 + ui_state.current_scroll_y as f32
+                                        };
 
                         match ui_state.focus_target {
                             FocusTarget::None => {},
                             FocusTarget::MainContent => {
                                 RefCell::borrow_mut(&full_layout_tree.borrow_mut().root_node).reset_selection();
                                 let full_layout_tree = full_layout_tree.borrow();
-                                compute_selection_regions(&ui_state, &full_layout_tree.root_node, &selection_rect, ui_state.current_scroll_y,
-                                                          &full_layout_tree.nodes_in_selection_order);
+                                set_selection_regions(&full_layout_tree, &selection);
                             },
                             FocusTarget::AddressBar => {
-                                ui_state.addressbar.update_selection(&selection_rect);
+                                ui_state.addressbar.update_selection(&selection);
                             },
                             FocusTarget::ScrollBlock => {
                                 ui_state.current_scroll_y = ui_state.main_scrollbar.scroll(yrel as f32, ui_state.current_scroll_y);
@@ -410,7 +257,7 @@ fn main() -> Result<(), String> {
                                 match component.borrow_mut().deref_mut() {
                                     ui_components::PageComponent::Button(_) => {},
                                     ui_components::PageComponent::TextField(text_field) => {
-                                        text_field.update_selection(&selection_rect);
+                                        text_field.update_selection(&selection);
                                     },
                                 }
                             }
@@ -531,9 +378,9 @@ fn main() -> Result<(), String> {
         if document_has_dirty_nodes {
             rebuild_dirty_layout_childs(&full_layout_tree.borrow().root_node, &document.borrow(), &platform.font_context);
 
-            let mut nodes_in_selection_order = Vec::new();
-            collect_content_nodes_in_walk_order(&full_layout_tree.borrow().root_node, &mut nodes_in_selection_order);
-            full_layout_tree.borrow_mut().nodes_in_selection_order = nodes_in_selection_order;
+            let mut content_nodes_in_selection_order = Vec::new();
+            collect_content_nodes_in_walk_order_for_normal_flow(&full_layout_tree.borrow().root_node, &mut content_nodes_in_selection_order);
+            full_layout_tree.borrow_mut().content_nodes_in_selection_order = content_nodes_in_selection_order;
 
             compute_layout(&full_layout_tree.borrow().root_node, &document.borrow().style_context, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y,
                            &platform.font_context, ui_state.current_scroll_y, false, false, ui_state.window_dimensions.content_viewport_width);

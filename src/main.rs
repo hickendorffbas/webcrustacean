@@ -45,7 +45,11 @@ use crate::layout::{
 };
 use crate::network::url::Url;
 use crate::platform::Platform;
-use crate::resource_loader::{ResourceRequestJobTracker, ResourceThreadPool};
+use crate::resource_loader::{
+    ResourceRequestJobTracker,
+    ResourceRequestResult,
+    ResourceThreadPool
+};
 use crate::renderer::render;
 use crate::script::js_interpreter;
 use crate::selection::{
@@ -106,7 +110,7 @@ pub struct MouseState {
 
 
 pub fn start_navigate(navigation_action: &NavigationAction, platform: &Platform, ui_state: &mut UIState,
-                      resource_thread_pool: &mut ResourceThreadPool) -> ResourceRequestJobTracker<String> {
+                      resource_thread_pool: &mut ResourceThreadPool) -> ResourceRequestJobTracker<ResourceRequestResult<String>> {
 
     let tracker = match navigation_action {
         NavigationAction::None => {
@@ -207,7 +211,15 @@ fn main() -> Result<(), String> {
         if ongoing_navigation.is_some() {
             let try_recv_result = main_page_job_tracker.receiver.try_recv();
             if try_recv_result.is_ok() {
-                finish_navigate(&ongoing_navigation.unwrap(), &mut ui_state, &try_recv_result.ok().unwrap(), &document, &full_layout_tree, &mut platform, &mut resource_thread_pool);
+                match try_recv_result.unwrap() {
+                    ResourceRequestResult::NotFound => {
+                        //TODO: do we need to call finish navigate or something similar here as well, so make sure our state is good? (we should stop loading)
+                    },
+                    ResourceRequestResult::Success(received_result) => {
+                        finish_navigate(&ongoing_navigation.unwrap(), &mut ui_state, &received_result.body, &document, &full_layout_tree, &mut platform, &mut resource_thread_pool)
+                    },
+                }
+
                 ongoing_navigation = None;
             }
         }

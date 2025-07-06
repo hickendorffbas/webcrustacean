@@ -11,6 +11,7 @@ use crate::platform::Platform;
 use crate::resource_loader::{
     self,
     ResourceRequestJobTracker,
+    ResourceRequestResult,
     ResourceThreadPool,
 };
 use crate::script::js_ast::Script;
@@ -130,7 +131,7 @@ pub struct ElementDomNode {
     pub attributes: Option<Vec<Rc<RefCell<AttributeDomNode>>>>,
 
     pub image: Option<Rc<RgbaImage>>,
-    pub img_job_tracker: Option<ResourceRequestJobTracker<RgbaImage>>,
+    pub img_job_tracker: Option<ResourceRequestJobTracker<ResourceRequestResult<RgbaImage>>>,
 
     pub scripts: Option<Vec<Rc<Script>>>,
 
@@ -216,8 +217,15 @@ impl ElementDomNode {
                 } else {
                     let try_recv_result = self.img_job_tracker.as_ref().unwrap().receiver.try_recv();
                     if try_recv_result.is_ok() {
-                        self.image = Some(Rc::from(try_recv_result.unwrap()));
-                        self.dirty = true;
+                        match try_recv_result.unwrap() {
+                            ResourceRequestResult::NotFound => {
+                                //TODO: should I get a fallback image here?
+                            },
+                            ResourceRequestResult::Success(received_image) => {
+                                self.image = Some(Rc::from(received_image.body));
+                                self.dirty = true;
+                            },
+                        }
                         self.img_job_tracker = None;
                     }
 
@@ -228,7 +236,6 @@ impl ElementDomNode {
                 self.dirty = true;
             }
         }
-
         return any_child_dirty || self.dirty;
     }
 

@@ -9,6 +9,7 @@ use std::sync::mpsc::{
     Sender
 };
 
+use chrono::{DateTime, Utc};
 use image::{
     ImageBuffer,
     ImageReader,
@@ -34,6 +35,19 @@ enum RequestType {
     Post,
 }
 
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub enum ResourceRequestResult<T> {
+    NotFound,
+    Success(ResourceRequestResultSuccess<T>),
+}
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub struct ResourceRequestResultSuccess<T> {
+    pub body: T,
+    pub new_cookies: HashMap<String, CookieEntry>,
+}
+
+
 struct ResourceRequestJob<T> {
     #[allow(dead_code)] job_id: usize, //TODO: check if we want to use this (probably for logging / debugging?)
     url: Url,
@@ -47,18 +61,29 @@ pub struct ResourceRequestJobTracker<T> {
     pub receiver: Receiver<T>,
 }
 
+//TODO: to use these we first need to change how we receive the job results, call back into a method in this module probably
+//      then pass these objects as context in that method
+pub type CookieStore = HashMap<String, CookieStoreForDomain>;
+type CookieStoreForDomain = HashMap<String, CookieEntry>;
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub struct CookieEntry {
+    pub value: String,
+    pub expiry_time: DateTime<Utc>,
+}
+
 
 pub struct ResourceThreadPool {
     pub pool: ThreadPool,
 }
 impl ResourceThreadPool {
-    fn fire_and_forget_load_image(&mut self, job: ResourceRequestJob<RgbaImage>) {
+    fn fire_and_forget_load_image(&mut self, job: ResourceRequestJob<ResourceRequestResult<RgbaImage>>) {
         self.pool.execute(move || {
             let result = load_image(&job.url);
             job.sender.send(result).expect("Could not send over channel");
         });
     }
-    fn fire_and_forget_load_text(&mut self, job: ResourceRequestJob<String>) {
+    fn fire_and_forget_load_text(&mut self, job: ResourceRequestJob<ResourceRequestResult<String>>) {
         self.pool.execute(move || {
             let result = load_text(&job.url, job.request_type, job.body);
             job.sender.send(result).expect("Could not send over channel");
@@ -67,8 +92,8 @@ impl ResourceThreadPool {
 }
 
 
-pub fn schedule_load_text(url: &Url, resource_thread_pool: &mut ResourceThreadPool) -> ResourceRequestJobTracker<String> {
-    let (sender, receiver) = channel::<String>();
+pub fn schedule_load_text(url: &Url, resource_thread_pool: &mut ResourceThreadPool) -> ResourceRequestJobTracker<ResourceRequestResult<String>> {
+    let (sender, receiver) = channel::<ResourceRequestResult<String>>();
     let job_id = get_next_job_id();
 
     let job = ResourceRequestJob { job_id, url: url.clone(), sender, request_type: RequestType::Get, body: None };
@@ -80,8 +105,9 @@ pub fn schedule_load_text(url: &Url, resource_thread_pool: &mut ResourceThreadPo
 }
 
 
-pub fn submit_post(url: &Url, fields: &HashMap<String, String>, resource_thread_pool: &mut ResourceThreadPool) -> ResourceRequestJobTracker<String> {
-    let (sender, receiver) = channel::<String>();
+pub fn submit_post(url: &Url, fields: &HashMap<String, String>,
+                   resource_thread_pool: &mut ResourceThreadPool) -> ResourceRequestJobTracker<ResourceRequestResult<String>> {
+    let (sender, receiver) = channel::<ResourceRequestResult<String>>();
     let job_id = get_next_job_id();
 
     //TODO: we need to esape values here I think, what if "&" is in a post value?
@@ -96,11 +122,12 @@ pub fn submit_post(url: &Url, fields: &HashMap<String, String>, resource_thread_
 }
 
 
-fn load_text(url: &Url, request_type: RequestType, body: Option<String>) -> String { //TODO: this should not be text specific, we need to refactor this a bit
+fn load_text(url: &Url, request_type: RequestType, body: Option<String>) -> ResourceRequestResult<String> {
+    //TODO: this should not be text specific, we need to refactor this a bit
 
     if url.scheme == "about" {
         if request_type == RequestType::Get {
-            return build_about_page(&url);
+            return ResourceRequestResult::Success(ResourceRequestResultSuccess { body: build_about_page(&url), new_cookies: HashMap::new() });
         } else {
             todo!(); //TODO: report some kind of non-crashing error
         }
@@ -112,11 +139,10 @@ fn load_text(url: &Url, request_type: RequestType, body: Option<String>) -> Stri
             local_path.push_str(&url.path.join("/"));
             let read_result = fs::read_to_string(local_path);
             if read_result.is_err() {
-                debug_log_warn(format!("Could not load text: {}", url.to_string()));
-                return String::new();
+                return ResourceRequestResult::NotFound;
             }
 
-            return read_result.unwrap();
+            return ResourceRequestResult::Success(ResourceRequestResultSuccess { body: read_result.unwrap(), new_cookies: HashMap::new() });
         } else {
             todo!(); //TODO: report some kind of non-crashing error
         }
@@ -127,13 +153,7 @@ fn load_text(url: &Url, request_type: RequestType, body: Option<String>) -> Stri
         RequestType::Post => http_post(url, body.unwrap_or(String::new())),
     };
 
-    if file_content_result.is_err() {
-        //TODO: this error should not just be debug-logged, it should return this, and then render the 404 page, if this was the main page load...
-        debug_log_warn(format!("Could not load text: {}", url.to_string()));
-        return String::new();
-    }
-
-    return file_content_result.unwrap();
+    return file_content_result;
 }
 
 
@@ -180,8 +200,8 @@ fn get_all_html_in_folder(folder_path: PathBuf, local_file_urls: &mut Vec<PathBu
 }
 
 
-pub fn schedule_load_image(url: &Url, resource_thread_pool: &mut ResourceThreadPool) -> ResourceRequestJobTracker<RgbaImage> {
-    let (sender, receiver) = channel::<RgbaImage>();
+pub fn schedule_load_image(url: &Url, resource_thread_pool: &mut ResourceThreadPool) -> ResourceRequestJobTracker<ResourceRequestResult<RgbaImage>> {
+    let (sender, receiver) = channel::<ResourceRequestResult<RgbaImage>>();
     let job_id = get_next_job_id();
 
     let job = ResourceRequestJob { job_id, url: url.clone(), sender, request_type: RequestType::Get, body: None };
@@ -193,14 +213,13 @@ pub fn schedule_load_image(url: &Url, resource_thread_pool: &mut ResourceThreadP
 }
 
 
-fn load_image(url: &Url) -> RgbaImage { //TODO: this should probably return a result, since its not guaranteed that the loading will succeed
+fn load_image(url: &Url) -> ResourceRequestResult<RgbaImage> {
     if url.scheme == "file" {
         let mut local_path = String::from("//");
         local_path.push_str(&url.path.join("/"));
         let read_result = ImageReader::open(local_path);
         if read_result.is_err() {
-            debug_log_warn(format!("Could not load image: {}", url.to_string()));
-            return fallback_image();
+            return ResourceRequestResult::NotFound;
         }
 
         let file_data = read_result.unwrap();
@@ -212,30 +231,25 @@ fn load_image(url: &Url) -> RgbaImage { //TODO: this should probably return a re
             panic!("decoding the image failed"); //TODO: we need to handle this in a better way
         };
 
-        return dyn_image.to_rgba8();
+        //TODO: fill the below cookie map based on response
+        return ResourceRequestResult::Success(ResourceRequestResultSuccess { body: dyn_image.to_rgba8(), new_cookies: HashMap::new() });
     }
 
     let extension = url.file_extension();
     if extension.is_some() && extension.unwrap() == "svg".to_owned() {
         //svg is currently not implemented
         debug_log_warn(format!("Svg's are not supported currently: {}", url.to_string()));
-        return fallback_image();
+        return ResourceRequestResult::Success(ResourceRequestResultSuccess {  body: fallback_image(), new_cookies: HashMap::new() });
     }
     if url.scheme == "data".to_owned() {
         //data scheme is currently not implemented
         debug_log_warn(format!("the data: scheme is not supported currently: {}", url.to_string()));
-        return fallback_image();
+        return ResourceRequestResult::Success(ResourceRequestResultSuccess {  body: fallback_image(), new_cookies: HashMap::new() });
     }
 
-    #[cfg(debug_assertions)] println!("loading {}", url.to_string());
+    #[cfg(debug_assertions)] println!("loading {}", url.to_string()); //TODO: debug mode should have a more general way of logging all HTTP request/responses
 
-    let image_result = http_get_image(url);
-    if image_result.is_err() {
-        debug_log_warn(format!("Could not load image: {}", url.to_string()));
-        return fallback_image();
-    }
-
-    return image_result.unwrap().to_rgba8();
+    return http_get_image(url);
 }
 
 

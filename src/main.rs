@@ -220,6 +220,20 @@ fn main() -> Result<(), String> {
                         //TODO: do we need to call finish navigate or something similar here as well, so make sure our state is good? (we should stop loading)
                     },
                     ResourceRequestResult::Success(received_result) => {
+                        let domain = match ongoing_navigation.as_ref().unwrap() {
+                            NavigationAction::None => &String::new(),
+                            NavigationAction::Get(url) => &url.host,
+                            NavigationAction::Post(post_data) => &post_data.url.host,
+                        };
+
+                        //TODO: I think we want to extract cookies in a more centralized place
+                        for new_cookie in received_result.new_cookies {
+                            if !cookie_store.cookies_by_domain.contains_key(domain) {
+                                cookie_store.cookies_by_domain.insert(domain.clone(), HashMap::new());
+                            }
+                            cookie_store.cookies_by_domain.get_mut(domain).unwrap().insert(new_cookie.0, new_cookie.1);
+                        }
+
                         finish_navigate(&ongoing_navigation.unwrap(), &mut ui_state, &received_result.body, &document, &cookie_store, &full_layout_tree, &mut platform, &mut resource_thread_pool)
                     },
                 }

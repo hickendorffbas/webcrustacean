@@ -68,6 +68,8 @@ pub fn http_post(url: &Url, body: String) -> ResourceRequestResult<String>  {
 
     let bytes_result = client.post(url.to_string()).body(body)
 
+        //TODO: cookies should be included here
+
         .header("Content-Length", body_len.to_string())
         .header("Content-Type", "application/x-www-form-urlencoded")  //TODO: not sure if this is always correct for all posts
                                                                       //   (probably not in general, but for forms it might be)
@@ -101,6 +103,7 @@ pub fn http_get_image(url: &Url) -> ResourceRequestResult<RgbaImage> {
         .user_agent(UA_FIREFOX_UBUNTU)  //TODO: make this configurable, and use an actual webcrustacean useragent normally
         .build().unwrap();
 
+    //TODO: cookies should be sent here
     let response = client.get(url.to_string()).send().unwrap();
     let new_cookies = extract_new_cookies(&response);
 

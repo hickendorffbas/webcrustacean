@@ -21,6 +21,7 @@ mod ui_components;
 
 use std::{
     cell::RefCell,
+    collections::HashMap,
     env,
     ops::DerefMut,
     thread,
@@ -46,9 +47,10 @@ use crate::layout::{
 use crate::network::url::Url;
 use crate::platform::Platform;
 use crate::resource_loader::{
+    CookieStore,
     ResourceRequestJobTracker,
     ResourceRequestResult,
-    ResourceThreadPool
+    ResourceThreadPool,
 };
 use crate::renderer::render;
 use crate::script::js_interpreter;
@@ -109,7 +111,7 @@ pub struct MouseState {
 }
 
 
-pub fn start_navigate(navigation_action: &NavigationAction, platform: &Platform, ui_state: &mut UIState,
+pub fn start_navigate(navigation_action: &NavigationAction, platform: &Platform, ui_state: &mut UIState, cookie_store: &CookieStore,
                       resource_thread_pool: &mut ResourceThreadPool) -> ResourceRequestJobTracker<ResourceRequestResult<String>> {
 
     let tracker = match navigation_action {
@@ -123,7 +125,7 @@ pub fn start_navigate(navigation_action: &NavigationAction, platform: &Platform,
                 ui::register_in_history(ui_state, url);
             }
 
-            resource_loader::schedule_load_text(&url, resource_thread_pool) //TODO: should this be a different thread pool, or rename it?
+            resource_loader::schedule_load_text(&url, cookie_store, resource_thread_pool) //TODO: should this be a different thread pool, or rename it?
         },
         NavigationAction::Post(post_data) => {
             ui_state.addressbar.set_text(platform, post_data.url.to_string());
@@ -133,7 +135,7 @@ pub fn start_navigate(navigation_action: &NavigationAction, platform: &Platform,
                 ui::register_in_history(ui_state, &post_data.url);
             }
 
-            resource_loader::submit_post(&post_data.url, &post_data.fields, resource_thread_pool) //TODO: should this be a different thread pool, or rename it?
+            resource_loader::submit_post(&post_data.url, cookie_store, &post_data.fields, resource_thread_pool) //TODO: should this be a different thread pool, or rename it?
         }
     };
 
@@ -146,7 +148,7 @@ pub fn start_navigate(navigation_action: &NavigationAction, platform: &Platform,
 }
 
 
-fn finish_navigate(navigation_action: &NavigationAction, ui_state: &mut UIState, page_content: &String, document: &RefCell<Document>,
+fn finish_navigate(navigation_action: &NavigationAction, ui_state: &mut UIState, page_content: &String, document: &RefCell<Document>, cookie_store: &CookieStore,
                    full_layout: &RefCell<FullLayout>, platform: &mut Platform, resource_thread_pool: &mut ResourceThreadPool) {
 
     let url = match navigation_action {
@@ -161,7 +163,7 @@ fn finish_navigate(navigation_action: &NavigationAction, ui_state: &mut UIState,
     document.replace(html_parser::parse(lex_result, &url));
 
     document.borrow_mut().document_node.borrow_mut().post_construct(platform);
-    document.borrow_mut().update_all_dom_nodes(resource_thread_pool);
+    document.borrow_mut().update_all_dom_nodes(resource_thread_pool, cookie_store);
 
     //for now we run scripts here, because we don't want to always run them fully in the main loop, and we need to have the DOM before we run
     //but I'm not sure this is really the correct place
@@ -193,6 +195,8 @@ fn main() -> Result<(), String> {
     let document = RefCell::from(Document::new_empty());
     let full_layout_tree = RefCell::from(FullLayout::new_empty());
 
+    let mut cookie_store = CookieStore { cookies_by_domain: HashMap::new() };
+
     let args: Vec<String> = env::args().collect();
     let start_url = if args.len() < 2 {
         Url::from(&DEFAULT_LOCATION_TO_LOAD.to_owned())
@@ -202,7 +206,7 @@ fn main() -> Result<(), String> {
     document.borrow_mut().base_url = start_url.clone();
     let mut ongoing_navigation = Some(NavigationAction::Get(start_url));
 
-    let mut main_page_job_tracker = start_navigate(&ongoing_navigation.as_ref().unwrap(), &platform, &mut ui_state, &mut resource_thread_pool);
+    let mut main_page_job_tracker = start_navigate(&ongoing_navigation.as_ref().unwrap(), &platform, &mut ui_state, &cookie_store, &mut resource_thread_pool);
 
     let mut event_pump = platform.sdl_context.event_pump()?;
     'main_loop: loop {
@@ -216,7 +220,7 @@ fn main() -> Result<(), String> {
                         //TODO: do we need to call finish navigate or something similar here as well, so make sure our state is good? (we should stop loading)
                     },
                     ResourceRequestResult::Success(received_result) => {
-                        finish_navigate(&ongoing_navigation.unwrap(), &mut ui_state, &received_result.body, &document, &full_layout_tree, &mut platform, &mut resource_thread_pool)
+                        finish_navigate(&ongoing_navigation.unwrap(), &mut ui_state, &received_result.body, &document, &cookie_store, &full_layout_tree, &mut platform, &mut resource_thread_pool)
                     },
                 }
 
@@ -306,7 +310,7 @@ fn main() -> Result<(), String> {
 
                         //TODO: we should do this above in the next loop, just schedule the action for the next loop?
                         if navigation_action != NavigationAction::None {
-                            main_page_job_tracker = start_navigate(&navigation_action, &platform, &mut ui_state, &mut resource_thread_pool);
+                            main_page_job_tracker = start_navigate(&navigation_action, &platform, &mut ui_state, &cookie_store, &mut resource_thread_pool);
                             ongoing_navigation = Some(navigation_action);
                         }
                     }
@@ -360,7 +364,7 @@ fn main() -> Result<(), String> {
                                 //TODO: I still don't understand how this interacts with TextInput below. Why only handle enter here?s
                                 if keycode.unwrap().name() == "Return" {
                                     let navigation_action = NavigationAction::Get(Url::from(&ui_state.addressbar.text));
-                                    main_page_job_tracker = start_navigate(&navigation_action, &platform, &mut ui_state, &mut resource_thread_pool);
+                                    main_page_job_tracker = start_navigate(&navigation_action, &platform, &mut ui_state, &cookie_store, &mut resource_thread_pool);
                                     ongoing_navigation = Some(navigation_action);
                                 }
                             },
@@ -369,7 +373,7 @@ fn main() -> Result<(), String> {
                                 if keycode.unwrap().name() == "Return" {
                                     let dom_node = dom::find_dom_node_for_component(&component.borrow(), &document.borrow());
                                     let navigation_action = dom_node.borrow().submit_form(&document.borrow());
-                                    main_page_job_tracker = start_navigate(&navigation_action, &platform, &mut ui_state, &mut resource_thread_pool);
+                                    main_page_job_tracker = start_navigate(&navigation_action, &platform, &mut ui_state, &cookie_store, &mut resource_thread_pool);
                                     ongoing_navigation = Some(navigation_action);
                                 }
                             },
@@ -385,7 +389,7 @@ fn main() -> Result<(), String> {
         }
         #[cfg(feature="timings")] println!("event pump elapsed millis: {}", start_event_pump_instant.elapsed().as_millis());
 
-        let document_has_dirty_nodes = document.borrow_mut().update_all_dom_nodes(&mut resource_thread_pool);
+        let document_has_dirty_nodes = document.borrow_mut().update_all_dom_nodes(&mut resource_thread_pool, &cookie_store);
 
         if document_has_dirty_nodes {
             rebuild_dirty_layout_childs(&full_layout_tree.borrow().root_node, &document.borrow(), &platform.font_context);

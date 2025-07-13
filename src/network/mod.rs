@@ -18,7 +18,7 @@ pub mod url;
 const UA_FIREFOX_UBUNTU: &str = "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:137.0) Gecko/20100101 Firefox/137.0";
 
 
-pub fn http_get_text(url: &Url) -> ResourceRequestResult<String>  {
+pub fn http_get_text(url: &Url, cookies: &HashMap<String, String>) -> ResourceRequestResult<String>  {
     //TODO: not sure if I really need a seperate one for text, should I not just never call the .text() method from reqwest,
     //      and just decode myself based on the situation?
     //TODO: in any case we need to de-duplicate between http_get_text() and http_get_image()
@@ -28,7 +28,17 @@ pub fn http_get_text(url: &Url) -> ResourceRequestResult<String>  {
         .user_agent(UA_FIREFOX_UBUNTU)  //TODO: make this configurable, and use an actual webcrustacean useragent normally
         .build().unwrap();
 
-    let bytes_result = client.get(url.to_string()).send();
+    let mut get_operation = client.get(url.to_string());
+
+    //TODO: we need this in a more centralized place (a single one for GET, also non-text)
+    for (key, value) in cookies {
+        let mut cookie_value = key.clone();
+        cookie_value.push('=');
+        cookie_value.push_str(value);
+        get_operation = get_operation.header("Cookie", cookie_value);
+    }
+
+    let bytes_result = get_operation.send();
 
     if !bytes_result.is_ok() {
         return ResourceRequestResult::NotFound;

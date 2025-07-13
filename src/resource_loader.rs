@@ -54,6 +54,7 @@ struct ResourceRequestJob<T> {
     sender: Sender<T>,
     request_type: RequestType,
     body: Option<String>,
+    cookies: HashMap<String, String>,
 }
 #[derive(Debug)]
 pub struct ResourceRequestJobTracker<T> {
@@ -61,10 +62,25 @@ pub struct ResourceRequestJobTracker<T> {
     pub receiver: Receiver<T>,
 }
 
-//TODO: to use these we first need to change how we receive the job results, call back into a method in this module probably
-//      then pass these objects as context in that method
-pub type CookieStore = HashMap<String, CookieStoreForDomain>;
+
+pub struct CookieStore {
+    pub cookies_by_domain: HashMap<String, CookieStoreForDomain>,
+}
+impl CookieStore {
+    fn get_for_domain(&self, domain: &String) -> HashMap<String, String> {
+        let mut cookies = HashMap::new();
+        let domain_entries = self.cookies_by_domain.get(domain);
+        if domain_entries.is_some() {
+            for (key, value) in domain_entries.unwrap() {
+                cookies.insert(key.clone(), value.value.clone());
+            }
+        }
+        return cookies;
+    }
+}
+
 type CookieStoreForDomain = HashMap<String, CookieEntry>;
+
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct CookieEntry {
@@ -85,18 +101,20 @@ impl ResourceThreadPool {
     }
     fn fire_and_forget_load_text(&mut self, job: ResourceRequestJob<ResourceRequestResult<String>>) {
         self.pool.execute(move || {
-            let result = load_text(&job.url, job.request_type, job.body);
+            let result = load_text(&job.url, job.request_type, job.body, &job.cookies);
             job.sender.send(result).expect("Could not send over channel");
         });
     }
 }
 
 
-pub fn schedule_load_text(url: &Url, resource_thread_pool: &mut ResourceThreadPool) -> ResourceRequestJobTracker<ResourceRequestResult<String>> {
+pub fn schedule_load_text(url: &Url, cookie_store: &CookieStore, resource_thread_pool: &mut ResourceThreadPool) -> ResourceRequestJobTracker<ResourceRequestResult<String>> {
     let (sender, receiver) = channel::<ResourceRequestResult<String>>();
     let job_id = get_next_job_id();
 
-    let job = ResourceRequestJob { job_id, url: url.clone(), sender, request_type: RequestType::Get, body: None };
+    let cookies = cookie_store.get_for_domain(&url.host);
+
+    let job = ResourceRequestJob { job_id, url: url.clone(), sender, request_type: RequestType::Get, body: None, cookies: cookies };
     let job_tracker = ResourceRequestJobTracker { job_id, receiver };
 
     resource_thread_pool.fire_and_forget_load_text(job);
@@ -105,7 +123,7 @@ pub fn schedule_load_text(url: &Url, resource_thread_pool: &mut ResourceThreadPo
 }
 
 
-pub fn submit_post(url: &Url, fields: &HashMap<String, String>,
+pub fn submit_post(url: &Url, cookie_store: &CookieStore, fields: &HashMap<String, String>,
                    resource_thread_pool: &mut ResourceThreadPool) -> ResourceRequestJobTracker<ResourceRequestResult<String>> {
     let (sender, receiver) = channel::<ResourceRequestResult<String>>();
     let job_id = get_next_job_id();
@@ -113,7 +131,9 @@ pub fn submit_post(url: &Url, fields: &HashMap<String, String>,
     //TODO: we need to esape values here I think, what if "&" is in a post value?
     let body = fields.iter().map(|(k, v)| format!("{}={}", k, v)).collect::<Vec<String>>().join("&");
 
-    let job = ResourceRequestJob { job_id, url: url.clone(), sender, request_type: RequestType::Post, body: Some(body) };
+    let cookies = cookie_store.get_for_domain(&url.host);
+
+    let job = ResourceRequestJob { job_id, url: url.clone(), sender, request_type: RequestType::Post, body: Some(body), cookies: cookies };
     let job_tracker = ResourceRequestJobTracker { job_id, receiver };
 
     resource_thread_pool.fire_and_forget_load_text(job);
@@ -122,7 +142,7 @@ pub fn submit_post(url: &Url, fields: &HashMap<String, String>,
 }
 
 
-fn load_text(url: &Url, request_type: RequestType, body: Option<String>) -> ResourceRequestResult<String> {
+fn load_text(url: &Url, request_type: RequestType, body: Option<String>, cookies: &HashMap<String, String>) -> ResourceRequestResult<String> {
     //TODO: this should not be text specific, we need to refactor this a bit
 
     if url.scheme == "about" {
@@ -149,7 +169,7 @@ fn load_text(url: &Url, request_type: RequestType, body: Option<String>) -> Reso
     }
 
     let file_content_result = match request_type {
-        RequestType::Get => http_get_text(url),
+        RequestType::Get => http_get_text(url, cookies),
         RequestType::Post => http_post(url, body.unwrap_or(String::new())),
     };
 
@@ -200,11 +220,13 @@ fn get_all_html_in_folder(folder_path: PathBuf, local_file_urls: &mut Vec<PathBu
 }
 
 
-pub fn schedule_load_image(url: &Url, resource_thread_pool: &mut ResourceThreadPool) -> ResourceRequestJobTracker<ResourceRequestResult<RgbaImage>> {
+pub fn schedule_load_image(url: &Url, cookie_store: &CookieStore, resource_thread_pool: &mut ResourceThreadPool) -> ResourceRequestJobTracker<ResourceRequestResult<RgbaImage>> {
     let (sender, receiver) = channel::<ResourceRequestResult<RgbaImage>>();
     let job_id = get_next_job_id();
 
-    let job = ResourceRequestJob { job_id, url: url.clone(), sender, request_type: RequestType::Get, body: None };
+    let cookies = cookie_store.get_for_domain(&url.host);
+
+    let job = ResourceRequestJob { job_id, url: url.clone(), sender, request_type: RequestType::Get, body: None, cookies: cookies };
     let job_tracker = ResourceRequestJobTracker { job_id, receiver };
 
     resource_thread_pool.fire_and_forget_load_image(job);

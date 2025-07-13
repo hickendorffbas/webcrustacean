@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::{
     fs::File,
     io::Read,
@@ -17,10 +18,12 @@ use crate::layout;
 use crate::network::url::Url;
 use crate::platform::{Platform, self};
 use crate::renderer;
-use crate::resource_loader::ResourceThreadPool;
-use crate::ui::UIState;
-use crate::ui::CONTENT_TOP_LEFT_X;
-use crate::ui::CONTENT_TOP_LEFT_Y;
+use crate::resource_loader::{CookieStore, ResourceThreadPool};
+use crate::ui::{
+    UIState,
+    CONTENT_TOP_LEFT_X,
+    CONTENT_TOP_LEFT_Y,
+};
 
 
 const DEFAULT_SCREEN_WIDTH: f32 = 600.0;
@@ -53,7 +56,7 @@ fn render_doc(filename: &str, platform: &mut Platform, save_output: bool) -> Vec
     let mut document = html_parser::parse(lex_result, &url);
 
     document.document_node.borrow_mut().post_construct(platform);
-    document.update_all_dom_nodes(&mut ResourceThreadPool { pool: ThreadPool::new(1) });
+    document.update_all_dom_nodes(&mut ResourceThreadPool { pool: ThreadPool::new(1) }, &CookieStore { cookies_by_domain: HashMap::new() });
 
     let full_layout = layout::build_full_layout(&document, &platform.font_context);
 

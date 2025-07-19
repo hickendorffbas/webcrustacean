@@ -36,7 +36,7 @@ use sdl2::{
 };
 use threadpool::ThreadPool;
 
-use crate::debug::debug_log_warn;
+use crate::{debug::debug_log_warn, ui_components::PageComponent};
 use crate::dom::{Document, NavigationAction};
 use crate::layout::{
     collect_content_nodes_in_walk_order_for_normal_flow,
@@ -283,7 +283,7 @@ fn main() -> Result<(), String> {
                             FocusTarget::ScrollBlock => {
                                 ui_state.current_scroll_y = ui_state.main_scrollbar.scroll(yrel as f32, ui_state.current_scroll_y);
                             },
-                            FocusTarget::Component(ref component) => {
+                            FocusTarget::Component(ref mut component) => {
                                 match component.borrow_mut().deref_mut() {
                                     ui_components::PageComponent::Button(_) => {},
                                     ui_components::PageComponent::TextField(text_field) => {
@@ -348,9 +348,26 @@ fn main() -> Result<(), String> {
                         if keymod.contains(SdlKeyMod::LCTRLMOD) {
                             if keycode.unwrap().name() == "C" {
                                 let mut text_for_clipboard = String::new();
-                                full_layout_tree.borrow().root_node.borrow().get_selected_text(&mut text_for_clipboard);
-                                if text_for_clipboard.is_empty() && ui_state.addressbar.has_selection_active() {
-                                    text_for_clipboard = ui_state.addressbar.get_selected_text();
+
+                                match ui_state.focus_target {
+                                    FocusTarget::None => {},
+                                    FocusTarget::MainContent => {
+                                        full_layout_tree.borrow().root_node.borrow().get_selected_text(&mut text_for_clipboard);
+                                    },
+                                    FocusTarget::AddressBar => {
+                                        if ui_state.addressbar.has_selection_active() {
+                                            text_for_clipboard = ui_state.addressbar.get_selected_text();
+                                        }
+                                    },
+                                    FocusTarget::ScrollBlock => {},
+                                    FocusTarget::Component(ref component) => {
+                                        match *component.borrow() {
+                                            PageComponent::Button(_) => {}, //There is nothing to copy from a button
+                                            PageComponent::TextField(ref text_field) => {
+                                                text_for_clipboard = text_field.get_selected_text();
+                                            }
+                                        }
+                                    },
                                 }
 
                                 if !text_for_clipboard.is_empty() {
@@ -360,11 +377,20 @@ fn main() -> Result<(), String> {
                             }
 
                             if keycode.unwrap().name() == "V" {
+                                let clipboard_text = Clipboard::new().unwrap().get_text().expect("Unhandled clipboard error");
+
                                 match ui_state.focus_target {
                                     FocusTarget::AddressBar => {
-                                        let clipboard_text = Clipboard::new().unwrap().get_text().expect("Unhandled clipboard error");
                                         ui_state.addressbar.insert_text(&platform, &clipboard_text);
                                     },
+                                    FocusTarget::Component(ref mut component) => {
+                                        match *component.borrow_mut() {
+                                            PageComponent::Button(_) => {}, //There is nothing to paste in a button
+                                            PageComponent::TextField(ref mut text_field) => {
+                                                text_field.insert_text(&platform, &clipboard_text);
+                                            },
+                                        }
+                                    }
                                     _ => {},
                                 }
                             }

@@ -351,9 +351,12 @@ impl LayoutNode {
                     }
                 }
             },
-            LayoutNodeContent::ImageLayoutNode(_) => todo!(),  //TODO: implement
-            LayoutNodeContent::ButtonLayoutNode(_) => todo!(),  //TODO: implement
-            LayoutNodeContent::TextInputLayoutNode(_) => todo!(),  //TODO: implement
+            LayoutNodeContent::TextInputLayoutNode(_) | LayoutNodeContent::ButtonLayoutNode(_) => {
+                //for components, we find it via the focusTarget, not via the tree of nodes, so we do nothing here
+            },
+            LayoutNodeContent::ImageLayoutNode(_) => {
+                //images don't select as text
+            }
             LayoutNodeContent::TableLayoutNode(_) => todo!(),  //TODO: implement
             LayoutNodeContent::TableCellLayoutNode(_) => todo!(),  //TODO: implement
             LayoutNodeContent::AreaLayoutNode(_) => {},

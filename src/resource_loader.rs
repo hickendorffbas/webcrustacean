@@ -22,7 +22,7 @@ use crate::network::url::Url;
 use crate::network::{
     http_get_image,
     http_get_text,
-    http_post,
+    http_post_for_text,
 };
 
 
@@ -95,7 +95,7 @@ pub struct ResourceThreadPool {
 impl ResourceThreadPool {
     fn fire_and_forget_load_image(&mut self, job: ResourceRequestJob<ResourceRequestResult<RgbaImage>>) {
         self.pool.execute(move || {
-            let result = load_image(&job.url);
+            let result = load_image(&job.url, &job.cookies);
             job.sender.send(result).expect("Could not send over channel");
         });
     }
@@ -170,7 +170,7 @@ fn load_text(url: &Url, request_type: RequestType, body: Option<String>, cookies
 
     let file_content_result = match request_type {
         RequestType::Get => http_get_text(url, cookies),
-        RequestType::Post => http_post(url, body.unwrap_or(String::new())),
+        RequestType::Post => http_post_for_text(url, body.unwrap_or(String::new()), cookies),
     };
 
     return file_content_result;
@@ -235,7 +235,7 @@ pub fn schedule_load_image(url: &Url, cookie_store: &CookieStore, resource_threa
 }
 
 
-fn load_image(url: &Url) -> ResourceRequestResult<RgbaImage> {
+fn load_image(url: &Url, cookies: &HashMap<String, String>) -> ResourceRequestResult<RgbaImage> {
     if url.scheme == "file" {
         let mut local_path = String::from("//");
         local_path.push_str(&url.path.join("/"));
@@ -253,7 +253,6 @@ fn load_image(url: &Url) -> ResourceRequestResult<RgbaImage> {
             panic!("decoding the image failed"); //TODO: we need to handle this in a better way
         };
 
-        //TODO: fill the below cookie map based on response
         return ResourceRequestResult::Success(ResourceRequestResultSuccess { body: dyn_image.to_rgba8(), new_cookies: HashMap::new() });
     }
 
@@ -271,7 +270,7 @@ fn load_image(url: &Url) -> ResourceRequestResult<RgbaImage> {
 
     #[cfg(debug_assertions)] println!("loading {}", url.to_string()); //TODO: debug mode should have a more general way of logging all HTTP request/responses
 
-    return http_get_image(url);
+    return http_get_image(url, cookies);
 }
 
 

@@ -1,6 +1,6 @@
 0.6.0 [UNRELEASED]
 ===================
-- Improved content selection logic\
+- Improved content selection logic
 - Basic cookie support
 
 

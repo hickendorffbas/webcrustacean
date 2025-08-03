@@ -48,7 +48,13 @@ fn render_layout_node(platform: &mut Platform, ui_state: &mut UIState, layout_no
             }
         },
         LayoutNodeContent::ImageLayoutNode(image_layout_node) => {
+            platform.enable_blending();
             platform.render_image(&image_layout_node.image, image_layout_node.css_box.x, image_layout_node.css_box.y - scroll_y);
+            if image_layout_node.selected {
+                platform.fill_rect(image_layout_node.css_box.x, image_layout_node.css_box.y - scroll_y, image_layout_node.image.width() as f32,
+                                   image_layout_node.image.height() as f32, Color::DEFAULT_SELECTION_COLOR, 100);
+            }
+            platform.disable_blending();
         },
         LayoutNodeContent::ButtonLayoutNode(_) => {
             let dom_node = layout_node.from_dom_node.as_ref().unwrap().borrow();

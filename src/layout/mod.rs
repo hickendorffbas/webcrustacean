@@ -94,6 +94,7 @@ impl TextLayoutNode {
 pub struct ImageLayoutNode {
     pub image: RgbaImage,
     pub css_box: CssBox,
+    pub selected: bool,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -315,8 +316,8 @@ impl LayoutNode {
                     text_box.selection_char_range = None;
                 }
             },
-            LayoutNodeContent::ImageLayoutNode(_) => {
-                //For now you can't select images
+            LayoutNodeContent::ImageLayoutNode(ref mut image_node) => {
+                image_node.selected = false;
             },
             LayoutNodeContent::ButtonLayoutNode(_) => {}
             LayoutNodeContent::TextInputLayoutNode(_) => {
@@ -1216,7 +1217,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
         LayoutNodeContent::TextLayoutNode(text_node)
 
     } else if partial_node_optional_img.is_some() {
-        let img_node = ImageLayoutNode { image: partial_node_optional_img.unwrap(), css_box: CssBox::empty() };
+        let img_node = ImageLayoutNode { image: partial_node_optional_img.unwrap(), css_box: CssBox::empty(), selected: false };
         LayoutNodeContent::ImageLayoutNode(img_node)
 
     } else if partial_node_is_submit_button {

@@ -1,7 +1,10 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crate::layout::{
-    CssTextBox, FullLayout, LayoutNode, LayoutNodeContent
+    CssTextBox,
+    FullLayout,
+    LayoutNode,
+    LayoutNodeContent
 };
 
 
@@ -75,7 +78,6 @@ pub fn set_selection_regions(full_layout: &FullLayout, selection: &Selection) {
 
 
     if start_node.borrow().internal_id == end_node.borrow().internal_id {
-        //TODO: what should we do here? We need to compare which line (if it even has lines) it has
 
         match &start_node.borrow().content {
             LayoutNodeContent::TextLayoutNode(text_layout_node) => {
@@ -179,9 +181,8 @@ pub fn set_selection_regions(full_layout: &FullLayout, selection: &Selection) {
             }
 
         },
-        LayoutNodeContent::ImageLayoutNode(_) => {
-            //TODO: select the image if enough of it is selected
-            todo!();
+        LayoutNodeContent::ImageLayoutNode(image_node) => {
+            image_node.selected = true;
         },
         _ => {},
     }
@@ -205,7 +206,6 @@ pub fn set_selection_regions(full_layout: &FullLayout, selection: &Selection) {
 
                         let selection_overlap_start = css_box.x;
                         let selection_overlap_end = f32::min(end_point.0, css_box.x + css_box.width);
-                        println!("check {} {} {}", end_point.0, css_box.x + css_box.width, selection_overlap_end);
 
                         set_css_text_box_partially_selected(css_text_box, selection_overlap_start, selection_overlap_end);
                         last_selected_box_found = true;
@@ -217,18 +217,15 @@ pub fn set_selection_regions(full_layout: &FullLayout, selection: &Selection) {
                     }
 
                 }
-
             },
-            LayoutNodeContent::ImageLayoutNode(_) => {
-                //TODO: select the image if enough of it is selected
-                todo!();
+            LayoutNodeContent::ImageLayoutNode(image_node) => {
+                image_node.selected = true;
             },
             _ => {},
         }
         drop(end_node_borr);
     }
 }
-
 
 
 fn go_down_to_content_node(node: Rc<RefCell<LayoutNode>>, selection: &Selection) -> Option<Rc<RefCell<LayoutNode>>> {
@@ -275,7 +272,9 @@ fn set_content_fully_selected(content: &mut LayoutNodeContent) {
                 set_css_text_box_fully_selected(text_box);
             }
         },
-        LayoutNodeContent::ImageLayoutNode(_) => todo!(),
+        LayoutNodeContent::ImageLayoutNode(image_node) => {
+            image_node.selected = true;
+        },
         LayoutNodeContent::ButtonLayoutNode(_) => todo!(),
         LayoutNodeContent::TextInputLayoutNode(_) => todo!(),
         LayoutNodeContent::AreaLayoutNode(_) => todo!(),

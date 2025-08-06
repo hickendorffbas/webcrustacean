@@ -20,7 +20,7 @@ use crate::style::StyleContext;
 use crate::ui_components::{
     Button,
     PageComponent,
-    TextField
+    TextField,
 };
 
 
@@ -220,7 +220,8 @@ impl ElementDomNode {
                     if try_recv_result.is_ok() {
                         match try_recv_result.unwrap() {
                             ResourceRequestResult::NotFound => {
-                                //TODO: should I get a fallback image here?
+                                self.image = Some(Rc::from(resource_loader::fallback_image()));
+                                self.dirty = true;
                             },
                             ResourceRequestResult::Success(received_image) => {
                                 self.image = Some(Rc::from(received_image.body));

@@ -403,6 +403,11 @@ impl Url {
         }
         full_string.push_str(self.path.join("/").as_str());
 
+        if !self.query.is_empty() {
+            full_string.push('?');
+            full_string.push_str(&self.query);
+        }
+
         return full_string;
     }
 

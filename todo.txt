@@ -12,4 +12,3 @@ other things (later versions):
        - fix transparancy in png's (loading works, rendering in SDL does not)
        - figure out how do build standalone binaries
        - vertical scroll
-       - vertical scroll

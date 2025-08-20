@@ -320,7 +320,7 @@ impl JsParserSliceIterator {
 
 pub fn parse_js(tokens: &Vec<JsTokenWithLocation>) -> Script {
 
-    let use_new_parser = false;
+    let use_new_parser = true;
     if use_new_parser {
         match js_rd_parser::parse_js(tokens) {
             ParseResult::Ok(script) => return script,

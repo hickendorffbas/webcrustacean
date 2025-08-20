@@ -181,24 +181,21 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                 lhs = JsAstExpression::Assignment(JsAstAssign { left: Rc::from(lhs), right: Rc::from(rhs) });
             },
 
-            JsToken::Plus => {
+            binop @ (JsToken::Plus | JsToken::Minus | JsToken::Star | JsToken::ForwardSlash) => {
                 parser_state.next();
                 let rhs = match pratt_parse_expression(tokens, parser_state, right_bp) {
                     ParseResult::Ok(rhs) => rhs,
                     ParseResult::NoMatch => todo!(), //TODO: implement
                     ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
                 };
-                lhs = JsAstExpression::BinOp(JsAstBinOp { op: JsBinOp::Plus, left: Rc::from(lhs), right: Rc::from(rhs) });
-            },
 
-            JsToken::Minus => {
-                parser_state.next();
-                let rhs = match pratt_parse_expression(tokens, parser_state, right_bp) {
-                    ParseResult::Ok(rhs) => rhs,
-                    ParseResult::NoMatch => todo!(), //TODO: implement
-                    ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
-                };
-                lhs = JsAstExpression::BinOp(JsAstBinOp { op: JsBinOp::Minus, left: Rc::from(lhs), right: Rc::from(rhs) });
+                match binop {
+                    JsToken::Plus => { lhs = JsAstExpression::BinOp(JsAstBinOp { op: JsBinOp::Plus, left: Rc::from(lhs), right: Rc::from(rhs) }); },
+                    JsToken::Minus => { lhs = JsAstExpression::BinOp(JsAstBinOp { op: JsBinOp::Minus, left: Rc::from(lhs), right: Rc::from(rhs) }); },
+                    JsToken::Star => { lhs = JsAstExpression::BinOp(JsAstBinOp { op: JsBinOp::Times, left: Rc::from(lhs), right: Rc::from(rhs) }); }
+                    JsToken::ForwardSlash => { lhs = JsAstExpression::BinOp(JsAstBinOp { op: JsBinOp::Divide, left: Rc::from(lhs), right: Rc::from(rhs) }); }
+                    _ => panic!("This should never happen"),
+                }
             },
 
             JsToken::OpenParenthesis => {
@@ -267,6 +264,7 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
 }
 
 
+//TODO: this is unused because, although we parse expression prefixes, we don't process prefix operators yet. we should (like the "-" for negative numbers)
 fn prefix_binding_power(token: &JsToken) -> u8 {
     match token {
         JsToken::Identifier(_) => 10,
@@ -277,15 +275,16 @@ fn prefix_binding_power(token: &JsToken) -> u8 {
 
 fn infix_binding_power(token: &JsToken) -> (u8, u8) {
     match token {
+        JsToken::Equals => (2, 1),
         JsToken::Plus => (10, 11),
         JsToken::Minus => (10, 11),
-        JsToken::Equals => (2, 1),
+        JsToken::Star => (14, 15),
+        JsToken::ForwardSlash => (14, 15),
         JsToken::Dot => (100, 101),
         JsToken::OpenParenthesis => (110, 111),
         _ => todo!(),
     }
 }
-
 
 fn parse_function_declaration(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) -> ParseResult<JsAstFunctionDeclaration> {
     todo!(); //TODO: implement

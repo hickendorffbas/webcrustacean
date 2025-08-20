@@ -216,8 +216,8 @@ impl JsAstBinOp {
 
 #[derive(Debug)]
 pub struct JsAstAssign {
-    pub left: JsAstExpression,
-    pub right: JsAstExpression,
+    pub left: Rc<JsAstExpression>,
+    pub right: Rc<JsAstExpression>,
 }
 impl JsAstAssign {
     fn execute(&self, js_interpreter: &mut JsInterpreter) {
@@ -351,6 +351,7 @@ pub enum JsAstExpression {
     FunctionCall(JsAstFunctionCall),
     Identifier(JsAstIdentifier),
     ObjectLiteral(JsAstObjectLiteral),
+    Assignment(JsAstAssign),
 }
 impl JsAstExpression {
     fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
@@ -358,7 +359,6 @@ impl JsAstExpression {
             JsAstExpression::BinOp(binop) => { return binop.execute(js_interpreter) },
             JsAstExpression::Identifier(variable) => { return JsValue::deref(variable.execute(js_interpreter), js_interpreter) },
             JsAstExpression::ObjectLiteral(obj) => { return obj.execute(js_interpreter) },
-
             JsAstExpression::NumericLiteral(numeric_literal) => {
                 //TODO: we might want to cache the JsValue somehow, and we need to support more numeric types...
 
@@ -445,6 +445,10 @@ impl JsAstExpression {
                         return JsValue::Undefined;
                     },
                 }
+            },
+            JsAstExpression::Assignment(js_ast_assign) => {
+                js_ast_assign.execute(js_interpreter);
+                return JsValue::Undefined; //TODO: I think an assignment expression should return its value, we need to fix that if so
             },
         }
     }

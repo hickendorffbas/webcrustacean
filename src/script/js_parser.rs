@@ -1,5 +1,7 @@
 use std::rc::Rc;
 
+use crate::script::js_rd_parser::{self, ParseResult};
+
 use super::js_ast::*;
 use super::js_console;
 use super::js_lexer::{JsToken, JsTokenWithLocation};
@@ -317,7 +319,25 @@ impl JsParserSliceIterator {
 
 
 pub fn parse_js(tokens: &Vec<JsTokenWithLocation>) -> Script {
+
+    let use_new_parser = false;
+    if use_new_parser {
+        match js_rd_parser::parse_js(tokens) {
+            ParseResult::Ok(script) => return script,
+            ParseResult::NoMatch => {
+                js_console::log_js_error("Could not parse javascript"); //TODO: add a location here (location of first token?)
+                return Vec::new();
+            },
+            ParseResult::ParsingFailed(error) => {
+                js_console::log_js_error(error.error_message().as_str());
+                return Vec::new();
+            },
+        }
+    }
+
+
     //TODO: we need to do semicolon insertion (see rules on https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Lexical_grammar#automatic_semicolon_insertion)
+    //      -> doing that in the new parser
 
     if tokens.len() == 0 {
         return Vec::new();
@@ -543,7 +563,7 @@ fn parse_statement(statement_iterator: &mut JsParserSliceIterator, tokens: &Vec<
         if parsed_left.is_none() || parsed_right.is_none() {
             return None;
         }
-        return Some(JsAstStatement::Assign(JsAstAssign { left: parsed_left.unwrap(), right: parsed_right.unwrap() }));
+        return Some(JsAstStatement::Assign(JsAstAssign { left: Rc::from(parsed_left.unwrap()), right: Rc::from(parsed_right.unwrap()) }));
     }
 
     let expression = parse_expression(statement_iterator, tokens);

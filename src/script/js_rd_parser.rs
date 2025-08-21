@@ -21,8 +21,8 @@ struct ParserState {
     previous_positions: Vec<usize>,
 }
 impl ParserState {
-    fn has_next(&self) -> bool {
-        return self.cursor < self.number_of_tokens;
+    fn has_ended(&self) -> bool {
+        return self.cursor >= self.number_of_tokens;
     }
     fn next(&mut self) {
         self.cursor += 1;
@@ -47,6 +47,7 @@ pub struct ParseError {
     character: u32
 }
 pub enum ParseErrorType {
+    EOF,
     IdentierExpected,
     ExpectedEndOfArgumentList,
     Unknown, //ideally we replace every instance of this one with a specific error
@@ -54,6 +55,7 @@ pub enum ParseErrorType {
 impl ParseError {
     pub fn error_message(&self) -> String {
         match self.error_type {
+            ParseErrorType::EOF => format!("Unexpected end of script at {}:{}", self.line, self.character),
             ParseErrorType::Unknown => format!("Unknown error while parsing script at {}:{}", self.line, self.character),
             ParseErrorType::IdentierExpected => format!("Identifier expected at {}:{}", self.line, self.character),
             ParseErrorType::ExpectedEndOfArgumentList => format!("Expected end of argument list at {}:{}", self.line, self.character),
@@ -69,7 +71,7 @@ pub fn parse_js(tokens: &Vec<JsTokenWithLocation>) -> ParseResult<Script> {
     let mut parser_state = ParserState { cursor: 0, number_of_tokens: tokens.len(), previous_positions: Vec::new() };
     let mut statements = Vec::new();
 
-    while parser_state.has_next() {
+    while !parser_state.has_ended() {
         let possible_statement = parse_statement(tokens, &mut parser_state);
         match possible_statement {
             ParseResult::Ok(node) => statements.push(node),
@@ -94,6 +96,10 @@ fn parse_statement(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserS
                 ParseResult::ParsingFailed(error) => ParseResult::ParsingFailed(error),
             }
         },
+        JsToken::Semicolon => {
+            parser_state.next();
+            return ParseResult::NoMatch; //This way we signal an empty statement (no statement)
+        }
         _ => {},
     }
 
@@ -192,6 +198,8 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                 let mut arguments = Vec::new();
                 let mut first = true;
                 loop {
+                    if parser_state.has_ended() { return ParseResult::ParsingFailed(ParseError::error_for_token(ParseErrorType::EOF, &tokens[parser_state.cursor - 1])) };
+
                     match &tokens[parser_state.cursor].token {
                         JsToken::CloseParenthesis => {
                             parser_state.next();
@@ -204,9 +212,7 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                             parser_state.next();
                         },
                         _ => {
-                            if !first {
-                                return ParseResult::ParsingFailed(ParseError::error_for_token(ParseErrorType::ExpectedEndOfArgumentList, &tokens[parser_state.cursor]))
-                            }
+                            if !first { return ParseResult::ParsingFailed(ParseError::error_for_token(ParseErrorType::ExpectedEndOfArgumentList, &tokens[parser_state.cursor])) }
                         },
                     }
                     match pratt_parse_expression(tokens, parser_state, 0) {
@@ -234,8 +240,7 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
 fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) -> ParseResult<JsAstExpression> {
 
     loop {
-
-        if !parser_state.has_next() {
+        if parser_state.has_ended() {
             return ParseResult::NoMatch;
         }
 

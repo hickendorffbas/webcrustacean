@@ -7,6 +7,7 @@ use crate::script::js_ast::{
     JsAstFunctionCall,
     JsAstFunctionDeclaration,
     JsAstIdentifier,
+    JsAstObjectLiteral,
     JsAstStatement,
     JsBinOp,
     Script,
@@ -72,7 +73,9 @@ pub fn parse_js(tokens: &Vec<JsTokenWithLocation>) -> ParseResult<Script> {
         let possible_statement = parse_statement(tokens, &mut parser_state);
         match possible_statement {
             ParseResult::Ok(node) => statements.push(node),
-            ParseResult::NoMatch => return ParseResult::ParsingFailed(ParseError::error_for_token(ParseErrorType::Unknown, &tokens[0])),
+            ParseResult::NoMatch => {
+                //this happens for the empty statement, so we just continue
+            },
             ParseResult::ParsingFailed(error) => return ParseResult::ParsingFailed(error),
         }
     }
@@ -106,41 +109,28 @@ fn parse_statement(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserS
             }
             return ParseResult::Ok(JsAstStatement::Expression(result));
         }
-        ParseResult::NoMatch => {},
+        ParseResult::NoMatch => return ParseResult::NoMatch, //This happens for the empty statement
         ParseResult::ParsingFailed(error) => return ParseResult::ParsingFailed(error),
     }
-    parser_state.pop_state();
-
-
-    todo!(); //TODO: implement
 }
 
 
 fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState, min_binding_power: u8) -> ParseResult<JsAstExpression> {
 
-    loop {
-         match &tokens[parser_state.cursor].token {
-            JsToken::Whitespace => {
-                parser_state.next();
-                continue;
-            },
-            JsToken::Newline => todo!(), //TODO: here something might need to happen wrt to deciding if we should insert a semicolon (stop parsing the statement)
-            _ => {
-                break;
-            }
-        }
-    }
+    eat_whitespace(tokens, parser_state);
 
-    let mut lhs = parse_expression_prefix(tokens, parser_state);
+    let mut lhs = match parse_expression_prefix(tokens, parser_state) {
+        ParseResult::Ok(result) => result,
+        ParseResult::NoMatch => return ParseResult::NoMatch,
+        ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+    };
 
     loop {
+
+        eat_whitespace(tokens, parser_state);
 
         match &tokens[parser_state.cursor].token {
-            JsToken::Whitespace => {
-                parser_state.next();
-                continue;
-            },
-            JsToken::Semicolon | JsToken::CloseParenthesis => {
+            JsToken::Semicolon | JsToken::CloseParenthesis | JsToken::CloseBrace | JsToken::CloseBracket | JsToken::Comma => {
                 //we can pop back to the previous level of parsing:
                 break;
             },
@@ -245,21 +235,118 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
 }
 
 
-fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) -> JsAstExpression {
-    return match &tokens[parser_state.cursor].token {
+fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) -> ParseResult<JsAstExpression> {
+
+    loop {
+        eat_whitespace(tokens, parser_state);
+
+        if !parser_state.has_next() {
+            return ParseResult::NoMatch;
+        }
+
+        match &tokens[parser_state.cursor].token {
+            JsToken::Newline => {
+                //TODO: not sure if this is always correct, given semicolon insertion
+                parser_state.next();
+            },
+            _ => {
+                break;
+            }
+        }
+    }
+
+    match &tokens[parser_state.cursor].token {
         JsToken::Number(literal_number) => {
             parser_state.next();
-            JsAstExpression::NumericLiteral(literal_number.clone())
+            return ParseResult::Ok(JsAstExpression::NumericLiteral(literal_number.clone()));
         },
         JsToken::LiteralString(literal_string) => {
             parser_state.next();
-            JsAstExpression::StringLiteral(literal_string.clone())
+            return ParseResult::Ok(JsAstExpression::StringLiteral(literal_string.clone()));
         },
         JsToken::Identifier(ident) => {
             parser_state.next();
-            JsAstExpression::Identifier(JsAstIdentifier { name: ident.clone() })
+            return ParseResult::Ok(JsAstExpression::Identifier(JsAstIdentifier { name: ident.clone() }));
+        },
+        JsToken::OpenBrace => { //This is an object literal
+            parser_state.next();
+
+            let mut members = Vec::new();
+            let mut first = true;
+            let mut current_property_name;
+            loop {
+                eat_whitespace(tokens, parser_state);
+
+
+                match &tokens[parser_state.cursor].token {
+                    JsToken::CloseBrace => {
+                        parser_state.next();
+                        break;
+                    },
+                    JsToken::Comma => {
+                        if first {
+                            todo!(); //TODO: this should be an error
+                        }
+                        parser_state.next();
+                    },
+                    _ => {
+                        if !first {
+                            todo!(); //TODO: this should be an error
+                        }
+                        //the first time we don't expect a comma, so we just don't do anything here
+                    }
+                }
+
+                eat_whitespace(tokens, parser_state);
+
+                match &tokens[parser_state.cursor].token {
+                    JsToken::Identifier(property_name) => {
+                        parser_state.next();
+                        current_property_name = property_name;
+                    },
+                    JsToken::LiteralString(property_name) => {
+                        parser_state.next();
+                        current_property_name = property_name;
+                    }
+                    _ => {
+                        todo!(); //TODO: are there any valid cases for this?
+                    }
+                }
+
+                eat_whitespace(tokens, parser_state);
+
+                match &tokens[parser_state.cursor].token {
+                    JsToken::Colon => {
+                        parser_state.next();
+                    },
+                    _ => {
+                        todo!(); //TODO: handle the case where a shorthand is used (i.e. {a} to mean { a : a })
+                    }
+                }
+
+                match pratt_parse_expression(tokens, parser_state, 0) {
+                    ParseResult::Ok(expression) => {
+                        members.push((JsAstExpression::StringLiteral(current_property_name.clone()), expression));
+                    },
+                    ParseResult::NoMatch => todo!(), //TODO: implement
+                    ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+                }
+
+                first = false;
+            }
+            return ParseResult::Ok(JsAstExpression::ObjectLiteral(JsAstObjectLiteral { members: members }));
         },
         _ => todo!(),
+    }
+}
+
+
+fn eat_whitespace(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) {
+    while parser_state.has_next() {
+        match &tokens[parser_state.cursor].token {
+            JsToken::Whitespace => { parser_state.next(); },
+            _ => { break; }
+        }
     }
 }
 
@@ -285,6 +372,7 @@ fn infix_binding_power(token: &JsToken) -> (u8, u8) {
         _ => todo!(),
     }
 }
+
 
 fn parse_function_declaration(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) -> ParseResult<JsAstFunctionDeclaration> {
     todo!(); //TODO: implement

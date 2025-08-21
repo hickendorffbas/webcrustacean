@@ -23,7 +23,8 @@ pub enum JsAstStatement {
     Declaration(JsAstDeclaration),
     FunctionDeclaration(JsAstFunctionDeclaration),  //TODO: a function declaration is not a statement, technically, but we pretend it is for now
                                                     //      (it actually is a "source element", a statement is also a source element)
-    Return(JsAstExpression),
+    Return(JsAstExpression),                        //TODO: it might make more sense to have return seperately on the function declaration ast node,
+                                                    //      but of type JsAstStatement::Expression, instead of type JsAstStatement::Return
 }
 impl JsAstStatement {
 

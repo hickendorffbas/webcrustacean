@@ -87,6 +87,16 @@ pub fn parse_js(tokens: &Vec<JsTokenWithLocation>) -> ParseResult<Script> {
 
 
 fn parse_statement(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) -> ParseResult<JsAstStatement> {
+
+    loop {
+        match tokens[parser_state.cursor].token {
+            JsToken::Newline => {
+                parser_state.next();
+            }
+            _ => { break; }
+        }
+    }
+
     match tokens[parser_state.cursor].token {
         JsToken::KeyWordFunction => {
             let possible_function = parse_function_declaration(tokens, parser_state);
@@ -94,6 +104,14 @@ fn parse_statement(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserS
                 ParseResult::Ok(ast) => ParseResult::Ok(JsAstStatement::FunctionDeclaration(ast)),
                 ParseResult::NoMatch => ParseResult::ParsingFailed(ParseError::error_for_token(ParseErrorType::Unknown, &tokens[0])),
                 ParseResult::ParsingFailed(error) => ParseResult::ParsingFailed(error),
+            }
+        },
+        JsToken::KeyWordReturn => {
+            parser_state.next();
+            return match pratt_parse_expression(tokens, parser_state, 0) {
+                ParseResult::Ok(expr) => ParseResult::Ok(JsAstStatement::Return(expr)),
+                ParseResult::NoMatch => todo!(), //TODO: this might need to be an error
+                ParseResult::ParsingFailed(parse_error) => ParseResult::ParsingFailed(parse_error),
             }
         },
         JsToken::Semicolon => {
@@ -357,5 +375,101 @@ fn infix_binding_power(token: &JsToken) -> (u8, u8) {
 
 
 fn parse_function_declaration(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) -> ParseResult<JsAstFunctionDeclaration> {
-    todo!(); //TODO: implement
+    parser_state.next(); //eat the function keyword
+
+    let function_name = match &tokens[parser_state.cursor].token {
+        JsToken::Identifier(ident) => {
+            parser_state.next();
+            ident
+        },
+        _ => {
+            todo!(); //TODO: this should probably always be a "function name expected" error
+        }
+    };
+
+    match &tokens[parser_state.cursor].token {
+        JsToken::OpenParenthesis => {
+            parser_state.next();
+        },
+        _ => {
+            todo!(); //TODO: this should be an error (function arguments expected)
+        }
+    }
+
+    let mut arguments = Vec::new();
+    let mut first = true;
+    loop {
+
+        match &tokens[parser_state.cursor].token {
+            JsToken::Identifier(ident) => {
+                parser_state.next();
+                arguments.push(JsAstIdentifier { name: ident.clone() });
+            },
+            JsToken::CloseParenthesis => {
+                if first {
+                    parser_state.next();
+                    break;
+                } else {
+                    todo!(); //TODO: some kind of error
+                }
+            },
+            _ => {
+                todo!(); //TODO: some kind of error
+            }
+        }
+
+        match &tokens[parser_state.cursor].token {
+            JsToken::Comma => {
+                parser_state.next();
+            },
+            JsToken::CloseParenthesis => {
+                parser_state.next();
+                break;
+            }
+            _ => {
+                todo!(); //TODO: this should be an error (function arguments expected)
+            },
+        }
+
+        first = false;
+    }
+
+    match &tokens[parser_state.cursor].token {
+        JsToken::OpenBrace => {
+            parser_state.next();
+        },
+        _ => {
+            todo!(); //TODO: some kind of error
+        }
+    }
+
+    let mut script = Vec::new();
+    loop {
+        loop {
+            match tokens[parser_state.cursor].token {
+                JsToken::Newline => {
+                    parser_state.next();
+                }
+                _ => { break; }
+            }
+        }
+
+        match &tokens[parser_state.cursor].token {
+            JsToken::CloseBrace => {
+                parser_state.next();
+                break;
+            },
+            _ => {}
+        }
+
+        match parse_statement(tokens, parser_state) {
+            ParseResult::Ok(stat) => script.push(stat),
+            ParseResult::NoMatch => {
+                //this happens for the empty statement, so we just continue
+            },
+            ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+        }
+    }
+
+    return ParseResult::Ok(JsAstFunctionDeclaration { name: function_name.clone(), arguments, script: Rc::from(script) })
 }

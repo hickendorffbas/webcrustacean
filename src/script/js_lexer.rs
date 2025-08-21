@@ -53,7 +53,6 @@ pub enum JsToken {
 
     //whitespace:
     Newline,
-    Whitespace,
 
     //all keywords:
     KeyWordVar,
@@ -170,7 +169,6 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
             tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Number(number_text)));
         }
         else if js_iterator.peek() == Some(' ') || js_iterator.peek() == Some('\t') || js_iterator.peek() == Some('\r') {
-            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Whitespace));
             eat_whitespace(&mut js_iterator);
         }
         else if js_iterator.peek() == Some('"') || js_iterator.peek() == Some('\'') || js_iterator.peek() == Some('`') {
@@ -224,7 +222,7 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
 
             let mut last_token = None;
             for token in tokens.iter().rev() {
-                if token.token != JsToken::Whitespace && token.token != JsToken::Newline {
+                if token.token != JsToken::Newline {
                     last_token = Some(token.token.clone());
                     break;
                 }

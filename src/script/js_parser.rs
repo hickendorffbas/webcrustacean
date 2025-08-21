@@ -23,7 +23,7 @@ impl JsParserSliceIterator {
             if temp_next > self.end_idx { return false; }
 
             match &tokens[temp_next].token {
-                JsToken::Whitespace | JsToken::Newline => { },
+                JsToken::Newline => { },
                 _ => {
                     if temp_next == self.end_idx {
                         self.next_idx = self.end_idx;
@@ -43,7 +43,7 @@ impl JsParserSliceIterator {
             if temp_next > self.end_idx { return false; }
 
             match &tokens[temp_next].token {
-                JsToken::Whitespace | JsToken::Newline => { },
+                JsToken::Newline => { },
                 _ => { return true; }
             }
             temp_next += 1;
@@ -56,7 +56,7 @@ impl JsParserSliceIterator {
             if temp_next > self.end_idx { return false; }
 
             match &tokens[temp_next].token {
-                JsToken::Whitespace | JsToken::Newline => { },
+                JsToken::Newline => { },
                 matching_token @ _ => {
                     return *matching_token == token;
                 }
@@ -78,7 +78,7 @@ impl JsParserSliceIterator {
             }
 
             match &tokens[temp_next].token {
-                JsToken::Whitespace | JsToken::Newline => { },
+                JsToken::Newline => { },
                 JsToken::Identifier(name) => {
                     if name_to_return.is_some() {
                         return None;  //we saw more than 1 identifier
@@ -104,7 +104,7 @@ impl JsParserSliceIterator {
             }
 
             match &tokens[temp_next].token {
-                JsToken::Whitespace | JsToken::Newline => { },
+                JsToken::Newline => { },
                 JsToken::RegexLiteral(content) => {
                     if content_to_return.is_some() {
                         return None;  //we saw more than 1 regex
@@ -132,7 +132,7 @@ impl JsParserSliceIterator {
             }
 
             match &tokens[temp_next].token {
-                JsToken::Whitespace | JsToken::Newline => { },
+                JsToken::Newline => { },
                 JsToken::Number(number) => {
                     if number_to_return.is_some() {
                         return None; // we saw more than 1 number
@@ -159,7 +159,7 @@ impl JsParserSliceIterator {
             }
 
             match &tokens[temp_next].token {
-                JsToken::Whitespace | JsToken::Newline => { },
+                JsToken::Newline => { },
                 JsToken::LiteralString(number) => {
                     if string_to_return.is_some() {
                         return None; // we saw more than 1 literal string
@@ -186,7 +186,7 @@ impl JsParserSliceIterator {
             }
 
             match &masked_tokens[temp_next] {
-                JsToken::Whitespace | JsToken::Newline => { },
+                JsToken::Newline => { },
                 JsToken::OpenBrace => {
                     in_object = true;
                 }

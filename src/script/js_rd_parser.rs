@@ -117,8 +117,6 @@ fn parse_statement(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserS
 
 fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState, min_binding_power: u8) -> ParseResult<JsAstExpression> {
 
-    eat_whitespace(tokens, parser_state);
-
     let mut lhs = match parse_expression_prefix(tokens, parser_state) {
         ParseResult::Ok(result) => result,
         ParseResult::NoMatch => return ParseResult::NoMatch,
@@ -126,8 +124,6 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
     };
 
     loop {
-
-        eat_whitespace(tokens, parser_state);
 
         match &tokens[parser_state.cursor].token {
             JsToken::Semicolon | JsToken::CloseParenthesis | JsToken::CloseBrace | JsToken::CloseBracket | JsToken::Comma => {
@@ -238,7 +234,6 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
 fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) -> ParseResult<JsAstExpression> {
 
     loop {
-        eat_whitespace(tokens, parser_state);
 
         if !parser_state.has_next() {
             return ParseResult::NoMatch;
@@ -275,8 +270,6 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
             let mut first = true;
             let mut current_property_name;
             loop {
-                eat_whitespace(tokens, parser_state);
-
 
                 match &tokens[parser_state.cursor].token {
                     JsToken::CloseBrace => {
@@ -297,8 +290,6 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
                     }
                 }
 
-                eat_whitespace(tokens, parser_state);
-
                 match &tokens[parser_state.cursor].token {
                     JsToken::Identifier(property_name) => {
                         parser_state.next();
@@ -313,8 +304,6 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
                     }
                 }
 
-                eat_whitespace(tokens, parser_state);
-
                 match &tokens[parser_state.cursor].token {
                     JsToken::Colon => {
                         parser_state.next();
@@ -325,9 +314,7 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
                 }
 
                 match pratt_parse_expression(tokens, parser_state, 0) {
-                    ParseResult::Ok(expression) => {
-                        members.push((JsAstExpression::StringLiteral(current_property_name.clone()), expression));
-                    },
+                    ParseResult::Ok(expression) => members.push((JsAstExpression::StringLiteral(current_property_name.clone()), expression)),
                     ParseResult::NoMatch => todo!(), //TODO: implement
                     ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
                 }
@@ -337,16 +324,6 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
             return ParseResult::Ok(JsAstExpression::ObjectLiteral(JsAstObjectLiteral { members: members }));
         },
         _ => todo!(),
-    }
-}
-
-
-fn eat_whitespace(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) {
-    while parser_state.has_next() {
-        match &tokens[parser_state.cursor].token {
-            JsToken::Whitespace => { parser_state.next(); },
-            _ => { break; }
-        }
     }
 }
 

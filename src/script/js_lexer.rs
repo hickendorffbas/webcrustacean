@@ -58,9 +58,6 @@ pub enum JsToken {
     KeyWordVar,
     KeyWordFunction,
     KeyWordReturn,
-
-    //not an actual token of the language, but used as a way to block out:
-    None,
 }
 
 

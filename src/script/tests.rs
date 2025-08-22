@@ -208,3 +208,26 @@ fn test_empty_statement_in_front() {
 
     assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(1)));
 }
+
+
+#[test]
+fn test_basic_if_statement() {
+    let code = r#" f = 1; b = 0;
+        if (f == 1) {
+            b = b + 1;
+        }
+        if (f == 2) {
+            b = b + 4;
+        } else {
+            b = b + 7;
+        }
+        tester.export(b); "#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens);
+
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(8)));
+}

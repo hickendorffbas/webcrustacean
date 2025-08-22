@@ -5,7 +5,9 @@ goals for 0.6.0:
        - bug: make the post on https://old-search.marginalia.nu/ work (it does not submit the search query)
        - if the url in the addressbar does not have a protocol, replace it with https, if that fails, try http
        - make the javascript parser an RD parser so we can have better errors, and insert semicolons later
-              - switch fully to the new parser
+              - add indexing[]
+              - add ASI
+       - homepage links don't show anymore? (in about:home)
 
 
 goals for 0.7.0

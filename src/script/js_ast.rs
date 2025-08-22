@@ -19,12 +19,12 @@ pub type Script = Vec<JsAstStatement>;
 #[derive(Debug)]
 pub enum JsAstStatement {
     Expression(JsAstExpression),
-    Assign(JsAstAssign),
     Declaration(JsAstDeclaration),
     FunctionDeclaration(JsAstFunctionDeclaration),  //TODO: a function declaration is not a statement, technically, but we pretend it is for now
                                                     //      (it actually is a "source element", a statement is also a source element)
     Return(JsAstExpression),                        //TODO: it might make more sense to have return seperately on the function declaration ast node,
                                                     //      but of type JsAstStatement::Expression, instead of type JsAstStatement::Return
+    Conditional(JsAstConditional),
 }
 impl JsAstStatement {
 
@@ -34,9 +34,6 @@ impl JsAstStatement {
         match self {
             JsAstStatement::Expression(expression) => {
                 let _ = expression.execute(js_interpreter);
-            },
-            JsAstStatement::Assign(assign) => {
-                assign.execute(js_interpreter)
             },
             JsAstStatement::Declaration(declaration) => {
                 declaration.execute(js_interpreter)
@@ -49,6 +46,9 @@ impl JsAstStatement {
                 js_interpreter.register_return_value(value);
                 return false;
             },
+            JsAstStatement::Conditional(condition_expression) => {
+                condition_expression.execute(js_interpreter);
+            }
         }
         return true;
     }
@@ -73,6 +73,40 @@ impl JsAstFunctionDeclaration {
     }
 }
 
+
+#[derive(Debug)]
+pub struct JsAstConditional {
+    pub condition: Rc<JsAstExpression>,
+    pub script: Rc<Script>,
+    pub else_script: Option<Rc<Script>>,
+}
+impl JsAstConditional {
+    fn execute(&self, js_interpreter: &mut JsInterpreter) {
+        let result = self.condition.execute(js_interpreter);
+
+        if result.is_thruty() {
+
+            for statement in self.script.iter() {
+                let keep_going = statement.execute(js_interpreter);
+                if !keep_going {
+                    return;
+                }
+            };
+
+        } else {
+
+            if self.else_script.is_some() {
+                for statement in self.else_script.as_ref().unwrap().iter() {
+                    let keep_going = statement.execute(js_interpreter);
+                    if !keep_going {
+                        return;
+                    }
+                };
+            }
+
+        }
+    }
+}
 
 
 #[derive(Debug)]
@@ -197,6 +231,24 @@ impl JsAstBinOp {
                     }
                 }
             },
+            JsBinOp::EqualsEquals => {
+                let mut right_val = self.right.execute(js_interpreter);
+
+                left_val = left_val.deref(js_interpreter);
+                right_val = right_val.deref(js_interpreter);
+
+                match left_val {
+                    JsValue::Number(left_number) => {
+                        match right_val {
+                            JsValue::Number(right_number) => {
+                                return JsValue::Boolean(left_number == right_number);
+                            },
+                            _ => { todo!() }
+                        }
+                    },
+                    _ => { todo!() }
+                }
+            }
         }
     }
 
@@ -206,6 +258,7 @@ impl JsAstBinOp {
             JsBinOp::Minus => todo!(),  //TODO: not sure yet if there is a valid case for this (there might be and we then need to execute())
             JsBinOp::Times => todo!(),  //TODO: not sure yet if there is a valid case for this (there might be and we then need to execute())
             JsBinOp::Divide => todo!(),  //TODO: not sure yet if there is a valid case for this (there might be and we then need to execute())
+            JsBinOp::EqualsEquals => todo!(),  //TODO: not sure yet if there is a valid case for this (there might be and we then need to execute())
             JsBinOp::PropertyAccess => {
                 self.left.build_var_path(path);
                 self.right.build_var_path(path);
@@ -323,6 +376,7 @@ pub enum JsBinOp {
     Times,
     Divide,
     PropertyAccess,
+    EqualsEquals,
 }
 
 

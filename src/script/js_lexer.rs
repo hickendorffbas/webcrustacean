@@ -28,7 +28,7 @@ pub enum JsToken {
     Identifier(String),
     RegexLiteral(String),
     Dot,
-    Equals,
+    Assign,
     Semicolon,
     OpenParenthesis,
     CloseParenthesis,
@@ -50,6 +50,7 @@ pub enum JsToken {
     QuestionMark,
     BitWiseOr,
     Hash,
+    EqualsEquals,
 
     //whitespace:
     Newline,
@@ -58,6 +59,8 @@ pub enum JsToken {
     KeyWordVar,
     KeyWordFunction,
     KeyWordReturn,
+    KeyWordIf,
+    KeyWordElse,
 }
 
 
@@ -199,11 +202,11 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
             //  https://stackoverflow.com/questions/5519596/when-parsing-javascript-what-determines-the-meaning-of-a-slash
 
             //TODO: put this in a better place where we don't need to instatiate it so often
-            const TOKENS_PROBABLY_PRECEDING_REGEX_LITERAL: [JsToken; 14] = [
+            const TOKENS_PROBABLY_PRECEDING_REGEX_LITERAL: [JsToken; 15] = [
                 JsToken::OpenParenthesis,
                 JsToken::Dot,
                 JsToken::OpenBracket,
-                JsToken::Equals,
+                JsToken::Assign,
                 JsToken::Star,
                 JsToken::Plus,
                 JsToken::Minus,
@@ -214,7 +217,8 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                 JsToken::Pipe,
                 JsToken::ExclamationMark,
                 JsToken::BitWiseOr,
-                //TODO: when we properly parse multi char operator tokens (like "&&" and "=="), we need to add them to this list
+                JsToken::EqualsEquals,
+                //TODO: when we properly tokenize multi char operator tokens (like "&&" and "=="), we need to add them to this list (some done, not all)
             ];
 
             let mut last_token = None;
@@ -282,6 +286,10 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                 tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordFunction));
             } else if identifier == "return" {
                 tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordReturn));
+            } else if identifier == "if" {
+                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordIf));
+            } else if identifier == "else" {
+                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordElse));
             } else {
                 tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Identifier(identifier)));
             }
@@ -311,7 +319,18 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                         '&' => { JsToken::And }
                         '^' => { JsToken::BitWiseOr }
                         '#' => { JsToken::Hash }
-                        '=' => { JsToken::Equals }
+                        '=' => {
+                            let result = if js_iterator.has_next() {
+                                match js_iterator.peek().unwrap() {
+                                    '=' => { js_iterator.next(); JsToken::EqualsEquals }
+                                    _ => { JsToken::Assign }
+                                }
+                            } else {
+                                JsToken::Assign
+                            };
+
+                            result
+                        }
                         '+' => { JsToken::Plus }
                         '-' => { JsToken::Minus }
                         '*' => { JsToken::Star }

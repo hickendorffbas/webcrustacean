@@ -116,6 +116,17 @@ impl JsValue {
             _ => { return self }
         }
     }
+    pub fn is_thruty(self) -> bool {
+        match self {
+            JsValue::Number(number) => { return number != 0 },
+            JsValue::String(string) => { return !string.is_empty() } ,
+            JsValue::Boolean(bool) => { return bool; },
+            JsValue::Object(_) => todo!(),  //TODO: implement
+            JsValue::Function(_) => todo!(),  //TODO: implement
+            JsValue::Address(_) => todo!(),  //TODO: implement
+            JsValue::Undefined => { return false; },
+        }
+    }
 }
 
 

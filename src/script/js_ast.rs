@@ -19,7 +19,7 @@ pub type Script = Vec<JsAstStatement>;
 #[derive(Debug)]
 pub enum JsAstStatement {
     Expression(JsAstExpression),
-    Declaration(JsAstDeclaration),
+    Declaration(Vec<JsAstDeclaration>),
     FunctionDeclaration(JsAstFunctionDeclaration),  //TODO: a function declaration is not a statement, technically, but we pretend it is for now
                                                     //      (it actually is a "source element", a statement is also a source element)
     Return(JsAstExpression),                        //TODO: it might make more sense to have return seperately on the function declaration ast node,
@@ -35,8 +35,10 @@ impl JsAstStatement {
             JsAstStatement::Expression(expression) => {
                 let _ = expression.execute(js_interpreter);
             },
-            JsAstStatement::Declaration(declaration) => {
-                declaration.execute(js_interpreter)
+            JsAstStatement::Declaration(declarations) => {
+                for decl in declarations {
+                    decl.execute(js_interpreter);
+                }
             },
             JsAstStatement::FunctionDeclaration(function_declaration) => {
                 function_declaration.execute(js_interpreter);
@@ -349,8 +351,17 @@ impl JsAstAssign {
 }
 
 
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum DeclType {
+    Var,
+    Let,
+    Const,
+}
+
+
 #[derive(Debug)]
 pub struct JsAstDeclaration {
+    #[allow(dead_code)] pub decl_type: DeclType, //TODO: use, and remove dead code attribute
     pub variable: JsAstIdentifier,
     pub initial_value: Option<JsAstExpression>,
 }

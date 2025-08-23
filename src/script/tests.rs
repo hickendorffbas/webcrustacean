@@ -198,7 +198,7 @@ fn test_create_empty_object() {
 
 #[test]
 fn test_empty_statement_in_front() {
-    let code = r#";x=1;
+    let code = r#"; var x=1;
         tester.export(x);"#;
 
     let tokens = js_lexer::lex_js(code, 1, 1);

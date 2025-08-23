@@ -80,7 +80,7 @@ fn parse_statement(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserS
         return ParseResult::NoMatch;
     }
 
-    match tokens[parser_state.cursor].token {
+    match &tokens[parser_state.cursor].token {
         JsToken::KeyWordFunction => {
             parser_state.next();
             return match parse_function_declaration(tokens, parser_state) {
@@ -101,6 +101,22 @@ fn parse_statement(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserS
             parser_state.next();
             return match parse_conditional(tokens, parser_state) {
                 ParseResult::Ok(ast) => ParseResult::Ok(ast),
+                ParseResult::NoMatch => todo!(), //TODO: this might need to be an error
+                ParseResult::ParsingFailed(error) => ParseResult::ParsingFailed(error),
+            }
+        },
+        decl_keyword @ (JsToken::KeyWordVar | JsToken::KeyWordLet | JsToken::KeyWordConst) => {
+            parser_state.next();
+
+            let decl_type = match decl_keyword {
+                JsToken::KeyWordVar => { DeclType::Var },
+                JsToken::KeyWordLet => { DeclType::Let },
+                JsToken::KeyWordConst => { DeclType::Const },
+                _ => { panic!("unreachable"); }
+            };
+
+            return match parse_declaration(tokens, parser_state, decl_type) {
+                ParseResult::Ok(ast) => ParseResult::Ok(JsAstStatement::Declaration(ast)),
                 ParseResult::NoMatch => todo!(), //TODO: this might need to be an error
                 ParseResult::ParsingFailed(error) => ParseResult::ParsingFailed(error),
             }
@@ -560,4 +576,68 @@ fn eat_newlines(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserStat
             _ => { break; }
         }
     }
+}
+
+
+fn parse_declaration(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState, decl_type: DeclType) -> ParseResult<Vec<JsAstDeclaration>> {
+    let mut declarations = Vec::new();
+
+    loop {
+        if parser_state.has_ended() { return ParseResult::ParsingFailed(ParseError::error_for_token(ParseErrorType::EOF, &tokens[parser_state.cursor - 1])) };
+
+        let ident = match &tokens[parser_state.cursor].token {
+            JsToken::Identifier(ident) => {
+                parser_state.next();
+                JsAstIdentifier { name: ident.clone() }
+            },
+            _ => todo!(), //TODO: this should be an error
+        };
+
+        match tokens[parser_state.cursor].token {
+            JsToken::Semicolon => {
+                if decl_type == DeclType::Const {
+                    todo!(); //TODO: its an error to not assign a const a value
+                }
+                parser_state.next();
+                declarations.push(JsAstDeclaration { variable: ident, initial_value: None, decl_type });
+                break;
+            }
+            JsToken::Comma => {
+                if decl_type == DeclType::Const {
+                    todo!(); //TODO: its an error to not assign a const a value
+                }
+                parser_state.next();
+                declarations.push(JsAstDeclaration { variable: ident, initial_value: None, decl_type });
+                continue;
+            },
+            JsToken::Assign => {
+                parser_state.next();
+                match pratt_parse_expression(tokens, parser_state, 0) {
+                    ParseResult::Ok(expression) => {
+                        declarations.push(JsAstDeclaration { variable: ident, initial_value: Some(expression), decl_type });
+                    },
+                    ParseResult::NoMatch => todo!(), //TODO: this should become an error
+                    ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+                };
+                match tokens[parser_state.cursor].token {
+                    JsToken::Semicolon => {
+                        parser_state.next();
+                        break;
+                    }
+                    JsToken::Comma => {
+                        parser_state.next();
+                        continue;
+                    },
+                    _ => {
+                        todo!(); //TODO: this should be an error
+                    }
+                }
+            },
+            _ => {
+                todo!(); //TODO: this should be an error
+            }
+        };
+    }
+
+    return ParseResult::Ok(declarations);
 }

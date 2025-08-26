@@ -2,6 +2,7 @@
 ===================
 - Improved content selection logic
 - Basic cookie support
+- If a url with protocol is entered, https and http are tried
 
 
 0.5.0

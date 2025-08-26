@@ -96,8 +96,31 @@ impl TagName {
 }
 
 
+//TODO: I don't think this belongs in DOM, but where does it belong?
+//      possibly a new module, together with start_ and finish_ nagivate from main, and the history stuff
+pub struct NavigationAction {
+    pub action_type: NavigationActionType,
+    pub from_address_bar: bool,
+    pub https_was_inserted: bool,
+}
+impl NavigationAction {
+    pub fn new_get(url: Url) -> NavigationAction {
+        return NavigationAction { action_type: NavigationActionType::Get(url), from_address_bar: false, https_was_inserted: false };
+    }
+    pub fn new_get_from_addressbar(url: Url, https_was_inserted: bool) -> NavigationAction {
+        return NavigationAction { action_type: NavigationActionType::Get(url), from_address_bar: true, https_was_inserted };
+    }
+    pub fn new_post(post_data: PostData) -> NavigationAction {
+        return NavigationAction { action_type: NavigationActionType::Post(post_data), from_address_bar: false, https_was_inserted: false };
+    }
+    pub fn new_none() -> NavigationAction {
+        return NavigationAction { action_type: NavigationActionType::None, from_address_bar: false, https_was_inserted: false };
+    }
+}
+
+
 #[derive(PartialEq)]
-pub enum NavigationAction {
+pub enum NavigationActionType {
     None,
     Get(Url),
     Post(PostData),
@@ -253,7 +276,8 @@ impl ElementDomNode {
             let link_parent = possible_link_parent.unwrap();
             let opt_href = link_parent.borrow().get_attribute_value("href");
             if opt_href.is_some() {
-                return NavigationAction::Get(Url::from_base_url(&opt_href.unwrap(), Some(&document.base_url)));
+                let url = Url::from_base_url(&opt_href.unwrap(), Some(&document.base_url));
+                return NavigationAction::new_get(url);
             }
         }
 
@@ -268,7 +292,7 @@ impl ElementDomNode {
             }
         }
 
-        return NavigationAction::None;
+        return NavigationAction::new_none();
     }
 
     pub fn submit_form(&self, document: &Document) -> NavigationAction {
@@ -284,11 +308,10 @@ impl ElementDomNode {
                     url: Url::from_base_url(&post_url_text.unwrap(), Some(&document.base_url)),
                     fields: all_fields,
                 };
-
-                return NavigationAction::Post(postdata);
+                return NavigationAction::new_post(postdata);
             }
         }
-        return NavigationAction::None;
+        return NavigationAction::new_none();
     }
 
     fn collect_all_inputs(&self, fields: &mut HashMap<String, String>) {

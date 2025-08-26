@@ -36,8 +36,12 @@ use sdl2::{
 };
 use threadpool::ThreadPool;
 
-use crate::{debug::debug_log_warn, ui_components::PageComponent};
-use crate::dom::{Document, NavigationAction};
+use crate::debug::debug_log_warn;
+use crate::dom::{
+    Document,
+    NavigationAction,
+    NavigationActionType,
+};
 use crate::layout::{
     collect_content_nodes_in_walk_order_for_normal_flow,
     compute_layout,
@@ -65,6 +69,7 @@ use crate::ui::{
     FocusTarget,
     UIState,
 };
+use crate::ui_components::PageComponent;
 
 
 //Config:
@@ -96,7 +101,7 @@ fn frame_time_check(start_instant: &Instant) {
 fn handle_left_click(ui_state: &mut UIState, x: f32, y: f32, page_relative_mouse_y: f32, full_layout: &FullLayout, document: &Document) -> NavigationAction {
     let possible_url = ui::handle_possible_ui_click(ui_state, x, y);
     if possible_url.is_some() {
-        return NavigationAction::Get(possible_url.unwrap());
+        return NavigationAction::new_get(possible_url.unwrap());
     }
 
     return full_layout.root_node.borrow().click(x, page_relative_mouse_y, document);
@@ -115,20 +120,20 @@ pub struct MouseState {
 pub fn start_navigate(navigation_action: &NavigationAction, platform: &Platform, ui_state: &mut UIState, cookie_store: &CookieStore,
                       resource_thread_pool: &mut ResourceThreadPool) -> ResourceRequestJobTracker<ResourceRequestResult<String>> {
 
-    let tracker = match navigation_action {
-        NavigationAction::None => {
+    let tracker = match &navigation_action.action_type {
+        NavigationActionType::None => {
             panic!("Illegal state"); // we should not get in this method if we have nothing to navigate to...
         },
-        NavigationAction::Get(url) => {
+        NavigationActionType::Get(url) => {
             ui_state.addressbar.set_text(platform, url.to_string());
 
             if !ui_state.history.currently_navigating_from_history {
-                ui::register_in_history(ui_state, url);
+                ui::register_in_history(ui_state, &url);
             }
 
             resource_loader::schedule_load_text(&url, cookie_store, resource_thread_pool) //TODO: should this be a different thread pool, or rename it?
         },
-        NavigationAction::Post(post_data) => {
+        NavigationActionType::Post(post_data) => {
             ui_state.addressbar.set_text(platform, post_data.url.to_string());
 
             if !ui_state.history.currently_navigating_from_history {
@@ -152,12 +157,12 @@ pub fn start_navigate(navigation_action: &NavigationAction, platform: &Platform,
 fn finish_navigate(navigation_action: &NavigationAction, ui_state: &mut UIState, page_content: &String, document: &RefCell<Document>, cookie_store: &CookieStore,
                    full_layout: &RefCell<FullLayout>, platform: &mut Platform, resource_thread_pool: &mut ResourceThreadPool) {
 
-    let url = match navigation_action {
-        NavigationAction::None => {
+    let url = match &navigation_action.action_type {
+        NavigationActionType::None => {
             panic!("Illegal state"); // we should not get in this method if we have nothing to navigate to...
         },
-        NavigationAction::Get(url) => { url },
-        NavigationAction::Post(post_data) => { &post_data.url },
+        NavigationActionType::Get(url) => { url },
+        NavigationActionType::Post(post_data) => { &post_data.url },
     };
 
     let lex_result = html_lexer::lex_html(&page_content);
@@ -205,7 +210,7 @@ fn main() -> Result<(), String> {
         Url::from(&args[1])
     };
     document.borrow_mut().base_url = start_url.clone();
-    let mut ongoing_navigation = Some(NavigationAction::Get(start_url));
+    let mut ongoing_navigation = Some(NavigationAction::new_get(start_url));
 
     let mut main_page_job_tracker = start_navigate(&ongoing_navigation.as_ref().unwrap(), &platform, &mut ui_state, &cookie_store, &mut resource_thread_pool);
 
@@ -216,15 +221,32 @@ fn main() -> Result<(), String> {
         if ongoing_navigation.is_some() {
             let try_recv_result = main_page_job_tracker.receiver.try_recv();
             if try_recv_result.is_ok() {
+                let mut restarted_navigation = false;
                 match try_recv_result.unwrap() {
-                    ResourceRequestResult::NotFound => {
-                        //TODO: do we need to call finish navigate or something similar here as well, so make sure our state is good? (we should stop loading)
+                    ResourceRequestResult::NotFound => { //TODO: we need more types of result here, and the http status code
+                        ui_state.currently_loading_page = false;
+
+                        if ongoing_navigation.as_ref().unwrap().from_address_bar && ongoing_navigation.as_ref().unwrap().https_was_inserted {
+                            //TODO: we now do this on ResourceRequestResult::NotFound , we need to do it on all 4xx or timeout responses
+
+                            let mut url = match ongoing_navigation.unwrap().action_type {
+                                NavigationActionType::Get(url) => { url.clone() },
+                                _ => panic!("Invalid state"),
+                            };
+
+                            url.scheme = String::from("http");
+
+                            let navigation_action = NavigationAction::new_get_from_addressbar(url, false);
+                            main_page_job_tracker = start_navigate(&navigation_action, &platform, &mut ui_state, &cookie_store, &mut resource_thread_pool);
+                            ongoing_navigation = Some(navigation_action);
+                            restarted_navigation = true;
+                        }
                     },
                     ResourceRequestResult::Success(received_result) => {
-                        let domain = match ongoing_navigation.as_ref().unwrap() {
-                            NavigationAction::None => &String::new(),
-                            NavigationAction::Get(url) => &url.host,
-                            NavigationAction::Post(post_data) => &post_data.url.host,
+                        let domain = match &ongoing_navigation.as_ref().unwrap().action_type {
+                            NavigationActionType::None => &String::new(),
+                            NavigationActionType::Get(url) => &url.host,
+                            NavigationActionType::Post(post_data) => &post_data.url.host,
                         };
 
                         //TODO: I think we want to extract cookies in a more centralized place
@@ -235,11 +257,13 @@ fn main() -> Result<(), String> {
                             cookie_store.cookies_by_domain.get_mut(domain).unwrap().insert(new_cookie.0, new_cookie.1);
                         }
 
-                        finish_navigate(&ongoing_navigation.unwrap(), &mut ui_state, &received_result.body, &document, &cookie_store, &full_layout_tree, &mut platform, &mut resource_thread_pool)
+                        finish_navigate(&ongoing_navigation.as_ref().unwrap(), &mut ui_state, &received_result.body, &document, &cookie_store, &full_layout_tree, &mut platform, &mut resource_thread_pool)
                     },
                 }
 
-                ongoing_navigation = None;
+                if !restarted_navigation {
+                    ongoing_navigation = None;
+                }
             }
         }
 
@@ -324,7 +348,7 @@ fn main() -> Result<(), String> {
                         let navigation_action = handle_left_click(&mut ui_state, mouse_x as f32, mouse_y as f32, page_relative_mouse_y, &full_layout_tree.borrow(), &document.borrow());
 
                         //TODO: we should do this above in the next loop, just schedule the action for the next loop?
-                        if navigation_action != NavigationAction::None {
+                        if navigation_action.action_type != NavigationActionType::None {
                             main_page_job_tracker = start_navigate(&navigation_action, &platform, &mut ui_state, &cookie_store, &mut resource_thread_pool);
                             ongoing_navigation = Some(navigation_action);
                         }
@@ -402,9 +426,22 @@ fn main() -> Result<(), String> {
                             FocusTarget::MainContent => {},
                             FocusTarget::ScrollBlock => {},
                             FocusTarget::AddressBar => {
-                                //TODO: I still don't understand how this interacts with TextInput below. Why only handle enter here?s
+                                //TODO: I still don't understand how this interacts with TextInput below. Why only handle enter here?
                                 if keycode.unwrap().name() == "Return" {
-                                    let navigation_action = NavigationAction::Get(Url::from(&ui_state.addressbar.text));
+                                    let mut url = ui_state.addressbar.text.clone();
+
+                                    //we are not parsing the url yet, since parsing it will default to the file:// protocol
+                                    let has_protocol = if let Some(pos) = url.find("://") {
+                                        let possible_protocol = &url[..pos];
+                                        !possible_protocol.contains('/')
+                                    } else {
+                                        false
+                                    };
+                                    if !has_protocol {
+                                        url = format!("https://{}", url);
+                                    }
+
+                                    let navigation_action = NavigationAction::new_get_from_addressbar(Url::from(&url), !has_protocol);
                                     main_page_job_tracker = start_navigate(&navigation_action, &platform, &mut ui_state, &cookie_store, &mut resource_thread_pool);
                                     ongoing_navigation = Some(navigation_action);
                                 }

@@ -293,7 +293,7 @@ impl LayoutNode {
         if possible_dom_node.is_some() {
             return possible_dom_node.unwrap().borrow().click(document);
         }
-        return NavigationAction::None;
+        return NavigationAction::new_none();
     }
 
     pub fn new_empty() -> LayoutNode {

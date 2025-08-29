@@ -58,7 +58,7 @@ struct ResourceRequestJob<T> {
 }
 #[derive(Debug)]
 pub struct ResourceRequestJobTracker<T> {
-    pub job_id: usize,
+    #[allow(dead_code)] pub job_id: usize, //TODO: check if we want to use this (probably for logging / debugging?)
     pub receiver: Receiver<T>,
 }
 
@@ -85,7 +85,7 @@ type CookieStoreForDomain = HashMap<String, CookieEntry>;
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct CookieEntry {
     pub value: String,
-    pub expiry_time: DateTime<Utc>,
+    #[allow(dead_code)] pub expiry_time: DateTime<Utc>,  //TODO: use this
 }
 
 

@@ -6,6 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::dom::Document;
 use crate::layout::LayoutNode;
 use crate::color::Color;
+use crate::navigation::History;
 use crate::network::url::Url;
 use crate::platform::{
     KeyCode,
@@ -30,12 +31,6 @@ pub const UI_BASIC_DARKER_COLOR: Color = Color::new(116, 107, 90);
 
 pub const MAIN_SCROLLBAR_WIDTH: f32 = 20.0;
 
-
-pub struct History {
-    pub list: Vec<Url>,
-    pub position: usize,
-    pub currently_navigating_from_history: bool,
-}
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub enum FocusTarget {

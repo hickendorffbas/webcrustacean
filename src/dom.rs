@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use image::RgbaImage;
 
+use crate::navigation::NavigationAction;
 use crate::network::url::Url;
 use crate::platform::Platform;
 use crate::resource_loader::{
@@ -93,37 +94,6 @@ impl TagName {
             }
         }
     }
-}
-
-
-//TODO: I don't think this belongs in DOM, but where does it belong?
-//      possibly a new module, together with start_ and finish_ nagivate from main, and the history stuff
-pub struct NavigationAction {
-    pub action_type: NavigationActionType,
-    pub from_address_bar: bool,
-    pub https_was_inserted: bool,
-}
-impl NavigationAction {
-    pub fn new_get(url: Url) -> NavigationAction {
-        return NavigationAction { action_type: NavigationActionType::Get(url), from_address_bar: false, https_was_inserted: false };
-    }
-    pub fn new_get_from_addressbar(url: Url, https_was_inserted: bool) -> NavigationAction {
-        return NavigationAction { action_type: NavigationActionType::Get(url), from_address_bar: true, https_was_inserted };
-    }
-    pub fn new_post(post_data: PostData) -> NavigationAction {
-        return NavigationAction { action_type: NavigationActionType::Post(post_data), from_address_bar: false, https_was_inserted: false };
-    }
-    pub fn new_none() -> NavigationAction {
-        return NavigationAction { action_type: NavigationActionType::None, from_address_bar: false, https_was_inserted: false };
-    }
-}
-
-
-#[derive(PartialEq)]
-pub enum NavigationActionType {
-    None,
-    Get(Url),
-    Post(PostData),
 }
 
 

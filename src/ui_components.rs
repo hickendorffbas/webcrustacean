@@ -2,6 +2,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::color::Color;
 use crate::debug::debug_log_warn;
+use crate::navigation::History;
 use crate::network::url::Url;
 use crate::platform::{
     fonts::Font,
@@ -11,7 +12,6 @@ use crate::platform::{
 };
 use crate::selection::Selection;
 use crate::ui::{
-    History,
     UI_BASIC_COLOR,
     UI_BASIC_DARKER_COLOR,
     UIState,
@@ -313,11 +313,6 @@ impl Button {
     pub fn click(&mut self) {
         //We don't implement any actual behavior here for now, since the actual click is handled by the dom node. Later we could add animation here to show
         //   the button actually being pressed.
-    }
-
-    pub fn is_inside(&self, x: f32, y: f32) -> bool {
-        return x > self.x && x < (self.x + self.width) &&
-               y > self.y && y < (self.y + self.height);
     }
 
     pub fn update_position(&mut self, x: f32, y: f32, width: f32, height: f32) {

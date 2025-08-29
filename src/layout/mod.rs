@@ -12,9 +12,9 @@ use crate::dom::{
     Document,
     DomPropertyDisplay,
     ElementDomNode,
-    NavigationAction,
     TagName,
 };
+use crate::navigation::NavigationAction;
 use crate::platform::fonts::{
     Font,
     FontContext,

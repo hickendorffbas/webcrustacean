@@ -231,3 +231,18 @@ fn test_basic_if_statement() {
 
     assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(8)));
 }
+
+
+#[test]
+fn test_negative_number() {
+    let code = r#"; var x = -3;
+        x = x + 5;
+        tester.export(x);"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens);
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(2)));
+}

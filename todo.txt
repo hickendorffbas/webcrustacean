@@ -6,12 +6,11 @@ goals for 0.6.0:
        - make the javascript parser an RD parser so we can have better errors, and insert semicolons later
               - add indexing[]
               - add ASI
-       - bug: the home page links (on about:home) sometimes disappear, but not always
 
 
 goals for 0.7.0
        - handle redirects better. Its seems reqwest follows them, but our url bar does not update etc. we want to follow them ourselves
-
+       - implement more box layout css options
 
 
 

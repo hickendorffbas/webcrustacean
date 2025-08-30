@@ -33,13 +33,11 @@ pub enum ParseErrorType {
     EOF,
     IdentierExpected,
     ExpectedEndOfArgumentList,
-    Unknown, //ideally we replace every instance of this one with a specific error
 }
 impl ParseError {
     pub fn error_message(&self) -> String {
         match self.error_type {
             ParseErrorType::EOF => format!("Unexpected end of script at {}:{}", self.line, self.character),
-            ParseErrorType::Unknown => format!("Unknown error while parsing script at {}:{}", self.line, self.character),
             ParseErrorType::IdentierExpected => format!("Identifier expected at {}:{}", self.line, self.character),
             ParseErrorType::ExpectedEndOfArgumentList => format!("Expected end of argument list at {}:{}", self.line, self.character),
         }
@@ -269,6 +267,27 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
     }
 
     match &tokens[parser_state.cursor].token {
+
+        operator @ (JsToken::Minus | JsToken::Plus) => {
+            //These are the unary operators
+            parser_state.next();
+
+            let right_bp = prefix_binding_power(operator);
+
+            match pratt_parse_expression(tokens, parser_state, right_bp) {
+                ParseResult::Ok(rhs) => {
+                    let un_op = match operator {
+                        JsToken::Minus => JsUnOp::Minus,
+                        JsToken::Plus => JsUnOp::Plus,
+                        _ => panic!("unreachable"),
+                    };
+                    return ParseResult::Ok(JsAstExpression::UnaryOp(JsAstUnOp { op: un_op, right: Rc::from(rhs) }))
+                }
+                ParseResult::NoMatch => todo!(), //TODO: implement
+                ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+            };
+        },
+
         JsToken::Number(literal_number) => {
             parser_state.next();
             return ParseResult::Ok(JsAstExpression::NumericLiteral(literal_number.clone()));
@@ -346,10 +365,10 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
 }
 
 
-//TODO: this is unused because, although we parse expression prefixes, we don't process prefix operators yet. we should (like the "-" for negative numbers)
 fn prefix_binding_power(token: &JsToken) -> u8 {
     match token {
-        JsToken::Identifier(_) => 10,
+        JsToken::Plus => 20,
+        JsToken::Minus => 20,
         _ => todo!(),
     }
 }

@@ -53,7 +53,7 @@ pub enum NavigationActionType {
 
 
 pub struct History {
-    pub list: Vec<Url>,
+    pub list: Vec<Url>,  //TODO: this should become a list of navigation actions, I think
     pub position: usize,
     pub currently_navigating_from_history: bool,
 }

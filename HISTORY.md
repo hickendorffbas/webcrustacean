@@ -3,6 +3,7 @@
 - Improved content selection logic
 - Basic cookie support
 - If a url with protocol is entered, https and http are tried
+- New, more correct javascript parser added
 
 
 0.5.0

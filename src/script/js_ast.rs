@@ -391,6 +391,40 @@ pub enum JsBinOp {
 }
 
 
+#[derive(Debug)]
+pub enum JsUnOp {
+    Plus,
+    Minus,
+}
+
+
+#[derive(Debug)]
+pub struct JsAstUnOp {
+    pub op: JsUnOp,
+    pub right: Rc<JsAstExpression>,
+}
+impl JsAstUnOp {
+    fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
+        let right_val = self.right.execute(js_interpreter);
+
+        match self.op {
+            JsUnOp::Plus => {
+                match right_val {
+                    JsValue::Number(number) => return JsValue::Number(number),
+                    _ => { todo!() }, //TODO: most of the others are not valid, implement errors
+                }
+            },
+            JsUnOp::Minus => {
+                match right_val {
+                    JsValue::Number(number) => return JsValue::Number(-number),
+                    _ => { todo!() }, //TODO: most of the others are not valid, implement errors
+                }
+            },
+        }
+    }
+}
+
+
 #[derive(Debug, Clone)]
 pub struct JsAstIdentifier {
     pub name: String,
@@ -412,6 +446,7 @@ impl JsAstIdentifier {
 #[derive(Debug)]
 pub enum JsAstExpression {
     BinOp(JsAstBinOp),
+    UnaryOp(JsAstUnOp),
     NumericLiteral(String),
     StringLiteral(String),
     FunctionCall(JsAstFunctionCall),
@@ -423,6 +458,7 @@ impl JsAstExpression {
     fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
         match self {
             JsAstExpression::BinOp(binop) => { return binop.execute(js_interpreter) },
+            JsAstExpression::UnaryOp(unop) => { return unop.execute(js_interpreter) },
             JsAstExpression::Identifier(variable) => { return JsValue::deref(variable.execute(js_interpreter), js_interpreter) },
             JsAstExpression::ObjectLiteral(obj) => { return obj.execute(js_interpreter) },
             JsAstExpression::NumericLiteral(numeric_literal) => {

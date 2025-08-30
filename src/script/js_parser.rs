@@ -159,7 +159,28 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                 break;
             },
             JsToken::Newline => todo!(), //TODO: here something might need to happen wrt to deciding if we should insert a semicolon (stop parsing the statement)
-            _ => {}
+
+            //postfix operator parsing:
+            JsToken::OpenBracket => {
+                parser_state.next();
+
+                let index_node = match pratt_parse_expression(tokens, parser_state, min_binding_power) {
+                    ParseResult::Ok(index_expression) => JsAstExpression::BinOp(JsAstBinOp {
+                        op: JsBinOp::PropertyAccess, left: Rc::from(lhs), right: Rc::from(index_expression)
+                    }),
+                    ParseResult::NoMatch => todo!(),
+                    ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+                };
+
+                match &tokens[parser_state.cursor].token {
+                    JsToken::CloseBracket => parser_state.next(),
+                    _ => todo!(), //TODO: this should be an error
+                }
+
+                return ParseResult::Ok(index_node);
+            }
+
+            _ => {},
         }
 
         let (left_bp, right_bp) = infix_binding_power(&tokens[parser_state.cursor].token);

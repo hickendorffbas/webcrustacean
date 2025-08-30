@@ -246,3 +246,17 @@ fn test_negative_number() {
 
     assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(2)));
 }
+
+
+#[test]
+fn test_index_operator_for_object_properties() {
+    let code = r#"; var x = { "item": "value", "other": 3};
+        tester.export(x["item"]);"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens);
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::String(String::from("value"))));
+}

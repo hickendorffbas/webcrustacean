@@ -286,23 +286,37 @@ impl ElementDomNode {
 
     fn collect_all_inputs(&self, fields: &mut HashMap<String, String>) {
 
-        if self.name.is_some() && self.name.as_ref().unwrap().as_str() == "input" && self.page_component.is_some() {
-
+        if self.name.is_some() && self.name.as_ref().unwrap().as_str() == "input" {
             let input_name = self.get_attribute_value("name");
             if input_name.is_some() { //According to spec, elements without name should not be sent
 
-                let component = self.page_component.as_ref().unwrap().borrow();
-                let input_value = match component.deref() {
-                    PageComponent::Button(_) => {
-                        //TODO: should a non-pressed button also have its value sent? (the key should be sent in any case, but maybe with empty value)
-                        String::new()
-                    },
-                    PageComponent::TextField(text_field) => {
-                        text_field.text.clone()
-                    },
-                };
+                if self.page_component.is_some() {
+                    let component = self.page_component.as_ref().unwrap().borrow();
+                    let input_value = match component.deref() {
+                        PageComponent::Button(_) => {
+                            //TODO: should a non-pressed button also have its value sent? (the key should be sent in any case, but maybe with empty value)
+                            String::new()
+                        },
+                        PageComponent::TextField(text_field) => {
+                            text_field.text.clone()
+                        },
+                    };
+                    fields.insert(input_name.unwrap(), input_value);
 
-                fields.insert(input_name.unwrap(), input_value);
+                } else {
+                    let input_type = self.get_attribute_value("type");
+                    if input_type.is_some() {
+                        match input_type.unwrap().as_str() {
+                            "hidden" => {
+                                let input_value = self.get_attribute_value("value");
+                                if input_value.is_some() {
+                                    fields.insert(input_name.unwrap(), input_value.unwrap());
+                                }
+                            },
+                            _ => {},
+                        }
+                    }
+                }
             }
         }
 

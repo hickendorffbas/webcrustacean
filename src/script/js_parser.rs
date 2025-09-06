@@ -168,7 +168,7 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                     ParseResult::Ok(index_expression) => JsAstExpression::BinOp(JsAstBinOp {
                         op: JsBinOp::PropertyAccess, left: Rc::from(lhs), right: Rc::from(index_expression)
                     }),
-                    ParseResult::NoMatch => todo!(),
+                    ParseResult::NoMatch => todo!(), //TODO: implement
                     ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
                 };
 

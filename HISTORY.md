@@ -4,6 +4,7 @@
 - Basic cookie support
 - If a url with protocol is entered, https and http are tried
 - New, more correct javascript parser added
+- Form improvements: hidden values are sent, and GET forms are supported
 
 
 0.5.0

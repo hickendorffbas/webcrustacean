@@ -1067,6 +1067,8 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
                     partial_node_is_text_input = true;
                 } else if input_type.is_some() && input_type.as_ref().unwrap() == "submit" {
                     partial_node_is_submit_button = true;
+                } else if input_type.is_some() && input_type.as_ref().unwrap() == "hidden" {
+                    //This needs no special handling or rendering for now, hidden fields will be found when submitting the form
                 } else {
                     debug_log_warn(format!("Unknown type of input element: {}", input_type.unwrap()));
                 }

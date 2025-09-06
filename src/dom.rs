@@ -269,16 +269,24 @@ impl ElementDomNode {
         let possible_form_parent = document.find_parent_with_name(self, "form");
         if possible_form_parent.is_some() {
 
+            let method = possible_form_parent.as_ref().unwrap().borrow().get_attribute_value("method");
+
             let mut all_fields = HashMap::new();
             possible_form_parent.as_ref().unwrap().borrow().collect_all_inputs(&mut all_fields);
 
-            let post_url_text = possible_form_parent.unwrap().borrow().get_attribute_value("action");
-            if post_url_text.is_some() {
-                let postdata = PostData {
-                    url: Url::from_base_url(&post_url_text.unwrap(), Some(&document.base_url)),
-                    fields: all_fields,
-                };
-                return NavigationAction::new_post(postdata);
+            let form_url = possible_form_parent.unwrap().borrow().get_attribute_value("action");
+            if form_url.is_some() {
+                let mut url = Url::from_base_url(&form_url.unwrap(), Some(&document.base_url));
+
+                if method.is_some() && method.unwrap().as_str().to_lowercase() == "post" {
+                    return NavigationAction::new_post(PostData {url, fields: all_fields });
+                }
+                //The default method is GET
+                url.query = all_fields.iter()
+                    .map(|(key, value)| format!("{}={}", key, value)) //TODO: do we need to url encode here still?
+                    .collect::<Vec<String>>()
+                    .join("&");
+                return NavigationAction::new_get(url)
             }
         }
         return NavigationAction::new_none();

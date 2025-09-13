@@ -97,6 +97,7 @@ pub enum JsValue {
     String(String),
     #[allow(dead_code)] Boolean(bool), //TODO: use
     Object(JsObject),
+    Array(JsArray),
     Function(JsFunction),
     Address(JsAddress),
     Undefined,
@@ -122,6 +123,7 @@ impl JsValue {
             JsValue::String(string) => { return !string.is_empty() } ,
             JsValue::Boolean(bool) => { return bool; },
             JsValue::Object(_) => todo!(),  //TODO: implement
+            JsValue::Array(_) => todo!(),  //TODO: implement
             JsValue::Function(_) => todo!(),  //TODO: implement
             JsValue::Address(_) => todo!(),  //TODO: implement
             JsValue::Undefined => { return false; },
@@ -134,6 +136,13 @@ impl JsValue {
 #[derive(Clone)]
 pub struct JsObject {
     pub members: HashMap<String, JsAddress>,
+}
+
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone)]
+pub struct JsArray {
+    pub elements: Vec<JsAddress>,
 }
 
 

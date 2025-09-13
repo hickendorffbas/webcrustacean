@@ -30,6 +30,7 @@ fn js_values_are_equal(one: &JsValue, two: &JsValue) -> bool {
                 _ => { return false; }
             }
         },
+        JsValue::Array(_) => todo!(),
         JsValue::Function(_) => todo!(),
         JsValue::Undefined => {
             match two {
@@ -259,4 +260,18 @@ fn test_index_operator_for_object_properties() {
     interpreter.run_script(&script);
 
     assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::String(String::from("value"))));
+}
+
+
+#[test]
+fn test_array() {
+    let code = r#"; var x = [1, 2];
+        tester.export(x[1]);"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens);
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(2)));
 }

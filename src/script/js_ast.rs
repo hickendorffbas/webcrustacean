@@ -3,6 +3,7 @@ use std::rc::Rc;
 
 use super::js_console;
 use super::js_execution_context::{
+    JsArray,
     JsBuiltinFunction,
     JsError,
     JsExecutionContext,
@@ -221,15 +222,27 @@ impl JsAstBinOp {
                                 todo!();
                             }
                         }
-
                     },
+                    JsValue::Array(array) => {
+                        match property {
+                            JsValue::Number(number) => {
+                                match array.elements.get(number as usize) {
+                                    Some(address) => { JsValue::Address(*address) },
+                                    None => todo!(),  //TODO: this should be an error
+                                }
+                            },
+                            _ => {
+                                todo!(); //TODO: this should be an error
+                            }
+                        }
+                    }
                     JsValue::Undefined => {
                         js_console::log_js_error("Can't access property of undefined"); //TODO: this should include a line number (we need to build that generically)
                         //TODO: we should stop evaluating on these kind of errors, so we should probably return a result or something
                         return JsValue::Undefined;
                     },
                     _ => {
-                        todo!();
+                        todo!();  //TODO: should this be an error? Or is this not reachable?
                     }
                 }
             },
@@ -452,6 +465,7 @@ pub enum JsAstExpression {
     FunctionCall(JsAstFunctionCall),
     Identifier(JsAstIdentifier),
     ObjectLiteral(JsAstObjectLiteral),
+    ArrayLiteral(JsAstArrayLiteral),
     Assignment(JsAstAssign),
 }
 impl JsAstExpression {
@@ -461,6 +475,7 @@ impl JsAstExpression {
             JsAstExpression::UnaryOp(unop) => { return unop.execute(js_interpreter) },
             JsAstExpression::Identifier(variable) => { return JsValue::deref(variable.execute(js_interpreter), js_interpreter) },
             JsAstExpression::ObjectLiteral(obj) => { return obj.execute(js_interpreter) },
+            JsAstExpression::ArrayLiteral(array) => { return array.execute(js_interpreter) },
             JsAstExpression::NumericLiteral(numeric_literal) => {
                 //TODO: we might want to cache the JsValue somehow, and we need to support more numeric types...
 
@@ -498,6 +513,7 @@ impl JsAstExpression {
                                         JsValue::Number(number) => { number.to_string() },
                                         JsValue::Boolean(_) => todo!(), //TODO: implement
                                         JsValue::Object(_) => todo!(), //TODO: implement
+                                        JsValue::Array(_) => todo!(), //TODO: implement
                                         JsValue::Function(_) => todo!(), //TODO: implement
                                         JsValue::Undefined => { "undefined".to_owned() },
                                         JsValue::Address(_) => todo!(), //TODO: implement
@@ -604,5 +620,26 @@ impl JsAstObjectLiteral {
 
         }
         return JsValue::Object(JsObject { members });
+    }
+}
+
+
+#[derive(Debug)]
+pub struct JsAstArrayLiteral {
+    pub elements: Vec<JsAstExpression>,
+}
+impl JsAstArrayLiteral {
+    fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
+        let mut elements = Vec::new();
+
+        for value_ast in self.elements.iter() {
+            let value = value_ast.execute(js_interpreter);
+            let current_context = js_interpreter.context_stack.iter_mut().last().unwrap();
+            let address = current_context.add_new_value(value);
+
+            elements.push(address);
+        }
+
+        return JsValue::Array(JsArray { elements: elements })
     }
 }

@@ -342,7 +342,7 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
                     },
                     _ => {
                         if !first {
-                            todo!(); //TODO: this should be an error
+                            todo!(); //TODO: this should be an error, because we expect a comma
                         }
                         //the first time we don't expect a comma, so we just don't do anything here
                     }
@@ -381,6 +381,42 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
             }
             return ParseResult::Ok(JsAstExpression::ObjectLiteral(JsAstObjectLiteral { members: members }));
         },
+        JsToken::OpenBracket => { // This is an array Literal
+            parser_state.next();
+
+            let mut elements = Vec::new();
+            let mut first = true;
+            loop {
+
+                match &tokens[parser_state.cursor].token {
+                    JsToken::CloseBracket => {
+                        parser_state.next();
+                        break;
+                    },
+                    JsToken::Comma => {
+                        if first {
+                            todo!(); //TODO: this should be an error
+                        }
+                        parser_state.next();
+                    },
+                    _ => {
+                        if !first {
+                            todo!(); //TODO: this should be an error, because we expect a comma
+                        }
+                        //the first time we don't expect a comma, so we just don't do anything here
+                    }
+                }
+
+                match pratt_parse_expression(tokens, parser_state, 0) {
+                    ParseResult::Ok(expression) => elements.push(expression),
+                    ParseResult::NoMatch => todo!(), //TODO: implement
+                    ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+                }
+
+                first = false;
+            }
+            return ParseResult::Ok(JsAstExpression::ArrayLiteral(JsAstArrayLiteral { elements: elements }));
+        }
         _ => todo!(),
     }
 }

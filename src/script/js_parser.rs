@@ -153,12 +153,18 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
 
     loop {
 
+        if parser_state.has_ended() { return ParseResult::ParsingFailed(ParseError::error_for_token(ParseErrorType::EOF, &tokens[parser_state.cursor - 1])) };
+
         match &tokens[parser_state.cursor].token {
             JsToken::Semicolon | JsToken::CloseParenthesis | JsToken::CloseBrace | JsToken::CloseBracket | JsToken::Comma => {
                 //we can pop back to the previous level of parsing:
                 break;
             },
-            JsToken::Newline => todo!(), //TODO: here something might need to happen wrt to deciding if we should insert a semicolon (stop parsing the statement)
+            JsToken::Newline => {
+                //TODO: here something might need to happen wrt to deciding if we should insert a semicolon (stop parsing the statement)
+                parser_state.next();
+                continue;
+            },
 
             //postfix operator parsing:
             JsToken::OpenBracket => {
@@ -347,6 +353,8 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
                         //the first time we don't expect a comma, so we just don't do anything here
                     }
                 }
+
+                eat_newlines(tokens, parser_state);
 
                 match &tokens[parser_state.cursor].token {
                     JsToken::Identifier(property_name) => {

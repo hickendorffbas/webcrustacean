@@ -236,7 +236,7 @@ fn test_basic_if_statement() {
 
 #[test]
 fn test_negative_number() {
-    let code = r#"; var x = -3;
+    let code = r#"var x = -3;
         x = x + 5;
         tester.export(x);"#;
 
@@ -251,7 +251,7 @@ fn test_negative_number() {
 
 #[test]
 fn test_index_operator_for_object_properties() {
-    let code = r#"; var x = { "item": "value", "other": 3};
+    let code = r#"var x = { "item": "value", "other": 3};
         tester.export(x["item"]);"#;
 
     let tokens = js_lexer::lex_js(code, 1, 1);
@@ -265,8 +265,24 @@ fn test_index_operator_for_object_properties() {
 
 #[test]
 fn test_array() {
-    let code = r#"; var x = [1, 2];
+    let code = r#"var x = [1, 2];
         tester.export(x[1]);"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens);
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(2)));
+}
+
+
+#[test]
+fn test_new_object_with_newlines() {
+    let code = r#"var data = {
+        a: 1,
+        b: 2
+    }; tester.export(data.b);"#;
 
     let tokens = js_lexer::lex_js(code, 1, 1);
     let script = js_parser::parse_js(&tokens);

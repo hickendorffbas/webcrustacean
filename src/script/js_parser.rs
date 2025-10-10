@@ -241,8 +241,6 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
             },
 
             JsToken::OpenParenthesis => {
-                //TODO: it is not clear to me how this is distinguished from parenthesis that are used for grouping
-
                 parser_state.next();
 
                 let mut arguments = Vec::new();
@@ -424,8 +422,113 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
                 first = false;
             }
             return ParseResult::Ok(JsAstExpression::ArrayLiteral(JsAstArrayLiteral { elements: elements }));
+        },
+        JsToken::KeyWordFunction => {  //(anonymous) functions can also be an expression in JS
+            parser_state.next();
+
+            //TODO: epression functions are also allowed to not be anonymous....
+
+            match &tokens[parser_state.cursor].token {
+                JsToken::OpenParenthesis => {
+                    parser_state.next();
+                },
+                _ => {
+                    todo!(); //TODO: this should be an error (function arguments expected)
+                }
+            }
+
+            let mut arguments = Vec::new();
+            let mut first = true;
+            loop {
+
+                match &tokens[parser_state.cursor].token {
+                    JsToken::Identifier(ident) => {
+                        parser_state.next();
+                        arguments.push(JsAstIdentifier { name: ident.clone() });
+                    },
+                    JsToken::CloseParenthesis => {
+                        if first {
+                            parser_state.next();
+                            break;
+                        } else {
+                            todo!(); //TODO: some kind of error
+                        }
+                    },
+                    _ => {
+                        todo!(); //TODO: some kind of error
+                    }
+                }
+
+                match &tokens[parser_state.cursor].token {
+                    JsToken::Comma => {
+                        parser_state.next();
+                    },
+                    JsToken::CloseParenthesis => {
+                        parser_state.next();
+                        break;
+                    }
+                    _ => {
+                        todo!(); //TODO: this should be an error (function arguments expected)
+                    },
+                }
+
+                first = false;
+            }
+
+            match &tokens[parser_state.cursor].token {
+                JsToken::OpenBrace => {
+                    parser_state.next();
+                },
+                _ => {
+                    todo!(); //TODO: some kind of error
+                },
+            }
+
+            let mut script = Vec::new();
+            loop {
+                eat_newlines(tokens, parser_state);
+
+                match &tokens[parser_state.cursor].token {
+                    JsToken::CloseBrace => {
+                        parser_state.next();
+                        break;
+                    },
+                    _ => {}
+                }
+
+                match parse_statement(tokens, parser_state) {
+                    ParseResult::Ok(stat) => script.push(stat),
+                    ParseResult::NoMatch => {
+                        //this happens for the empty statement, so we just continue
+                    },
+                    ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+                }
+            }
+
+            return ParseResult::Ok(JsAstExpression::FunctionExpression(JsAstFunctionExpression { name: None, arguments, script: Rc::from(script) }));
+        },
+        JsToken::OpenParenthesis => {
+            parser_state.next();
+
+            match pratt_parse_expression(tokens, parser_state, 0) {
+                ParseResult::Ok(expression) => {
+
+                    match &tokens[parser_state.cursor].token {
+                        JsToken::CloseParenthesis => {
+                            parser_state.next();
+                            return ParseResult::Ok(expression);
+                        },
+                        _ => todo!()
+                    }
+                },
+                ParseResult::NoMatch => todo!(), //TODO: implement
+                ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+            }
         }
-        _ => todo!(),
+        val @ _ => {
+            println!("token {:?}", val);
+            todo!();
+        }
     }
 }
 

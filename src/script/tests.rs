@@ -291,3 +291,17 @@ fn test_new_object_with_newlines() {
 
     assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(2)));
 }
+
+
+
+#[test]
+fn test_anonymous_function() {
+    let code = r#"(function (w) { tester.export(w); })(13);"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens);
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(13)));
+}

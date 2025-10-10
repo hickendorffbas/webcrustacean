@@ -78,6 +78,21 @@ impl JsAstFunctionDeclaration {
 
 
 #[derive(Debug)]
+pub struct JsAstFunctionExpression {
+    #[allow(unused)] pub name: Option<String>, //TODO: currently unused, but function expressions with a name exist
+    pub arguments: Vec<JsAstIdentifier>,
+    pub script: Rc<Script>,
+}
+impl JsAstFunctionExpression {
+    fn execute(&self, #[allow(unused)] js_interpreter: &mut JsInterpreter) -> JsValue {
+        let argument_names = self.arguments.iter().map(|arg| arg.name.clone()).collect();
+        let value = JsFunction { script: Some(self.script.clone()), argument_names: argument_names, builtin: None };
+        return JsValue::Function(value);
+    }
+}
+
+
+#[derive(Debug)]
 pub struct JsAstConditional {
     pub condition: Rc<JsAstExpression>,
     pub script: Rc<Script>,
@@ -467,6 +482,7 @@ pub enum JsAstExpression {
     ObjectLiteral(JsAstObjectLiteral),
     ArrayLiteral(JsAstArrayLiteral),
     Assignment(JsAstAssign),
+    FunctionExpression(JsAstFunctionExpression),
 }
 impl JsAstExpression {
     fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
@@ -476,6 +492,7 @@ impl JsAstExpression {
             JsAstExpression::Identifier(variable) => { return JsValue::deref(variable.execute(js_interpreter), js_interpreter) },
             JsAstExpression::ObjectLiteral(obj) => { return obj.execute(js_interpreter) },
             JsAstExpression::ArrayLiteral(array) => { return array.execute(js_interpreter) },
+            JsAstExpression::FunctionExpression(js_ast_function_expression) => { return js_ast_function_expression.execute(js_interpreter); },
             JsAstExpression::NumericLiteral(numeric_literal) => {
                 //TODO: we might want to cache the JsValue somehow, and we need to support more numeric types...
 

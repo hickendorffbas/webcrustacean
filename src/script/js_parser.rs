@@ -524,11 +524,12 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
                 ParseResult::NoMatch => todo!(), //TODO: implement
                 ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
             }
-        }
-        val @ _ => {
-            println!("token {:?}", val);
-            todo!();
-        }
+        },
+        JsToken::RegexLiteral(regex_literal) => {
+            parser_state.next();
+            return ParseResult::Ok(JsAstExpression::RegexLiteral(JsAstRegexLiteral { regex: regex_literal.clone() }));
+        },
+        _ => todo!(),
     }
 }
 

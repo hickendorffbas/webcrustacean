@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use crate::debug::debug_log_warn;
+
 use super::js_console;
 use super::js_execution_context::{
     JsArray,
@@ -84,7 +86,7 @@ pub struct JsAstFunctionExpression {
     pub script: Rc<Script>,
 }
 impl JsAstFunctionExpression {
-    fn execute(&self, #[allow(unused)] js_interpreter: &mut JsInterpreter) -> JsValue {
+    fn execute(&self) -> JsValue {
         let argument_names = self.arguments.iter().map(|arg| arg.name.clone()).collect();
         let value = JsFunction { script: Some(self.script.clone()), argument_names: argument_names, builtin: None };
         return JsValue::Function(value);
@@ -483,6 +485,7 @@ pub enum JsAstExpression {
     ArrayLiteral(JsAstArrayLiteral),
     Assignment(JsAstAssign),
     FunctionExpression(JsAstFunctionExpression),
+    RegexLiteral(JsAstRegexLiteral),
 }
 impl JsAstExpression {
     fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
@@ -492,7 +495,8 @@ impl JsAstExpression {
             JsAstExpression::Identifier(variable) => { return JsValue::deref(variable.execute(js_interpreter), js_interpreter) },
             JsAstExpression::ObjectLiteral(obj) => { return obj.execute(js_interpreter) },
             JsAstExpression::ArrayLiteral(array) => { return array.execute(js_interpreter) },
-            JsAstExpression::FunctionExpression(js_ast_function_expression) => { return js_ast_function_expression.execute(js_interpreter); },
+            JsAstExpression::FunctionExpression(js_ast_function_expression) => { return js_ast_function_expression.execute(); },
+            JsAstExpression::RegexLiteral(regex_literal) => { regex_literal.execute() },
             JsAstExpression::NumericLiteral(numeric_literal) => {
                 //TODO: we might want to cache the JsValue somehow, and we need to support more numeric types...
 
@@ -658,5 +662,17 @@ impl JsAstArrayLiteral {
         }
 
         return JsValue::Array(JsArray { elements: elements })
+    }
+}
+
+
+#[derive(Debug)]
+pub struct JsAstRegexLiteral {
+    #[allow(unused)] pub regex: String, //TODO: remove unused when implemented
+}
+impl JsAstRegexLiteral {
+    fn execute(&self) -> JsValue {
+        debug_log_warn("Literal Regexes are not yet supported in javascript");
+        return JsValue::Undefined;
     }
 }

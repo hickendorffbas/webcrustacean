@@ -21,7 +21,6 @@ impl ParserState {
 
 pub enum ParseResult<T> {
     Ok(T),
-    NoMatch,
     ParsingFailed(ParseError),
 }
 pub struct ParseError {
@@ -55,14 +54,13 @@ pub fn parse_js(tokens: &Vec<JsTokenWithLocation>) -> Script {
 
     while !parser_state.has_ended() {
         let possible_statement = parse_statement(tokens, &mut parser_state);
-        match possible_statement {
-            ParseResult::Ok(node) => statements.push(node),
-            ParseResult::NoMatch => {
-                //this happens for the empty statement, so we just continue
-            },
-            ParseResult::ParsingFailed(error) => {
-                js_console::log_js_error(&error.error_message());
-                return Vec::new();
+        if possible_statement.is_some() {
+            match possible_statement.unwrap() {
+                ParseResult::Ok(node) => statements.push(node),
+                ParseResult::ParsingFailed(error) => {
+                    js_console::log_js_error(&error.error_message());
+                    return Vec::new();
+                }
             }
         }
     }
@@ -71,36 +69,33 @@ pub fn parse_js(tokens: &Vec<JsTokenWithLocation>) -> Script {
 }
 
 
-fn parse_statement(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) -> ParseResult<JsAstStatement> {
+fn parse_statement(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) -> Option<ParseResult<JsAstStatement>> {
 
     eat_newlines(tokens, parser_state);
     if parser_state.has_ended() {
-        return ParseResult::NoMatch;
+        return None;
     }
 
     match &tokens[parser_state.cursor].token {
         JsToken::KeyWordFunction => {
             parser_state.next();
             return match parse_function_declaration(tokens, parser_state) {
-                ParseResult::Ok(ast) => ParseResult::Ok(JsAstStatement::FunctionDeclaration(ast)),
-                ParseResult::NoMatch => todo!(), //TODO: this might need to be an error
-                ParseResult::ParsingFailed(error) => ParseResult::ParsingFailed(error),
+                ParseResult::Ok(ast) => Some(ParseResult::Ok(JsAstStatement::FunctionDeclaration(ast))),
+                ParseResult::ParsingFailed(error) => Some(ParseResult::ParsingFailed(error)),
             }
         },
         JsToken::KeyWordReturn => {
             parser_state.next();
             return match pratt_parse_expression(tokens, parser_state, 0) {
-                ParseResult::Ok(expr) => ParseResult::Ok(JsAstStatement::Return(expr)),
-                ParseResult::NoMatch => todo!(), //TODO: this might need to be an error
-                ParseResult::ParsingFailed(parse_error) => ParseResult::ParsingFailed(parse_error),
+                ParseResult::Ok(expr) => Some(ParseResult::Ok(JsAstStatement::Return(expr))),
+                ParseResult::ParsingFailed(parse_error) => Some(ParseResult::ParsingFailed(parse_error)),
             }
         },
         JsToken::KeyWordIf => {
             parser_state.next();
             return match parse_conditional(tokens, parser_state) {
-                ParseResult::Ok(ast) => ParseResult::Ok(ast),
-                ParseResult::NoMatch => todo!(), //TODO: this might need to be an error
-                ParseResult::ParsingFailed(error) => ParseResult::ParsingFailed(error),
+                ParseResult::Ok(ast) => Some(ParseResult::Ok(ast)),
+                ParseResult::ParsingFailed(error) => Some(ParseResult::ParsingFailed(error)),
             }
         },
         decl_keyword @ (JsToken::KeyWordVar | JsToken::KeyWordLet | JsToken::KeyWordConst) => {
@@ -114,14 +109,13 @@ fn parse_statement(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserS
             };
 
             return match parse_declaration(tokens, parser_state, decl_type) {
-                ParseResult::Ok(ast) => ParseResult::Ok(JsAstStatement::Declaration(ast)),
-                ParseResult::NoMatch => todo!(), //TODO: this might need to be an error
-                ParseResult::ParsingFailed(error) => ParseResult::ParsingFailed(error),
+                ParseResult::Ok(ast) => Some(ParseResult::Ok(JsAstStatement::Declaration(ast))),
+                ParseResult::ParsingFailed(error) => Some(ParseResult::ParsingFailed(error)),
             }
         },
         JsToken::Semicolon => {
             parser_state.next();
-            return ParseResult::NoMatch; //This way we signal an empty statement (no statement)
+            return None;
         }
         _ => {},
     }
@@ -135,10 +129,9 @@ fn parse_statement(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserS
                 },
                 _ => {},
             }
-            return ParseResult::Ok(JsAstStatement::Expression(result));
+            return Some(ParseResult::Ok(JsAstStatement::Expression(result)));
         }
-        ParseResult::NoMatch => return ParseResult::NoMatch, //This happens for the empty statement
-        ParseResult::ParsingFailed(error) => return ParseResult::ParsingFailed(error),
+        ParseResult::ParsingFailed(error) => return Some(ParseResult::ParsingFailed(error)),
     }
 }
 
@@ -147,7 +140,6 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
 
     let mut lhs = match parse_expression_prefix(tokens, parser_state) {
         ParseResult::Ok(result) => result,
-        ParseResult::NoMatch => return ParseResult::NoMatch,
         ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
     };
 
@@ -174,7 +166,6 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                     ParseResult::Ok(index_expression) => JsAstExpression::BinOp(JsAstBinOp {
                         op: JsBinOp::PropertyAccess, left: Rc::from(lhs), right: Rc::from(index_expression)
                     }),
-                    ParseResult::NoMatch => todo!(), //TODO: implement
                     ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
                 };
 
@@ -217,7 +208,6 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
 
                 let rhs = match pratt_parse_expression(tokens, parser_state, right_bp) {
                     ParseResult::Ok(rhs) => rhs,
-                    ParseResult::NoMatch => todo!(), //TODO: implement
                     ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
                 };
                 lhs = JsAstExpression::Assignment(JsAstAssign { left: Rc::from(lhs), right: Rc::from(rhs) });
@@ -227,7 +217,6 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                 parser_state.next();
                 let rhs = match pratt_parse_expression(tokens, parser_state, right_bp) {
                     ParseResult::Ok(rhs) => rhs,
-                    ParseResult::NoMatch => todo!(), //TODO: implement
                     ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
                 };
 
@@ -246,7 +235,6 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
 
                 let arguments = match parse_list_of_expressions(tokens, parser_state) {
                     ParseResult::Ok(arguments) => arguments,
-                    ParseResult::NoMatch => todo!(), //TODO: handle
                     ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
                 };
                 lhs = JsAstExpression::FunctionCall(JsAstFunctionCall { function_expression: Rc::from(lhs), arguments });
@@ -264,7 +252,7 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
 
     eat_newlines(tokens, parser_state); //TODO: not sure if this is always correct, given semicolon insertion
     if parser_state.has_ended() {
-        return ParseResult::NoMatch;
+        return ParseResult::ParsingFailed(ParseError::error_for_token(ParseErrorType::EOF, &tokens[parser_state.cursor - 1]));
     }
 
     match &tokens[parser_state.cursor].token {
@@ -284,7 +272,6 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
                     };
                     return ParseResult::Ok(JsAstExpression::UnaryOp(JsAstUnOp { op: un_op, right: Rc::from(rhs) }))
                 }
-                ParseResult::NoMatch => todo!(), //TODO: implement
                 ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
             };
         },
@@ -355,7 +342,6 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
 
                 match pratt_parse_expression(tokens, parser_state, 0) {
                     ParseResult::Ok(expression) => members.push((JsAstExpression::StringLiteral(current_property_name.clone()), expression)),
-                    ParseResult::NoMatch => todo!(), //TODO: implement
                     ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
                 }
 
@@ -391,7 +377,6 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
 
                 match pratt_parse_expression(tokens, parser_state, 0) {
                     ParseResult::Ok(expression) => elements.push(expression),
-                    ParseResult::NoMatch => todo!(), //TODO: implement
                     ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
                 }
 
@@ -472,12 +457,12 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
                     _ => {}
                 }
 
-                match parse_statement(tokens, parser_state) {
-                    ParseResult::Ok(stat) => script.push(stat),
-                    ParseResult::NoMatch => {
-                        //this happens for the empty statement, so we just continue
-                    },
-                    ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+                let statement = parse_statement(tokens, parser_state);
+                if statement.is_some() {
+                    match statement.unwrap() {
+                        ParseResult::Ok(stat) => script.push(stat),
+                        ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+                    }
                 }
             }
 
@@ -496,7 +481,6 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
                     parser_state.next();
                     match pratt_parse_expression(tokens, parser_state, 0) {
                         ParseResult::Ok(expression) => expression,
-                        ParseResult::NoMatch => todo!(), //TODO: implement
                         ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
                     }
                 },
@@ -514,7 +498,6 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
                     parser_state.next();
                     match parse_list_of_expressions(tokens, parser_state) {
                         ParseResult::Ok(arguments) => arguments,
-                        ParseResult::NoMatch => todo!(),  //TODO: handle this
                         ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
                     }
                 },
@@ -540,7 +523,6 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
                         _ => todo!()
                     }
                 },
-                ParseResult::NoMatch => todo!(), //TODO: implement
                 ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
             }
         },
@@ -579,7 +561,6 @@ fn parse_list_of_expressions(tokens: &Vec<JsTokenWithLocation>, parser_state: &m
             ParseResult::Ok(expression) => {
                 arguments.push(expression);
             },
-            ParseResult::NoMatch => todo!(), //TODO: implement
             ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
         }
         first = false;
@@ -692,12 +673,12 @@ fn parse_function_declaration(tokens: &Vec<JsTokenWithLocation>, parser_state: &
             _ => {}
         }
 
-        match parse_statement(tokens, parser_state) {
-            ParseResult::Ok(stat) => script.push(stat),
-            ParseResult::NoMatch => {
-                //this happens for the empty statement, so we just continue
-            },
-            ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+        let statement = parse_statement(tokens, parser_state);
+        if statement.is_some() {
+            match statement.unwrap() {
+                ParseResult::Ok(stat) => script.push(stat),
+                ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+            }
         }
     }
 
@@ -719,7 +700,6 @@ fn parse_conditional(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Parse
 
     let condition = match pratt_parse_expression(tokens, parser_state, 0) {
         ParseResult::Ok(expression) => expression,
-        ParseResult::NoMatch => todo!(), //TODO: implement
         ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
     };
 
@@ -742,10 +722,13 @@ fn parse_conditional(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Parse
 
     let mut script = Vec::new();
     loop {
-        match parse_statement(tokens, parser_state) {
-            ParseResult::Ok(statement) => script.push(statement),
-            ParseResult::NoMatch => {}, //this is just an empty statement
-            ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+
+        let statement = parse_statement(tokens, parser_state);
+        if statement.is_some() {
+            match statement.unwrap() {
+                ParseResult::Ok(statement) => script.push(statement),
+                ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+            }
         }
 
         eat_newlines(tokens, parser_state);
@@ -783,10 +766,12 @@ fn parse_conditional(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Parse
         }
 
         loop {
-            match parse_statement(tokens, parser_state) {
-                ParseResult::Ok(statement) => else_script_buffer.push(statement),
-                ParseResult::NoMatch => {}, //this is just an empty statement
-                ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+            let statement = parse_statement(tokens, parser_state);
+            if statement.is_some() {
+                match statement.unwrap() {
+                    ParseResult::Ok(statement) => else_script_buffer.push(statement),
+                    ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+                }
             }
 
             eat_newlines(tokens, parser_state);
@@ -859,7 +844,6 @@ fn parse_declaration(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Parse
                     ParseResult::Ok(expression) => {
                         declarations.push(JsAstDeclaration { variable: ident, initial_value: Some(expression), decl_type });
                     },
-                    ParseResult::NoMatch => todo!(), //TODO: this should become an error
                     ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
                 };
                 match tokens[parser_state.cursor].token {

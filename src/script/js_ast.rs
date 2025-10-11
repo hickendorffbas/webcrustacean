@@ -490,17 +490,19 @@ pub enum JsAstExpression {
     Assignment(JsAstAssign),
     FunctionExpression(JsAstFunctionExpression),
     RegexLiteral(JsAstRegexLiteral),
+    ObjectCreation(JsAstObjectCreation),
 }
 impl JsAstExpression {
     fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
         match self {
-            JsAstExpression::BinOp(binop) => { return binop.execute(js_interpreter) },
-            JsAstExpression::UnaryOp(unop) => { return unop.execute(js_interpreter) },
-            JsAstExpression::Identifier(variable) => { return JsValue::deref(variable.execute(js_interpreter), js_interpreter) },
-            JsAstExpression::ObjectLiteral(obj) => { return obj.execute(js_interpreter) },
-            JsAstExpression::ArrayLiteral(array) => { return array.execute(js_interpreter) },
+            JsAstExpression::BinOp(binop) => { return binop.execute(js_interpreter); },
+            JsAstExpression::UnaryOp(unop) => { return unop.execute(js_interpreter); },
+            JsAstExpression::Identifier(variable) => { return JsValue::deref(variable.execute(js_interpreter), js_interpreter); },
+            JsAstExpression::ObjectLiteral(obj) => { return obj.execute(js_interpreter); },
+            JsAstExpression::ArrayLiteral(array) => { return array.execute(js_interpreter); },
             JsAstExpression::FunctionExpression(js_ast_function_expression) => { return js_ast_function_expression.execute(); },
-            JsAstExpression::RegexLiteral(regex_literal) => { regex_literal.execute() },
+            JsAstExpression::RegexLiteral(regex_literal) => { return regex_literal.execute(); },
+            JsAstExpression::ObjectCreation(object_construction) => { return object_construction.execute(); }
             JsAstExpression::NumericLiteral(numeric_literal) => {
                 //TODO: we might want to cache the JsValue somehow, and we need to support more numeric types...
 
@@ -677,6 +679,21 @@ pub struct JsAstRegexLiteral {
 impl JsAstRegexLiteral {
     fn execute(&self) -> JsValue {
         debug_log_warn("Literal Regexes are not yet supported in javascript");
+        return JsValue::Undefined;
+    }
+}
+
+
+#[derive(Debug)]
+pub struct JsAstObjectCreation {
+    #[allow(unused)] pub constructor: JsAstFunctionCall, //TODO: remove unused when implemented
+}
+impl JsAstObjectCreation {
+    fn execute(&self) -> JsValue {
+
+        //TODO: we need to call the constructor function, but also do some extra work like instantiating an object etc.
+
+        debug_log_warn("Object creation is not yet supported in javascript");
         return JsValue::Undefined;
     }
 }

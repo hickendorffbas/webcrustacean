@@ -244,36 +244,11 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
             JsToken::OpenParenthesis => {
                 parser_state.next();
 
-                let mut arguments = Vec::new();
-                let mut first = true;
-                loop {
-                    if parser_state.has_ended() { return ParseResult::ParsingFailed(ParseError::error_for_token(ParseErrorType::EOF, &tokens[parser_state.cursor - 1])) };
-
-                    match &tokens[parser_state.cursor].token {
-                        JsToken::CloseParenthesis => {
-                            parser_state.next();
-                            break;
-                        },
-                        JsToken::Comma => {
-                            if first {
-                                todo!(); //TODO: raise a parsing failed error
-                            }
-                            parser_state.next();
-                        },
-                        _ => {
-                            if !first { return ParseResult::ParsingFailed(ParseError::error_for_token(ParseErrorType::ExpectedEndOfArgumentList, &tokens[parser_state.cursor])) }
-                        },
-                    }
-                    match pratt_parse_expression(tokens, parser_state, 0) {
-                        ParseResult::Ok(expression) => {
-                            arguments.push(expression);
-                        },
-                        ParseResult::NoMatch => todo!(), //TODO: implement
-                        ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
-                    }
-                    first = false;
-                }
-
+                let arguments = match parse_list_of_expressions(tokens, parser_state) {
+                    ParseResult::Ok(arguments) => arguments,
+                    ParseResult::NoMatch => todo!(), //TODO: handle
+                    ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+                };
                 lhs = JsAstExpression::FunctionCall(JsAstFunctionCall { function_expression: Rc::from(lhs), arguments });
             },
             _ => todo!(),
@@ -508,6 +483,49 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
 
             return ParseResult::Ok(JsAstExpression::FunctionExpression(JsAstFunctionExpression { name: None, arguments, script: Rc::from(script) }));
         },
+        JsToken::KeyWordNew => {
+            parser_state.next();
+            eat_newlines(tokens, parser_state);
+
+            //To use something with "new" it needs to be "constructable". For now we are happy with any function. However, we do already
+            //take the parsing rules into account. i.e. as opposed to function parsing, "new" has higher precedence than "." , so "new a.b()"
+            //will make a new a, and call b on it.
+
+            let function_expression = Rc::from(match &tokens[parser_state.cursor].token {
+                JsToken::OpenParenthesis => {
+                    parser_state.next();
+                    match pratt_parse_expression(tokens, parser_state, 0) {
+                        ParseResult::Ok(expression) => expression,
+                        ParseResult::NoMatch => todo!(), //TODO: implement
+                        ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+                    }
+                },
+                JsToken::Identifier(ident) => {
+                    parser_state.next();
+                    JsAstExpression::Identifier(JsAstIdentifier { name: ident.clone() } )
+                },
+                _ => {
+                    todo!(); //TODO: this should be an error
+                }
+            });
+
+            let arguments = match &tokens[parser_state.cursor].token {
+                JsToken::OpenParenthesis => {
+                    parser_state.next();
+                    match parse_list_of_expressions(tokens, parser_state) {
+                        ParseResult::Ok(arguments) => arguments,
+                        ParseResult::NoMatch => todo!(),  //TODO: handle this
+                        ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+                    }
+                },
+                _ => {
+                    //Arguments in object construction are optional (if the constructor has no arguments)
+                    Vec::new()
+                }
+            };
+
+            return ParseResult::Ok(JsAstExpression::ObjectCreation(JsAstObjectCreation { constructor: JsAstFunctionCall { function_expression, arguments } }));
+        }
         JsToken::OpenParenthesis => {
             parser_state.next();
 
@@ -532,6 +550,42 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
         },
         _ => todo!(),
     }
+}
+
+
+fn parse_list_of_expressions(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) -> ParseResult<Vec<JsAstExpression>> {
+    let mut arguments = Vec::new();
+    let mut first = true;
+
+    loop {
+        if parser_state.has_ended() { return ParseResult::ParsingFailed(ParseError::error_for_token(ParseErrorType::EOF, &tokens[parser_state.cursor - 1])) };
+
+        match &tokens[parser_state.cursor].token {
+            JsToken::CloseParenthesis => {
+                parser_state.next();
+                break;
+            },
+            JsToken::Comma => {
+                if first {
+                    todo!(); //TODO: raise a parsing failed error
+                }
+                parser_state.next();
+            },
+            _ => {
+                if !first { return ParseResult::ParsingFailed(ParseError::error_for_token(ParseErrorType::ExpectedEndOfArgumentList, &tokens[parser_state.cursor])) }
+            },
+        }
+        match pratt_parse_expression(tokens, parser_state, 0) {
+            ParseResult::Ok(expression) => {
+                arguments.push(expression);
+            },
+            ParseResult::NoMatch => todo!(), //TODO: implement
+            ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+        }
+        first = false;
+    }
+
+    return ParseResult::Ok(arguments);
 }
 
 

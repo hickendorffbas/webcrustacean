@@ -51,6 +51,8 @@ pub enum JsToken {
     BitWiseOr,
     Hash,
     EqualsEquals,
+    LogicalAnd,
+    LogicalOr,
 
     //whitespace:
     Newline,
@@ -205,7 +207,7 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
             //  https://stackoverflow.com/questions/5519596/when-parsing-javascript-what-determines-the-meaning-of-a-slash
 
             //TODO: put this in a better place where we don't need to instatiate it so often
-            const TOKENS_PROBABLY_PRECEDING_REGEX_LITERAL: [JsToken; 15] = [
+            const TOKENS_PROBABLY_PRECEDING_REGEX_LITERAL: [JsToken; 17] = [
                 JsToken::OpenParenthesis,
                 JsToken::Dot,
                 JsToken::OpenBracket,
@@ -221,6 +223,8 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                 JsToken::ExclamationMark,
                 JsToken::BitWiseOr,
                 JsToken::EqualsEquals,
+                JsToken::LogicalAnd,
+                JsToken::LogicalOr,
                 //TODO: when we properly tokenize multi char operator tokens (like "&&" and "=="), we need to add them to this list (some done, not all)
             ];
 
@@ -324,25 +328,41 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                         '<' => { JsToken::Smaller }
                         '!' => { JsToken::ExclamationMark }
                         '?' => { JsToken::QuestionMark }
-                        '|' => { JsToken::Pipe }
-                        '&' => { JsToken::And }
                         '^' => { JsToken::BitWiseOr }
                         '#' => { JsToken::Hash }
+                        '+' => { JsToken::Plus }
+                        '-' => { JsToken::Minus }
+                        '*' => { JsToken::Star }
+                        '|' => {
+                            if js_iterator.has_next() {
+                                match js_iterator.peek().unwrap() {
+                                    '|' => { js_iterator.next(); JsToken::LogicalOr }
+                                    _ => { JsToken::Pipe }
+                                }
+                            } else {
+                                JsToken::Pipe
+                            }
+                        },
+                        '&' => {
+                            if js_iterator.has_next() {
+                                match js_iterator.peek().unwrap() {
+                                    '&' => { js_iterator.next(); JsToken::LogicalAnd }
+                                    _ => { JsToken::And }
+                                }
+                            } else {
+                                JsToken::And
+                            }
+                        },
                         '=' => {
-                            let result = if js_iterator.has_next() {
+                            if js_iterator.has_next() {
                                 match js_iterator.peek().unwrap() {
                                     '=' => { js_iterator.next(); JsToken::EqualsEquals }
                                     _ => { JsToken::Assign }
                                 }
                             } else {
                                 JsToken::Assign
-                            };
-
-                            result
+                            }
                         }
-                        '+' => { JsToken::Plus }
-                        '-' => { JsToken::Minus }
-                        '*' => { JsToken::Star }
 
                         '\n' => { JsToken::Newline }
 

@@ -249,7 +249,9 @@ impl JsAstBinOp {
                                 }
                             },
                             _ => {
-                                todo!(); //TODO: this should be an error
+                                //TODO: there are some standard functions and attributes you can call on an array, not sure how to handle that nicely
+                                //      we should probably defer to the same code that an object has in those cases
+                                return JsValue::Undefined;
                             }
                         }
                     }
@@ -284,21 +286,46 @@ impl JsAstBinOp {
                     },
                     _ => { todo!() }
                 }
-            }
+            },
+            JsBinOp::LogicalAnd => {
+                //let mut right_val = self.right.execute(js_interpreter);  //TODO: we will need this eventually
+
+                left_val = left_val.deref(js_interpreter);
+                //right_val = right_val.deref(js_interpreter); //TODO: enble if right val is going to be used!
+
+                match left_val {
+                    JsValue::Undefined => { return left_val; },
+                    _ => { todo!() }
+                }
+            },
+            JsBinOp::LogicalOr => {
+                let mut right_val = self.right.execute(js_interpreter);
+
+                left_val = left_val.deref(js_interpreter);
+                right_val = right_val.deref(js_interpreter);
+
+                match left_val {
+                    JsValue::Undefined => {
+                        return right_val;
+                    },
+                    _ => { todo!() }
+                }
+
+
+            },
         }
     }
 
     fn build_var_path(&self, path: &mut Vec<String>) {
         match self.op {
-            JsBinOp::Plus => todo!(),  //TODO: not sure yet if there is a valid case for this (there might be and we then need to execute())
-            JsBinOp::Minus => todo!(),  //TODO: not sure yet if there is a valid case for this (there might be and we then need to execute())
-            JsBinOp::Times => todo!(),  //TODO: not sure yet if there is a valid case for this (there might be and we then need to execute())
-            JsBinOp::Divide => todo!(),  //TODO: not sure yet if there is a valid case for this (there might be and we then need to execute())
-            JsBinOp::EqualsEquals => todo!(),  //TODO: not sure yet if there is a valid case for this (there might be and we then need to execute())
             JsBinOp::PropertyAccess => {
                 self.left.build_var_path(path);
                 self.right.build_var_path(path);
             },
+            _ => {
+                //TODO: not sure yet if there is a valid case for this
+                todo!();
+            }
         }
     }
 }
@@ -422,6 +449,8 @@ pub enum JsBinOp {
     Divide,
     PropertyAccess,
     EqualsEquals,
+    LogicalAnd,
+    LogicalOr,
 }
 
 

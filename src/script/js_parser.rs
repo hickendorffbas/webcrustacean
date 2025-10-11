@@ -213,7 +213,8 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                 lhs = JsAstExpression::Assignment(JsAstAssign { left: Rc::from(lhs), right: Rc::from(rhs) });
             },
 
-            binop @ (JsToken::Plus | JsToken::Minus | JsToken::Star | JsToken::ForwardSlash | JsToken::EqualsEquals) => {
+            binop @ (JsToken::Plus | JsToken::Minus | JsToken::Star | JsToken::ForwardSlash |
+                     JsToken::EqualsEquals | JsToken::LogicalAnd | JsToken::LogicalOr) => {
                 parser_state.next();
                 let rhs = match pratt_parse_expression(tokens, parser_state, right_bp) {
                     ParseResult::Ok(rhs) => rhs,
@@ -226,6 +227,9 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                     JsToken::Star => { lhs = JsAstExpression::BinOp(JsAstBinOp { op: JsBinOp::Times, left: Rc::from(lhs), right: Rc::from(rhs) }); }
                     JsToken::ForwardSlash => { lhs = JsAstExpression::BinOp(JsAstBinOp { op: JsBinOp::Divide, left: Rc::from(lhs), right: Rc::from(rhs) }); }
                     JsToken::EqualsEquals => { lhs = JsAstExpression::BinOp(JsAstBinOp { op: JsBinOp::EqualsEquals, left: Rc::from(lhs), right: Rc::from(rhs) }); }
+                    JsToken::LogicalAnd => { lhs = JsAstExpression::BinOp(JsAstBinOp { op: JsBinOp::LogicalAnd, left: Rc::from(lhs), right: Rc::from(rhs) }); }
+                    JsToken::LogicalOr => { lhs = JsAstExpression::BinOp(JsAstBinOp { op: JsBinOp::LogicalOr, left: Rc::from(lhs), right: Rc::from(rhs) }); }
+
                     _ => panic!("This should never happen"),
                 }
             },
@@ -582,6 +586,8 @@ fn prefix_binding_power(token: &JsToken) -> u8 {
 fn infix_binding_power(token: &JsToken) -> (u8, u8) {
     match token {
         JsToken::Assign => (2, 1),
+        JsToken::LogicalOr => (3, 4),
+        JsToken::LogicalAnd => (4, 5),
         JsToken::EqualsEquals => (7, 8),
         JsToken::Plus => (10, 11),
         JsToken::Minus => (10, 11),

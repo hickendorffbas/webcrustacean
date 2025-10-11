@@ -183,7 +183,8 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                     _ => todo!(), //TODO: this should be an error
                 }
 
-                return ParseResult::Ok(index_node);
+                lhs = index_node;
+                continue;
             }
 
             _ => {},

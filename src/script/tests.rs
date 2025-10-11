@@ -278,6 +278,20 @@ fn test_array() {
 
 
 #[test]
+fn test_muti_dimensional_array() {
+    let code = r#"var x = [[1, 5], [2, 3]];
+        tester.export(x[1][1]);"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens);
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(3)));
+}
+
+
+#[test]
 fn test_new_object_with_newlines() {
     let code = r#"var data = {
         a: 1,

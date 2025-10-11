@@ -258,6 +258,10 @@ impl JsAstBinOp {
                         //TODO: we should stop evaluating on these kind of errors, so we should probably return a result or something
                         return JsValue::Undefined;
                     },
+                    JsValue::String(_) => {
+                        //TODO: we get here for implementing functions on a string, such as "test".len()
+                        return JsValue::Undefined;
+                    }
                     _ => {
                         todo!();  //TODO: should this be an error? Or is this not reachable?
                     }

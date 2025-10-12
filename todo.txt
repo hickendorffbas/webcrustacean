@@ -1,6 +1,7 @@
 
 goals for 0.7.0
        - handle redirects better. Its seems reqwest follows them, but our url bar does not update etc. we want to follow them ourselves
+       - load javascript and css files linked from a page
        - implement more box layout css options
        - add ASI to the js parser
        - vertical scroll

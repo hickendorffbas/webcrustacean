@@ -1,15 +1,12 @@
 
-goals for 0.6.0:
-       - testing
-
-
 goals for 0.7.0
        - handle redirects better. Its seems reqwest follows them, but our url bar does not update etc. we want to follow them ourselves
        - implement more box layout css options
        - add ASI to the js parser
+       - vertical scroll
+
 
 
 other things (later versions):
        - fix transparancy in png's (loading works, rendering in SDL does not)
        - figure out how do build standalone binaries
-       - vertical scroll

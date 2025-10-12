@@ -310,8 +310,6 @@ impl JsAstBinOp {
                     },
                     _ => { todo!() }
                 }
-
-
             },
         }
     }

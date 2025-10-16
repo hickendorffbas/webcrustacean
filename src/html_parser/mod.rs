@@ -54,6 +54,7 @@ pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>, main_url: &Url) -> Documen
         name_for_layout: TagName::Other,
         children: Some(document_children),
         attributes: None,
+        styles: HashMap::new(),
         image: None,
         img_job_tracker: None,
         scripts: None,
@@ -114,6 +115,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                         img_job_tracker: None,
                         scripts: None,
                         page_component: None,
+                        styles: HashMap::new(),
                     };
 
                     let rc_node = Rc::new(RefCell::from(new_node));
@@ -171,6 +173,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                     img_job_tracker: None,
                     scripts: if scripts.len() == 0 { None } else { Some(scripts) },
                     page_component: None,
+                    styles: HashMap::new(),
                 };
 
                 let rc_node = Rc::new(RefCell::from(new_node));
@@ -232,6 +235,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
             img_job_tracker: None,
             scripts: if scripts.len() == 0 { None } else { Some(scripts) },
             page_component: None,
+            styles: HashMap::new(),
         };
 
         let rc_node = Rc::new(RefCell::from(new_node));
@@ -298,7 +302,7 @@ fn read_all_text_for_text_node(html_tokens: &Vec<HtmlTokenWithLocation>, current
 
     let dom_text = DomText { text_content, non_breaking_space_positions };
 
-    let node = ElementDomNode {
+    return ElementDomNode {
         internal_id: get_next_dom_node_interal_id(),
         parent_id: parent_id,
         text: Some(dom_text),
@@ -312,6 +316,6 @@ fn read_all_text_for_text_node(html_tokens: &Vec<HtmlTokenWithLocation>, current
         img_job_tracker: None,
         scripts: None,
         page_component: None,
+        styles: HashMap::new(),
     };
-    return node;
 }

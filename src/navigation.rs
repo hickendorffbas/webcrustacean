@@ -15,6 +15,7 @@ use crate::resource_loader::{
     ResourceRequestResult,
     ResourceThreadPool
 };
+use crate::style::compute_styles;
 use crate::ui::{
     self,
     UIState,
@@ -109,6 +110,8 @@ pub fn finish_navigate(navigation_action: &NavigationAction, ui_state: &mut UISt
 
     let lex_result = html_lexer::lex_html(&page_content);
     document.replace(html_parser::parse(lex_result, &url));
+
+    compute_styles(&document.borrow().document_node, &document.borrow().all_nodes, &document.borrow().style_context);
 
     document.borrow_mut().document_node.borrow_mut().post_construct(platform);
     document.borrow_mut().update_all_dom_nodes(resource_thread_pool, cookie_store);

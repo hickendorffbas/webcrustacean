@@ -18,6 +18,34 @@ use crate::dom::ElementDomNode;
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub enum CssProperty {
+    BackgroundColor,
+    Color,
+    Display,
+    FontWeight,
+    FontSize,
+    FontStyle,
+    TextDecoration,
+}
+impl CssProperty {
+    pub fn from_string(value: &String) -> Option<CssProperty> {
+        let prop = match value.as_str() {
+            "background-color" => CssProperty::BackgroundColor,
+            "color" => CssProperty::Color,
+            "display" => CssProperty::Display,
+            "font-weight" => CssProperty::FontWeight,
+            "font-size" => CssProperty::FontSize,
+            "font-style" => CssProperty::FontStyle,
+            "text-decoration" => CssProperty::TextDecoration,
+            _ => return None,
+        };
+        return Some(prop);
+    }
+}
+
+
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct StyleContext {
     pub user_agent_sheet: Vec<StyleRule>,
     pub author_sheet: Vec<StyleRule>,
@@ -27,7 +55,7 @@ pub struct StyleContext {
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct StyleRule {
     pub selector: Selector,
-    pub property: String,
+    pub property: CssProperty,
     pub value: String,
 }
 
@@ -49,7 +77,7 @@ enum Origin {
 
 
 struct ActiveStyleRule<'a> {
-    property: &'a String,
+    property: CssProperty,
     property_value: &'a String,
     origin: Origin,
     specificity_attribute: u8,
@@ -60,14 +88,11 @@ struct ActiveStyleRule<'a> {
 }
 
 
-//TODO: we are now doing this when rendering. It might make more sense to do this earlier, cache the result on the node, and recompute only when needed
-pub fn resolve_full_styles_for_layout_node<'a>(dom_node: &'a Rc<RefCell<ElementDomNode>>, all_dom_nodes: &'a HashMap<usize, Rc<RefCell<ElementDomNode>>>,
-                                               style_context: &StyleContext) -> HashMap<String, String> {
+pub fn resolve_full_styles_for_layout_node(dom_node: &ElementDomNode, all_dom_nodes: &HashMap<usize, Rc<RefCell<ElementDomNode>>>,
+                                           style_context: &StyleContext) -> HashMap<CssProperty, String> {
 
     //TODO: we are doing the cascade here by first doing the ua sheet, and then the author sheet. We need to make this more general in cascades
     //      because we need to support @layer, which adds an arbitrary amount of cascades
-
-    let dom_node = dom_node.borrow();
 
     let mut rule_idx = 1;
 
@@ -76,7 +101,7 @@ pub fn resolve_full_styles_for_layout_node<'a>(dom_node: &'a Rc<RefCell<ElementD
         if style_rule_does_apply(&style_rule, &dom_node) {
             active_style_rules.push(
                 ActiveStyleRule {
-                    property: &style_rule.property,
+                    property: style_rule.property,
                     property_value: &style_rule.value,
                     origin: Origin::UserAgent,
                     specificity_attribute: 0,  //TODO: implement
@@ -94,7 +119,7 @@ pub fn resolve_full_styles_for_layout_node<'a>(dom_node: &'a Rc<RefCell<ElementD
         if style_rule_does_apply(&style_rule, &dom_node) {
             active_style_rules.push(
                 ActiveStyleRule {
-                    property: &style_rule.property,
+                    property: style_rule.property,
                     property_value: &style_rule.value,
                     origin: Origin::Author,
                     specificity_attribute: 0,  //TODO: implement
@@ -112,17 +137,22 @@ pub fn resolve_full_styles_for_layout_node<'a>(dom_node: &'a Rc<RefCell<ElementD
 
     let mut resolved_styles = HashMap::new();
     for active_style_rule in active_style_rules {
-        resolved_styles.insert((*active_style_rule.property).clone(), (*active_style_rule.property_value).clone());
+        resolved_styles.insert(active_style_rule.property, (*active_style_rule.property_value).clone());
     }
 
     if dom_node.parent_id != 0 {
         let parent_node = all_dom_nodes.get(&dom_node.parent_id).expect(format!("id {} not present in all nodes", dom_node.parent_id).as_str());
-
-        //TODO: not all properties should be inherited: https://developer.mozilla.org/en-US/docs/Web/CSS/Inheritance
-
-        let parent_styles = resolve_full_styles_for_layout_node(parent_node, all_dom_nodes, style_context);
+        let parent_styles = resolve_full_styles_for_layout_node(&parent_node.borrow(), all_dom_nodes, style_context);
 
         for (parent_style_property, parent_style_value) in parent_styles {
+
+            //Some styles should not be inherited:  //TODO: this list is not complete yet
+            if parent_style_property == CssProperty::Display ||
+               parent_style_property == CssProperty::BackgroundColor ||
+               parent_style_property == CssProperty::TextDecoration {
+                    continue;
+            }
+
             if !resolved_styles.contains_key(&parent_style_property) {
                 resolved_styles.insert(parent_style_property.clone(), parent_style_value.clone());
             }
@@ -133,67 +163,75 @@ pub fn resolve_full_styles_for_layout_node<'a>(dom_node: &'a Rc<RefCell<ElementD
 }
 
 
-pub fn get_user_agent_style_sheet() -> Vec<StyleRule> {
-    //These are the styles that are applied to the outer most node, and are used when no styling is specified.
-    return vec![
-        //TODO: convert to an actual stylesheet (CSS string) we load in (or maybe not, but a better other format?)
+pub fn compute_styles(dom_node: &Rc<RefCell<ElementDomNode>>, all_dom_nodes: &HashMap<usize, Rc<RefCell<ElementDomNode>>>, style_context: &StyleContext) {
+    let computed_styles = resolve_full_styles_for_layout_node(&dom_node.borrow(), all_dom_nodes, style_context);
+    dom_node.borrow_mut().styles = computed_styles;
 
-        StyleRule { selector: Selector { nodes: Some(vec!["h1".to_owned()]) },
-                    property: "font-size".to_owned(), value: "32".to_owned() },
-        StyleRule { selector: Selector { nodes: Some(vec!["h2".to_owned()]) },
-                    property: "font-size".to_owned(), value: "30".to_owned() },
-        StyleRule { selector: Selector { nodes: Some(vec!["h3".to_owned()]) },
-                    property: "font-size".to_owned(), value: "28".to_owned() },
-        StyleRule { selector: Selector { nodes: Some(vec!["h4".to_owned()]) },
-                    property: "font-size".to_owned(), value: "26".to_owned() },
-        StyleRule { selector: Selector { nodes: Some(vec!["h5".to_owned()]) },
-                    property: "font-size".to_owned(), value: "24".to_owned() },
-        StyleRule { selector: Selector { nodes: Some(vec!["h6".to_owned()]) },
-                    property: "font-size".to_owned(), value: "22".to_owned() },
-
-        StyleRule { selector: Selector { nodes: Some(vec!["b".to_owned()]) },
-                    property: "font-weight".to_owned(), value: "bold".to_owned() },
-        StyleRule { selector: Selector { nodes: Some(vec!["i".to_owned()]) },
-                    property: "font-style".to_owned(), value: "italic".to_owned() },
-
-        StyleRule { selector: Selector { nodes: Some(vec!["a".to_owned()]) },
-                    property: "color".to_owned(), value: "blue".to_owned() },
-        StyleRule { selector: Selector { nodes: Some(vec!["a".to_owned()]) },
-                    property: "text-decoration".to_owned(), value: "underline".to_owned() },
-
-    ];
+    if dom_node.borrow().children.is_some() {
+        for child in dom_node.borrow().children.as_ref().unwrap() {
+            compute_styles(child, all_dom_nodes, style_context);
+        }
+    }
 }
 
 
-pub fn get_property_from_computed_styles(styles: &HashMap<String, String>, property: &str) -> Option<String> {
-    let computed_prop = styles.get(property);
+const HTML_BLOCK_ELEMENTS: [&'static str;11] = ["div", "form", "h1", "h2", "h3", "h4", "h5", "h6", "hr", "p", "table"];
+
+
+pub fn get_user_agent_style_sheet() -> Vec<StyleRule> {
+    let mut rules = vec![
+        //TODO: convert to an actual stylesheet (CSS string) we load in (or maybe not, but a better other format?)
+
+        StyleRule { selector: Selector { nodes: Some(vec!["h1".to_owned()]) }, property: CssProperty::FontSize, value: "32".to_owned() },
+        StyleRule { selector: Selector { nodes: Some(vec!["h2".to_owned()]) }, property: CssProperty::FontSize, value: "30".to_owned() },
+        StyleRule { selector: Selector { nodes: Some(vec!["h3".to_owned()]) }, property: CssProperty::FontSize, value: "28".to_owned() },
+        StyleRule { selector: Selector { nodes: Some(vec!["h4".to_owned()]) }, property: CssProperty::FontSize, value: "26".to_owned() },
+        StyleRule { selector: Selector { nodes: Some(vec!["h5".to_owned()]) }, property: CssProperty::FontSize, value: "24".to_owned() },
+        StyleRule { selector: Selector { nodes: Some(vec!["h6".to_owned()]) }, property: CssProperty::FontSize, value: "22".to_owned() },
+
+        StyleRule { selector: Selector { nodes: Some(vec!["b".to_owned()]) }, property: CssProperty::FontWeight, value: "bold".to_owned() },
+        StyleRule { selector: Selector { nodes: Some(vec!["i".to_owned()]) }, property: CssProperty::FontStyle, value: "italic".to_owned() },
+
+        StyleRule { selector: Selector { nodes: Some(vec!["a".to_owned()]) }, property: CssProperty::Color, value: "blue".to_owned() },
+        StyleRule { selector: Selector { nodes: Some(vec!["a".to_owned()]) }, property: CssProperty::TextDecoration, value: "underline".to_owned() },
+    ];
+
+    for element in HTML_BLOCK_ELEMENTS {
+        rules.push(StyleRule { selector:Selector { nodes: Some(vec![element.to_owned()]) }, property: CssProperty::Display, value: "block".to_owned() });
+    }
+
+    return rules;
+}
+
+
+pub fn get_property_from_computed_styles(styles: &HashMap<CssProperty, String>, property: CssProperty) -> &str {
+    let computed_prop = styles.get(&property);
     if computed_prop.is_some() {
-        //TODO: not great that we clone here, but we seem to need to because we also could return new strings (for defaults), could we
-        //      return references to static ones for those, and just always return a reference? We might need to return &str then
-        return Some(computed_prop.unwrap().clone());
+        return computed_prop.unwrap().as_str();
     }
 
     //Defaults per css property:
-    match property {
-        "color" => return Some(String::from("black")),
-        "font-size" => return Some(String::from("18")),
-        "font-style" => return Some(String::from("normal")),
-        "font-weight" => return Some(String::from("normal")),
-        _ => { return None }
+    return match property {
+        CssProperty::BackgroundColor => "white", //TODO: the actual default is "transparent", but we don't support that yet
+        CssProperty::Color => "black",
+        CssProperty::Display => "inline",
+        CssProperty::FontSize => "18",
+        CssProperty::FontStyle => "normal",
+        CssProperty::FontWeight => "normal",
+        CssProperty::TextDecoration => "none", //TODO: this is in reality a more complicated structure
     };
-
 }
 
 
-pub fn resolve_css_numeric_type_value(value: &String) -> f32 {
+pub fn resolve_css_numeric_type_value(value: &str) -> f32 {
     //TODO: see https://developer.mozilla.org/en-US/docs/Learn/CSS/Building_blocks/Values_and_units for many missing things here
     if value.chars().last() == Some('%') {
         //TODO: implement this case (we probably need to bring in more context)
         todo!("css percentages implemented");
-    } else if value.len() > 3 && &value.as_str()[value.len() - 3..] == "rem" {
+    } else if value.len() > 3 && &value[value.len() - 3..] == "rem" {
         //TODO: implement this case (we probably need to bring in more context)
         todo!("css rem unit not implemented");
-    } else if value.len() > 5 && &value.as_str()[0..4] == "var(" && value.chars().last() == Some(')') {
+    } else if value.len() > 5 && &value[0..4] == "var(" && value.chars().last() == Some(')') {
         //TODO: These kind of things should be parsed in the parser already, into some structure that we can just evaluate here (the eval should happen here)
         //      for now we are just ignoring this case and returning a temp value, because it happens a lot
         18.0
@@ -209,37 +247,29 @@ pub fn resolve_css_numeric_type_value(value: &String) -> f32 {
 }
 
 
-pub fn has_style_value(styles: &HashMap<String, String>, style_name: &str, style_value: &String) -> bool {
-    let item = get_property_from_computed_styles(styles, style_name);
-    if item.is_none() {
-        return false;
-    }
-    return item.unwrap() == *style_value;
+pub fn has_style_value(styles: &HashMap<CssProperty, String>, property: CssProperty, style_value: &String) -> bool {
+    return get_property_from_computed_styles(styles, property) == *style_value;
 }
 
 
-pub fn get_color_style_value(styles: &HashMap<String, String>, property: &str) -> Option<Color> {
+pub fn get_color_style_value(styles: &HashMap<CssProperty, String>, property: CssProperty) -> Color {
     let item = get_property_from_computed_styles(styles, property);
-    if item.is_none() {
-        return None; //this is not an error, it means the property was not set
-    }
-    let item = item.unwrap();
 
-    if item.len() > 5 && &item.as_str()[0..4] == "var(" && item.chars().last() == Some(')') {
+    if item.len() > 5 && &item[0..4] == "var(" && item.chars().last() == Some(')') {
         //TODO: These kind of things should be parsed in the parser already, into some structure that we can just evaluate here (the eval should happen here)
         //      for now we are just ignoring this case because it happens a lot
-        return Some(Color::BLACK);
+        return Color::BLACK;
     }
 
-    let color = Color::from_string(&item);
+    let color = Color::from_string(item);
 
     if color.is_none() {
         //color is none, but item was something, so this means a color value is set, but we could not parse it. We fall back to black here
         //note this this is not the css default, because those might be different per property and are implemented elsewere
         debug_log_warn(format!("css value could not be parsed as a color: {:?}", item));
-        return Some(Color::BLACK);
+        return Color::BLACK;
     }
-    return color;
+    return color.unwrap();
 }
 
 

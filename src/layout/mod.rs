@@ -23,11 +23,11 @@ use crate::platform::fonts::{
 use crate::ui_components::PageComponent;
 use crate::SelectionRect;
 use crate::style::{
+    CssProperty,
     get_color_style_value,
     get_property_from_computed_styles,
     has_style_value,
     resolve_css_numeric_type_value,
-    resolve_full_styles_for_layout_node,
     StyleContext,
 };
 
@@ -707,16 +707,13 @@ fn compute_potential_widths(node: &Rc<RefCell<LayoutNode>>, font_context: &FontC
 }
 
 
-pub fn get_font_given_styles(styles: &HashMap<String, String>) -> (Font, Color) {
-    let font_bold = has_style_value(&styles, "font-weight", &"bold".to_owned());
-    let font_italic = has_style_value(styles, "font-style", &"italic".to_owned());
-    let _font_underline = has_style_value(&styles, "text-decoration", &"underline".to_owned()); //TODO: we need to use this in a different way
+pub fn get_font_given_styles(styles: &HashMap<CssProperty, String>) -> (Font, Color) {
+    let font_bold = has_style_value(&styles, CssProperty::FontWeight, &"bold".to_owned());
+    let font_italic = has_style_value(styles, CssProperty::FontStyle, &"italic".to_owned());
+    let _font_underline = has_style_value(&styles, CssProperty::TextDecoration, &"underline".to_owned()); //TODO: we need to use this in a different way
 
-    let opt_font_size = get_property_from_computed_styles(&styles, "font-size");
-    let font_size = resolve_css_numeric_type_value(&opt_font_size.unwrap()); //font-size has a default value, so this is a fatal error if not found
-
-    let font_color_option = get_color_style_value(&styles, "color");
-    let font_color = font_color_option.unwrap(); //color has a default value, so this is a fatal error if not found
+    let font_size = resolve_css_numeric_type_value(get_property_from_computed_styles(&styles, CssProperty::FontSize));
+    let font_color = get_color_style_value(&styles, CssProperty::Color);
 
     let default_font_face = FontFace::TimesNewRomanRegular;
 
@@ -1017,8 +1014,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
     let mut prebuilt_node = None; //TODO: I think it is a good idea to transition all cases to pre built the node? needs checking
 
-    let node_styles = resolve_full_styles_for_layout_node(&Rc::clone(main_node), &document.all_nodes, &document.style_context);
-    let partial_node_background_color = get_color_style_value(&node_styles, "background-color").unwrap_or(Color::WHITE);
+    let partial_node_background_color = get_color_style_value(&main_node.borrow().styles, CssProperty::BackgroundColor);
 
     let positioning_scheme = PositioningScheme::Static; //TODO: this should be derived from the position attribute on the DOM node
 
@@ -1029,7 +1025,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
     if main_node.text.is_some() {
         partial_node_text = Some(main_node.text.as_ref().unwrap().text_content.clone());
-        let font = get_font_given_styles(&node_styles);
+        let font = get_font_given_styles(&main_node.styles);
         partial_node_font = Some(font.0);
         partial_node_font_color = Some(font.1);
         partial_node_non_breaking_space_positions = main_node.text.as_ref().unwrap().non_breaking_space_positions.clone();
@@ -1044,7 +1040,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
                 partial_node_line_break = true;
 
-                let font = get_font_given_styles(&node_styles);
+                let font = get_font_given_styles(&main_node.styles);
                 partial_node_font = Some(font.0);
                 partial_node_font_color = Some(font.1);
             }
@@ -1118,6 +1114,9 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
                         }
                         inline_seen = true;
                     },
+                    DomPropertyDisplay::Flex => {
+                        todo!(); //TODO: implement flex
+                    }
                     DomPropertyDisplay::None => {},
                 }
             }

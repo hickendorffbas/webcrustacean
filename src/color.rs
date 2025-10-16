@@ -9,7 +9,7 @@ pub struct Color {
 impl Color {
     pub const fn new(p_r: u8, p_g: u8, p_b: u8) -> Color { Color { r: p_r, g: p_g, b: p_b } }
 
-    pub fn from_string(color_name: &String) -> Option<Color> {
+    pub fn from_string(color_name: &str) -> Option<Color> {
 
         let first_char = color_name.chars().next();
         if first_char.is_none() {
@@ -51,7 +51,7 @@ impl Color {
 
         //TODO: I still need to support hsl and rgb color values (as specified in html / css)
 
-        return match color_name.as_str() {
+        return match color_name {
             "aqua" => Some(Color::new(0, 255, 255)),
             "black" => Some(Color::BLACK),
             "blue" => Some(Color::new(0, 0, 255)),

@@ -1,3 +1,5 @@
+use crate::style::CssProperty;
+
 use super::css_lexer::{CssToken, CssTokenWithLocation};
 use super::css_parser;
 
@@ -15,7 +17,7 @@ fn test_parse_basic_style() {
 
     let result = css_parser::parse_css(&tokens);
     assert_eq!(result.len(), 1);
-    assert_eq!(result[0].property, "color");
+    assert_eq!(result[0].property, CssProperty::Color);
     assert_eq!(result[0].value, "red");
     assert_eq!(result[0].selector.nodes.as_ref().unwrap()[0], "h3");
 }

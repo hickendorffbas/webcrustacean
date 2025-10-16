@@ -17,7 +17,11 @@ use crate::resource_loader::{
     ResourceThreadPool,
 };
 use crate::script::js_ast::Script;
-use crate::style::StyleContext;
+use crate::style::{
+    CssProperty,
+    get_property_from_computed_styles,
+    StyleContext
+};
 use crate::ui_components::{
     Button,
     PageComponent,
@@ -123,6 +127,7 @@ pub struct ElementDomNode {
 
     pub children: Option<Vec<Rc<RefCell<ElementDomNode>>>>,
     pub attributes: Option<Vec<Rc<RefCell<AttributeDomNode>>>>,
+    pub styles: HashMap<CssProperty, String>,
 
     pub image: Option<Rc<RgbaImage>>,
     pub img_job_tracker: Option<ResourceRequestJobTracker<ResourceRequestResult<RgbaImage>>>,
@@ -142,6 +147,7 @@ impl ElementDomNode {
         }
         return None;
     }
+
     pub fn post_construct(&mut self, platform: &mut Platform) {
         //here we set things up that don't need to happen every update step, but that we don't want to do during html parsing
 
@@ -184,6 +190,7 @@ impl ElementDomNode {
             }
         }
     }
+
     fn update(&mut self, resource_thread_pool: &mut ResourceThreadPool, document: &Document, cookie_store: &CookieStore) -> bool {
         //returns whether there are dirty nodes after the update (being itself, or any of the children)
 
@@ -346,6 +353,7 @@ impl ElementDomNode {
             name_for_layout: TagName::Other,
             children: None,
             attributes: None,
+            styles: HashMap::new(), //TODO: its worth checking if we can have 1 static immutable hashmap or something (with COW copy on write?)
             image: None,
             img_job_tracker: None,
             scripts: None,
@@ -354,30 +362,12 @@ impl ElementDomNode {
     }
 
     pub fn dom_property_display(&self) -> DomPropertyDisplay {
-        //TODO: check styles for any setting of the display property, and return if set
-
-        if self.name.is_some() {
-            let node_name = self.name.as_ref().unwrap();
-
-            if node_name == "a" ||  //TODO: should we check a static array of str here?
-               node_name == "b" ||
-               node_name == "br" ||
-               node_name == "i" ||
-               node_name == "img" ||
-               node_name == "span" {
-                    return DomPropertyDisplay::Inline;
-            }
-            return DomPropertyDisplay::Block;
-
+        let css_display_property = get_property_from_computed_styles(&self.styles, CssProperty::Display);
+        let possible_display = DomPropertyDisplay::from_string(css_display_property);
+        if possible_display.is_some() {
+            return possible_display.unwrap();
         }
-        if self.text.is_some() {
-            return DomPropertyDisplay::Inline;
-        }
-        if self.is_document_node {
-            return DomPropertyDisplay::Block;
-        }
-
-        panic!("No other cases should exist")
+        return DomPropertyDisplay::Inline;
     }
 
     pub fn mark_all_as_dirty(&mut self) {
@@ -397,7 +387,19 @@ impl ElementDomNode {
 pub enum DomPropertyDisplay {
     Block,
     Inline,
+    Flex,
     #[allow(dead_code)] None,  //TODO: add this case (needs to be parsed from css property)
+}
+impl DomPropertyDisplay {
+    pub fn from_string(value: &str) -> Option<DomPropertyDisplay> {
+        return match value {
+            "block" => Some(DomPropertyDisplay::Block),
+            "inline" => Some(DomPropertyDisplay::Inline),
+            "flex" => Some(DomPropertyDisplay::Flex),
+            "none" => Some(DomPropertyDisplay::None),
+            _ => None,
+        };
+    }
 }
 
 

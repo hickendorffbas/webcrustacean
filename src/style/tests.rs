@@ -5,7 +5,6 @@ use std::rc::Rc;
 
 use crate::style::{
     CssProperty,
-    Selector,
     StyleContext,
     StyleRule,
     resolve_full_styles_for_layout_node,
@@ -31,9 +30,7 @@ fn test_basic_style_resolving() {
     let mut all_dom_nodes = HashMap::new();
     all_dom_nodes.insert(dom_node_id, Rc::clone(&dom_node));
 
-    let style_rules = vec![ StyleRule { selector: Selector { nodes: Some(vec!["b".to_owned()]) },
-                                        property: CssProperty::BackgroundColor, value: "some value".to_owned() } ];
-
+    let style_rules = vec![ StyleRule::make_for_tag_name("b", CssProperty::BackgroundColor, "some value") ];
     let style_context = StyleContext { user_agent_sheet: Vec::new(), author_sheet: style_rules };
     let resolved_styles = resolve_full_styles_for_layout_node(&dom_node.borrow(), &all_dom_nodes, &style_context);
 
@@ -58,11 +55,8 @@ fn test_inherit_style_from_parent() {
     all_dom_nodes.insert(main_node_id, Rc::clone(&main_node));
     all_dom_nodes.insert(parent_node_id, Rc::clone(&parent_node));
 
-    let style_rules = vec![ StyleRule { selector: Selector { nodes: Some(vec!["h3".to_owned()]) },
-                                        property: CssProperty::FontSize, value: "50".to_owned() } ];
-
+    let style_rules = vec![ StyleRule::make_for_tag_name("h3", CssProperty::FontSize, "50") ];
     let style_context = StyleContext { user_agent_sheet: Vec::new(), author_sheet: style_rules };
-
     let resolved_styles = resolve_full_styles_for_layout_node(&main_node.borrow(), &all_dom_nodes, &style_context);
 
     check_style(&resolved_styles, &CssProperty::FontSize, "50");
@@ -80,12 +74,11 @@ fn test_cascade() {
     let mut all_dom_nodes = HashMap::new();
     all_dom_nodes.insert(dom_node_id, Rc::clone(&dom_node));
 
-    let style_rules = vec![ StyleRule { selector: Selector { nodes: Some(vec!["b".to_owned()]) },
-                                        property: CssProperty::Color, value: "red".to_owned() },
-                            StyleRule { selector: Selector { nodes: Some(vec!["b".to_owned()]) },
-                                        property: CssProperty::FontSize, value: "25".to_owned() } ];
-    let ua_styles = vec![ StyleRule { selector: Selector { nodes: Some(vec!["b".to_owned()]) },
-                                      property: CssProperty::Color, value: "red".to_owned() } ];
+    let style_rules = vec![
+        StyleRule::make_for_tag_name("b", CssProperty::Color, "red"),
+        StyleRule::make_for_tag_name("b", CssProperty::FontSize, "25"),
+    ];
+    let ua_styles = vec![ StyleRule::make_for_tag_name("b", CssProperty::Color, "red") ];
 
     let style_context = StyleContext { user_agent_sheet: ua_styles, author_sheet: style_rules };
 

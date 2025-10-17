@@ -40,12 +40,13 @@ pub fn parse_css(css_tokens: &Vec<CssTokenWithLocation>) -> Vec<StyleRule> {
 
 
 fn build_selector_from_context(context: &Vec<&String>) -> Selector {
-    //TODO: eventually we need to parse other things than just nodes here...
+
+    //TODO: we need to also parse combinators here
 
     let mut all_selectors = Vec::new();
     for selector in context {
         all_selectors.push((*selector).clone());
     }
 
-    return Selector { nodes: Some(all_selectors) }
+    return Selector { elements: Some(all_selectors) }
 }

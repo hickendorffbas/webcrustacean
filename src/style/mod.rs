@@ -58,13 +58,17 @@ pub struct StyleRule {
     pub property: CssProperty,
     pub value: String,
 }
+impl StyleRule {
+    fn make_for_tag_name(tag_name: &str, property: CssProperty, value: &str) -> StyleRule {
+        return StyleRule { selector: Selector { elements: Some(vec![tag_name.to_owned()]) }, property, value: value.to_owned() }
+    }
+}
 
 
 #[derive(Clone)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Selector {
-    //TODO: this should become more complex (we don't want the whole selector as text, but as actual parsed info, for now we just support nodes though)
-    pub nodes: Option<Vec<String>>,
+    pub elements: Option<Vec<String>>,
 }
 
 
@@ -165,6 +169,7 @@ pub fn resolve_full_styles_for_layout_node(dom_node: &ElementDomNode, all_dom_no
 
 pub fn compute_styles(dom_node: &Rc<RefCell<ElementDomNode>>, all_dom_nodes: &HashMap<usize, Rc<RefCell<ElementDomNode>>>, style_context: &StyleContext) {
     let computed_styles = resolve_full_styles_for_layout_node(&dom_node.borrow(), all_dom_nodes, style_context);
+
     dom_node.borrow_mut().styles = computed_styles;
 
     if dom_node.borrow().children.is_some() {
@@ -182,22 +187,22 @@ pub fn get_user_agent_style_sheet() -> Vec<StyleRule> {
     let mut rules = vec![
         //TODO: convert to an actual stylesheet (CSS string) we load in (or maybe not, but a better other format?)
 
-        StyleRule { selector: Selector { nodes: Some(vec!["h1".to_owned()]) }, property: CssProperty::FontSize, value: "32".to_owned() },
-        StyleRule { selector: Selector { nodes: Some(vec!["h2".to_owned()]) }, property: CssProperty::FontSize, value: "30".to_owned() },
-        StyleRule { selector: Selector { nodes: Some(vec!["h3".to_owned()]) }, property: CssProperty::FontSize, value: "28".to_owned() },
-        StyleRule { selector: Selector { nodes: Some(vec!["h4".to_owned()]) }, property: CssProperty::FontSize, value: "26".to_owned() },
-        StyleRule { selector: Selector { nodes: Some(vec!["h5".to_owned()]) }, property: CssProperty::FontSize, value: "24".to_owned() },
-        StyleRule { selector: Selector { nodes: Some(vec!["h6".to_owned()]) }, property: CssProperty::FontSize, value: "22".to_owned() },
+        StyleRule::make_for_tag_name("h1", CssProperty::FontSize, "32"),
+        StyleRule::make_for_tag_name("h2", CssProperty::FontSize, "30"),
+        StyleRule::make_for_tag_name("h3", CssProperty::FontSize, "28"),
+        StyleRule::make_for_tag_name("h4", CssProperty::FontSize, "26"),
+        StyleRule::make_for_tag_name("h5", CssProperty::FontSize, "24"),
+        StyleRule::make_for_tag_name("h6", CssProperty::FontSize, "22"),
 
-        StyleRule { selector: Selector { nodes: Some(vec!["b".to_owned()]) }, property: CssProperty::FontWeight, value: "bold".to_owned() },
-        StyleRule { selector: Selector { nodes: Some(vec!["i".to_owned()]) }, property: CssProperty::FontStyle, value: "italic".to_owned() },
+        StyleRule::make_for_tag_name("b", CssProperty::FontWeight, "bold"),
+        StyleRule::make_for_tag_name("i", CssProperty::FontStyle, "italic"),
 
-        StyleRule { selector: Selector { nodes: Some(vec!["a".to_owned()]) }, property: CssProperty::Color, value: "blue".to_owned() },
-        StyleRule { selector: Selector { nodes: Some(vec!["a".to_owned()]) }, property: CssProperty::TextDecoration, value: "underline".to_owned() },
+        StyleRule::make_for_tag_name("a", CssProperty::Color, "blue"),
+        StyleRule::make_for_tag_name("a", CssProperty::TextDecoration, "underline"),
     ];
 
     for element in HTML_BLOCK_ELEMENTS {
-        rules.push(StyleRule { selector:Selector { nodes: Some(vec![element.to_owned()]) }, property: CssProperty::Display, value: "block".to_owned() });
+        rules.push(StyleRule::make_for_tag_name(element, CssProperty::Display, "block"));
     }
 
     return rules;
@@ -304,11 +309,30 @@ fn compare_style_rules(rule_a: &ActiveStyleRule, rule_b: &ActiveStyleRule) -> Or
 
 
 fn style_rule_does_apply(style_rule: &StyleRule, element_dom_node: &ElementDomNode) -> bool {
-    if element_dom_node.name.is_none() {
-        return false;
+    //TODO: in reality we need to parse the elements with their combinators (whitespace is the descendent combinator) into a structure to use here
+    //      for now we don't do combinators yet
+
+    if style_rule.selector.elements.is_some() {
+        for selector_element in style_rule.selector.elements.as_ref().unwrap() {
+
+            let first_char = selector_element.chars().next();
+            if first_char == Some('#') {
+                todo!(); //TODO: implement
+            } else if first_char == Some('.') {
+                todo!(); //TODO: implement
+            } else {
+                //TODO: We now assume this case means match by tagname, but there are more cases, such as the wildcard *
+
+                if element_dom_node.name.is_some() {
+                    if element_dom_node.name.as_ref().unwrap() == selector_element {
+                        return true;
+                    }
+                }
+
+            }
+
+        }
     }
 
-    //TODO: currently this matches if any of the nodes matches, I'm not sure if this is correct, do they all need to match?
-    return style_rule.selector.nodes.is_some() &&
-           style_rule.selector.nodes.as_ref().unwrap().contains(&element_dom_node.name.as_ref().unwrap());
+    return false;
 }

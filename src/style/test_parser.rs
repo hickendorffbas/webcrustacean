@@ -19,5 +19,5 @@ fn test_parse_basic_style() {
     assert_eq!(result.len(), 1);
     assert_eq!(result[0].property, CssProperty::Color);
     assert_eq!(result[0].value, "red");
-    assert_eq!(result[0].selector.nodes.as_ref().unwrap()[0], "h3");
+    assert_eq!(result[0].selector.elements.as_ref().unwrap()[0], "h3");
 }

@@ -60,7 +60,7 @@ pub struct StyleRule {
 }
 impl StyleRule {
     fn make_for_tag_name(tag_name: &str, property: CssProperty, value: &str) -> StyleRule {
-        return StyleRule { selector: Selector { elements: Some(vec![(tag_name.to_owned(), CssCombinator::None)]) }, property, value: value.to_owned() }
+        return StyleRule { selector: Selector { elements: vec![(tag_name.to_owned(), CssCombinator::None)] }, property, value: value.to_owned() }
     }
 }
 
@@ -68,10 +68,10 @@ impl StyleRule {
 #[derive(PartialEq, Clone, Copy)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub enum CssCombinator {
-    #[allow(dead_code)] Descendent,  //TODO: use this one
-    #[allow(dead_code)] Child,  //TODO: lex this one
-    #[allow(dead_code)] SubsequentSibling,  //TODO: lex this one
-    #[allow(dead_code)] NextSibling,  //TODO: lex this one
+    Descendent,
+    Child,
+    GeneralSibling,
+    NextSibling,
     None,
 }
 
@@ -79,7 +79,7 @@ pub enum CssCombinator {
 #[derive(Clone)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Selector {
-    pub elements: Option<Vec<(String, CssCombinator)>>,
+    pub elements: Vec<(String, CssCombinator)>,
 }
 
 
@@ -320,59 +320,56 @@ fn compare_style_rules(rule_a: &ActiveStyleRule, rule_b: &ActiveStyleRule) -> Or
 
 
 fn style_rule_does_apply(style_rule: &StyleRule, element_dom_node: &ElementDomNode) -> bool {
-    if style_rule.selector.elements.is_some() {
+    for selector_element in &style_rule.selector.elements {
 
-        for selector_element in style_rule.selector.elements.as_ref().unwrap() {
+        let (selector, combinator) = selector_element;
 
-            let (selector, combinator) = selector_element;
+        let first_char = selector.chars().next();
+        if first_char == Some('#') {
 
-            let first_char = selector.chars().next();
-            if first_char == Some('#') {
+            let idx_first_char = selector.char_indices().nth(1).map(|(i, _)| i).unwrap_or(selector.len());
+            let without_first = &selector[idx_first_char..];
 
-                let idx_first_char = selector.char_indices().nth(1).map(|(i, _)| i).unwrap_or(selector.len());
-                let without_first = &selector[idx_first_char..];
-
-                let node_id = element_dom_node.get_attribute_value("id");
-                if node_id.unwrap().as_str() != without_first {
-                    return false;
-                }
-            } else if first_char == Some('.') {
-
-                let idx_first_char = selector.char_indices().nth(1).map(|(i, _)| i).unwrap_or(selector.len());
-                let without_first = &selector[idx_first_char..];
-
-                println!("class selector: {}", without_first);
-                todo!(); //TODO: implement
-
-
-            } else {
-                //TODO: We now assume this case means match by tagname, but there are more cases, such as the wildcard *
-
-                if element_dom_node.name.is_none() || element_dom_node.name.as_ref().unwrap() != selector {
-                    return false;
-                }
+            let node_id = element_dom_node.get_attribute_value("id");
+            if node_id.is_none() || node_id.unwrap().as_str() != without_first {
+                return false;
             }
+        } else if first_char == Some('.') {
+
+            let idx_first_char = selector.char_indices().nth(1).map(|(i, _)| i).unwrap_or(selector.len());
+            let without_first = &selector[idx_first_char..];
+
+            println!("class selector: {}", without_first);
+            todo!(); //TODO: implement
 
 
-            match combinator {
-                CssCombinator::Descendent => {
-                    todo!(); //TODO: implement
-                },
-                CssCombinator::Child => {
-                    todo!(); //TODO: implement
-                },
-                CssCombinator::SubsequentSibling => {
-                    todo!(); //TODO: implement
-                },
-                CssCombinator::NextSibling => {
-                    todo!(); //TODO: implement
-                },
-                CssCombinator::None => {
-                    //This is the case for the last element for example, so we never reject the item based on this combinator
-                },
+        } else {
+            //TODO: We now assume this case means match by tagname, but there are more cases, such as the wildcard *
+
+            if element_dom_node.name.is_none() || element_dom_node.name.as_ref().unwrap() != selector {
+                return false;
             }
-
         }
+
+
+        match combinator {
+            CssCombinator::Descendent => {
+                todo!(); //TODO: implement
+            },
+            CssCombinator::Child => {
+                todo!(); //TODO: implement
+            },
+            CssCombinator::GeneralSibling => {
+                todo!(); //TODO: implement
+            },
+            CssCombinator::NextSibling => {
+                todo!(); //TODO: implement
+            },
+            CssCombinator::None => {
+                //This is the case for the last element for example, so we never reject the item based on this combinator
+            },
+        }
+
     }
 
     return true;

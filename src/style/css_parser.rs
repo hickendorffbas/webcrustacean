@@ -42,7 +42,7 @@ pub fn parse_css(css_tokens: &Vec<CssTokenWithLocation>) -> Vec<StyleRule> {
             CssToken::ChildCombinator => {
                 todo!(); //TODO: implement
             },
-            CssToken::SubsequentSiblingCombinator =>  {
+            CssToken::GeneralSiblingCombinator =>  {
                 todo!(); //TODO: implement
             },
             CssToken::NextSiblingCombinator =>  {

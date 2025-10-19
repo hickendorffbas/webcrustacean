@@ -19,10 +19,10 @@ pub enum CssToken {
     BlockStart,
     BlockEnd,
     Comma,
-    #[allow(dead_code)] DescendentCombinator,  //TODO: lex this one
-    #[allow(dead_code)] ChildCombinator,  //TODO: lex this one
-    #[allow(dead_code)] SubsequentSiblingCombinator,  //TODO: lex this one
-    #[allow(dead_code)] NextSiblingCombinator,  //TODO: lex this one
+    DescendentCombinator,
+    ChildCombinator,
+    GeneralSiblingCombinator,
+    NextSiblingCombinator,
 }
 
 
@@ -78,13 +78,13 @@ fn lex_css_block(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenW
             },
             '{' => {
                 if buffer.trim().len() > 0 {
-                    tokens.push(make_token(css_iterator, CssToken::Selector(buffer.trim().to_owned())));
+                    generate_tokens_for_selector(css_iterator, &buffer, tokens);
                     buffer.clear();
                 }
                 tokens.push(make_token(css_iterator, CssToken::BlockStart));
             },
             ',' => {
-                tokens.push(make_token(css_iterator, CssToken::Selector(buffer.trim().to_owned())));
+                generate_tokens_for_selector(css_iterator, &buffer, tokens);
                 buffer.clear();
 
                 tokens.push(make_token(css_iterator, CssToken::Comma));
@@ -110,5 +110,42 @@ fn lex_css_block(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenW
                 buffer.push(char);
             }
         }
+    }
+}
+
+
+fn generate_tokens_for_selector(css_iterator: &mut TrackingIterator, selector_string: &String, tokens: &mut Vec<CssTokenWithLocation>) {
+    let mut current_selector = String::new();
+
+    for char in selector_string.trim().chars() {
+        match char {
+            ' ' => {
+                tokens.push(make_token(css_iterator, CssToken::Selector(current_selector.trim().to_owned())));
+                current_selector.clear();
+                tokens.push(make_token(css_iterator, CssToken::DescendentCombinator));
+            },
+            '>' => {
+                tokens.push(make_token(css_iterator, CssToken::Selector(current_selector.trim().to_owned())));
+                current_selector.clear();
+                tokens.push(make_token(css_iterator, CssToken::ChildCombinator));
+            },
+            '+' => {
+                tokens.push(make_token(css_iterator, CssToken::Selector(current_selector.trim().to_owned())));
+                current_selector.clear();
+                tokens.push(make_token(css_iterator, CssToken::NextSiblingCombinator));
+            },
+            '~' => {
+                tokens.push(make_token(css_iterator, CssToken::Selector(current_selector.trim().to_owned())));
+                current_selector.clear();
+                tokens.push(make_token(css_iterator, CssToken::GeneralSiblingCombinator));
+            },
+            _ => {
+                current_selector.push(char);
+            }
+        }
+    }
+
+    if !current_selector.trim().is_empty() {
+            tokens.push(make_token(css_iterator, CssToken::Selector(current_selector.trim().to_owned())));
     }
 }

@@ -1,4 +1,4 @@
-use crate::style::CssProperty;
+use crate::style::{CssCombinator, CssProperty};
 
 use super::css_lexer::{CssToken, CssTokenWithLocation};
 use super::css_parser;
@@ -19,5 +19,5 @@ fn test_parse_basic_style() {
     assert_eq!(result.len(), 1);
     assert_eq!(result[0].property, CssProperty::Color);
     assert_eq!(result[0].value, "red");
-    assert_eq!(result[0].selector.elements.as_ref().unwrap()[0], "h3");
+    assert_eq!(result[0].selector.elements.as_ref().unwrap()[0], ("h3".to_owned(), CssCombinator::None));
 }

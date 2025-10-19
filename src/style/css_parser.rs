@@ -1,7 +1,10 @@
 use crate::style::css_lexer::{CssToken, CssTokenWithLocation};
-use crate::style::CssProperty;
-use crate::style::Selector;
-use crate::style::StyleRule;
+use crate::style::{
+    CssCombinator,
+    CssProperty,
+    Selector,
+    StyleRule
+};
 
 
 pub fn parse_css(css_tokens: &Vec<CssTokenWithLocation>) -> Vec<StyleRule> {
@@ -22,8 +25,9 @@ pub fn parse_css(css_tokens: &Vec<CssTokenWithLocation>) -> Vec<StyleRule> {
                 if last_property.is_none() {
                     //TODO: do we need to log this error somewhere?
                 } else {
-                    style_rules.push( StyleRule { selector: build_selector_from_context(&current_context),
-                                                  property: last_property.unwrap(), value: value.to_string() } );
+                    for selector in build_selectors_from_context(&current_context) {
+                        style_rules.push( StyleRule { selector, property: last_property.unwrap(), value: value.to_string() } );
+                    }
                 }
             },
             CssToken::BlockStart => {
@@ -32,6 +36,21 @@ pub fn parse_css(css_tokens: &Vec<CssTokenWithLocation>) -> Vec<StyleRule> {
             CssToken::BlockEnd => {
                 current_context.pop();
             },
+            CssToken::DescendentCombinator => {
+                todo!(); //TODO: implement
+            },
+            CssToken::ChildCombinator => {
+                todo!(); //TODO: implement
+            },
+            CssToken::SubsequentSiblingCombinator =>  {
+                todo!(); //TODO: implement
+            },
+            CssToken::NextSiblingCombinator =>  {
+                todo!(); //TODO: implement
+            },
+            CssToken::Comma => {
+                todo!(); //TODO: implement
+            },
         }
     }
 
@@ -39,14 +58,15 @@ pub fn parse_css(css_tokens: &Vec<CssTokenWithLocation>) -> Vec<StyleRule> {
 }
 
 
-fn build_selector_from_context(context: &Vec<&String>) -> Selector {
+fn build_selectors_from_context(context: &Vec<&String>) -> Vec<Selector> {
 
     //TODO: we need to also parse combinators here
+    //TODO: also, I want to split on comma's return selectors for each of those (comma is now a token)
 
     let mut all_selectors = Vec::new();
     for selector in context {
-        all_selectors.push((*selector).clone());
+        all_selectors.push(((*selector).clone(), CssCombinator::None));
     }
 
-    return Selector { elements: Some(all_selectors) }
+    return vec![Selector { elements: Some(all_selectors) }];
 }

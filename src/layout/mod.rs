@@ -110,7 +110,7 @@ pub struct TextInputLayoutNode {
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct AreaLayoutNode {
     pub css_box: CssBox,
-    #[allow(dead_code)] pub background_color: Color,  //TODO: use
+    pub background_color: Color,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -418,6 +418,7 @@ impl LayoutNode {
 #[derive(PartialEq)]
 pub enum FormattingContext {
     Block,
+    #[allow(dead_code)] Flex, //TODO: implement this one
     Inline,
     Table,
 }
@@ -581,6 +582,9 @@ fn compute_layout_for_node(node: &Rc<RefCell<LayoutNode>>, style_context: &Style
                                 _ => panic!("Table formatting context on non-table layout node")
                             }
                         },
+                        FormattingContext::Flex => {
+                            todo!(); //TODO: implement flex layout
+                        }
                     }
                 },
                 None => {

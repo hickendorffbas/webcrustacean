@@ -109,3 +109,25 @@ fn test_multiple_selectors() {
         assert_eq!(&token.css_token, expected_token);
     }
 }
+
+
+#[test]
+fn test_basic_combinator() {
+    let css_text = "h3 > p { color: red; }";
+    let tokens = css_lexer::lex_css(&css_text, 1, 1);
+
+    let expected_tokens = vec![
+        CssToken::Selector("h3".to_owned()),
+        CssToken::ChildCombinator,
+        CssToken::Selector("p".to_owned()),
+        CssToken::BlockStart,
+        CssToken::Property("color".to_owned()),
+        CssToken::Value("red".to_owned()),
+        CssToken::BlockEnd,
+    ];
+    assert_eq!(tokens.len(), expected_tokens.len());
+
+    for (token, expected_token) in tokens.iter().zip(expected_tokens.iter()) {
+        assert_eq!(&token.css_token, expected_token);
+    }
+}

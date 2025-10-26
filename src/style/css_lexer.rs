@@ -116,39 +116,55 @@ fn lex_css_block(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenW
 
 fn generate_tokens_for_selector(css_iterator: &mut TrackingIterator, selector_string: &String, tokens: &mut Vec<CssTokenWithLocation>) {
     let mut current_selector = String::new();
+    let mut selector_iter = selector_string.trim().chars().peekable();
 
+    while selector_iter.peek().is_some() {
+        match selector_iter.peek().unwrap() {
 
-    //TODO: I need to collect all combinator tokens, and then parse 1 combinator by stripping them....
+            ' ' | '>' | '+' | '~' => {
+                let mut combinator = String::new();
 
-    for char in selector_string.trim().chars() {
-        match char {
-            ' ' => {
-                tokens.push(make_token(css_iterator, CssToken::Selector(current_selector.trim().to_owned())));
-                current_selector.clear();
-                tokens.push(make_token(css_iterator, CssToken::DescendentCombinator));
-            },
-            '>' => {
-                tokens.push(make_token(css_iterator, CssToken::Selector(current_selector.trim().to_owned())));
-                current_selector.clear();
-                tokens.push(make_token(css_iterator, CssToken::ChildCombinator));
-            },
-            '+' => {
-                tokens.push(make_token(css_iterator, CssToken::Selector(current_selector.trim().to_owned())));
-                current_selector.clear();
-                tokens.push(make_token(css_iterator, CssToken::NextSiblingCombinator));
-            },
-            '~' => {
-                tokens.push(make_token(css_iterator, CssToken::Selector(current_selector.trim().to_owned())));
-                current_selector.clear();
-                tokens.push(make_token(css_iterator, CssToken::GeneralSiblingCombinator));
-            },
+                while selector_iter.peek().is_some() {
+                    match selector_iter.peek().unwrap() {
+
+                        combinator_token @ (' ' | '>' | '+' | '~') => {
+                            combinator.push(*combinator_token);
+                            selector_iter.next();
+                        }
+                        _ => {
+                            tokens.push(make_token(css_iterator, CssToken::Selector(current_selector.trim().to_owned())));
+                            current_selector.clear();
+
+                            match combinator.trim() {
+                                "" => {
+                                    tokens.push(make_token(css_iterator, CssToken::DescendentCombinator));
+                                },
+                                ">" => {
+                                    tokens.push(make_token(css_iterator, CssToken::ChildCombinator));
+                                },
+                                "+" => {
+                                    tokens.push(make_token(css_iterator, CssToken::NextSiblingCombinator));
+                                },
+                                "~" => {
+                                    tokens.push(make_token(css_iterator, CssToken::GeneralSiblingCombinator));
+                                },
+                                _ => {
+                                    todo!() //TODO: some kind of error
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+
             _ => {
-                current_selector.push(char);
+                current_selector.push(selector_iter.next().unwrap());
             }
         }
     }
 
     if !current_selector.trim().is_empty() {
-            tokens.push(make_token(css_iterator, CssToken::Selector(current_selector.trim().to_owned())));
+        tokens.push(make_token(css_iterator, CssToken::Selector(current_selector.trim().to_owned())));
     }
 }

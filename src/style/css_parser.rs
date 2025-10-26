@@ -33,6 +33,7 @@ fn parse_rule(style_rules: &mut Vec<StyleRule>, current_context: &mut Vec<(CssCo
 fn parse_selectors(current_context: &mut Vec<(CssCombinator, String)>, token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) -> Vec<Selector> {
     let mut selectors = Vec::new();
     let mut selector_elements = current_context.clone();
+    let mut next_combinator = CssCombinator::None;
 
     while token_iterator.peek().is_some() {
         match &token_iterator.peek().unwrap().css_token {
@@ -49,29 +50,28 @@ fn parse_selectors(current_context: &mut Vec<(CssCombinator, String)>, token_ite
             CssToken::Selector(selector_value) => {
                 token_iterator.next();
 
-                match &token_iterator.peek().unwrap().css_token {
+                selector_elements.push( (next_combinator, selector_value.clone()) );
 
-                    //TODO: this is now wrong, the css combinators need to be on the next element. Maybe this is easier and they can just be
-                    //      parsed in the main loop
+                match &token_iterator.peek().unwrap().css_token {
 
                     CssToken::DescendentCombinator => {
                         token_iterator.next();
-                        selector_elements.push( (CssCombinator::Descendent, selector_value.clone()) )
+                        next_combinator = CssCombinator::Descendent;
                     },
                     CssToken::ChildCombinator => {
                         token_iterator.next();
-                        selector_elements.push( (CssCombinator::Child, selector_value.clone()) )
+                        next_combinator = CssCombinator::Child;
                     },
                     CssToken::GeneralSiblingCombinator => {
                         token_iterator.next();
-                        selector_elements.push( (CssCombinator::GeneralSibling, selector_value.clone()) )
+                        next_combinator = CssCombinator::GeneralSibling;
                     },
                     CssToken::NextSiblingCombinator => {
                         token_iterator.next();
-                        selector_elements.push( (CssCombinator::NextSibling, selector_value.clone()) )
+                        next_combinator = CssCombinator::NextSibling;
                     },
                     _ => {
-                        selector_elements.push( (CssCombinator::None, selector_value.clone()) )
+                        next_combinator = CssCombinator::None;
                     }
                 }
             },

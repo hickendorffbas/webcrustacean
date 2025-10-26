@@ -103,8 +103,8 @@ struct ActiveStyleRule<'a> {
 }
 
 
-pub fn resolve_full_styles_for_layout_node(dom_node: &Rc<RefCell<ElementDomNode>>, all_dom_nodes: &HashMap<usize, Rc<RefCell<ElementDomNode>>>,
-                                           style_context: &StyleContext) -> HashMap<CssProperty, String> {
+pub fn resolve_full_styles_for_dom_node(dom_node: &Rc<RefCell<ElementDomNode>>, all_dom_nodes: &HashMap<usize, Rc<RefCell<ElementDomNode>>>,
+                                        style_context: &StyleContext) -> HashMap<CssProperty, String> {
 
     //TODO: we are doing the cascade here by first doing the ua sheet, and then the author sheet. We need to make this more general in cascades
     //      because we need to support @layer, which adds an arbitrary amount of cascades
@@ -157,7 +157,7 @@ pub fn resolve_full_styles_for_layout_node(dom_node: &Rc<RefCell<ElementDomNode>
 
     if dom_node.borrow().parent_id != 0 {
         let parent_node = all_dom_nodes.get(&dom_node.borrow().parent_id).expect(format!("id {} not present in all nodes", dom_node.borrow().parent_id).as_str());
-        let parent_styles = resolve_full_styles_for_layout_node(&parent_node, all_dom_nodes, style_context);
+        let parent_styles = resolve_full_styles_for_dom_node(&parent_node, all_dom_nodes, style_context);
 
         for (parent_style_property, parent_style_value) in parent_styles {
 
@@ -179,7 +179,7 @@ pub fn resolve_full_styles_for_layout_node(dom_node: &Rc<RefCell<ElementDomNode>
 
 
 pub fn compute_styles(dom_node: &Rc<RefCell<ElementDomNode>>, all_dom_nodes: &HashMap<usize, Rc<RefCell<ElementDomNode>>>, style_context: &StyleContext) {
-    let computed_styles = resolve_full_styles_for_layout_node(&dom_node, all_dom_nodes, style_context);
+    let computed_styles = resolve_full_styles_for_dom_node(&dom_node, all_dom_nodes, style_context);
 
     dom_node.borrow_mut().styles = computed_styles;
 
@@ -325,60 +325,90 @@ fn style_rule_does_apply(style_rule: &StyleRule, element_dom_node: &Rc<RefCell<E
 
     for (combinator, selector) in &style_rule.selector.elements {
 
+        {
+            let node_being_checked_borr = node_being_checked.borrow();
+
+            let first_char = selector.chars().next();
+            if first_char == Some('#') {
+                let idx_first_char = selector.char_indices().nth(1).map(|(i, _)| i).unwrap_or(selector.len());
+                let id_to_search = &selector[idx_first_char..];
+
+                let node_id = node_being_checked_borr.get_attribute_value("id");
+                if node_id.is_none() || node_id.unwrap().as_str() != id_to_search {
+                    return false;
+                }
+
+            } else if first_char == Some('.') {
+
+                let idx_first_char = selector.char_indices().nth(1).map(|(i, _)| i).unwrap_or(selector.len());
+                let class_to_search = &selector[idx_first_char..];
+
+                let all_classes = node_being_checked_borr.get_attribute_value("class");
+                let any_class_match = all_classes.is_some() && all_classes.unwrap().split_whitespace().any(|class| class == class_to_search);
+                if !any_class_match {
+                    return false;
+                }
+
+            } else {
+                //TODO: We now assume this case means match by tagname, but there are more cases, such as the wildcard *
+
+                if node_being_checked_borr.name.is_none() || node_being_checked_borr.name.as_ref().unwrap() != selector {
+                    return false;
+                }
+            }
+        }
+
         match combinator {
             CssCombinator::Descendent => {
                 //TODO: this will generate a set
                 todo!(); //TODO: implement
             },
-            CssCombinator::Child => {
-                let parent_id = node_being_checked.borrow().parent_id;
-                let parent_node = all_dom_nodes.get(&parent_id).unwrap();
-                node_being_checked = parent_node.clone();
-            },
             CssCombinator::GeneralSibling => {
                 //TODO: this will generate a set
                 todo!(); //TODO: implement
             },
+            CssCombinator::Child => {
+                let parent_id = node_being_checked.borrow().parent_id;
+                if parent_id == 0 {
+                    return false;
+                }
+                let parent_node = all_dom_nodes.get(&parent_id).unwrap();
+                node_being_checked = parent_node.clone();
+            },
             CssCombinator::NextSibling => {
-                //TODO: this will generate a set
-                todo!(); //TODO: implement
+                let parent_id = node_being_checked.borrow().parent_id;
+                if parent_id == 0 {
+                    return false;
+                }
+                let parent_node = all_dom_nodes.get(&parent_id).unwrap();
+
+                let mut found = false;
+                let mut node_updated = false;
+                for child in parent_node.borrow().children.as_ref().unwrap().iter().rev() {
+                    if child.borrow().text.is_some() && child.borrow().text.as_ref().unwrap().text_content.trim().is_empty() {
+                        //Its not strictly according to spec, but all the big browsers ignore whitespace text in between nodes for this combinator
+                        continue;
+                    }
+                    if found {
+                        node_being_checked = child.clone();
+                        node_updated = true;
+                        break;
+                    }
+                    if child.borrow().internal_id == node_being_checked.borrow().internal_id {
+                        found = true;
+                    }
+                }
+                if !found {
+                    panic!("Node needs to be a child of its own parent");
+                }
+                if !node_updated {
+                    return false; //No previous sibling was found
+                }
             },
             CssCombinator::None => {
                 //This is the case for the last element (first we encounter), so we stay on the current node
             },
         }
-
-        let elem_dom_node = element_dom_node.borrow();
-
-        let first_char = selector.chars().next();
-        if first_char == Some('#') {
-            let idx_first_char = selector.char_indices().nth(1).map(|(i, _)| i).unwrap_or(selector.len());
-            let id_to_search = &selector[idx_first_char..];
-
-            let node_id = elem_dom_node.get_attribute_value("id");
-            if node_id.is_none() || node_id.unwrap().as_str() != id_to_search {
-                return false;
-            }
-
-        } else if first_char == Some('.') {
-
-            let idx_first_char = selector.char_indices().nth(1).map(|(i, _)| i).unwrap_or(selector.len());
-            let class_to_search = &selector[idx_first_char..];
-
-            let all_classes = elem_dom_node.get_attribute_value("class");
-            let any_class_match = all_classes.is_some() && all_classes.unwrap().split_whitespace().any(|class| class == class_to_search);
-            if !any_class_match {
-                return false;
-            }
-
-        } else {
-            //TODO: We now assume this case means match by tagname, but there are more cases, such as the wildcard *
-
-            if elem_dom_node.name.is_none() || elem_dom_node.name.as_ref().unwrap() != selector {
-                return false;
-            }
-        }
-
     }
 
     return true;

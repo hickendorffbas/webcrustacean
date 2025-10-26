@@ -117,6 +117,9 @@ fn lex_css_block(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenW
 fn generate_tokens_for_selector(css_iterator: &mut TrackingIterator, selector_string: &String, tokens: &mut Vec<CssTokenWithLocation>) {
     let mut current_selector = String::new();
 
+
+    //TODO: I need to collect all combinator tokens, and then parse 1 combinator by stripping them....
+
     for char in selector_string.trim().chars() {
         match char {
             ' ' => {

@@ -24,13 +24,13 @@ pub fn parse_css(css_tokens: &Vec<CssTokenWithLocation>) -> Vec<StyleRule> {
 }
 
 
-fn parse_rule(style_rules: &mut Vec<StyleRule>, current_context: &mut Vec<(String, CssCombinator)>, token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) {
+fn parse_rule(style_rules: &mut Vec<StyleRule>, current_context: &mut Vec<(CssCombinator, String)>, token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) {
     let selectors = parse_selectors(current_context, token_iterator);
     parse_declaration_block(selectors, style_rules, token_iterator);
 }
 
 
-fn parse_selectors(current_context: &mut Vec<(String, CssCombinator)>, token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) -> Vec<Selector> {
+fn parse_selectors(current_context: &mut Vec<(CssCombinator, String)>, token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) -> Vec<Selector> {
     let mut selectors = Vec::new();
     let mut selector_elements = current_context.clone();
 
@@ -40,6 +40,7 @@ fn parse_selectors(current_context: &mut Vec<(String, CssCombinator)>, token_ite
                 token_iterator.next();
 
                 if !selector_elements.is_empty() {
+                    selector_elements.reverse();
                     selectors.push(Selector { elements: selector_elements });
                 }
 
@@ -50,24 +51,27 @@ fn parse_selectors(current_context: &mut Vec<(String, CssCombinator)>, token_ite
 
                 match &token_iterator.peek().unwrap().css_token {
 
+                    //TODO: this is now wrong, the css combinators need to be on the next element. Maybe this is easier and they can just be
+                    //      parsed in the main loop
+
                     CssToken::DescendentCombinator => {
                         token_iterator.next();
-                        selector_elements.push( (selector_value.clone(), CssCombinator::Descendent) )
+                        selector_elements.push( (CssCombinator::Descendent, selector_value.clone()) )
                     },
                     CssToken::ChildCombinator => {
                         token_iterator.next();
-                        selector_elements.push( (selector_value.clone(), CssCombinator::Child) )
+                        selector_elements.push( (CssCombinator::Child, selector_value.clone()) )
                     },
                     CssToken::GeneralSiblingCombinator => {
                         token_iterator.next();
-                        selector_elements.push( (selector_value.clone(), CssCombinator::GeneralSibling) )
+                        selector_elements.push( (CssCombinator::GeneralSibling, selector_value.clone()) )
                     },
                     CssToken::NextSiblingCombinator => {
                         token_iterator.next();
-                        selector_elements.push( (selector_value.clone(), CssCombinator::NextSibling) )
+                        selector_elements.push( (CssCombinator::NextSibling, selector_value.clone()) )
                     },
                     _ => {
-                        selector_elements.push( (selector_value.clone(), CssCombinator::None) )
+                        selector_elements.push( (CssCombinator::None, selector_value.clone()) )
                     }
                 }
             },
@@ -75,6 +79,7 @@ fn parse_selectors(current_context: &mut Vec<(String, CssCombinator)>, token_ite
                 token_iterator.next();
 
                 if !selector_elements.is_empty() {
+                    selector_elements.reverse();
                     selectors.push(Selector { elements: selector_elements });
                     selector_elements = current_context.clone();
                 }

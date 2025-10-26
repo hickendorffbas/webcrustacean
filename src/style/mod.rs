@@ -60,7 +60,7 @@ pub struct StyleRule {
 }
 impl StyleRule {
     fn make_for_tag_name(tag_name: &str, property: CssProperty, value: &str) -> StyleRule {
-        return StyleRule { selector: Selector { elements: vec![(tag_name.to_owned(), CssCombinator::None)] }, property, value: value.to_owned() }
+        return StyleRule { selector: Selector { elements: vec![(CssCombinator::None, tag_name.to_owned())] }, property, value: value.to_owned() }
     }
 }
 
@@ -79,7 +79,7 @@ pub enum CssCombinator {
 #[derive(Clone)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Selector {
-    pub elements: Vec<(String, CssCombinator)>,
+    pub elements: Vec<(CssCombinator, String)>, //Note: the elements are in reverse order, to make evaluating them more performant
 }
 
 
@@ -103,7 +103,7 @@ struct ActiveStyleRule<'a> {
 }
 
 
-pub fn resolve_full_styles_for_layout_node(dom_node: &ElementDomNode, all_dom_nodes: &HashMap<usize, Rc<RefCell<ElementDomNode>>>,
+pub fn resolve_full_styles_for_layout_node(dom_node: &Rc<RefCell<ElementDomNode>>, all_dom_nodes: &HashMap<usize, Rc<RefCell<ElementDomNode>>>,
                                            style_context: &StyleContext) -> HashMap<CssProperty, String> {
 
     //TODO: we are doing the cascade here by first doing the ua sheet, and then the author sheet. We need to make this more general in cascades
@@ -113,7 +113,7 @@ pub fn resolve_full_styles_for_layout_node(dom_node: &ElementDomNode, all_dom_no
 
     let mut active_style_rules = Vec::new();
     for style_rule in &style_context.user_agent_sheet {
-        if style_rule_does_apply(&style_rule, &dom_node) {
+        if style_rule_does_apply(&style_rule, &dom_node, all_dom_nodes) {
             active_style_rules.push(
                 ActiveStyleRule {
                     property: style_rule.property,
@@ -131,7 +131,7 @@ pub fn resolve_full_styles_for_layout_node(dom_node: &ElementDomNode, all_dom_no
     }
 
     for style_rule in &style_context.author_sheet {
-        if style_rule_does_apply(&style_rule, &dom_node) {
+        if style_rule_does_apply(&style_rule, &dom_node, all_dom_nodes) {
             active_style_rules.push(
                 ActiveStyleRule {
                     property: style_rule.property,
@@ -155,9 +155,9 @@ pub fn resolve_full_styles_for_layout_node(dom_node: &ElementDomNode, all_dom_no
         resolved_styles.insert(active_style_rule.property, (*active_style_rule.property_value).clone());
     }
 
-    if dom_node.parent_id != 0 {
-        let parent_node = all_dom_nodes.get(&dom_node.parent_id).expect(format!("id {} not present in all nodes", dom_node.parent_id).as_str());
-        let parent_styles = resolve_full_styles_for_layout_node(&parent_node.borrow(), all_dom_nodes, style_context);
+    if dom_node.borrow().parent_id != 0 {
+        let parent_node = all_dom_nodes.get(&dom_node.borrow().parent_id).expect(format!("id {} not present in all nodes", dom_node.borrow().parent_id).as_str());
+        let parent_styles = resolve_full_styles_for_layout_node(&parent_node, all_dom_nodes, style_context);
 
         for (parent_style_property, parent_style_value) in parent_styles {
 
@@ -179,7 +179,7 @@ pub fn resolve_full_styles_for_layout_node(dom_node: &ElementDomNode, all_dom_no
 
 
 pub fn compute_styles(dom_node: &Rc<RefCell<ElementDomNode>>, all_dom_nodes: &HashMap<usize, Rc<RefCell<ElementDomNode>>>, style_context: &StyleContext) {
-    let computed_styles = resolve_full_styles_for_layout_node(&dom_node.borrow(), all_dom_nodes, style_context);
+    let computed_styles = resolve_full_styles_for_layout_node(&dom_node, all_dom_nodes, style_context);
 
     dom_node.borrow_mut().styles = computed_styles;
 
@@ -319,55 +319,64 @@ fn compare_style_rules(rule_a: &ActiveStyleRule, rule_b: &ActiveStyleRule) -> Or
 }
 
 
-fn style_rule_does_apply(style_rule: &StyleRule, element_dom_node: &ElementDomNode) -> bool {
-    for selector_element in &style_rule.selector.elements {
+fn style_rule_does_apply(style_rule: &StyleRule, element_dom_node: &Rc<RefCell<ElementDomNode>>,
+                         all_dom_nodes: &HashMap<usize, Rc<RefCell<ElementDomNode>>>) -> bool {
+    let mut node_being_checked = element_dom_node.clone();
 
-        let (selector, combinator) = selector_element;
+    for (combinator, selector) in &style_rule.selector.elements {
+
+        match combinator {
+            CssCombinator::Descendent => {
+                //TODO: this will generate a set
+                todo!(); //TODO: implement
+            },
+            CssCombinator::Child => {
+                let parent_id = node_being_checked.borrow().parent_id;
+                let parent_node = all_dom_nodes.get(&parent_id).unwrap();
+                node_being_checked = parent_node.clone();
+            },
+            CssCombinator::GeneralSibling => {
+                //TODO: this will generate a set
+                todo!(); //TODO: implement
+            },
+            CssCombinator::NextSibling => {
+                //TODO: this will generate a set
+                todo!(); //TODO: implement
+            },
+            CssCombinator::None => {
+                //This is the case for the last element (first we encounter), so we stay on the current node
+            },
+        }
+
+        let elem_dom_node = element_dom_node.borrow();
 
         let first_char = selector.chars().next();
         if first_char == Some('#') {
-
             let idx_first_char = selector.char_indices().nth(1).map(|(i, _)| i).unwrap_or(selector.len());
-            let without_first = &selector[idx_first_char..];
+            let id_to_search = &selector[idx_first_char..];
 
-            let node_id = element_dom_node.get_attribute_value("id");
-            if node_id.is_none() || node_id.unwrap().as_str() != without_first {
+            let node_id = elem_dom_node.get_attribute_value("id");
+            if node_id.is_none() || node_id.unwrap().as_str() != id_to_search {
                 return false;
             }
+
         } else if first_char == Some('.') {
 
             let idx_first_char = selector.char_indices().nth(1).map(|(i, _)| i).unwrap_or(selector.len());
-            let without_first = &selector[idx_first_char..];
+            let class_to_search = &selector[idx_first_char..];
 
-            println!("class selector: {}", without_first);
-            todo!(); //TODO: implement
-
+            let all_classes = elem_dom_node.get_attribute_value("class");
+            let any_class_match = all_classes.is_some() && all_classes.unwrap().split_whitespace().any(|class| class == class_to_search);
+            if !any_class_match {
+                return false;
+            }
 
         } else {
             //TODO: We now assume this case means match by tagname, but there are more cases, such as the wildcard *
 
-            if element_dom_node.name.is_none() || element_dom_node.name.as_ref().unwrap() != selector {
+            if elem_dom_node.name.is_none() || elem_dom_node.name.as_ref().unwrap() != selector {
                 return false;
             }
-        }
-
-
-        match combinator {
-            CssCombinator::Descendent => {
-                todo!(); //TODO: implement
-            },
-            CssCombinator::Child => {
-                todo!(); //TODO: implement
-            },
-            CssCombinator::GeneralSibling => {
-                todo!(); //TODO: implement
-            },
-            CssCombinator::NextSibling => {
-                todo!(); //TODO: implement
-            },
-            CssCombinator::None => {
-                //This is the case for the last element for example, so we never reject the item based on this combinator
-            },
         }
 
     }

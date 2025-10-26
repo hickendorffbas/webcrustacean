@@ -3,13 +3,13 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 
+use crate::dom::{ElementDomNode, TagName};
 use crate::style::{
     CssProperty,
     StyleContext,
     StyleRule,
     resolve_full_styles_for_layout_node,
 };
-use crate::dom::{ElementDomNode, TagName};
 use crate::test_util::get_next_test_id;
 
 
@@ -32,7 +32,7 @@ fn test_basic_style_resolving() {
 
     let style_rules = vec![ StyleRule::make_for_tag_name("b", CssProperty::BackgroundColor, "some value") ];
     let style_context = StyleContext { user_agent_sheet: Vec::new(), author_sheet: style_rules };
-    let resolved_styles = resolve_full_styles_for_layout_node(&dom_node.borrow(), &all_dom_nodes, &style_context);
+    let resolved_styles = resolve_full_styles_for_layout_node(&dom_node, &all_dom_nodes, &style_context);
 
     check_style(&resolved_styles, &CssProperty::BackgroundColor, "some value");
 }
@@ -57,7 +57,7 @@ fn test_inherit_style_from_parent() {
 
     let style_rules = vec![ StyleRule::make_for_tag_name("h3", CssProperty::FontSize, "50") ];
     let style_context = StyleContext { user_agent_sheet: Vec::new(), author_sheet: style_rules };
-    let resolved_styles = resolve_full_styles_for_layout_node(&main_node.borrow(), &all_dom_nodes, &style_context);
+    let resolved_styles = resolve_full_styles_for_layout_node(&main_node, &all_dom_nodes, &style_context);
 
     check_style(&resolved_styles, &CssProperty::FontSize, "50");
 }
@@ -82,7 +82,7 @@ fn test_cascade() {
 
     let style_context = StyleContext { user_agent_sheet: ua_styles, author_sheet: style_rules };
 
-    let resolved_styles = resolve_full_styles_for_layout_node(&dom_node.borrow(), &all_dom_nodes, &style_context);
+    let resolved_styles = resolve_full_styles_for_layout_node(&dom_node, &all_dom_nodes, &style_context);
 
     check_style(&resolved_styles, &CssProperty::Color, "red");
     check_style(&resolved_styles, &CssProperty::FontSize, "25");

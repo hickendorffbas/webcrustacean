@@ -113,7 +113,7 @@ pub fn resolve_full_styles_for_dom_node(dom_node: &Rc<RefCell<ElementDomNode>>, 
 
     let mut active_style_rules = Vec::new();
     for style_rule in &style_context.user_agent_sheet {
-        if style_rule_does_apply(&style_rule, &dom_node, all_dom_nodes) {
+        if style_rule_applies(&style_rule, &dom_node, all_dom_nodes) {
             active_style_rules.push(
                 ActiveStyleRule {
                     property: style_rule.property,
@@ -131,7 +131,7 @@ pub fn resolve_full_styles_for_dom_node(dom_node: &Rc<RefCell<ElementDomNode>>, 
     }
 
     for style_rule in &style_context.author_sheet {
-        if style_rule_does_apply(&style_rule, &dom_node, all_dom_nodes) {
+        if style_rule_applies(&style_rule, &dom_node, all_dom_nodes) {
             active_style_rules.push(
                 ActiveStyleRule {
                     property: style_rule.property,
@@ -319,19 +319,28 @@ fn compare_style_rules(rule_a: &ActiveStyleRule, rule_b: &ActiveStyleRule) -> Or
 }
 
 
-fn style_rule_does_apply(style_rule: &StyleRule, element_dom_node: &Rc<RefCell<ElementDomNode>>,
-                         all_dom_nodes: &HashMap<usize, Rc<RefCell<ElementDomNode>>>) -> bool {
-    let mut node_being_checked = element_dom_node.clone();
+fn style_rule_applies(style_rule: &StyleRule, element_dom_node: &Rc<RefCell<ElementDomNode>>,
+                      all_dom_nodes: &HashMap<usize, Rc<RefCell<ElementDomNode>>>) -> bool {
 
-    for (combinator, selector) in &style_rule.selector.elements {
+    return check_selector_for_match(&style_rule.selector, 0, element_dom_node, all_dom_nodes);
+}
+
+
+fn check_selector_for_match(selector: &Selector, starting_idx: usize, node_being_checked: &Rc<RefCell<ElementDomNode>>,
+                            all_dom_nodes: &HashMap<usize, Rc<RefCell<ElementDomNode>>>) -> bool {
+
+    let mut node_being_checked = node_being_checked.clone();
+    let mut current_idx = starting_idx;
+
+    for (combinator, selector_part) in selector.elements.iter().skip(starting_idx) {
 
         {
             let node_being_checked_borr = node_being_checked.borrow();
 
-            let first_char = selector.chars().next();
+            let first_char = selector_part.chars().next();
             if first_char == Some('#') {
-                let idx_first_char = selector.char_indices().nth(1).map(|(i, _)| i).unwrap_or(selector.len());
-                let id_to_search = &selector[idx_first_char..];
+                let idx_first_char = selector_part.char_indices().nth(1).map(|(i, _)| i).unwrap_or(selector_part.len());
+                let id_to_search = &selector_part[idx_first_char..];
 
                 let node_id = node_being_checked_borr.get_attribute_value("id");
                 if node_id.is_none() || node_id.unwrap().as_str() != id_to_search {
@@ -340,8 +349,8 @@ fn style_rule_does_apply(style_rule: &StyleRule, element_dom_node: &Rc<RefCell<E
 
             } else if first_char == Some('.') {
 
-                let idx_first_char = selector.char_indices().nth(1).map(|(i, _)| i).unwrap_or(selector.len());
-                let class_to_search = &selector[idx_first_char..];
+                let idx_first_char = selector_part.char_indices().nth(1).map(|(i, _)| i).unwrap_or(selector_part.len());
+                let class_to_search = &selector_part[idx_first_char..];
 
                 let all_classes = node_being_checked_borr.get_attribute_value("class");
                 let any_class_match = all_classes.is_some() && all_classes.unwrap().split_whitespace().any(|class| class == class_to_search);
@@ -352,7 +361,7 @@ fn style_rule_does_apply(style_rule: &StyleRule, element_dom_node: &Rc<RefCell<E
             } else {
                 //TODO: We now assume this case means match by tagname, but there are more cases, such as the wildcard *
 
-                if node_being_checked_borr.name.is_none() || node_being_checked_borr.name.as_ref().unwrap() != selector {
+                if node_being_checked_borr.name.is_none() || node_being_checked_borr.name.as_ref().unwrap() != selector_part {
                     return false;
                 }
             }
@@ -360,11 +369,23 @@ fn style_rule_does_apply(style_rule: &StyleRule, element_dom_node: &Rc<RefCell<E
 
         match combinator {
             CssCombinator::Descendent => {
-                //TODO: this will generate a set
-                todo!(); //TODO: implement
+                let mut node_descended_from = node_being_checked;
+
+                loop {
+                    let parent_id = node_descended_from.borrow().parent_id;
+                    if parent_id == 0 {
+                        return false;
+                    }
+                    node_descended_from = all_dom_nodes.get(&parent_id).unwrap().clone();
+
+                    let match_from_node = check_selector_for_match(selector, current_idx+1, &node_descended_from, all_dom_nodes);
+                    if match_from_node {
+                        return true;
+                    }
+                }
             },
             CssCombinator::GeneralSibling => {
-                //TODO: this will generate a set
+                //TODO: this will generate a set, apply the same kind of recursion as for descendent
                 todo!(); //TODO: implement
             },
             CssCombinator::Child => {
@@ -409,6 +430,7 @@ fn style_rule_does_apply(style_rule: &StyleRule, element_dom_node: &Rc<RefCell<E
                 //This is the case for the last element (first we encounter), so we stay on the current node
             },
         }
+        current_idx += 1;
     }
 
     return true;

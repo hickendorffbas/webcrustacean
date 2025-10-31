@@ -1,7 +1,8 @@
 
 goals for 0.7.0
        - implement basic flex layout
-              - we need to set the layout algo within a box based on the "display" css property, I don't think we do that yet
+              - it seems we need to change the way formatting contexts work. The formatting context should not be determined by the children of the node
+                     like we do now, we need to compute it seperately. Then, rendering inline items needs to be handled differently
               - when a node has display flex, start a flex layout for the containers in them
        - handle redirects better. Its seems reqwest follows them, but our url bar does not update etc. we want to follow them ourselves
        - load javascript and css files linked from a page

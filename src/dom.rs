@@ -400,6 +400,20 @@ impl DomPropertyDisplay {
             _ => None,
         };
     }
+
+    pub fn is_block_level(&self) -> bool {
+        return match self {
+            DomPropertyDisplay::Block | DomPropertyDisplay::Flex => true,
+            _ => false,
+        };
+    }
+
+    pub fn is_inline_level(&self) -> bool {
+        return match self {
+            DomPropertyDisplay::Inline => true,
+            _ => false,
+        };
+    }
 }
 
 

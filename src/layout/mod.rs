@@ -580,8 +580,11 @@ fn compute_layout_for_node(node: &Rc<RefCell<LayoutNode>>, style_context: &Style
                             apply_block_layout(&mut mut_node, style_context, top_left_x, top_left_y, current_scroll_y, font_context, force_full_layout, available_width);
                         },
                         FormattingContext::Inline => {
-                            apply_inline_layout(&mut mut_node, style_context, top_left_x, top_left_y, available_width, current_scroll_y, font_context, force_full_layout);
+                            apply_inline_layout(&mut mut_node, style_context, top_left_x, top_left_y, current_scroll_y, font_context, force_full_layout, available_width);
                         },
+                        FormattingContext::Flex => {
+                            apply_flex_layout(&mut mut_node, style_context, top_left_x, top_left_y, current_scroll_y, font_context, force_full_layout, available_width);
+                        }
                         FormattingContext::Table => {
                             match &mut_node.content {
                                 LayoutNodeContent::TableLayoutNode(_) => {
@@ -592,9 +595,6 @@ fn compute_layout_for_node(node: &Rc<RefCell<LayoutNode>>, style_context: &Style
                                 _ => panic!("Table formatting context on non-table layout node")
                             }
                         },
-                        FormattingContext::Flex => {
-                            todo!(); //TODO: implement flex layout
-                        }
                     }
                 },
                 None => {
@@ -785,8 +785,8 @@ fn fix_inline_whitespace(node: &mut LayoutNode) {
 }
 
 
-fn apply_inline_layout(node: &mut LayoutNode, style_context: &StyleContext, top_left_x: f32, top_left_y: f32, available_width: f32,
-                       current_scroll_y: f32, font_context: &FontContext, force_full_layout: bool) {
+fn apply_inline_layout(node: &mut LayoutNode, style_context: &StyleContext, top_left_x: f32, top_left_y: f32,
+                       current_scroll_y: f32, font_context: &FontContext, force_full_layout: bool, available_width: f32) {
     let mut cursor_x = top_left_x;
     let mut cursor_y = top_left_y;
     let mut max_width: f32 = 0.0;
@@ -965,6 +965,14 @@ fn apply_inline_layout(node: &mut LayoutNode, style_context: &StyleContext, top_
 }
 
 
+fn apply_flex_layout(node: &mut LayoutNode, style_context: &StyleContext, top_left_x: f32, top_left_y: f32,
+                     current_scroll_y: f32, font_context: &FontContext, force_full_layout: bool, available_width: f32) {
+
+    //TODO: implement
+    todo!();
+}
+
+
 fn wrap_text(css_text_box: &CssTextBox, non_breaking_space_positions: &Option<HashSet<usize>>, max_width: f32, width_remaining_on_current_line: f32) -> Vec<String> {
     let char_positions = &css_text_box.char_position_mapping;
 
@@ -1009,6 +1017,29 @@ fn wrap_text(css_text_box: &CssTextBox, non_breaking_space_positions: &Option<Ha
     }
 
     return lines;
+}
+
+
+fn contains_block_and_inline_level_elements(children: &Vec<Rc<RefCell<ElementDomNode>>>) -> bool {
+    let mut has_block = false;
+    let mut has_inline = false;
+
+    for child in children {
+        let display = child.borrow().dom_property_display();
+
+        //NOTE: some display's are neither block or inline, such as display:none
+        if display.is_block_level() {
+            has_block = true;
+        }
+        if display.is_inline_level() {
+            has_inline = true;
+        }
+        if has_block && has_inline {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 
@@ -1104,49 +1135,17 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
         childs_to_recurse_on = &main_node.children;
     }
 
-    let has_mixed_inline_and_block = {
-        let mut has_mixed_inline_and_block = false;
-
-        if childs_to_recurse_on.is_some() {
-            let mut block_seen = false;
-            let mut inline_seen = false;
-
-            for child in childs_to_recurse_on.as_ref().unwrap() {
-                match &child.borrow().dom_property_display() {
-                    DomPropertyDisplay::Block | DomPropertyDisplay::Flex => {
-                        if inline_seen {
-                            has_mixed_inline_and_block = true;
-                            break
-                        }
-                        block_seen = true;
-                    },
-                    DomPropertyDisplay::Inline => {
-                        if block_seen {
-                            has_mixed_inline_and_block = true;
-                            break
-                        }
-                        inline_seen = true;
-                    },
-                    DomPropertyDisplay::None => {},
-                }
-            }
-        }
-
-        has_mixed_inline_and_block
-    };
-
     if childs_to_recurse_on.is_some() && childs_to_recurse_on.as_ref().unwrap().len() > 0 {
         partial_node_children = Some(Vec::new());
         let first_child = childs_to_recurse_on.as_ref().unwrap().iter().next().unwrap();
 
-        if has_mixed_inline_and_block {
+        if contains_block_and_inline_level_elements(&childs_to_recurse_on.as_ref().unwrap()) {
             let mut temp_inline_child_buffer = Vec::new();
             let background_color = partial_node_background_color;
-            partial_formatting_context = FormattingContext::Block;
 
             for child in childs_to_recurse_on.as_ref().unwrap() {
 
-                if child.borrow().dom_property_display() == DomPropertyDisplay::Block {
+                if child.borrow().dom_property_display().is_block_level() {
                     if !temp_inline_child_buffer.is_empty() {
 
                         let mut layout_childs = Vec::new();

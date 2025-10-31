@@ -1,8 +1,8 @@
 
 goals for 0.7.0
        - implement basic flex layout
-              - we need to set the layout algo based on the "display" css property, I don't think we do that yet
-              - find the right places in the layout algo to support the basics of flex
+              - we need to set the layout algo within a box based on the "display" css property, I don't think we do that yet
+              - when a node has display flex, start a flex layout for the containers in them
        - handle redirects better. Its seems reqwest follows them, but our url bar does not update etc. we want to follow them ourselves
        - load javascript and css files linked from a page
        - implement more box layout css options

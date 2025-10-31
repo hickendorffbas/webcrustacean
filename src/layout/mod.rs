@@ -418,9 +418,19 @@ impl LayoutNode {
 #[derive(PartialEq)]
 pub enum FormattingContext {
     Block,
-    #[allow(dead_code)] Flex, //TODO: implement this one
+    Flex,
     Inline,
     Table,
+}
+impl FormattingContext {
+    fn from_display(display: DomPropertyDisplay) -> FormattingContext {
+        match display {
+            DomPropertyDisplay::Block => FormattingContext::Block,
+            DomPropertyDisplay::Inline => FormattingContext::Inline,
+            DomPropertyDisplay::Flex => FormattingContext::Flex,
+            DomPropertyDisplay::None => FormattingContext::Block,
+        }
+    }
 }
 
 
@@ -468,7 +478,7 @@ pub struct CssTextBox {
 pub fn build_full_layout(document: &Document, font_context: &FontContext) -> FullLayout {
     let mut top_level_layout_nodes: Vec<Rc<RefCell<LayoutNode>>> = Vec::new();
 
-    let layout_node = build_layout_tree(&document.document_node, document, font_context, FormattingContext::Block);
+    let layout_node = build_layout_tree(&document.document_node, document, font_context);
     top_level_layout_nodes.push(layout_node);
 
     //Note: we need a node above the first node actually containing any content or styles, since for updates to content or styles we re-assign
@@ -1002,8 +1012,7 @@ fn wrap_text(css_text_box: &CssTextBox, non_breaking_space_positions: &Option<Ha
 }
 
 
-fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Document, font_context: &FontContext,
-                     formatting_context: FormattingContext) -> Rc<RefCell<LayoutNode>> {
+fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Document, font_context: &FontContext) -> Rc<RefCell<LayoutNode>> {
     let mut partial_node_visible = true;
     let mut partial_node_optional_img = None;
     let mut partial_node_line_break = false;
@@ -1014,7 +1023,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
     let mut partial_node_font = None;
     let mut partial_node_font_color = None;
     let mut partial_node_non_breaking_space_positions = None;
-    let mut partial_formatting_context = formatting_context;
+    let mut partial_formatting_context = FormattingContext::from_display(main_node.borrow().dom_property_display());
 
     let mut prebuilt_node = None; //TODO: I think it is a good idea to transition all cases to pre built the node? needs checking
 
@@ -1104,7 +1113,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
             for child in childs_to_recurse_on.as_ref().unwrap() {
                 match &child.borrow().dom_property_display() {
-                    DomPropertyDisplay::Block => {
+                    DomPropertyDisplay::Block | DomPropertyDisplay::Flex => {
                         if inline_seen {
                             has_mixed_inline_and_block = true;
                             break
@@ -1118,9 +1127,6 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
                         }
                         inline_seen = true;
                     },
-                    DomPropertyDisplay::Flex => {
-                        todo!(); //TODO: implement flex
-                    }
                     DomPropertyDisplay::None => {},
                 }
             }
@@ -1145,7 +1151,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
                         let mut layout_childs = Vec::new();
                         for &node in temp_inline_child_buffer.iter() {
-                            let layout_child = build_layout_tree(node, document, font_context, FormattingContext::Inline);
+                            let layout_child = build_layout_tree(node, document, font_context);
                             layout_childs.push(layout_child);
                         }
 
@@ -1155,7 +1161,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
                         temp_inline_child_buffer = Vec::new();
                     }
 
-                    let layout_child = build_layout_tree(child, document, font_context, partial_formatting_context);
+                    let layout_child = build_layout_tree(child, document, font_context);
                     partial_node_children.as_mut().unwrap().push(layout_child);
 
                 } else {
@@ -1166,7 +1172,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
             if !temp_inline_child_buffer.is_empty() {
                 let mut layout_childs = Vec::new();
                 for node in temp_inline_child_buffer.iter() {
-                    let layout_child = build_layout_tree(node, document, font_context, FormattingContext::Inline);
+                    let layout_child = build_layout_tree(node, document, font_context);
                     layout_childs.push(layout_child);
                 }
 
@@ -1179,7 +1185,16 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
             partial_formatting_context = FormattingContext::Inline;
 
             for child in childs_to_recurse_on.as_ref().unwrap() {
-                let layout_child = build_layout_tree(child, document, font_context, partial_formatting_context);
+                let layout_child = build_layout_tree(child, document, font_context);
+                partial_node_children.as_mut().unwrap().push(layout_child);
+            }
+
+        } else if first_child.borrow().dom_property_display() == DomPropertyDisplay::Flex {
+
+            partial_formatting_context = FormattingContext::Flex;
+
+            for child in childs_to_recurse_on.as_ref().unwrap() {
+                let layout_child = build_layout_tree(child, document, font_context);
                 partial_node_children.as_mut().unwrap().push(layout_child);
             }
 
@@ -1189,7 +1204,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
             partial_formatting_context = FormattingContext::Block;
 
             for child in childs_to_recurse_on.as_ref().unwrap() {
-                let layout_child = build_layout_tree(child, document, font_context, partial_formatting_context);
+                let layout_child = build_layout_tree(child, document, font_context);
                 partial_node_children.as_mut().unwrap().push(layout_child);
             }
         }
@@ -1251,7 +1266,6 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
 pub fn rebuild_dirty_layout_childs(main_node: &Rc<RefCell<LayoutNode>>, document: &Document, font_context: &FontContext) {
     let mut main_node_mut = RefCell::borrow_mut(main_node);
-    let main_node_formatting_context = main_node_mut.formatting_context;
     let main_node_children = &mut main_node_mut.children;
 
     if main_node_children.is_some() {
@@ -1259,7 +1273,7 @@ pub fn rebuild_dirty_layout_childs(main_node: &Rc<RefCell<LayoutNode>>, document
             let child = &main_node_children.as_ref().unwrap()[child_idx];
 
             if child.borrow().from_dom_node.is_some() && child.borrow().from_dom_node.as_ref().unwrap().borrow().dirty {
-                let new_child = build_layout_tree(&child.borrow().from_dom_node.as_ref().unwrap(), document, font_context, main_node_formatting_context);
+                let new_child = build_layout_tree(&child.borrow().from_dom_node.as_ref().unwrap(), document, font_context);
                 main_node_children.as_mut().unwrap()[child_idx] = new_child;
 
             } else {

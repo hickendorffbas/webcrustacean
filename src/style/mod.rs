@@ -23,6 +23,7 @@ pub enum CssProperty {
     BackgroundColor,
     Color,
     Display,
+    Flex,
     FontWeight,
     FontSize,
     FontStyle,
@@ -34,6 +35,7 @@ impl CssProperty {
             "background-color" => CssProperty::BackgroundColor,
             "color" => CssProperty::Color,
             "display" => CssProperty::Display,
+            "flex" => CssProperty::Flex,
             "font-weight" => CssProperty::FontWeight,
             "font-size" => CssProperty::FontSize,
             "font-style" => CssProperty::FontStyle,
@@ -164,6 +166,7 @@ pub fn resolve_full_styles_for_dom_node(dom_node: &Rc<RefCell<ElementDomNode>>, 
             //Some styles should not be inherited:  //TODO: this list is not complete yet
             if parent_style_property == CssProperty::Display ||
                parent_style_property == CssProperty::BackgroundColor ||
+               parent_style_property == CssProperty::Flex ||
                parent_style_property == CssProperty::TextDecoration {
                     continue;
             }
@@ -231,6 +234,7 @@ pub fn get_property_from_computed_styles(styles: &HashMap<CssProperty, String>, 
         CssProperty::BackgroundColor => "white", //TODO: the actual default is "transparent", but we don't support that yet
         CssProperty::Color => "black",
         CssProperty::Display => "inline",
+        CssProperty::Flex => "0 1 auto",
         CssProperty::FontSize => "18",
         CssProperty::FontStyle => "normal",
         CssProperty::FontWeight => "normal",

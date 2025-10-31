@@ -253,9 +253,7 @@ pub fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>,
 
                             if borr_dom_row_child.children.is_some() {
                                 for dom_cell_child in borr_dom_row_child.children.as_ref().unwrap() {
-                                    let layout_child = build_layout_tree(dom_cell_child, document, font_context,
-                                        FormattingContext::Block //TODO: this should be based on css properties
-                                    );
+                                    let layout_child = build_layout_tree(dom_cell_child, document, font_context);
                                     cell_children.push(layout_child);
                                 }
                             }

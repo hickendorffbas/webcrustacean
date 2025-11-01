@@ -16,6 +16,7 @@ pub enum CssToken {
     Selector(String),
     Property(String),
     Value(String),
+    AtRule(String),
     BlockStart,
     BlockEnd,
     Comma,
@@ -51,6 +52,7 @@ fn make_token(css_iterator: &mut TrackingIterator, token: CssToken) -> CssTokenW
 fn lex_css_block(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenWithLocation>) {
     let mut buffer = String::new();
     let mut in_comment = false;
+    let mut reading_at_rule = false;
 
     'main_loop: while css_iterator.has_next() {
 
@@ -78,7 +80,12 @@ fn lex_css_block(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenW
             },
             '{' => {
                 if buffer.trim().len() > 0 {
-                    generate_tokens_for_selector(css_iterator, &buffer, tokens);
+                    if reading_at_rule {
+                        tokens.push(make_token(css_iterator, CssToken::AtRule(buffer.trim().to_owned())));
+                        reading_at_rule = false;
+                    } else {
+                        generate_tokens_for_selector(css_iterator, &buffer, tokens);
+                    }
                     buffer.clear();
                 }
                 tokens.push(make_token(css_iterator, CssToken::BlockStart));
@@ -97,14 +104,24 @@ fn lex_css_block(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenW
                 tokens.push(make_token(css_iterator, CssToken::BlockEnd));
             },
             ':' => {
-                tokens.push(make_token(css_iterator, CssToken::Property(buffer.trim().to_owned())));
-                buffer.clear();
-            },
-            ';' => {
-                if buffer.trim().len() > 0 {
-                    tokens.push(make_token(css_iterator, CssToken::Value(buffer.trim().to_owned())));
+                if !reading_at_rule {
+                    tokens.push(make_token(css_iterator, CssToken::Property(buffer.trim().to_owned())));
                     buffer.clear();
                 }
+            },
+            ';' => {
+                if reading_at_rule {
+                        tokens.push(make_token(css_iterator, CssToken::AtRule(buffer.trim().to_owned())));
+                        reading_at_rule = false;
+                } else {
+                    if buffer.trim().len() > 0 {
+                        tokens.push(make_token(css_iterator, CssToken::Value(buffer.trim().to_owned())));
+                    }
+                }
+                buffer.clear();
+            }
+            '@' =>  {
+                reading_at_rule = true;
             }
             char @ _ => {
                 buffer.push(char);

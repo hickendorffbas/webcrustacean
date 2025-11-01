@@ -3,6 +3,7 @@ goals for 0.7.0
        - implement basic flex layout
               - it seems we need to change the way formatting contexts work. The formatting context should not be determined by the children of the node
                      like we do now, we need to compute it seperately. Then, rendering inline items needs to be handled differently
+              - clean up the way we get css values
        - handle redirects better. Its seems reqwest follows them, but our url bar does not update etc. we want to follow them ourselves
        - load javascript and css files linked from a page
        - implement more box layout css options

@@ -1,6 +1,6 @@
 0.7.0 [UNRELEASED]
 ===================
-
+- Very basic flex layout support
 
 
 0.6.0

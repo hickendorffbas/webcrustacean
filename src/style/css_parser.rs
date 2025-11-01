@@ -16,15 +16,34 @@ pub fn parse_css(css_tokens: &Vec<CssTokenWithLocation>) -> Vec<StyleRule> {
     let mut current_context = Vec::new();  //TODO: current context should be used to parse nested blocks
     let mut token_iterator = css_tokens.iter().peekable();
 
-    while token_iterator.peek().is_some() {
-        parse_rule(&mut style_rules, &mut current_context, &mut token_iterator);
-    }
-
+    parse_block_of_rules(&mut style_rules, &mut current_context, &mut token_iterator);
     return style_rules;
 }
 
 
+fn parse_block_of_rules(style_rules: &mut Vec<StyleRule>, current_context: &mut Vec<(CssCombinator, String)>, token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) {
+    while token_iterator.peek().is_some() {
+        match token_iterator.peek().unwrap().css_token {
+            CssToken::BlockEnd => return,
+            _ => {},
+        }
+
+        parse_rule(style_rules, current_context, token_iterator);
+    }
+}
+
+
 fn parse_rule(style_rules: &mut Vec<StyleRule>, current_context: &mut Vec<(CssCombinator, String)>, token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) {
+    if token_iterator.peek().is_some() {
+        match token_iterator.peek().unwrap().css_token {
+            CssToken::AtRule(_) => {
+                parse_at_rule(token_iterator);
+                return;
+            }
+            _ => {},
+        }
+    }
+
     let selectors = parse_selectors(current_context, token_iterator);
     parse_declaration_block(selectors, style_rules, token_iterator);
 }
@@ -83,7 +102,7 @@ fn parse_selectors(current_context: &mut Vec<(CssCombinator, String)>, token_ite
                     selectors.push(Selector { elements: selector_elements });
                     selector_elements = current_context.clone();
                 }
-            }
+            },
             _ => {
                 todo!(); //TODO: this should be an error
             }
@@ -91,6 +110,45 @@ fn parse_selectors(current_context: &mut Vec<(CssCombinator, String)>, token_ite
     }
 
     return selectors;
+}
+
+
+fn parse_at_rule(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) {
+
+    #[allow(unused)] //TODO: we don't do anything with the ruledata yet....
+    let rule_data = match &token_iterator.next().unwrap().css_token {
+        CssToken::AtRule(rule_data) => rule_data,
+        _ => panic!("invalid state"),
+    };
+
+    match token_iterator.peek().unwrap().css_token {
+
+        CssToken::BlockStart => {
+            token_iterator.next();
+
+            match token_iterator.peek().unwrap().css_token {
+                CssToken::Selector(_) | CssToken::AtRule(_) => {
+                    //TODO: for now we parse so we advance the iterator, but we don't use the parsed data yet
+                    parse_block_of_rules(&mut Vec::new(), &mut Vec::new(), token_iterator);
+                },
+                CssToken::Property(_) => {
+                    //TODO: for now we parse so we advance the iterator, but we don't use the parsed data yet
+                    parse_declaration_block(Vec::new(), &mut Vec::new(), token_iterator);
+                },
+                CssToken::BlockEnd => {
+                    //It was an empty block
+                    token_iterator.next();
+                    return;
+                },
+                _ => todo!(), //TODO: this should be an error
+            }
+        },
+        CssToken::Selector(_) => {
+            //This means the rule data was all there was, go back to normal parsing
+            return;
+        },
+        _ => todo!() //TODO: this should be an error
+    }
 }
 
 

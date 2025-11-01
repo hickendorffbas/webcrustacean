@@ -404,7 +404,7 @@ fn main() -> Result<(), String> {
             collect_content_nodes_in_walk_order_for_normal_flow(&full_layout_tree.borrow().root_node, &mut content_nodes_in_selection_order);
             full_layout_tree.borrow_mut().content_nodes_in_selection_order = content_nodes_in_selection_order;
 
-            compute_layout(&full_layout_tree.borrow().root_node, &document.borrow().style_context, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y,
+            compute_layout(&full_layout_tree.borrow().root_node, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y,
                            &platform.font_context, ui_state.current_scroll_y, false, false, ui_state.window_dimensions.content_viewport_width);
         }
 

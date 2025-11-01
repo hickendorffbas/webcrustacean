@@ -16,7 +16,6 @@ use crate::layout::{
     PositioningScheme,
 };
 use crate::platform::fonts::FontContext;
-use crate::style::StyleContext;
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -36,9 +35,8 @@ pub struct TableCellLayoutNode {
 }
 
 
-pub fn compute_layout_for_table(table_layout_node: &Rc<RefCell<LayoutNode>>, style_context: &StyleContext, top_left_x: f32, top_left_y: f32,
-                                font_context: &FontContext, current_scroll_y: f32, only_update_block_vertical_position: bool, force_full_layout: bool, 
-                                available_width: f32) {
+pub fn compute_layout_for_table(table_layout_node: &Rc<RefCell<LayoutNode>>, top_left_x: f32, top_left_y: f32, font_context: &FontContext,
+                                current_scroll_y: f32, only_update_block_vertical_position: bool, force_full_layout: bool, available_width: f32) {
 
     debug_assert!(matches!(table_layout_node.borrow().content, LayoutNodeContent::TableLayoutNode { .. }));
 
@@ -63,7 +61,7 @@ pub fn compute_layout_for_table(table_layout_node: &Rc<RefCell<LayoutNode>>, sty
 
             let cell = find_node_at_table_slot(cell_nodes, x_pos, y_pos, true);
             if cell.is_some() {
-                let (minimum_element_width, potentential_element_width) = compute_potential_widths(cell.as_ref().unwrap(), font_context, style_context);
+                let (minimum_element_width, potentential_element_width) = compute_potential_widths(cell.as_ref().unwrap(), font_context);
 
                 let nr_slots_wide = match &cell.as_ref().unwrap().borrow().content {
                     LayoutNodeContent::TableCellLayoutNode(table_cell_layout_node) => table_cell_layout_node.cell_width,
@@ -157,7 +155,7 @@ pub fn compute_layout_for_table(table_layout_node: &Rc<RefCell<LayoutNode>>, sty
                 };
                 let available_cell_width: f32 = column_widths[x_pos..x_pos+nr_slots_wide].iter().sum();
 
-                compute_layout_for_node(&cell, style_context, cursor_x, cursor_y, font_context, current_scroll_y,
+                compute_layout_for_node(&cell, cursor_x, cursor_y, font_context, current_scroll_y,
                                         only_update_block_vertical_position, force_full_layout, available_cell_width, true);
 
                 let element_height = cell.borrow().get_bounding_box().3;

@@ -24,6 +24,7 @@ pub enum CssProperty {
     Color,
     Display,
     Flex,
+    FlexDirection,
     FontWeight,
     FontSize,
     FontStyle,
@@ -36,6 +37,7 @@ impl CssProperty {
             "color" => CssProperty::Color,
             "display" => CssProperty::Display,
             "flex" => CssProperty::Flex,
+            "flex-direction" => CssProperty::FlexDirection,
             "font-weight" => CssProperty::FontWeight,
             "font-size" => CssProperty::FontSize,
             "font-style" => CssProperty::FontStyle,
@@ -164,9 +166,11 @@ pub fn resolve_full_styles_for_dom_node(dom_node: &Rc<RefCell<ElementDomNode>>, 
         for (parent_style_property, parent_style_value) in parent_styles {
 
             //Some styles should not be inherited:  //TODO: this list is not complete yet
+            //TODO: maybe we should list the ones that _are_ inherited, or make a method on the CssProperty
             if parent_style_property == CssProperty::Display ||
                parent_style_property == CssProperty::BackgroundColor ||
                parent_style_property == CssProperty::Flex ||
+               parent_style_property == CssProperty::FlexDirection ||
                parent_style_property == CssProperty::TextDecoration {
                     continue;
             }
@@ -235,6 +239,7 @@ pub fn get_property_from_computed_styles(styles: &HashMap<CssProperty, String>, 
         CssProperty::Color => "black",
         CssProperty::Display => "inline",
         CssProperty::Flex => "0 1 auto",
+        CssProperty::FlexDirection => "row",
         CssProperty::FontSize => "18",
         CssProperty::FontStyle => "normal",
         CssProperty::FontWeight => "normal",

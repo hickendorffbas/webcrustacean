@@ -127,7 +127,7 @@ pub fn finish_navigate(navigation_action: &NavigationAction, ui_state: &mut UISt
     ui_state.current_scroll_y = 0.0;
     ui_state.currently_loading_page = false;
 
-    compute_layout(&full_layout.borrow().root_node, &document.borrow().style_context, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y,
+    compute_layout(&full_layout.borrow().root_node, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y,
                    &platform.font_context, ui_state.current_scroll_y, false, true, ui_state.window_dimensions.content_viewport_width);
 
     #[cfg(feature="timings")] println!("layout elapsed millis: {}", start_layout_instant.elapsed().as_millis());

@@ -13,17 +13,22 @@ pub struct CssTokenWithLocation {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(PartialEq)]
 pub enum CssToken {
-    Selector(String),
-    Property(String),
-    Value(String),
-    AtRule(String),
-    BlockStart,
-    BlockEnd,
+    Identifier(String),
+    #[allow(unused)] StringLiteral(String), //TODO: implement
+    #[allow(unused)] AtKeyword(String), //TODO: implement
+
+    OpenBrace,
+    CloseBrace,
+
+    Dot,
+    Plus,
+    Greater,
+    Tilde,
+    Semicolon,
     Comma,
-    DescendentCombinator,
-    ChildCombinator,
-    GeneralSiblingCombinator,
-    NextSiblingCombinator,
+    Colon,
+
+    Whitespace,
 }
 
 
@@ -52,136 +57,93 @@ fn make_token(css_iterator: &mut TrackingIterator, token: CssToken) -> CssTokenW
 fn lex_css_block(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenWithLocation>) {
     let mut buffer = String::new();
     let mut in_comment = false;
-    let mut reading_at_rule = false;
+    let mut last_token_was_whitespace = false;
 
     'main_loop: while css_iterator.has_next() {
 
         if in_comment {
-            match css_iterator.next() {
-                '*' => {
-                    if css_iterator.peek() == Some(&'/') {
-                        css_iterator.next(); //eat the /
-                        in_comment = false;
+            if css_iterator.peek().is_some() {
+                match css_iterator.peek().unwrap() {
+                    '*' => {
+                        css_iterator.next(); //eat the *
+                        if css_iterator.peek() == Some(&'/') {
+                            css_iterator.next(); //eat the /
+                            in_comment = false;
+                        }
+                    },
+                    _ => {
+                        //Skip the content in the comment
+                        css_iterator.next();
                     }
-                },
-                _ => {}
+                }
             }
+        } else {
+            if css_iterator.peek().is_some() {
+                match css_iterator.peek().unwrap() {
+                    '/' => {
+                        css_iterator.next(); //eat the /
+                        if css_iterator.peek() == Some(&'*') {
+                            css_iterator.next(); //eat the *
+                            in_comment = true;
+                        } else {
+                            buffer.push('/');
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        if in_comment {
             continue 'main_loop
         }
 
-        match css_iterator.next() {
-            '/' => {
-                if css_iterator.peek() == Some(&'*') {
-                    css_iterator.next(); //eat the *
-                    in_comment = true;
-                } else {
-                    buffer.push('/');
-                }
-            },
-            '{' => {
-                if buffer.trim().len() > 0 {
-                    if reading_at_rule {
-                        tokens.push(make_token(css_iterator, CssToken::AtRule(buffer.trim().to_owned())));
-                        reading_at_rule = false;
-                    } else {
-                        generate_tokens_for_selector(css_iterator, &buffer, tokens);
-                    }
-                    buffer.clear();
-                }
-                tokens.push(make_token(css_iterator, CssToken::BlockStart));
-            },
-            ',' => {
-                generate_tokens_for_selector(css_iterator, &buffer, tokens);
-                buffer.clear();
 
-                tokens.push(make_token(css_iterator, CssToken::Comma));
-            },
-            '}' => {
-                if buffer.trim().len() > 0 {
-                    tokens.push(make_token(css_iterator, CssToken::Value(buffer.trim().to_owned())));
+        match css_iterator.next() {
+
+            char @ ('{' | '}' | '.' | '+' | '>' | ',' | ':' | ';' | '~') => {
+                last_token_was_whitespace = false;
+
+                if !buffer.is_empty() {
+                    tokens.push(make_token(css_iterator, CssToken::Identifier(buffer.clone())));
                     buffer.clear();
                 }
-                tokens.push(make_token(css_iterator, CssToken::BlockEnd));
-            },
-            ':' => {
-                if !reading_at_rule {
-                    tokens.push(make_token(css_iterator, CssToken::Property(buffer.trim().to_owned())));
-                    buffer.clear();
-                }
-            },
-            ';' => {
-                if reading_at_rule {
-                        tokens.push(make_token(css_iterator, CssToken::AtRule(buffer.trim().to_owned())));
-                        reading_at_rule = false;
-                } else {
-                    if buffer.trim().len() > 0 {
-                        tokens.push(make_token(css_iterator, CssToken::Value(buffer.trim().to_owned())));
+
+                match char {
+                    '{' => tokens.push(make_token(css_iterator, CssToken::OpenBrace)),
+                    '}' => tokens.push(make_token(css_iterator, CssToken::CloseBrace)),
+                    '.' => tokens.push(make_token(css_iterator, CssToken::Dot)),
+                    '+' => tokens.push(make_token(css_iterator, CssToken::Plus)),
+                    '>' => tokens.push(make_token(css_iterator, CssToken::Greater)),
+                    ',' => tokens.push(make_token(css_iterator, CssToken::Comma)),
+                    ':' => tokens.push(make_token(css_iterator, CssToken::Colon)),
+                    ';' => tokens.push(make_token(css_iterator, CssToken::Semicolon)),
+                    '~' => tokens.push(make_token(css_iterator, CssToken::Tilde)),
+
+                    _ => {
+                        panic!("invalid state");
                     }
                 }
-                buffer.clear();
             }
-            '@' =>  {
-                reading_at_rule = true;
+            ' ' | '\t' | '\n' => {
+                if !buffer.is_empty() {
+                    tokens.push(make_token(css_iterator, CssToken::Identifier(buffer.clone())));
+                    buffer.clear();
+                }
+
+                if !last_token_was_whitespace {
+                    tokens.push(make_token(css_iterator, CssToken::Whitespace));
+                    last_token_was_whitespace = true;
+                }
             }
+            '@' => {
+                last_token_was_whitespace = false;
+                //TODO: read everything after until a non-ident char, and build token
+            },
             char @ _ => {
+                last_token_was_whitespace = false;
                 buffer.push(char);
             }
         }
     }
-}
 
-
-fn generate_tokens_for_selector(css_iterator: &mut TrackingIterator, selector_string: &String, tokens: &mut Vec<CssTokenWithLocation>) {
-    let mut current_selector = String::new();
-    let mut selector_iter = selector_string.trim().chars().peekable();
-
-    while selector_iter.peek().is_some() {
-        match selector_iter.peek().unwrap() {
-
-            ' ' | '>' | '+' | '~' => {
-                let mut combinator = String::new();
-
-                while selector_iter.peek().is_some() {
-                    match selector_iter.peek().unwrap() {
-
-                        combinator_token @ (' ' | '>' | '+' | '~') => {
-                            combinator.push(*combinator_token);
-                            selector_iter.next();
-                        }
-                        _ => {
-                            tokens.push(make_token(css_iterator, CssToken::Selector(current_selector.trim().to_owned())));
-                            current_selector.clear();
-
-                            match combinator.trim() {
-                                "" => {
-                                    tokens.push(make_token(css_iterator, CssToken::DescendentCombinator));
-                                },
-                                ">" => {
-                                    tokens.push(make_token(css_iterator, CssToken::ChildCombinator));
-                                },
-                                "+" => {
-                                    tokens.push(make_token(css_iterator, CssToken::NextSiblingCombinator));
-                                },
-                                "~" => {
-                                    tokens.push(make_token(css_iterator, CssToken::GeneralSiblingCombinator));
-                                },
-                                _ => {
-                                    todo!() //TODO: some kind of error
-                                }
-                            }
-                            break;
-                        }
-                    }
-                }
-            }
-
-            _ => {
-                current_selector.push(selector_iter.next().unwrap());
-            }
-        }
-    }
-
-    if !current_selector.trim().is_empty() {
-        tokens.push(make_token(css_iterator, CssToken::Selector(current_selector.trim().to_owned())));
-    }
 }

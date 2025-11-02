@@ -64,7 +64,8 @@ pub struct StyleRule {
 }
 impl StyleRule {
     fn make_for_tag_name(tag_name: &str, property: CssProperty, value: &str) -> StyleRule {
-        return StyleRule { selector: Selector { elements: vec![(CssCombinator::None, tag_name.to_owned())] }, property, value: value.to_owned() }
+        return StyleRule { selector: Selector { elements: vec![(CssCombinator::None, tag_name.to_owned())], pseudoclasses: None },
+                           property, value: value.to_owned() }
     }
 }
 
@@ -84,6 +85,7 @@ pub enum CssCombinator {
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Selector {
     pub elements: Vec<(CssCombinator, String)>, //Note: the elements are in reverse order, to make evaluating them more performant
+    #[allow(unused)] pub pseudoclasses: Option<Vec<String>>,  //TODO: implement
 }
 
 

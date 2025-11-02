@@ -8,11 +8,12 @@ use super::css_parser;
 #[test]
 fn test_parse_basic_style() {
     let tokens = vec![
-        CssTokenWithLocation { css_token: CssToken::Selector("h3".to_owned()), line: 1, character: 1 },
-        CssTokenWithLocation { css_token: CssToken::BlockStart, line: 1, character: 3 },
-        CssTokenWithLocation { css_token: CssToken::Property("color".to_owned()), line: 1, character: 4 },
-        CssTokenWithLocation { css_token: CssToken::Value("red".to_owned()), line: 1, character: 8 },
-        CssTokenWithLocation { css_token: CssToken::BlockEnd, line: 1, character: 13 },
+        CssTokenWithLocation { css_token: CssToken::Identifier("h3".to_owned()), line: 1, character: 1 },
+        CssTokenWithLocation { css_token: CssToken::OpenBrace, line: 1, character: 3 },
+        CssTokenWithLocation { css_token: CssToken::Identifier("color".to_owned()), line: 1, character: 4 },
+        CssTokenWithLocation { css_token: CssToken::Colon, line: 1, character: 6 },
+        CssTokenWithLocation { css_token: CssToken::Identifier("red".to_owned()), line: 1, character: 8 },
+        CssTokenWithLocation { css_token: CssToken::CloseBrace, line: 1, character: 13 },
     ];
 
     let result = css_parser::parse_css(&tokens);

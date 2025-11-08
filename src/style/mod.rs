@@ -64,7 +64,7 @@ pub struct StyleRule {
 }
 impl StyleRule {
     fn make_for_tag_name(tag_name: &str, property: CssProperty, value: &str) -> StyleRule {
-        return StyleRule { selector: Selector { elements: vec![(CssCombinator::None, tag_name.to_owned())], pseudoclasses: None },
+        return StyleRule { selector: Selector { elements: vec![(CssCombinator::None, SelectorType::Name, tag_name.to_owned())], pseudoclasses: None },
                            property, value: value.to_owned() }
     }
 }
@@ -81,10 +81,19 @@ pub enum CssCombinator {
 }
 
 
+#[derive(PartialEq, Clone, Copy)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub enum SelectorType {
+    Name,
+    Id,
+    Class,
+}
+
+
 #[derive(Clone)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Selector {
-    pub elements: Vec<(CssCombinator, String)>, //Note: the elements are in reverse order, to make evaluating them more performant
+    pub elements: Vec<(CssCombinator, SelectorType, String)>, //Note: the elements are in reverse order, to make evaluating them more performant
     #[allow(unused)] pub pseudoclasses: Option<Vec<String>>,  //TODO: implement
 }
 
@@ -347,38 +356,36 @@ fn check_selector_for_match(selector: &Selector, starting_idx: usize, node_being
     let mut node_being_checked = node_being_checked.clone();
     let mut current_idx = starting_idx;
 
-    for (combinator, selector_part) in selector.elements.iter().skip(starting_idx) {
+    for (combinator, selector_type, selector_part) in selector.elements.iter().skip(starting_idx) {
 
         {
             let node_being_checked_borr = node_being_checked.borrow();
 
-            let first_char = selector_part.chars().next();
-            if first_char == Some('#') {
-                let idx_first_char = selector_part.char_indices().nth(1).map(|(i, _)| i).unwrap_or(selector_part.len());
-                let id_to_search = &selector_part[idx_first_char..];
+            match selector_type {
+                SelectorType::Name => {
+                    if node_being_checked_borr.name.is_none() || node_being_checked_borr.name.as_ref().unwrap() != selector_part {
+                        return false;
+                    }
+                },
+                SelectorType::Id => {
+                    let idx_first_char = selector_part.char_indices().nth(1).map(|(i, _)| i).unwrap_or(selector_part.len());
+                    let id_to_search = &selector_part[idx_first_char..];
 
-                let node_id = node_being_checked_borr.get_attribute_value("id");
-                if node_id.is_none() || node_id.unwrap().as_str() != id_to_search {
-                    return false;
-                }
+                    let node_id = node_being_checked_borr.get_attribute_value("id");
+                    if node_id.is_none() || node_id.unwrap().as_str() != id_to_search {
+                        return false;
+                    }
+                },
+                SelectorType::Class => {
+                    let idx_first_char = selector_part.char_indices().nth(1).map(|(i, _)| i).unwrap_or(selector_part.len());
+                    let class_to_search = &selector_part[idx_first_char..];
 
-            } else if first_char == Some('.') {
-
-                let idx_first_char = selector_part.char_indices().nth(1).map(|(i, _)| i).unwrap_or(selector_part.len());
-                let class_to_search = &selector_part[idx_first_char..];
-
-                let all_classes = node_being_checked_borr.get_attribute_value("class");
-                let any_class_match = all_classes.is_some() && all_classes.unwrap().split_whitespace().any(|class| class == class_to_search);
-                if !any_class_match {
-                    return false;
-                }
-
-            } else {
-                //TODO: We now assume this case means match by tagname, but there are more cases, such as the wildcard *
-
-                if node_being_checked_borr.name.is_none() || node_being_checked_borr.name.as_ref().unwrap() != selector_part {
-                    return false;
-                }
+                    let all_classes = node_being_checked_borr.get_attribute_value("class");
+                    let any_class_match = all_classes.is_some() && all_classes.unwrap().split_whitespace().any(|class| class == class_to_search);
+                    if !any_class_match {
+                        return false;
+                    }
+                },
             }
         }
 

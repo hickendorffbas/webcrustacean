@@ -27,6 +27,7 @@ pub enum CssToken {
     Semicolon,
     Comma,
     Colon,
+    Hash,
 
     Whitespace,
 }
@@ -118,6 +119,7 @@ fn lex_css_block(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenW
                     ':' => tokens.push(make_token(css_iterator, CssToken::Colon)),
                     ';' => tokens.push(make_token(css_iterator, CssToken::Semicolon)),
                     '~' => tokens.push(make_token(css_iterator, CssToken::Tilde)),
+                    '#' => tokens.push(make_token(css_iterator, CssToken::Hash)),
 
                     _ => {
                         panic!("invalid state");

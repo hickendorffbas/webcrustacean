@@ -7,6 +7,7 @@ use crate::style::{
     CssCombinator,
     CssProperty,
     Selector,
+    SelectorType,
     StyleRule,
 };
 
@@ -21,7 +22,7 @@ pub fn parse_css(css_tokens: &Vec<CssTokenWithLocation>) -> Vec<StyleRule> {
 }
 
 
-fn parse_statements(style_rules: &mut Vec<StyleRule>, current_selector_context: &mut Vec<(CssCombinator, String)>,
+fn parse_statements(style_rules: &mut Vec<StyleRule>, current_selector_context: &mut Vec<(CssCombinator, SelectorType, String)>,
                     token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) {
     while token_iterator.peek().is_some() {
         match token_iterator.peek().unwrap().css_token {
@@ -34,7 +35,8 @@ fn parse_statements(style_rules: &mut Vec<StyleRule>, current_selector_context: 
 }
 
 
-fn parse_statement(style_rules: &mut Vec<StyleRule>, current_context: &mut Vec<(CssCombinator, String)>, token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) {
+fn parse_statement(style_rules: &mut Vec<StyleRule>, current_context: &mut Vec<(CssCombinator, SelectorType, String)>,
+                   token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) {
     if token_iterator.peek().is_some() {
         match &token_iterator.peek().unwrap().css_token {
             CssToken::AtKeyword(_) => {
@@ -50,10 +52,12 @@ fn parse_statement(style_rules: &mut Vec<StyleRule>, current_context: &mut Vec<(
 }
 
 
-fn parse_selectors(current_selector_context: &mut Vec<(CssCombinator, String)>, token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) -> Vec<Selector> {
+fn parse_selectors(current_selector_context: &mut Vec<(CssCombinator, SelectorType, String)>,
+                   token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>)-> Vec<Selector> {
     let mut selectors = Vec::new();
     let mut selector_elements = current_selector_context.clone();
     let mut next_combinator = CssCombinator::None;
+    let mut next_selector_type = SelectorType::Name;
     let mut parsing_pseudoclass = false;
     let mut current_pseudoclasses = Vec::new();
 
@@ -84,7 +88,7 @@ fn parse_selectors(current_selector_context: &mut Vec<(CssCombinator, String)>, 
                 if parsing_pseudoclass {
                     current_pseudoclasses.push(ident.clone());
                 } else {
-                    selector_elements.push( (next_combinator, ident.clone()) );
+                    selector_elements.push( (next_combinator, next_selector_type, ident.clone()) );
                 }
             },
             CssToken::Whitespace => {
@@ -118,6 +122,14 @@ fn parse_selectors(current_selector_context: &mut Vec<(CssCombinator, String)>, 
                         }
                     }
                 }
+            },
+            CssToken::Dot => {
+                token_iterator.next();
+                next_selector_type = SelectorType::Class;
+            },
+            CssToken::Hash => {
+                token_iterator.next();
+                next_selector_type = SelectorType::Id;
             },
             _ => {
                 todo!(); //TODO: this should be an error
@@ -180,8 +192,23 @@ fn parse_declaration(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) 
                         todo!();
                     }
                 } else if parsed_value.is_none() {
-                    //TODO: can the value span more tokens?
-                    parsed_value = Some(ident.clone());
+
+                    let mut value_buffer = String::from(ident);
+
+                    while token_iterator.peek().is_some() {
+                        match &token_iterator.peek().unwrap().css_token {
+                            CssToken::Identifier(ident) => {
+                                token_iterator.next();
+                                value_buffer.push(' ');
+                                value_buffer.push_str(ident);
+                            },
+                            CssToken::Whitespace => {
+                                token_iterator.next();
+                            },
+                            _ => break,
+                        }
+                    }
+                    parsed_value = Some(value_buffer);
                 } else {
                     todo!(); //TODO: this should be an error (we should have returned already if both are filled)
                 }

@@ -1,6 +1,7 @@
 0.7.0 [UNRELEASED]
 ===================
 - Very basic flex layout support
+- New improved CSS parser
 
 
 0.6.0

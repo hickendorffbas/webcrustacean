@@ -24,6 +24,7 @@ use crate::ui_components::PageComponent;
 use crate::SelectionRect;
 use crate::style::{
     CssProperty,
+    default_css_value,
     get_color_style_value,
     get_property_from_computed_styles,
     has_style_value,
@@ -407,6 +408,15 @@ impl LayoutNode {
                 mut_child.move_node_vertically(y_diff);
             }
         }
+    }
+
+    pub fn get_style_value(&self, property: CssProperty) -> String {
+        if self.from_dom_node.is_none() {
+            return default_css_value(property).to_owned()
+        }
+
+        let dom_node = self.from_dom_node.as_ref().unwrap().borrow();
+        get_property_from_computed_styles(&dom_node.styles, CssProperty::FlexDirection).to_owned()
     }
 
 }
@@ -967,12 +977,7 @@ fn apply_inline_layout(node: &mut LayoutNode, top_left_x: f32, top_left_y: f32, 
 fn apply_flex_layout(node: &mut LayoutNode, top_left_x: f32, top_left_y: f32, current_scroll_y: f32, font_context: &FontContext,
                      force_full_layout: bool, available_width: f32) {
 
-    let flex_dir = {
-        //TODO: we really need a more convinient way to get a style property from a node. Maybe make styles an object with methods?
-        let dom_node = node.from_dom_node.as_ref().unwrap().borrow();
-        String::from(get_property_from_computed_styles(&dom_node.styles, CssProperty::FlexDirection))
-    };
-
+    let flex_dir = node.get_style_value(CssProperty::FlexDirection);
     let mut cursor_x = top_left_x;
     let cursor_y = top_left_y;
     let mut max_height: f32 = 0.0;
@@ -980,17 +985,7 @@ fn apply_flex_layout(node: &mut LayoutNode, top_left_x: f32, top_left_y: f32, cu
     if flex_dir == "row" {
 
         for child in node.children.as_ref().unwrap() {
-
-            let flex_properties = if child.borrow().from_dom_node.is_some() {
-                let child_borr = child.borrow();
-                let dom_child = child_borr.from_dom_node.as_ref().unwrap().borrow();
-                String::from(get_property_from_computed_styles(&dom_child.styles, CssProperty::Flex))
-            } else {
-                //This is an anonymous box, it gets the default flex properties assigned since it participates
-                //TODO: we should get the default css values somehow reused from the css logic without duplicating them
-                String::from("0 1 auto")
-            };
-
+            let flex_properties = child.borrow().get_style_value(CssProperty::Flex);
             let mut flex_property_parts = flex_properties.splitn(3, ' ');
 
             //TODO: you can also specify these 3 properties as seperate properties. I need a parsing utility to just parse all flex properties in the style module

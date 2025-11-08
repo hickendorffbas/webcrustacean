@@ -235,7 +235,11 @@ pub fn get_property_from_computed_styles(styles: &HashMap<CssProperty, String>, 
         return computed_prop.unwrap().as_str();
     }
 
-    //Defaults per css property:
+    return default_css_value(property);
+}
+
+
+pub fn default_css_value(property: CssProperty) -> &'static str {
     return match property {
         CssProperty::BackgroundColor => "white", //TODO: the actual default is "transparent", but we don't support that yet
         CssProperty::Color => "black",

@@ -416,7 +416,7 @@ impl LayoutNode {
         }
 
         let dom_node = self.from_dom_node.as_ref().unwrap().borrow();
-        get_property_from_computed_styles(&dom_node.styles, CssProperty::FlexDirection).to_owned()
+        get_property_from_computed_styles(&dom_node.styles, property).to_owned()
     }
 
 }
@@ -1009,7 +1009,7 @@ fn apply_flex_layout(node: &mut LayoutNode, top_left_x: f32, top_left_y: f32, cu
             compute_layout_for_node(&child, cursor_x, cursor_y, font_context, current_scroll_y, false, force_full_layout, available_width_for_child, true);
             let (_, _, bounding_box_width, bounding_box_height) = RefCell::borrow(child).get_bounding_box();
 
-            cursor_x += bounding_box_width;
+            cursor_x += f32::max(bounding_box_width, available_width_for_child);
             max_height = max_height.max(bounding_box_height);
         }
 

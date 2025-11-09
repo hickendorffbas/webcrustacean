@@ -18,7 +18,52 @@ pub fn parse_css(css_tokens: &Vec<CssTokenWithLocation>) -> Vec<StyleRule> {
     let mut token_iterator = css_tokens.iter().peekable();
 
     parse_statements(&mut style_rules, &mut current_selector_context, &mut token_iterator);
-    return style_rules;
+    return process_shorthands(style_rules);
+}
+
+
+fn process_shorthands(style_rules: Vec<StyleRule>) -> Vec<StyleRule> {
+    let mut resolved_style_rules = Vec::new();
+
+    for style_rule in style_rules {
+
+        match style_rule.property {
+            CssProperty::Flex => {
+
+                //TODO: in reality, this is more complicated, since some of the 3 values can be omitted, but how that is determined
+                //      depends on the values (wether they are percentages or numbers etc.)
+
+                let mut expecting_flex_grow = true;
+                let mut expecting_flex_shrink = true;
+                let mut expecting_flex_basis = true;
+
+                for part in style_rule.value.split(" ") {
+                    if !part.is_empty() {
+
+                        let property = if expecting_flex_grow {
+                            expecting_flex_grow = false;
+                            CssProperty::FlexGrow
+                        } else if expecting_flex_shrink {
+                            expecting_flex_shrink = false;
+                            CssProperty::FlexShrink
+                        } else if expecting_flex_basis {
+                            expecting_flex_basis = false;
+                            CssProperty::FlexBasis
+                        } else {
+                            break;
+                        };
+
+                        resolved_style_rules.push(StyleRule { selector: style_rule.selector.clone(), property, value: part.to_owned() });
+                    }
+                }
+            },
+            _ => {
+                resolved_style_rules.push(style_rule);
+            }
+        }
+    }
+
+    return resolved_style_rules;
 }
 
 
@@ -59,14 +104,14 @@ fn parse_selectors(current_selector_context: &mut Vec<(CssCombinator, SelectorTy
     let mut next_combinator = CssCombinator::None;
     let mut next_selector_type = SelectorType::Name;
     let mut parsing_pseudoclass = false;
-    let mut current_pseudoclasses = Vec::new();
+    let mut current_pseudoclasses = None;
 
     while token_iterator.peek().is_some() {
         match &token_iterator.peek().unwrap().css_token {
             CssToken::OpenBrace => {
                 if !selector_elements.is_empty() {
                     selector_elements.reverse();
-                    selectors.push(Selector { elements: selector_elements, pseudoclasses: Some(current_pseudoclasses) });
+                    selectors.push(Selector { elements: selector_elements, pseudoclasses: current_pseudoclasses });
                 }
 
                 return selectors;
@@ -77,16 +122,20 @@ fn parse_selectors(current_selector_context: &mut Vec<(CssCombinator, SelectorTy
 
                 if !selector_elements.is_empty() {
                     selector_elements.reverse();
-                    selectors.push(Selector { elements: selector_elements, pseudoclasses: Some(current_pseudoclasses) });
+                    selectors.push(Selector { elements: selector_elements, pseudoclasses: current_pseudoclasses });
                     selector_elements = current_selector_context.clone();
-                    current_pseudoclasses = Vec::new();
+                    current_pseudoclasses = None;
                 }
             },
             CssToken::Identifier(ident) => {
                 token_iterator.next();
 
                 if parsing_pseudoclass {
-                    current_pseudoclasses.push(ident.clone());
+                    if current_pseudoclasses.is_none() {
+                        current_pseudoclasses = Some(Vec::new());
+                    }
+
+                    current_pseudoclasses.as_mut().unwrap().push(ident.clone());
                 } else {
                     selector_elements.push( (next_combinator, next_selector_type, ident.clone()) );
                 }

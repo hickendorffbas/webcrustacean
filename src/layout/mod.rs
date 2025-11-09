@@ -985,21 +985,18 @@ fn apply_flex_layout(node: &mut LayoutNode, top_left_x: f32, top_left_y: f32, cu
     if flex_dir == "row" {
 
         for child in node.children.as_ref().unwrap() {
-            let flex_properties = child.borrow().get_style_value(CssProperty::Flex);
-            let mut flex_property_parts = flex_properties.splitn(3, ' ');
 
-            //TODO: you can also specify these 3 properties as seperate properties. I need a parsing utility to just parse all flex properties in the style module
-            #[allow(unused)]  //TODO: implement flex_grow and flex_shrink
-            let (flex_grow, flex_shrink, flex_basis) = (flex_property_parts.next(), flex_property_parts.next(), flex_property_parts.next());
+            //TODO: implement flex_grow and flex_shrink
+            let flex_basis = child.borrow().get_style_value(CssProperty::FlexBasis);
 
-            if flex_basis.is_none() || flex_basis.unwrap() == "auto" {
+            if flex_basis == "auto" {
                 //TODO: implement "auto" and handle value not being present
                 continue;
             }
 
             //TODO: for flex-basis we need to same kind of size determination algoritm that we have for example in tables, since we can have
             //      mixes of pixels, percentages and "auto"
-            let available_width_for_child = if let Some(stripped_flex_basis) = flex_basis.unwrap().strip_suffix('%') {
+            let available_width_for_child = if let Some(stripped_flex_basis) = flex_basis.strip_suffix('%') {
                 if let Ok(flex_basis_percentage) = stripped_flex_basis.trim().parse::<f32>() {
                     available_width * (flex_basis_percentage / 100.0)
                 } else {

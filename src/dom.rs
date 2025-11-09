@@ -362,6 +362,7 @@ impl ElementDomNode {
     }
 
     pub fn dom_property_display(&self) -> DomPropertyDisplay {
+        //TODO: is this actually a DOM property and not just a style value?
         let css_display_property = get_property_from_computed_styles(&self.styles, CssProperty::Display);
         let possible_display = DomPropertyDisplay::from_string(css_display_property);
         if possible_display.is_some() {

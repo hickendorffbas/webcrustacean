@@ -2,8 +2,6 @@
 goals for 0.7.0
        - implement basic flex layout
               - test more basic cases
-              - clean up the way we get css values (especially things like the shorthand properties)
-                     - I think ideally we convert shorthand to explicit on load, and then only use the explicit ones
        - handle redirects better. Its seems reqwest follows them, but our url bar does not update etc. we want to follow them ourselves
        - load javascript and css files linked from a page
        - implement more box layout css options

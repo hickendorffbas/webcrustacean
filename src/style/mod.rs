@@ -24,7 +24,10 @@ pub enum CssProperty {
     Color,
     Display,
     Flex,
+    FlexBasis,
     FlexDirection,
+    FlexGrow,
+    FlexShrink,
     FontWeight,
     FontSize,
     FontStyle,
@@ -37,7 +40,10 @@ impl CssProperty {
             "color" => CssProperty::Color,
             "display" => CssProperty::Display,
             "flex" => CssProperty::Flex,
+            "flex-basis" => CssProperty::FlexBasis,
             "flex-direction" => CssProperty::FlexDirection,
+            "flex-grow" => CssProperty::FlexGrow,
+            "flex-shrink" => CssProperty::FlexShrink,
             "font-weight" => CssProperty::FontWeight,
             "font-size" => CssProperty::FontSize,
             "font-style" => CssProperty::FontStyle,
@@ -253,8 +259,11 @@ pub fn default_css_value(property: CssProperty) -> &'static str {
         CssProperty::BackgroundColor => "white", //TODO: the actual default is "transparent", but we don't support that yet
         CssProperty::Color => "black",
         CssProperty::Display => "inline",
-        CssProperty::Flex => "0 1 auto",
+        CssProperty::Flex => panic!("Defaults for shorthands are not allowed"),
+        CssProperty::FlexBasis => "auto",
         CssProperty::FlexDirection => "row",
+        CssProperty::FlexGrow => "0",
+        CssProperty::FlexShrink => "1",
         CssProperty::FontSize => "18",
         CssProperty::FontStyle => "normal",
         CssProperty::FontWeight => "normal",
@@ -368,20 +377,14 @@ fn check_selector_for_match(selector: &Selector, starting_idx: usize, node_being
                     }
                 },
                 SelectorType::Id => {
-                    let idx_first_char = selector_part.char_indices().nth(1).map(|(i, _)| i).unwrap_or(selector_part.len());
-                    let id_to_search = &selector_part[idx_first_char..];
-
                     let node_id = node_being_checked_borr.get_attribute_value("id");
-                    if node_id.is_none() || node_id.unwrap().as_str() != id_to_search {
+                    if node_id.is_none() || node_id.unwrap().as_str() != selector_part {
                         return false;
                     }
                 },
                 SelectorType::Class => {
-                    let idx_first_char = selector_part.char_indices().nth(1).map(|(i, _)| i).unwrap_or(selector_part.len());
-                    let class_to_search = &selector_part[idx_first_char..];
-
                     let all_classes = node_being_checked_borr.get_attribute_value("class");
-                    let any_class_match = all_classes.is_some() && all_classes.unwrap().split_whitespace().any(|class| class == class_to_search);
+                    let any_class_match = all_classes.is_some() && all_classes.unwrap().split_whitespace().any(|class| class == selector_part);
                     if !any_class_match {
                         return false;
                     }

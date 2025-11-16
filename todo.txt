@@ -7,7 +7,7 @@ goals for 0.7.0
        - implement more box layout css options
        - add ASI to the js parser
        - vertical scroll
-
+              - hide scrollbar(s) when there is nothing to scroll
 
 
 other things (later versions):

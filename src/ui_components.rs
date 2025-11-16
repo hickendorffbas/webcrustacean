@@ -12,6 +12,7 @@ use crate::platform::{
 };
 use crate::selection::Selection;
 use crate::ui::{
+    HEADER_HEIGHT,
     UI_BASIC_COLOR,
     UI_BASIC_DARKER_COLOR,
     UIState,
@@ -78,8 +79,8 @@ impl TextField {
         return TextField { id: get_next_component_id(), x, y, width, height, has_focus: false, cursor_text_position: 0, text: String::new(), select_on_first_click,
                            selection_start_x: 0.0, selection_end_x: 0.0, selection_start_idx: 0, selection_end_idx: 0, font, char_position_mapping: Vec::new() };
     }
-    pub fn render(&self, ui_state: &UIState, platform: &mut Platform, y_offset: f32) {
-        platform.draw_square(self.x, self.y - y_offset, self.width, self.height, Color::BLACK, 255);
+    pub fn render(&self, ui_state: &UIState, platform: &mut Platform, x_offset: f32, y_offset: f32) {
+        platform.draw_square(self.x - x_offset, self.y - y_offset, self.width, self.height, Color::BLACK, 255);
 
         if self.selection_start_x != self.selection_end_x {
             let start_x = if self.selection_start_x < self.selection_end_x { self.selection_start_x } else { self.selection_end_x };
@@ -87,10 +88,10 @@ impl TextField {
 
             let y_start = self.y + TEXT_FIELD_OFFSET_FROM_BORDER;
             let height = self.height - (TEXT_FIELD_OFFSET_FROM_BORDER * 2.0);
-            platform.fill_rect(start_x, y_start - y_offset, end_x - start_x, height, Color::DEFAULT_SELECTION_COLOR, 255);
+            platform.fill_rect(start_x - x_offset, y_start - y_offset, end_x - start_x, height, Color::DEFAULT_SELECTION_COLOR, 255);
         }
 
-        platform.render_text(&self.text, self.x + TEXT_FIELD_OFFSET_FROM_BORDER, self.y + TEXT_FIELD_OFFSET_FROM_BORDER - y_offset, &self.font, Color::BLACK);
+        platform.render_text(&self.text, self.x + TEXT_FIELD_OFFSET_FROM_BORDER - x_offset, self.y + TEXT_FIELD_OFFSET_FROM_BORDER - y_offset, &self.font, Color::BLACK);
 
         if self.has_focus && !self.has_selection_active() {
 
@@ -106,8 +107,8 @@ impl TextField {
                 let cursor_position = relative_cursor_position + self.x + TEXT_FIELD_OFFSET_FROM_BORDER;
                 let cursor_top_bottom_margin = 2.0;
                 let cursor_bottom_pos = (self.y + self.height) - cursor_top_bottom_margin;
-                platform.draw_line(Position { x: cursor_position, y: self.y + cursor_top_bottom_margin - y_offset},
-                                   Position { x: cursor_position, y: cursor_bottom_pos - y_offset },
+                platform.draw_line(Position { x: cursor_position - x_offset, y: self.y + cursor_top_bottom_margin - y_offset},
+                                   Position { x: cursor_position - x_offset, y: cursor_bottom_pos - y_offset },
                                    Color::BLACK);
             }
         }
@@ -305,9 +306,10 @@ impl Button {
         return Button { id: get_next_component_id(), x, y, width, height, has_focus: false, text, font: Font::default()};
     }
 
-    pub fn render(&self, platform: &mut Platform, y_offset: f32) {
-        platform.draw_square(self.x, self.y - y_offset, self.width, self.height, Color::BLACK, 255);
-        platform.render_text(&self.text, self.x + BUTTON_TEXT_OFFSET_FROM_BORDER, self.y + BUTTON_TEXT_OFFSET_FROM_BORDER - y_offset, &self.font, Color::BLACK);
+    pub fn render(&self, platform: &mut Platform, x_offset: f32, y_offset: f32) {
+        platform.draw_square(self.x - x_offset, self.y - y_offset, self.width, self.height, Color::BLACK, 255);
+        platform.render_text(&self.text, self.x + BUTTON_TEXT_OFFSET_FROM_BORDER - x_offset, self.y + BUTTON_TEXT_OFFSET_FROM_BORDER - y_offset,
+                             &self.font, Color::BLACK);
     }
 
     pub fn click(&mut self) {
@@ -387,86 +389,117 @@ impl NavigationButton {
 }
 
 
-const MINIMUM_SCOLLBLOCK_HEIGHT: f32 = 25.0;
+const MINIMUM_SCOLLBLOCK_SIZE: f32 = 25.0;
 
 pub struct Scrollbar {
-    //NOTE: for now this is only a vertical scrollbar
-    //TODO: make it generic for direction, or add another component for horizontal scrolling
+
+    pub vertical: bool,
 
     pub x: f32,
     pub y: f32,
     pub width: f32,
     pub height: f32,
 
-    pub block_height: f32,
-    pub block_y: f32,
+    pub block_size: f32,
+    pub block_position: f32, //TODO: might be better in relative terms? (i.e. how many pixels the block has progressed on the bar)
 
     pub content_size: f32,
-    pub content_viewport_height: f32,
+    pub content_viewport_size: f32,
 
     pub enabled: bool,
 }
 impl Scrollbar {
     pub fn render(&self, platform: &mut Platform) {
         platform.fill_rect(self.x, self.y, self.width, self.height, UI_BASIC_COLOR, 255);
+
         if self.enabled {
-            platform.fill_rect(self.x, self.block_y, self.width, self.block_height, UI_BASIC_DARKER_COLOR, 255);
+            if self.vertical {
+                platform.fill_rect(self.x, self.block_position, self.width, self.block_size, UI_BASIC_DARKER_COLOR, 255);
+            } else {
+                platform.fill_rect(self.block_position, self.y, self.block_size, self.height, UI_BASIC_DARKER_COLOR, 255);
+            }
         }
     }
 
-    pub fn scroll(&mut self, moved_y: f32, content_scroll_y: f32) -> f32 {
+    pub fn scroll(&mut self, moved: f32, content_scroll: f32) -> f32 {
         if !self.enabled {
-            return content_scroll_y;
+            return content_scroll;
         }
 
-        let movable_space = self.height - self.block_height;
-        let relatively_moved = moved_y / movable_space;
-        let content_scroll_y_diff = (self.content_size - self.content_viewport_height) * relatively_moved;
-        return self.update_scroll(content_scroll_y + content_scroll_y_diff);
+        let movable_space = if self.vertical {
+            self.height - self.block_size
+        } else {
+            self.width - self.block_size
+        };
+
+        let relatively_moved = moved / movable_space;
+        let content_scroll_diff = (self.content_size - self.content_viewport_size) * relatively_moved;
+        return self.update_scroll(content_scroll + content_scroll_diff);
     }
 
-    pub fn update_content_viewport_size(&mut self, content_viewport_width: f32, content_viewport_height: f32, content_scroll_y: f32) {
-        self.content_viewport_height = content_viewport_height;
-        self.height = content_viewport_height;
-        self.x = content_viewport_width;
-        self.update_content_size(self.content_size, content_scroll_y);
+    pub fn update_content_viewport_size(&mut self, content_viewport_width: f32, content_viewport_height: f32, content_scroll: f32) {
+        if self.vertical {
+            self.content_viewport_size = content_viewport_height;
+            self.height = content_viewport_height;
+            self.x = content_viewport_width; //TODO: the x should be controlled from the outside, because they decide where this component is
+        } else {
+            self.content_viewport_size = content_viewport_width;
+            self.width = content_viewport_width;
+            self.y = content_viewport_height + HEADER_HEIGHT; //TODO: the y should be controlled from the outside, because they decide where this component is
+        }
+        self.update_content_size(self.content_size, content_scroll);
     }
 
-    pub fn update_content_size(&mut self, new_content_size: f32, content_scroll_y: f32) -> f32 {
+    pub fn update_content_size(&mut self, new_content_size: f32, old_content_scroll: f32) -> f32 {
         self.content_size = new_content_size;
 
-        self.enabled = self.content_size > self.content_viewport_height;
-        let relative_size_of_scroll_block = f32::min(self.content_viewport_height / self.content_size, 1.0);
-        self.block_height = f32::max(relative_size_of_scroll_block * self.height, MINIMUM_SCOLLBLOCK_HEIGHT);
+        self.enabled = self.content_size > self.content_viewport_size;
+        let relative_size_of_scroll_block = f32::min(self.content_viewport_size / self.content_size, 1.0);
 
-        return self.update_scroll(content_scroll_y);
+        if self.vertical {
+            self.block_size = f32::max(relative_size_of_scroll_block * self.height, MINIMUM_SCOLLBLOCK_SIZE);
+        } else {
+            self.block_size = f32::max(relative_size_of_scroll_block * self.width, MINIMUM_SCOLLBLOCK_SIZE);
+        }
+
+        return self.update_scroll(old_content_scroll);
     }
 
-    pub fn update_scroll(&mut self, content_scroll_y: f32) -> f32 {
-        let new_content_scroll_y = self.clamp_scroll_position(content_scroll_y);
+    pub fn update_scroll(&mut self, old_content_scroll: f32) -> f32 {
+        let new_content_scroll = self.clamp_scroll_position(old_content_scroll);
 
-        let scrollblock_distance_per_page_y = (self.height - self.block_height) / (self.content_size - self.content_viewport_height);
-        self.block_y = scrollblock_distance_per_page_y * new_content_scroll_y + self.y;
+        if self.vertical {
+            let scrollblock_distance_per_page_y = (self.height - self.block_size) / (self.content_size - self.content_viewport_size);
+            self.block_position = scrollblock_distance_per_page_y * new_content_scroll + self.y;
+        } else {
+            let scrollblock_distance_per_page_x = (self.width - self.block_size) / (self.content_size - self.content_viewport_size);
+            self.block_position = scrollblock_distance_per_page_x * new_content_scroll + self.x;
+        }
 
-        return new_content_scroll_y;
+        return new_content_scroll;
     }
 
     pub fn is_on_scrollblock(&self, x: f32, y: f32) -> bool {
-        return self.x       <= x && (self.x + self.width)              >= x &&
-               self.block_y <= y && (self.block_y + self.block_height) >= y;
+        if self.vertical {
+            return self.x              <= x && (self.x + self.width)                   >= x &&
+                   self.block_position <= y && (self.block_position + self.block_size) >= y;
+        } else {
+            return self.y              <= y && (self.y + self.height)                  >= y &&
+                   self.block_position <= x && (self.block_position + self.block_size) >= x;
+        }
     }
 
-    fn clamp_scroll_position(&self, content_scroll_y: f32) -> f32 {
-        if content_scroll_y < 0.0 {
+    fn clamp_scroll_position(&self, content_scroll: f32) -> f32 {
+        if content_scroll < 0.0 {
             return 0.0;
         }
-        let mut max_scroll_y = (self.content_size + 1.0) - self.content_viewport_height;
-        if max_scroll_y < 0.0 {
-            max_scroll_y = 0.0;
+        let mut max_scroll = (self.content_size + 1.0) - self.content_viewport_size;
+        if max_scroll < 0.0 {
+            max_scroll = 0.0;
         }
-        if content_scroll_y > max_scroll_y {
-            return max_scroll_y;
+        if content_scroll > max_scroll {
+            return max_scroll;
         }
-        return content_scroll_y;
+        return content_scroll;
     }
 }

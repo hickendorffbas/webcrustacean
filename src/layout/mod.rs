@@ -54,6 +54,15 @@ impl FullLayout {
             _ => { panic!("Root node always should be a box layout node"); }
         }
     }
+    pub fn page_width(&self) -> f32 {
+        let node = RefCell::borrow(&self.root_node);
+        match &node.content {
+            LayoutNodeContent::AreaLayoutNode(area_node) => {
+                return area_node.css_box.width;
+            },
+            _ => { panic!("Root node always should be a box layout node"); }
+        }
+    }
     pub fn new_empty() -> FullLayout {
         //Note that we we create a 1x1 box even for an empty layout, since we need a box to render it (for example when the first page is still loading)
 
@@ -233,19 +242,19 @@ impl LayoutNode {
         }
     }
 
-    pub fn visible_on_y_location(&self, y_location: f32, screen_height: f32) -> bool {
+    pub fn visible_on_location(&self, x: f32, y: f32, width: f32, height: f32) -> bool {
         if !self.visible { return false; }
 
         match &self.content {
             LayoutNodeContent::TextLayoutNode(text_node) => {
-                return text_node.css_text_boxes.iter().any(|text_box| -> bool {text_box.css_box.is_visible_on_y_location(y_location, screen_height)});
+                return text_node.css_text_boxes.iter().any(|text_box| -> bool {text_box.css_box.is_visible_on_location(x, y, width, height)});
             },
-            LayoutNodeContent::ImageLayoutNode(image_node) => { return image_node.css_box.is_visible_on_y_location(y_location, screen_height); },
-            LayoutNodeContent::ButtonLayoutNode(button_node) => { return button_node.css_box.is_visible_on_y_location(y_location, screen_height); }
-            LayoutNodeContent::TextInputLayoutNode(text_input_node) => { return text_input_node.css_box.is_visible_on_y_location(y_location, screen_height); }
-            LayoutNodeContent::AreaLayoutNode(box_node) => { return box_node.css_box.is_visible_on_y_location(y_location, screen_height); },
-            LayoutNodeContent::TableLayoutNode(table_node) => { return table_node.css_box.is_visible_on_y_location(y_location, screen_height); }
-            LayoutNodeContent::TableCellLayoutNode(cell_node) => { return cell_node.css_box.is_visible_on_y_location(y_location, screen_height); }
+            LayoutNodeContent::ImageLayoutNode(image_node) => { return image_node.css_box.is_visible_on_location(x, y, width, height); },
+            LayoutNodeContent::ButtonLayoutNode(button_node) => { return button_node.css_box.is_visible_on_location(x, y, width, height); }
+            LayoutNodeContent::TextInputLayoutNode(text_input_node) => { return text_input_node.css_box.is_visible_on_location(x, y, width, height); }
+            LayoutNodeContent::AreaLayoutNode(box_node) => { return box_node.css_box.is_visible_on_location(x, y, width, height); },
+            LayoutNodeContent::TableLayoutNode(table_node) => { return table_node.css_box.is_visible_on_location(x, y, width, height); }
+            LayoutNodeContent::TableCellLayoutNode(cell_node) => { return cell_node.css_box.is_visible_on_location(x, y, width, height); }
             LayoutNodeContent::NoContent => { return false; }
         }
     }
@@ -461,14 +470,24 @@ impl CssBox {
     pub fn empty() -> CssBox {
         return CssBox { x: 0.0, y: 0.0, width: 0.0, height: 0.0 };
     }
-    pub fn is_visible_on_y_location(&self, y: f32, screen_height: f32) -> bool {
-        //TODO: we are asking for "screen_height" here. Should that not be "content_height" ?
-        let top_of_node = self.y;
-        let top_of_view = y;
-        let bottom_of_node = top_of_node + self.height;
-        let bottom_of_view = top_of_view + screen_height;
+    pub fn is_visible_on_location(&self, x: f32, y: f32, width: f32, height: f32) -> bool {
+        let y_top_of_node = self.y;
+        let y_top_of_view = y;
+        let y_bottom_of_node = y_top_of_node + self.height;
+        let y_bottom_of_view = y_top_of_view + height;
 
-        return !(top_of_node > bottom_of_view || bottom_of_node < top_of_view);
+        let vert_visible = !(y_top_of_node > y_bottom_of_view || y_bottom_of_node < y_top_of_view);
+        if !vert_visible {
+            return false;
+        }
+
+        let x_top_of_node = self.x;
+        let x_top_of_view = x;
+        let x_bottom_of_node = x_top_of_node + self.width;
+        let x_bottom_of_view = x_top_of_view + width;
+
+        let hori_visible = !(x_top_of_node > x_bottom_of_view || x_bottom_of_node < x_top_of_view);
+        return hori_visible;
     }
 }
 

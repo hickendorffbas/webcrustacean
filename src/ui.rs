@@ -29,7 +29,7 @@ pub const HEADER_HEIGHT: f32 = 50.0;
 pub const UI_BASIC_COLOR: Color = Color::new(212, 208, 200);
 pub const UI_BASIC_DARKER_COLOR: Color = Color::new(116, 107, 90);
 
-pub const MAIN_SCROLLBAR_WIDTH: f32 = 20.0;
+pub const SCROLLBARS_WIDTH: f32 = 20.0;
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -37,7 +37,8 @@ pub enum FocusTarget {
     None,
     MainContent,
     AddressBar,
-    ScrollBlock, //TODO: eventually we could have more scrollbars, so maybe make scrollbars page components
+    ScrollBlockVert, //TODO: eventually we could have more scrollbars, so maybe make scrollbars page components
+    ScrollBlockHori,
     Component(Rc<RefCell<PageComponent>>),
 }
 
@@ -50,6 +51,7 @@ pub struct WindowDimensions {
 
 pub struct UIState {
     pub addressbar: TextField,
+    pub current_scroll_x: f32,
     pub current_scroll_y: f32,
     pub back_button: NavigationButton,
     pub forward_button: NavigationButton,
@@ -57,28 +59,47 @@ pub struct UIState {
     pub currently_loading_page: bool,
     pub animation_tick: u32,
     pub focus_target: FocusTarget,
-    pub main_scrollbar: Scrollbar, //TODO: eventually this should become a dynamic page component in the list, because there might be more than 1 scrollbar
+    pub main_scrollbar_vert: Scrollbar, //TODO: eventually this should become a dynamic page component in the list, because there might be more than 1 scrollbar
+    pub main_scrollbar_hori: Scrollbar,
     pub window_dimensions: WindowDimensions,
 }
 impl UIState {
     pub fn new(screen_width: f32, screen_height: f32) -> UIState {
 
-        let scrollbar_x_pos = screen_width - MAIN_SCROLLBAR_WIDTH;
-        let scrollbar_height = screen_height - HEADER_HEIGHT;
-        let main_scrollbar = Scrollbar {
-            x: scrollbar_x_pos,
-            y: HEADER_HEIGHT,
-            width: screen_width - scrollbar_x_pos,
-            height: scrollbar_height,
+        let main_vertical_scrollbar = {
+            let scrollbar_height = screen_height - HEADER_HEIGHT - SCROLLBARS_WIDTH;
+
+            Scrollbar {
+                vertical: true,
+                x: screen_width - SCROLLBARS_WIDTH,
+                y: HEADER_HEIGHT,
+                width: SCROLLBARS_WIDTH,
+                height: scrollbar_height,
+                content_size: 0.0,
+                content_viewport_size: 0.0,
+                block_size: scrollbar_height,
+                block_position: HEADER_HEIGHT,
+                enabled: false,
+            }
+        };
+
+        //TODO: go via a constructor (or 2, one horizontal, one vertical, for easier understanding of values)
+        let main_horizontal_scrollbar = Scrollbar {
+            vertical: false,
+            x: 0.0,
+            y: screen_height - SCROLLBARS_WIDTH,
+            width: screen_width,
+            height: SCROLLBARS_WIDTH,
             content_size: 0.0,
-            content_viewport_height: 0.0,
-            block_height: scrollbar_height,
-            block_y: HEADER_HEIGHT,
+            content_viewport_size: 0.0,
+            block_size: screen_width - SCROLLBARS_WIDTH,
+            block_position: 0.0,
             enabled: false,
         };
 
         let mut ui_state = UIState {
             addressbar: TextField::new(100.0, 10.0, screen_width - 200.0, 35.0, true),
+            current_scroll_x: 0.0,
             current_scroll_y: 0.0,
             back_button: NavigationButton { x: 15.0, y: 15.0, forward: false, enabled: false },
             forward_button: NavigationButton { x: 55.0, y: 15.0, forward: true, enabled: false },
@@ -86,7 +107,8 @@ impl UIState {
             currently_loading_page: false,
             animation_tick: 0,
             focus_target: FocusTarget::None,
-            main_scrollbar: main_scrollbar,
+            main_scrollbar_vert: main_vertical_scrollbar,
+            main_scrollbar_hori: main_horizontal_scrollbar,
             window_dimensions: WindowDimensions { screen_height, screen_width, content_viewport_height: 0.0, content_viewport_width: 0.0 },
         };
 
@@ -99,11 +121,15 @@ impl UIState {
         self.window_dimensions.screen_width = screen_width;
         self.window_dimensions.screen_height = screen_height;
 
-        self.window_dimensions.content_viewport_width = screen_width - MAIN_SCROLLBAR_WIDTH;
-        self.window_dimensions.content_viewport_height = screen_height - HEADER_HEIGHT;
+        self.window_dimensions.content_viewport_width = screen_width - SCROLLBARS_WIDTH;
+        self.window_dimensions.content_viewport_height = screen_height - HEADER_HEIGHT - SCROLLBARS_WIDTH;
 
-        self.main_scrollbar.update_content_viewport_size(self.window_dimensions.content_viewport_width,
-                                                         self.window_dimensions.content_viewport_height, self.current_scroll_y);
+        self.main_scrollbar_vert.update_content_viewport_size(self.window_dimensions.content_viewport_width,
+                                                              self.window_dimensions.content_viewport_height, self.current_scroll_y);
+
+        self.main_scrollbar_hori.update_content_viewport_size(self.window_dimensions.content_viewport_width,
+                                                              self.window_dimensions.content_viewport_height, self.current_scroll_y);
+
         self.addressbar.width = screen_width - 200.0;
     }
 }
@@ -112,7 +138,8 @@ pub fn render_ui(platform: &mut Platform, ui_state: &mut UIState) {
     update_animation_state(ui_state);
     render_header(platform, ui_state);
 
-    ui_state.main_scrollbar.render(platform);
+    ui_state.main_scrollbar_vert.render(platform);
+    ui_state.main_scrollbar_hori.render(platform);
 }
 
 
@@ -145,7 +172,8 @@ pub fn handle_keyboard_input(platform: &mut Platform, input: Option<&String>, ke
         FocusTarget::AddressBar => {
             ui_state.addressbar.handle_keyboard_input(platform, input, key_code);
         },
-        FocusTarget::ScrollBlock => {},
+        FocusTarget::ScrollBlockVert => {},
+        FocusTarget::ScrollBlockHori => {},
         FocusTarget::Component(component) => {
             match component.borrow_mut().deref_mut() {
                 PageComponent::Button(_) => {
@@ -180,8 +208,10 @@ pub fn handle_possible_ui_mouse_down(root_layout_node: &Rc<RefCell<LayoutNode>>,
         ui_state.focus_target = FocusTarget::AddressBar;
         ui_state.addressbar.mouse_down(x, y);
         any_text_field_has_focus = true;
-    } else if ui_state.main_scrollbar.is_on_scrollblock(x, y) {
-        ui_state.focus_target = FocusTarget::ScrollBlock;
+    } else if ui_state.main_scrollbar_hori.is_on_scrollblock(x, y) {
+        ui_state.focus_target = FocusTarget::ScrollBlockHori;
+    } else if ui_state.main_scrollbar_vert.is_on_scrollblock(x, y) {
+        ui_state.focus_target = FocusTarget::ScrollBlockVert;
     } else {
 
         let mut component_found = false;
@@ -236,7 +266,8 @@ fn clear_other_focus(ui_state: &mut UIState, document: &RefCell<Document>) {
     match &ui_state.focus_target {
         FocusTarget::None => {},
         FocusTarget::MainContent => {},
-        FocusTarget::ScrollBlock => {},
+        FocusTarget::ScrollBlockVert => {},
+        FocusTarget::ScrollBlockHori => {},
         FocusTarget::AddressBar => { addressbar_has_focus = true; },
         FocusTarget::Component(component) => {
             component_id_with_focus = Some(component.borrow().get_id())
@@ -281,7 +312,7 @@ fn render_header(platform: &mut Platform, ui_state: &UIState) {
 
     ui_state.back_button.render(platform);
     ui_state.forward_button.render(platform);
-    ui_state.addressbar.render(&ui_state, platform, 0.0);
+    ui_state.addressbar.render(&ui_state, platform, 0.0, 0.0);
 }
 
 

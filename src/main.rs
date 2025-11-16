@@ -195,7 +195,9 @@ fn main() -> Result<(), String> {
             }
         }
 
-        ui_state.current_scroll_y = ui_state.main_scrollbar.update_content_size(full_layout_tree.borrow().page_height(), ui_state.current_scroll_y);
+        ui_state.current_scroll_y = ui_state.main_scrollbar_vert.update_content_size(full_layout_tree.borrow().page_height(), ui_state.current_scroll_y);
+        ui_state.current_scroll_x = ui_state.main_scrollbar_hori.update_content_size(full_layout_tree.borrow().page_width(), ui_state.current_scroll_x);
+
 
         #[cfg(feature="timings")] let start_event_pump_instant = Instant::now();
         for event in event_pump.poll_iter() {
@@ -212,7 +214,7 @@ fn main() -> Result<(), String> {
                         _ => {},
                     }
                 }
-                SdlEvent::MouseMotion { x: mouse_x, y: mouse_y, yrel, .. } => {
+                SdlEvent::MouseMotion { x: mouse_x, y: mouse_y, xrel, yrel, .. } => {
                     mouse_state.x = mouse_x;
                     mouse_state.y = mouse_y;
 
@@ -233,8 +235,11 @@ fn main() -> Result<(), String> {
                             FocusTarget::AddressBar => {
                                 ui_state.addressbar.update_selection(&selection);
                             },
-                            FocusTarget::ScrollBlock => {
-                                ui_state.current_scroll_y = ui_state.main_scrollbar.scroll(yrel as f32, ui_state.current_scroll_y);
+                            FocusTarget::ScrollBlockHori => {
+                                ui_state.current_scroll_x = ui_state.main_scrollbar_hori.scroll(xrel as f32, ui_state.current_scroll_x);
+                            },
+                            FocusTarget::ScrollBlockVert => {
+                                ui_state.current_scroll_y = ui_state.main_scrollbar_vert.scroll(yrel as f32, ui_state.current_scroll_y);
                             },
                             FocusTarget::Component(ref mut component) => {
                                 match component.borrow_mut().deref_mut() {
@@ -264,7 +269,7 @@ fn main() -> Result<(), String> {
                     mouse_state.left_down = false;
 
                     match ui_state.focus_target {
-                        FocusTarget::ScrollBlock => { ui_state.focus_target = FocusTarget::None; }
+                        FocusTarget::ScrollBlockHori | FocusTarget::ScrollBlockVert => { ui_state.focus_target = FocusTarget::None; }
                         _ => {}
                     };
 
@@ -282,12 +287,18 @@ fn main() -> Result<(), String> {
                         }
                     }
                 },
-                SdlEvent::MouseWheel { y, direction, .. } => {
+                SdlEvent::MouseWheel { x, y, direction, .. } => {
                     match direction {
                         sdl2::mouse::MouseWheelDirection::Normal => {
                             //TODO: someday it might be nice to implement smooth scrolling (animate the movement over frames)
-                            let new_page_scroll_y = ui_state.current_scroll_y - (y * SCROLL_SPEED) as f32;
-                            ui_state.current_scroll_y = ui_state.main_scrollbar.update_scroll(new_page_scroll_y);
+                            if x != 0 {
+                                let new_page_scroll_x = ui_state.current_scroll_x - (x * -1 * SCROLL_SPEED) as f32;
+                                ui_state.current_scroll_x = ui_state.main_scrollbar_hori.update_scroll(new_page_scroll_x);
+                            }
+                            if y != 0 {
+                                let new_page_scroll_y = ui_state.current_scroll_y - (y * SCROLL_SPEED) as f32;
+                                ui_state.current_scroll_y = ui_state.main_scrollbar_vert.update_scroll(new_page_scroll_y);
+                            }
                         },
                         sdl2::mouse::MouseWheelDirection::Flipped => {},
                         sdl2::mouse::MouseWheelDirection::Unknown(_) => debug_log_warn("Unknown mousewheel direction!"),
@@ -312,7 +323,8 @@ fn main() -> Result<(), String> {
                                             text_for_clipboard = ui_state.addressbar.get_selected_text();
                                         }
                                     },
-                                    FocusTarget::ScrollBlock => {},
+                                    FocusTarget::ScrollBlockHori => {},
+                                    FocusTarget::ScrollBlockVert => {},
                                     FocusTarget::Component(ref component) => {
                                         match *component.borrow() {
                                             PageComponent::Button(_) => {}, //There is nothing to copy from a button
@@ -352,7 +364,8 @@ fn main() -> Result<(), String> {
                         match ui_state.focus_target {
                             FocusTarget::None => {},
                             FocusTarget::MainContent => {},
-                            FocusTarget::ScrollBlock => {},
+                            FocusTarget::ScrollBlockHori => {},
+                            FocusTarget::ScrollBlockVert => {},
                             FocusTarget::AddressBar => {
                                 //TODO: I still don't understand how this interacts with TextInput below. Why only handle enter here?
                                 if keycode.unwrap().name() == "Return" {

@@ -237,8 +237,17 @@ fn parse_declaration(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) 
                     if parsed_property.is_none() {
                         debug_log_warn(format!("Unknown css property: {}", ident));
 
-                        //TODO: consume all until ; or {  (maybe others?)
-                        todo!();
+                        //Skip the value of this property
+                        while token_iterator.peek().is_some() {
+                            match &token_iterator.peek().unwrap().css_token {
+                                CssToken::Semicolon => {
+                                    break;
+                                },
+                                _ => {
+                                    token_iterator.next();
+                                },
+                            }
+                        }
                     }
                 } else if parsed_value.is_none() {
 

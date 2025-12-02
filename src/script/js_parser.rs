@@ -86,7 +86,7 @@ fn parse_statement(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserS
         },
         JsToken::KeyWordReturn => {
             parser_state.next();
-            return match pratt_parse_expression(tokens, parser_state, 0) {
+            return match pratt_parse_expression(tokens, parser_state, 0, false) {
                 ParseResult::Ok(expr) => Some(ParseResult::Ok(JsAstStatement::Return(expr))),
                 ParseResult::ParsingFailed(parse_error) => Some(ParseResult::ParsingFailed(parse_error)),
             }
@@ -120,7 +120,7 @@ fn parse_statement(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserS
         _ => {},
     }
 
-    let expression_result = pratt_parse_expression(tokens, parser_state, 0);
+    let expression_result = pratt_parse_expression(tokens, parser_state, 0, false);
     match expression_result {
         ParseResult::Ok(result) => {
             match &tokens[parser_state.cursor].token {
@@ -136,7 +136,8 @@ fn parse_statement(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserS
 }
 
 
-fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState, min_binding_power: u8) -> ParseResult<JsAstExpression> {
+fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState, min_binding_power: u8,
+                          needs_assignment_expression: bool) -> ParseResult<JsAstExpression> {
 
     let mut lhs = match parse_expression_prefix(tokens, parser_state) {
         ParseResult::Ok(result) => result,
@@ -147,22 +148,22 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
 
         if parser_state.has_ended() { return ParseResult::ParsingFailed(ParseError::error_for_token(ParseErrorType::EOF, &tokens[parser_state.cursor - 1])) };
 
-        match &tokens[parser_state.cursor].token {
-            JsToken::Semicolon | JsToken::CloseParenthesis | JsToken::CloseBrace | JsToken::CloseBracket | JsToken::Comma => {
+        match (&tokens[parser_state.cursor].token, needs_assignment_expression) {
+            (JsToken::Semicolon, _) | (JsToken::CloseParenthesis, _) | (JsToken::CloseBrace, _) | (JsToken::CloseBracket, _) | (JsToken::Comma, true) => {
                 //we can pop back to the previous level of parsing:
                 break;
             },
-            JsToken::Newline => {
+            (JsToken::Newline, _) => {
                 //TODO: here something might need to happen wrt to deciding if we should insert a semicolon (stop parsing the statement)
                 parser_state.next();
                 continue;
             },
 
             //postfix operator parsing:
-            JsToken::OpenBracket => {
+            (JsToken::OpenBracket, _) => {
                 parser_state.next();
 
-                let index_node = match pratt_parse_expression(tokens, parser_state, min_binding_power) {
+                let index_node = match pratt_parse_expression(tokens, parser_state, min_binding_power, true) {
                     ParseResult::Ok(index_expression) => JsAstExpression::BinOp(JsAstBinOp {
                         op: JsBinOp::PropertyAccess, left: Rc::from(lhs), right: Rc::from(index_expression)
                     }),
@@ -206,7 +207,7 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
             JsToken::Assign => {
                 parser_state.next();
 
-                let rhs = match pratt_parse_expression(tokens, parser_state, right_bp) {
+                let rhs = match pratt_parse_expression(tokens, parser_state, right_bp, true) {
                     ParseResult::Ok(rhs) => rhs,
                     ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
                 };
@@ -214,9 +215,9 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
             },
 
             binop @ (JsToken::Plus | JsToken::Minus | JsToken::Star | JsToken::ForwardSlash |
-                     JsToken::EqualsEquals | JsToken::LogicalAnd | JsToken::LogicalOr) => {
+                     JsToken::EqualsEquals | JsToken::LogicalAnd | JsToken::LogicalOr | JsToken::Comma) => {
                 parser_state.next();
-                let rhs = match pratt_parse_expression(tokens, parser_state, right_bp) {
+                let rhs = match pratt_parse_expression(tokens, parser_state, right_bp, true) {
                     ParseResult::Ok(rhs) => rhs,
                     ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
                 };
@@ -229,6 +230,7 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                     JsToken::EqualsEquals => { lhs = JsAstExpression::BinOp(JsAstBinOp { op: JsBinOp::EqualsEquals, left: Rc::from(lhs), right: Rc::from(rhs) }); }
                     JsToken::LogicalAnd => { lhs = JsAstExpression::BinOp(JsAstBinOp { op: JsBinOp::LogicalAnd, left: Rc::from(lhs), right: Rc::from(rhs) }); }
                     JsToken::LogicalOr => { lhs = JsAstExpression::BinOp(JsAstBinOp { op: JsBinOp::LogicalOr, left: Rc::from(lhs), right: Rc::from(rhs) }); }
+                    JsToken::Comma => { lhs = JsAstExpression::BinOp(JsAstBinOp { op: JsBinOp::Comma, left: Rc::from(lhs), right: Rc::from(rhs) }); }
 
                     _ => panic!("This should never happen"),
                 }
@@ -267,7 +269,7 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
 
             let right_bp = prefix_binding_power(operator);
 
-            match pratt_parse_expression(tokens, parser_state, right_bp) {
+            match pratt_parse_expression(tokens, parser_state, right_bp, true) {
                 ParseResult::Ok(rhs) => {
                     let un_op = match operator {
                         JsToken::Minus => JsUnOp::Minus,
@@ -344,7 +346,7 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
                     }
                 }
 
-                match pratt_parse_expression(tokens, parser_state, 0) {
+                match pratt_parse_expression(tokens, parser_state, 0, true) {
                     ParseResult::Ok(expression) => members.push((JsAstExpression::StringLiteral(current_property_name.clone()), expression)),
                     ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
                 }
@@ -379,7 +381,7 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
                     }
                 }
 
-                match pratt_parse_expression(tokens, parser_state, 0) {
+                match pratt_parse_expression(tokens, parser_state, 0, true) {
                     ParseResult::Ok(expression) => elements.push(expression),
                     ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
                 }
@@ -483,7 +485,7 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
             let function_expression = Rc::from(match &tokens[parser_state.cursor].token {
                 JsToken::OpenParenthesis => {
                     parser_state.next();
-                    match pratt_parse_expression(tokens, parser_state, 0) {
+                    match pratt_parse_expression(tokens, parser_state, 0, true) {
                         ParseResult::Ok(expression) => expression,
                         ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
                     }
@@ -516,7 +518,7 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
         JsToken::OpenParenthesis => {
             parser_state.next();
 
-            match pratt_parse_expression(tokens, parser_state, 0) {
+            match pratt_parse_expression(tokens, parser_state, 0, false) {
                 ParseResult::Ok(expression) => {
 
                     match &tokens[parser_state.cursor].token {
@@ -561,7 +563,7 @@ fn parse_list_of_expressions(tokens: &Vec<JsTokenWithLocation>, parser_state: &m
                 if !first { return ParseResult::ParsingFailed(ParseError::error_for_token(ParseErrorType::ExpectedEndOfArgumentList, &tokens[parser_state.cursor])) }
             },
         }
-        match pratt_parse_expression(tokens, parser_state, 0) {
+        match pratt_parse_expression(tokens, parser_state, 0, true) {
             ParseResult::Ok(expression) => {
                 arguments.push(expression);
             },
@@ -585,7 +587,8 @@ fn prefix_binding_power(token: &JsToken) -> u8 {
 
 fn infix_binding_power(token: &JsToken) -> (u8, u8) {
     match token {
-        JsToken::Assign => (2, 1),
+        JsToken::Comma => (0, 1),
+        JsToken::Assign => (1, 2),
         JsToken::LogicalOr => (3, 4),
         JsToken::LogicalAnd => (4, 5),
         JsToken::EqualsEquals => (7, 8),
@@ -704,7 +707,7 @@ fn parse_conditional(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Parse
         }
     }
 
-    let condition = match pratt_parse_expression(tokens, parser_state, 0) {
+    let condition = match pratt_parse_expression(tokens, parser_state, 0, false) {
         ParseResult::Ok(expression) => expression,
         ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
     };
@@ -846,7 +849,7 @@ fn parse_declaration(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Parse
             },
             JsToken::Assign => {
                 parser_state.next();
-                match pratt_parse_expression(tokens, parser_state, 0) {
+                match pratt_parse_expression(tokens, parser_state, 0, true) {
                     ParseResult::Ok(expression) => {
                         declarations.push(JsAstDeclaration { variable: ident, initial_value: Some(expression), decl_type });
                     },

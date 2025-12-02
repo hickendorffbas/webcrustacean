@@ -307,7 +307,6 @@ fn test_new_object_with_newlines() {
 }
 
 
-
 #[test]
 fn test_anonymous_function() {
     let code = r#"(function (w) { tester.export(w); })(13);"#;
@@ -318,4 +317,18 @@ fn test_anonymous_function() {
     interpreter.run_script(&script);
 
     assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(13)));
+}
+
+
+#[test]
+fn test_comma_operator() {
+    let code = r#"var x = (1, 2, 5);
+        tester.export(x);"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens);
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(5)));
 }

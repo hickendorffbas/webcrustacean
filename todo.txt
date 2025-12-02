@@ -8,6 +8,7 @@ goals for 0.7.0
        - add ASI to the js parser
        - vertical scroll
               - hide scrollbar(s) when there is nothing to scroll
+              - fix the bottom right square next to the scrollbars (make it default UI color)
 
 
 other things (later versions):

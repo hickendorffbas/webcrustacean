@@ -311,6 +311,12 @@ impl JsAstBinOp {
                     _ => { todo!() }
                 }
             },
+            JsBinOp::Comma => {
+                let right_val = self.right.execute(js_interpreter);
+                let _left_val = self.left.execute(js_interpreter);
+
+                return right_val;
+            }
         }
     }
 
@@ -449,6 +455,7 @@ pub enum JsBinOp {
     EqualsEquals,
     LogicalAnd,
     LogicalOr,
+    Comma,
 }
 
 

@@ -206,7 +206,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                     }
                 }
 
-                if script_type == "text/javascript" {
+                if script_type == "text/javascript" || script_type == "application/javascript" {
                     let js_tokens = js_lexer::lex_js(content, current_token.line, current_token.character);
                     let script = js_parser::parse_js(&js_tokens);
                     scripts.push(Rc::from(script));

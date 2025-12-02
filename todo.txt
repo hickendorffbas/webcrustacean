@@ -7,8 +7,7 @@ goals for 0.7.0
        - implement more box layout css options
        - add ASI to the js parser
        - vertical scroll
-              - hide scrollbar(s) when there is nothing to scroll
-              - fix the bottom right square next to the scrollbars (make it default UI color)
+              - we cull to soon now (check with long page of text paragraphs)
 
 
 other things (later versions):

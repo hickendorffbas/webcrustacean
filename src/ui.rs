@@ -3,9 +3,9 @@ use std::ops::DerefMut;
 use std::rc::Rc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::color::Color;
 use crate::dom::Document;
 use crate::layout::LayoutNode;
-use crate::color::Color;
 use crate::navigation::History;
 use crate::network::url::Url;
 use crate::platform::{
@@ -140,6 +140,10 @@ pub fn render_ui(platform: &mut Platform, ui_state: &mut UIState) {
 
     ui_state.main_scrollbar_vert.render(platform);
     ui_state.main_scrollbar_hori.render(platform);
+
+    //render the box on the right bottom that is between the 2 scrollbars
+    platform.fill_rect(ui_state.main_scrollbar_vert.x, ui_state.main_scrollbar_hori.y,
+                       ui_state.main_scrollbar_vert.height, ui_state.main_scrollbar_hori.height, UI_BASIC_COLOR, 255);
 }
 
 

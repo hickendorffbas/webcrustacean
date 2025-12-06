@@ -241,8 +241,12 @@ fn parse_declaration(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) 
                         while token_iterator.peek().is_some() {
                             match &token_iterator.peek().unwrap().css_token {
                                 CssToken::Semicolon => {
+                                    token_iterator.next();
                                     break;
                                 },
+                                CssToken::CloseBrace => {
+                                    break;
+                                }
                                 _ => {
                                     token_iterator.next();
                                 },

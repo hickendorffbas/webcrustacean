@@ -19,6 +19,8 @@ pub enum CssToken {
 
     OpenBrace,
     CloseBrace,
+    OpenParenthesis,
+    CloseParenthesis,
 
     Dot,
     Plus,
@@ -101,7 +103,7 @@ fn lex_css_block(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenW
 
         match css_iterator.next() {
 
-            char @ ('{' | '}' | '.' | '+' | '>' | ',' | ':' | ';' | '~') => {
+            char @ ('{' | '}' | '(' | ')' | '.' | '+' | '>' | ',' | ':' | ';' | '~'| '#') => {
                 last_token_was_whitespace = false;
 
                 if !buffer.is_empty() {
@@ -112,6 +114,8 @@ fn lex_css_block(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenW
                 match char {
                     '{' => tokens.push(make_token(css_iterator, CssToken::OpenBrace)),
                     '}' => tokens.push(make_token(css_iterator, CssToken::CloseBrace)),
+                    '(' => tokens.push(make_token(css_iterator, CssToken::OpenParenthesis)),
+                    ')' => tokens.push(make_token(css_iterator, CssToken::CloseParenthesis)),
                     '.' => tokens.push(make_token(css_iterator, CssToken::Dot)),
                     '+' => tokens.push(make_token(css_iterator, CssToken::Plus)),
                     '>' => tokens.push(make_token(css_iterator, CssToken::Greater)),
@@ -138,8 +142,8 @@ fn lex_css_block(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenW
                 }
             }
             '@' => {
-                last_token_was_whitespace = false;
-                //TODO: read everything after until a non-ident char, and build token
+                //last_token_was_whitespace = false;  //TODO: enable when this case is implemented
+                todo!(); //TODO: read everything after until a non-ident char, and build token
             },
             char @ _ => {
                 last_token_was_whitespace = false;

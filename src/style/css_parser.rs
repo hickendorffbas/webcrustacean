@@ -5,7 +5,9 @@ use crate::debug::debug_log_warn;
 use crate::style::css_lexer::{CssToken, CssTokenWithLocation};
 use crate::style::{
     CssCombinator,
+    CssFunction,
     CssProperty,
+    CssValue,
     Selector,
     SelectorType,
     StyleRule,
@@ -33,27 +35,35 @@ fn process_shorthands(style_rules: Vec<StyleRule>) -> Vec<StyleRule> {
                 //TODO: in reality, this is more complicated, since some of the 3 values can be omitted, but how that is determined
                 //      depends on the values (wether they are percentages or numbers etc.)
 
-                let mut expecting_flex_grow = true;
-                let mut expecting_flex_shrink = true;
-                let mut expecting_flex_basis = true;
+                match style_rule.value {
 
-                for part in style_rule.value.split(" ") {
-                    if !part.is_empty() {
+                    CssValue::List(style_values) => {
+                        let mut expecting_flex_grow = true;
+                        let mut expecting_flex_shrink = true;
+                        let mut expecting_flex_basis = true;
 
-                        let property = if expecting_flex_grow {
-                            expecting_flex_grow = false;
-                            CssProperty::FlexGrow
-                        } else if expecting_flex_shrink {
-                            expecting_flex_shrink = false;
-                            CssProperty::FlexShrink
-                        } else if expecting_flex_basis {
-                            expecting_flex_basis = false;
-                            CssProperty::FlexBasis
-                        } else {
-                            break;
-                        };
+                        for part in style_values {
+                            let property = if expecting_flex_grow {
+                                expecting_flex_grow = false;
+                                CssProperty::FlexGrow
+                            } else if expecting_flex_shrink {
+                                expecting_flex_shrink = false;
+                                CssProperty::FlexShrink
+                            } else if expecting_flex_basis {
+                                expecting_flex_basis = false;
+                                CssProperty::FlexBasis
+                            } else {
+                                break;
+                            };
 
-                        resolved_style_rules.push(StyleRule { selector: style_rule.selector.clone(), property, value: part.to_owned() });
+                            resolved_style_rules.push(StyleRule { selector: style_rule.selector.clone(), property, value: part });
+                        }
+                    },
+                    CssValue::String(_) => {
+                        todo!();
+                    },
+                    CssValue::Function(_) => {
+                        todo!();
                     }
                 }
             },
@@ -223,7 +233,7 @@ fn parse_declaration_block(selectors: Vec<Selector>, style_rules: &mut Vec<Style
 }
 
 
-fn parse_declaration(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) -> Option<(CssProperty, String)> {
+fn parse_declaration(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) -> Option<(CssProperty, CssValue)> {
     let mut parsed_property = None;
     let mut parsed_value = None;
 
@@ -231,8 +241,9 @@ fn parse_declaration(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) 
         match &token_iterator.peek().unwrap().css_token {
 
             CssToken::Identifier(ident) => {
-                token_iterator.next();
                 if parsed_property.is_none() {
+                    token_iterator.next();
+
                     parsed_property = CssProperty::from_string(&ident);
                     if parsed_property.is_none() {
                         debug_log_warn(format!("Unknown css property: {}", ident));
@@ -254,23 +265,7 @@ fn parse_declaration(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) 
                         }
                     }
                 } else if parsed_value.is_none() {
-
-                    let mut value_buffer = String::from(ident);
-
-                    while token_iterator.peek().is_some() {
-                        match &token_iterator.peek().unwrap().css_token {
-                            CssToken::Identifier(ident) => {
-                                token_iterator.next();
-                                value_buffer.push(' ');
-                                value_buffer.push_str(ident);
-                            },
-                            CssToken::Whitespace => {
-                                token_iterator.next();
-                            },
-                            _ => break,
-                        }
-                    }
-                    parsed_value = Some(value_buffer);
+                    parsed_value = Some(parse_value(token_iterator));
                 } else {
                     todo!(); //TODO: this should be an error (we should have returned already if both are filled)
                 }
@@ -304,4 +299,138 @@ fn parse_declaration(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) 
     }
 
     todo!(); //TODO: this should be an error
+}
+
+
+fn parse_value(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) -> CssValue {
+    let mut elements = Vec::new();
+
+    while token_iterator.peek().is_some() {
+        let first = token_iterator.next().unwrap();
+
+        match &first.css_token {
+            CssToken::Whitespace => {
+                continue;
+            },
+            CssToken::Semicolon => {
+                break;
+            },
+            _ => {}
+        }
+
+        let first_ident = match &first.css_token {
+            CssToken::Identifier(ident) => ident,
+            _ => todo!(), //TODO: this should be an error
+        };
+
+        let mut second = token_iterator.peek();
+        if second.is_none() {
+            return CssValue::String(first_ident.clone())
+        }
+
+        while second.is_some() {
+            match &second.unwrap().css_token {
+                CssToken::Whitespace | CssToken::Comma => {
+                    token_iterator.next();
+                    second = token_iterator.peek();
+                },
+                _ => {
+                    break;
+                }
+            }
+        }
+
+        match &second.unwrap().css_token {
+            CssToken::Identifier(_) => {
+                elements.push(CssValue::String(first_ident.clone()));
+            },
+            CssToken::OpenParenthesis => {
+                elements.push(parse_css_function(token_iterator, first_ident));
+            },
+            CssToken::CloseBrace | CssToken::Semicolon => {
+                elements.push(CssValue::String(first_ident.clone()));
+                break;
+            }
+            _ => {
+                todo!(); //TODO: this needs to become an error
+            }
+        }
+    }
+
+    if elements.len() == 1 {
+        return elements[0].clone()
+    } else {
+        return CssValue::List(elements);
+    }
+}
+
+fn parse_css_function(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>, function_name: &String) -> CssValue {
+
+    token_iterator.next(); //consume the (
+
+    let mut arguments = Vec::new();
+
+
+    while token_iterator.peek().is_some() {
+        let first = token_iterator.next().unwrap();
+
+        match &first.css_token {
+            CssToken::Whitespace => {
+                continue;
+            },
+            CssToken::CloseParenthesis => {
+                break;
+            },
+            _ => {}
+        }
+
+        let first_ident = match &first.css_token {
+            CssToken::Identifier(ident) => ident,
+            _ => todo!(), //TODO: this should be an error
+        };
+
+        let mut second = token_iterator.peek();
+        if second.is_none() {
+            return CssValue::String(first_ident.clone())
+        }
+
+        while second.is_some() {
+            match &second.unwrap().css_token {
+                CssToken::Whitespace | CssToken::Comma => {
+                    token_iterator.next();
+                    second = token_iterator.peek();
+                },
+                _ => {
+                    break;
+                }
+            }
+        }
+
+        match &second.unwrap().css_token {
+            CssToken::Identifier(_) => {
+                arguments.push(CssValue::String(first_ident.clone()));
+            },
+            CssToken::OpenParenthesis => {
+                arguments.push(parse_css_function(token_iterator, first_ident));
+            },
+            CssToken::CloseParenthesis => {
+                arguments.push(CssValue::String(first_ident.clone()));
+                token_iterator.next(); //eat the ")"
+                break;
+            }
+            CssToken::CloseBrace | CssToken::Semicolon => {
+                arguments.push(CssValue::String(first_ident.clone()));
+                if arguments.len() == 1 {
+                    return arguments[0].clone()
+                } else {
+                    return CssValue::List(arguments);
+                }
+            }
+            _ => {
+                todo!(); //TODO: this needs to become an error
+            }
+        }
+    }
+
+    return CssValue::Function(CssFunction { name: function_name.clone(), arguments })
 }

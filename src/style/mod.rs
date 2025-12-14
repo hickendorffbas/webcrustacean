@@ -13,7 +13,6 @@ use crate::dom::ElementDomNode;
 
 
 #[cfg(test)] mod tests;
-#[cfg(test)] mod test_lexer;
 #[cfg(test)] mod test_parser;
 
 
@@ -62,16 +61,47 @@ pub struct StyleContext {
 }
 
 
+#[derive(PartialEq, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub enum CssValue {
+    String(String),
+    List(Vec<CssValue>),
+    Function(CssFunction),
+}
+impl CssValue {
+    fn resolve(&self) -> String {
+        match self {
+            CssValue::String(string_value) => return string_value.clone(),
+            CssValue::List(_) => todo!(), //TODO: I think we should recursively resolve here?
+            CssValue::Function(css_function) => return css_function.resolve(),
+        }
+    }
+}
+
+
+#[derive(PartialEq, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub struct CssFunction {
+    pub name: String,
+    pub arguments: Vec<CssValue>,
+}
+impl CssFunction {
+    fn resolve(&self) -> String {
+        todo!(); //TODO: implement
+    }
+}
+
+
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct StyleRule {
     pub selector: Selector,
     pub property: CssProperty,
-    pub value: String,
+    pub value: CssValue,
 }
 impl StyleRule {
     fn make_for_tag_name(tag_name: &str, property: CssProperty, value: &str) -> StyleRule {
         return StyleRule { selector: Selector { elements: vec![(CssCombinator::None, SelectorType::Name, tag_name.to_owned())], pseudoclasses: None },
-                           property, value: value.to_owned() }
+                           property, value: CssValue::String(value.to_owned()) }
     }
 }
 
@@ -112,9 +142,9 @@ enum Origin {
 }
 
 
-struct ActiveStyleRule<'a> {
+struct ActiveStyleRule {
     property: CssProperty,
-    property_value: &'a String,
+    property_value: CssValue,
     origin: Origin,
     specificity_attribute: u8,
     specificity_id: u8,
@@ -138,7 +168,7 @@ pub fn resolve_full_styles_for_dom_node(dom_node: &Rc<RefCell<ElementDomNode>>, 
             active_style_rules.push(
                 ActiveStyleRule {
                     property: style_rule.property,
-                    property_value: &style_rule.value,
+                    property_value: style_rule.value.clone(),
                     origin: Origin::UserAgent,
                     specificity_attribute: 0,  //TODO: implement
                     specificity_id: 0,  //TODO: implement
@@ -156,7 +186,7 @@ pub fn resolve_full_styles_for_dom_node(dom_node: &Rc<RefCell<ElementDomNode>>, 
             active_style_rules.push(
                 ActiveStyleRule {
                     property: style_rule.property,
-                    property_value: &style_rule.value,
+                    property_value: style_rule.value.clone(),
                     origin: Origin::Author,
                     specificity_attribute: 0,  //TODO: implement
                     specificity_id: 0,  //TODO: implement
@@ -173,7 +203,7 @@ pub fn resolve_full_styles_for_dom_node(dom_node: &Rc<RefCell<ElementDomNode>>, 
 
     let mut resolved_styles = HashMap::new();
     for active_style_rule in active_style_rules {
-        resolved_styles.insert(active_style_rule.property, (*active_style_rule.property_value).clone());
+        resolved_styles.insert(active_style_rule.property, active_style_rule.property_value.resolve());
     }
 
     if dom_node.borrow().parent_id != 0 {
@@ -193,7 +223,7 @@ pub fn resolve_full_styles_for_dom_node(dom_node: &Rc<RefCell<ElementDomNode>>, 
             }
 
             if !resolved_styles.contains_key(&parent_style_property) {
-                resolved_styles.insert(parent_style_property.clone(), parent_style_value.clone());
+                resolved_styles.insert(parent_style_property.clone(), parent_style_value);
             }
         }
     }

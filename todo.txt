@@ -8,7 +8,6 @@ goals for 0.7.0
        - add ASI to the js parser
        - scrolling
               - we cull to soon now (check with long page of text paragraphs)
-       - fix failing test TODO in style/test_parser::test_multiple_selectors
 
 
 other things (later versions):

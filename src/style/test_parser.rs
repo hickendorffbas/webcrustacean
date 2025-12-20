@@ -56,10 +56,9 @@ fn test_multiple_selectors() {
     assert_eq!(result[0].value, CssValue::String("red".to_owned()));
     assert_eq!(result[0].selector.elements[0], (CssCombinator::None, SelectorType::Name, "h3".to_owned()));
 
-    //TODO: these fail, but should succeed:
-    // assert_eq!(result[1].property, CssProperty::Color);
-    // assert_eq!(result[1].value, "red");
-    // assert_eq!(result[1].selector.elements[0], (CssCombinator::None, SelectorType::Name, "h4".to_owned()));
+    assert_eq!(result[1].property, CssProperty::Color);
+    assert_eq!(result[1].value, CssValue::String("red".to_owned()));
+    assert_eq!(result[1].selector.elements[0], (CssCombinator::None, SelectorType::Name, "h4".to_owned()));
 }
 
 
@@ -72,7 +71,7 @@ fn test_basic_combinator() {
     assert_eq!(result.len(), 1);
     assert_eq!(result[0].property, CssProperty::Color);
     assert_eq!(result[0].value, CssValue::String("red".to_owned()));
-    assert_eq!(result[0].selector.elements[0], (CssCombinator::Descendent, SelectorType::Name, "p".to_owned()));
+    assert_eq!(result[0].selector.elements[0], (CssCombinator::Child, SelectorType::Name, "p".to_owned()));
     assert_eq!(result[0].selector.elements[1], (CssCombinator::None, SelectorType::Name, "h3".to_owned()));
 }
 

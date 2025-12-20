@@ -147,13 +147,17 @@ fn parse_selectors(current_selector_context: &mut Vec<(CssCombinator, SelectorTy
 
                     current_pseudoclasses.as_mut().unwrap().push(ident.clone());
                 } else {
+                    if selector_elements.len() > 0 && next_combinator == CssCombinator::None {
+                        next_combinator = CssCombinator::Descendent;
+                    }
+
                     selector_elements.push( (next_combinator, next_selector_type, ident.clone()) );
+                    next_combinator = CssCombinator::None;
                 }
             },
             CssToken::Whitespace => {
                 parsing_pseudoclass = false;
                 token_iterator.next();
-                next_combinator = CssCombinator::Descendent;
             },
             CssToken::Greater => {
                 token_iterator.next();

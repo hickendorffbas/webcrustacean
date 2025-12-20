@@ -6,7 +6,7 @@ goals for 0.7.0
        - load javascript and css files linked from a page
        - implement more box layout css options
        - add ASI to the js parser
-       - vertical scroll
+       - scrolling
               - we cull to soon now (check with long page of text paragraphs)
        - fix failing test TODO in style/test_parser::test_multiple_selectors
 

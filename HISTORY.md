@@ -2,7 +2,7 @@
 ===================
 - Very basic flex layout support
 - New improved CSS parser
-- Vertical scrolling is now supported
+- Horizontal scrolling is now supported
 
 
 0.6.0

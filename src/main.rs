@@ -219,9 +219,9 @@ fn main() -> Result<(), String> {
                     mouse_state.y = mouse_y;
 
                     if mouse_state.left_down {
-                        let selection = Selection { point1_x: mouse_state.click_start_x as f32,
+                        let selection = Selection { point1_x: mouse_state.click_start_x as f32 + ui_state.current_scroll_x as f32,
                                                     point1_y: mouse_state.click_start_y as f32 + ui_state.current_scroll_y as f32,
-                                                    point2_x: mouse_x as f32,
+                                                    point2_x: mouse_x as f32 + ui_state.current_scroll_x as f32,
                                                     point2_y: mouse_y as f32 + ui_state.current_scroll_y as f32
                                         };
 

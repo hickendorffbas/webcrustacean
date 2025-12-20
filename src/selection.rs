@@ -307,6 +307,12 @@ fn set_css_text_box_partially_selected(css_text_box: &mut CssTextBox, selection_
         }
     }
 
+    if css_text_box.char_position_mapping.len() == 0 {
+        css_text_box.selection_char_range = None;
+        css_text_box.selection_rect = None;
+        return;
+    }
+
     let mut end_selection_idx = css_text_box.char_position_mapping.len() - 1;
     for (idx, &x_position) in css_text_box.char_position_mapping.iter().enumerate().rev() {
         let abs_pos = x_position + css_box.x;

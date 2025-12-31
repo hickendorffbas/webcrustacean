@@ -2,12 +2,19 @@
 goals for 0.7.0
        - implement basic flex layout
               - test more basic cases
-       - handle redirects better. Its seems reqwest follows them, but our url bar does not update etc. we want to follow them ourselves
        - load javascript and css files linked from a page
-       - implement more box layout css options
-       - add ASI to the js parser
+              - css is still todo here
        - scrolling
               - we cull to soon now (check with long page of text paragraphs)
+
+
+goals for 0.8.0
+       - handle redirects better. Its seems reqwest follows them, but our url bar does not update etc. we want to follow them ourselves
+       - implement more box layout css options
+       - add ASI to the js parser
+
+
+
 
 
 other things (later versions):

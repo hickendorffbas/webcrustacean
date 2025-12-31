@@ -57,6 +57,7 @@ pub fn parse(html_tokens: Vec<HtmlTokenWithLocation>, main_url: &Url) -> Documen
         styles: HashMap::new(),
         image: None,
         img_job_tracker: None,
+        script_job_tracker: None,
         scripts: None,
         page_component: None,
     };
@@ -113,6 +114,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                         dirty: false,
                         image: None,
                         img_job_tracker: None,
+                        script_job_tracker: None,
                         scripts: None,
                         page_component: None,
                         styles: HashMap::new(),
@@ -171,6 +173,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                     dirty: false,
                     image: None,
                     img_job_tracker: None,
+                    script_job_tracker: None,
                     scripts: if scripts.len() == 0 { None } else { Some(scripts) },
                     page_component: None,
                     styles: HashMap::new(),
@@ -199,20 +202,30 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
                 styles.append(&mut css_parser::parse_css(&style_tokens));
             },
             HtmlToken::Script(content) => {
+                let mut should_use_script_content = true;
                 let mut script_type = String::from("text/javascript");
+
                 for att_node in &attributes {
                     if att_node.borrow().name == "type" {
                         script_type = att_node.borrow().value.clone();
+                    }
+                    if att_node.borrow().name == "src" {
+                        //according to spec, if a script tag has a src, the content is not executed (we will load the source in the DOM uodate)
+                        should_use_script_content = false;
                     }
                 }
 
                 if script_type == "text/javascript" || script_type == "application/javascript" {
                     let js_tokens = js_lexer::lex_js(content, current_token.line, current_token.character);
-                    let script = js_parser::parse_js(&js_tokens);
-                    scripts.push(Rc::from(script));
+
+                    if should_use_script_content {
+                        let script = js_parser::parse_js(&js_tokens);
+                        scripts.push(Rc::from(script));
+                    }
                 } else {
                     debug_log_warn(format!("unrecognised script type: {}", script_type));
                 }
+
             },
         }
 
@@ -233,6 +246,7 @@ fn parse_node(html_tokens: &Vec<HtmlTokenWithLocation>, current_token_idx: &mut 
             dirty: false,
             image: None,
             img_job_tracker: None,
+            script_job_tracker: None,
             scripts: if scripts.len() == 0 { None } else { Some(scripts) },
             page_component: None,
             styles: HashMap::new(),
@@ -314,6 +328,7 @@ fn read_all_text_for_text_node(html_tokens: &Vec<HtmlTokenWithLocation>, current
         dirty: false,
         image: None,
         img_job_tracker: None,
+        script_job_tracker: None,
         scripts: None,
         page_component: None,
         styles: HashMap::new(),

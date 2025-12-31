@@ -17,6 +17,7 @@ use crate::resource_loader::{
     ResourceThreadPool,
 };
 use crate::script::js_ast::Script;
+use crate::script::{js_interpreter, js_lexer, js_parser};
 use crate::style::{
     CssProperty,
     get_property_from_computed_styles,
@@ -131,6 +132,7 @@ pub struct ElementDomNode {
 
     pub image: Option<Rc<RgbaImage>>,
     pub img_job_tracker: Option<ResourceRequestJobTracker<ResourceRequestResult<RgbaImage>>>,
+    pub script_job_tracker: Option<ResourceRequestJobTracker<ResourceRequestResult<String>>>,
 
     pub scripts: Option<Vec<Rc<Script>>>,
 
@@ -221,13 +223,12 @@ impl ElementDomNode {
                         match try_recv_result.unwrap() {
                             ResourceRequestResult::NotFound => {
                                 self.image = Some(Rc::from(resource_loader::fallback_image()));
-                                self.dirty = true;
                             },
                             ResourceRequestResult::Success(received_image) => {
                                 self.image = Some(Rc::from(received_image.body));
-                                self.dirty = true;
                             },
                         }
+                        self.dirty = true;
                         self.img_job_tracker = None;
                     }
 
@@ -238,6 +239,60 @@ impl ElementDomNode {
                 self.dirty = true;
             }
         }
+
+        if self.scripts.is_none() && self.name.is_some() && self.name.as_ref().unwrap() == "script" {
+
+
+            //TODO: normally (aside from deferred and async scripts) we need to block parsing on running scripts. So we should not block on
+            //      the channel here in most cases (but then we don't really belong on the DOM update, but somewhere else.)
+            //      we should also trigger this mainly from the HTML parser, since the script should run before the rest is parsed
+            //      however, we want to logic somewhere extracted, because the script property could be updated later
+
+
+            if self.script_job_tracker.is_none() {
+                let script_source = self.get_attribute_value("src");
+                if script_source.is_some() {
+
+                    let script_url = Url::from_base_url(&script_source.unwrap(), Some(&document.base_url));
+
+                    //TODO: eventually store the threadpool on a more general context object
+                    self.script_job_tracker = Some(resource_loader::schedule_load_text(&script_url, &cookie_store, resource_thread_pool));
+                }
+            } else {
+
+                let try_recv_result = self.script_job_tracker.as_ref().unwrap().receiver.try_recv();
+                if try_recv_result.is_ok() {
+
+                    match try_recv_result.unwrap() {
+                        ResourceRequestResult::NotFound => {
+                            //For now we put an empty vec in the scripts member, to make sure we don't load again
+                            if self.scripts.is_none() {
+                                self.scripts = Some(Vec::new())
+                            }
+                        },
+                        ResourceRequestResult::Success(received_script) => {
+                            let js_tokens = js_lexer::lex_js(&received_script.body, 1, 0);
+                            let script = js_parser::parse_js(&js_tokens);
+                            if self.scripts.is_none() {
+                                self.scripts = Some(Vec::new())
+                            }
+                            self.scripts.as_mut().unwrap().push(Rc::from(script));
+
+                            //TODO: the code below is running the scripts directly, we probably need to do this in a different way
+                            //let mut interpreter = js_interpreter::JsInterpreter::new();
+
+                            //TODO: we can't currently run the scripts, since we don't have the documnet here
+                            //      we first need to migrate to a different loading system
+                            //interpreter.run_scripts_in_document(document);
+                        },
+
+                    }
+                    self.dirty = true;
+                    self.script_job_tracker = None;
+                }
+            }
+        }
+
         return any_child_dirty || self.dirty;
     }
 
@@ -356,6 +411,7 @@ impl ElementDomNode {
             styles: HashMap::new(), //TODO: its worth checking if we can have 1 static immutable hashmap or something (with COW copy on write?)
             image: None,
             img_job_tracker: None,
+            script_job_tracker: None,
             scripts: None,
             page_component: None,
         };

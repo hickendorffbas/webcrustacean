@@ -17,7 +17,7 @@ use crate::resource_loader::{
     ResourceThreadPool,
 };
 use crate::script::js_ast::Script;
-use crate::script::{js_interpreter, js_lexer, js_parser};
+use crate::script::{js_lexer, js_parser};
 use crate::style::{
     CssProperty,
     get_property_from_computed_styles,

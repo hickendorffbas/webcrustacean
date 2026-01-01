@@ -2,12 +2,12 @@ mod color;
 mod debug;
 mod dom;
 mod html_lexer;
-mod html_parser;
 #[cfg(test)] mod jsonify; //TODO: would also like to use it for debug, not sure how to configure that. feature flag on the crate maybe?
 mod layout;
 mod macros;
 mod navigation;
 mod network;
+mod old_html_parser;
 mod platform;
 mod renderer;
 mod resource_loader;

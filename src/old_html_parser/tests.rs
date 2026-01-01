@@ -1,7 +1,7 @@
 use crate::html_lexer;
-use crate::html_parser;
 use crate::jsonify;
 use crate::network::url::Url;
+use crate::old_html_parser;
 
 
 const DEFAULT_URL: &str = "http://www.google.com";
@@ -13,7 +13,7 @@ fn test_basic_parsing_1() {
 
     let tokens = html_lexer::lex_html(code);
     let main_url = Url::from(&DEFAULT_URL.to_string());
-    let document = html_parser::parse(tokens, &main_url);
+    let document = old_html_parser::parse(tokens, &main_url);
 
     let mut json = String::new();
     jsonify::dom_node_to_json(&document.document_node, &mut json);
@@ -60,7 +60,7 @@ fn test_text_concatenation() {
 
     let tokens = html_lexer::lex_html(code);
     let main_url = Url::from(&DEFAULT_URL.to_string());
-    let document = html_parser::parse(tokens, &main_url);
+    let document = old_html_parser::parse(tokens, &main_url);
 
     let mut json = String::new();
     jsonify::dom_node_to_json(&document.document_node, &mut json);
@@ -107,7 +107,7 @@ fn test_not_closing_a_tag() {
 
     let tokens = html_lexer::lex_html(code);
     let main_url = Url::from(&DEFAULT_URL.to_string());
-    let document = html_parser::parse(tokens, &main_url);
+    let document = old_html_parser::parse(tokens, &main_url);
 
     let mut json = String::new();
     jsonify::dom_node_to_json(&document.document_node, &mut json);
@@ -164,7 +164,7 @@ fn test_closing_a_tag_we_did_not_open() {
 
     let tokens = html_lexer::lex_html(code);
     let main_url = Url::from(&DEFAULT_URL.to_string());
-    let document = html_parser::parse(tokens, &main_url);
+    let document = old_html_parser::parse(tokens, &main_url);
 
     let mut json = String::new();
     jsonify::dom_node_to_json(&document.document_node, &mut json);
@@ -212,7 +212,7 @@ fn test_missing_last_closing_tag() {
 
     let tokens = html_lexer::lex_html(code);
     let main_url = Url::from(&DEFAULT_URL.to_string());
-    let document = html_parser::parse(tokens, &main_url);
+    let document = old_html_parser::parse(tokens, &main_url);
 
     let mut json = String::new();
     jsonify::dom_node_to_json(&document.document_node, &mut json);

@@ -1,5 +1,10 @@
 
 goals for 0.7.0
+       - incremental html parser
+              - weave tokenenization and parsing
+              - tokens are for example "startTag" with the tag name already, which means the parser can always start building a node for each token
+                     - then update that node later
+              - the parser keeps a list of currently open tags, and probably also needs active formatting elements (see html parsing spec)
        - implement basic flex layout
               - test more basic cases
        - load javascript and css files linked from a page
@@ -8,12 +13,11 @@ goals for 0.7.0
               - we cull to soon now (check with long page of text paragraphs)
 
 
+
 goals for 0.8.0
        - handle redirects better. Its seems reqwest follows them, but our url bar does not update etc. we want to follow them ourselves
        - implement more box layout css options
        - add ASI to the js parser
-
-
 
 
 

@@ -13,9 +13,9 @@ use sdl2::rect::Rect as SdlRect;
 use threadpool::ThreadPool;
 
 use crate::html_lexer;
-use crate::html_parser;
 use crate::layout;
 use crate::network::url::Url;
+use crate::old_html_parser;
 use crate::platform::{Platform, self};
 use crate::renderer;
 use crate::resource_loader::{CookieStore, ResourceThreadPool};
@@ -53,7 +53,7 @@ fn render_doc(filename: &str, platform: &mut Platform, save_output: bool) -> Vec
     let url = Url::empty();
 
     let lex_result = html_lexer::lex_html(&html);
-    let mut document = html_parser::parse(lex_result, &url);
+    let mut document = old_html_parser::parse(lex_result, &url);
 
     document.document_node.borrow_mut().post_construct(platform);
     document.update_all_dom_nodes(&mut ResourceThreadPool { pool: ThreadPool::new(1) }, &CookieStore { cookies_by_domain: HashMap::new() });

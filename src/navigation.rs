@@ -3,10 +3,10 @@ use std::cell::RefCell;
 use crate::dom::{Document, PostData};
 use crate::script::js_interpreter;
 use crate::html_lexer;
-use crate::html_parser;
 use crate::layout;
 use crate::layout::{compute_layout, FullLayout};
 use crate::network::url::Url;
+use crate::old_html_parser;
 use crate::platform::Platform;
 use crate::resource_loader::{
     self,
@@ -109,7 +109,7 @@ pub fn finish_navigate(navigation_action: &NavigationAction, ui_state: &mut UISt
     };
 
     let lex_result = html_lexer::lex_html(&page_content);
-    document.replace(html_parser::parse(lex_result, &url));
+    document.replace(old_html_parser::parse(lex_result, &url));
 
     compute_styles(&document.borrow().document_node, &document.borrow().all_nodes, &document.borrow().style_context);
 

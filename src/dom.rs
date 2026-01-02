@@ -397,14 +397,31 @@ impl ElementDomNode {
         }
     }
 
+    pub fn new(name: String) -> ElementDomNode {
+        return Self::new_private(Some(name), None);
+
+    }
+
     pub fn new_empty() -> ElementDomNode {
+        return Self::new_private(None, None);
+    }
+
+    pub fn new_with_text(text: String, non_breaking_space_positions: Option<HashSet<usize>>) -> ElementDomNode {
+        let dom_text = DomText {
+            text_content: text,
+            non_breaking_space_positions: non_breaking_space_positions
+        };
+        return Self::new_private(None, Some(dom_text))
+    }
+
+    fn new_private(name: Option<String>, text: Option<DomText>) -> ElementDomNode {
         return ElementDomNode {
             internal_id: 0,
             parent_id: 0,
             is_document_node: true,
             dirty: false,
-            text: None,
-            name: None,
+            text: text,
+            name: name,
             name_for_layout: TagName::Other,
             children: None,
             attributes: None,

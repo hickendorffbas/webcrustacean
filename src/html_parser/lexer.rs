@@ -3,7 +3,7 @@ pub enum Token {
     //TODO: there are probably more places I can use anonymous enum structs
     StartTag {
         name: String,
-        self_closing: bool,
+        self_closing: bool, //TODO: is this ever really used?
     },
     EndTag {
         name: String,
@@ -51,7 +51,21 @@ impl Lexer {
         loop {
             let ch = match self.next_char() {
                 Some(c) => c,
-                None => return Token::EOF,
+                None => {
+                    if !self.buffer.is_empty() {
+                        match self.state {
+                            HtmlLexerState::Data => {
+                                let text = std::mem::take(&mut self.buffer);
+                                return Token::Text(text);
+                            },
+                            HtmlLexerState::TagOpen => todo!(), //TODO: we probably just ignore this and return EOF?
+                            HtmlLexerState::EndTagOpen => todo!(), //TODO: we probably just ignore this and return EOF?
+                            HtmlLexerState::TagName => todo!(), //TODO: we probably just ignore this and return EOF?
+                            HtmlLexerState::EndTagName => todo!(), //TODO: we probably just ignore this and return EOF?
+                        }
+                    }
+                    return Token::EOF;
+                }
             };
 
             match self.state {
@@ -100,7 +114,6 @@ impl Lexer {
                         self.state = HtmlLexerState::Data;
                         return Token::EndTag { name };
                     } else {
-                        //TODO: maybe check that we don't push whitespace here?
                         self.buffer.push(ch);
                     }
 

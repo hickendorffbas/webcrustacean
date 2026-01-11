@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::dom::{Document, ElementDomNode};
+use crate::dom::{AttributeDomNode, Document, ElementDomNode};
 use crate::html_parser::lexer::{Lexer, Token};
 
 mod lexer;
@@ -124,6 +124,15 @@ impl Parser {
                     todo!(); //TODO: this should be an error, since we already parsed a root
                 }
             },
+            Token::Attribute { name, value } => {
+                let mut parent_node = self.stack.last().unwrap().borrow_mut();
+                let attribute_node = AttributeDomNode { name, value, parent_id: parent_node.internal_id };
+
+                if parent_node.attributes.is_none() {
+                    parent_node.attributes = Some(Vec::new());
+                }
+                parent_node.attributes.as_mut().unwrap().push(Rc::from(RefCell::from(attribute_node)));
+            },
             Token::EOF => {
                 while self.stack.len() > 1 {
                     let node = self.stack.pop().unwrap();
@@ -131,7 +140,7 @@ impl Parser {
                     let mut parent = parent_node.borrow_mut();
                     parent.children.as_mut().unwrap().push(node);
                 }
-            }
+            },
         }
     }
 

@@ -179,3 +179,64 @@ fn test_handling_whitespace() {
 
     assert!(jsonify::json_is_equal(&json, &expected_json));
 }
+
+
+#[test]
+fn test_basic_parsing_attributes() {
+    let code = r#"<div color="red">test</div>"#;
+
+    let mut parser = Parser::new(code.to_owned());
+    parser.parse();
+
+    let mut json = String::new();
+    jsonify::dom_node_to_json(&parser.document.document_node, &mut json);
+
+    let expected_json = r#"
+    {
+        "name":"",
+        "text":"",
+        "image":false,
+        "scripts":0,
+        "component":false,
+        "attributes:":[],
+        "children":[
+            {
+                "name":"html",
+                "text":"",
+                "image":false,
+                "scripts":0,
+                "component":false,
+                "attributes:":[],
+                "children":[
+                    {
+                        "name":"div",
+                        "text":"",
+                        "image":false,
+                        "scripts":0,
+                        "component":false,
+                        "attributes:":[
+                            {
+                                "name": "color",
+                                "value": "red"
+                            }
+                        ],
+                        "children":[
+                            {
+                            "name":"",
+                            "text":"test",
+                            "image":false,
+                            "scripts":0,
+                            "component":false,
+                            "attributes:":[],
+                            "children":[]
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+    "#.to_string();
+
+    assert!(jsonify::json_is_equal(&json, &expected_json));
+}

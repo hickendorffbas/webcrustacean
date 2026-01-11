@@ -9,6 +9,10 @@ pub enum Token {
         name: String,
     },
     Text(String),
+    Attribute {
+        name: String,
+        value: String,
+    },
     EOF,
 }
 
@@ -18,14 +22,29 @@ enum HtmlLexerState {
     TagOpen,
     EndTagOpen,
     TagName,
+    InTag,
     EndTagName,
+    AttributeName,
+    AttributeValueStart,
+    AttributeValue,
 }
+
+
+#[derive(Debug, PartialEq)]
+enum InQuotes {
+    None,
+    Single,
+    Double,
+}
+
 
 pub struct Lexer {
     input: String,
     position: usize,
     state: HtmlLexerState,
     buffer: String,
+    open_attribute_name: Option<String>,
+    in_quotes: InQuotes,
 }
 impl Lexer {
     pub fn new(input: String) -> Self {
@@ -34,11 +53,13 @@ impl Lexer {
             position: 0,
             state: HtmlLexerState::Data,
             buffer: String::new(),
+            open_attribute_name: None,
+            in_quotes: InQuotes::None,
         }
     }
 
     fn next_char(&mut self) -> Option<char> {
-        let ch = self.input[self.position..].chars().next()?; //TODO: is it not way more efficient to store the chars iterator on the state?
+        let ch = self.input[self.position..].chars().next()?; //TODO: is it not way more efficient to store the chars (peekable) iterator on the state?
         self.position += ch.len_utf8();
         Some(ch)
     }
@@ -49,6 +70,8 @@ impl Lexer {
 
     pub fn next_token(&mut self) -> Token {
         loop {
+                            println!("{:?} {:?}", self.peek_char(), self.state);
+
             let ch = match self.next_char() {
                 Some(c) => c,
                 None => {
@@ -58,10 +81,7 @@ impl Lexer {
                                 let text = std::mem::take(&mut self.buffer);
                                 return Token::Text(text);
                             },
-                            HtmlLexerState::TagOpen => todo!(), //TODO: we probably just ignore this and return EOF?
-                            HtmlLexerState::EndTagOpen => todo!(), //TODO: we probably just ignore this and return EOF?
-                            HtmlLexerState::TagName => todo!(), //TODO: we probably just ignore this and return EOF?
-                            HtmlLexerState::EndTagName => todo!(), //TODO: we probably just ignore this and return EOF?
+                            _ => todo!(), //TODO: we probably just ignore this and return EOF?
                         }
                     }
                     return Token::EOF;
@@ -93,16 +113,14 @@ impl Lexer {
                     self.state = HtmlLexerState::EndTagName;
                 },
                 HtmlLexerState::TagName => {
-                    if ch.is_whitespace() || ch == '>' {  //TODO: the whitespace here means we need to go to parse attributes
+                    if ch.is_whitespace() {
+                        let name = std::mem::take(&mut self.buffer);
+                        self.state = HtmlLexerState::InTag;
+
+                        return Token::StartTag { name, self_closing: false };
+                    } else if ch == '>' {
                         let name = std::mem::take(&mut self.buffer);
                         self.state = HtmlLexerState::Data;
-
-                        if self.peek_char() == Some('/') {
-                            self.next_char();
-                            self.next_char(); // eat the ">" //TODO: does this work?
-                            return Token::StartTag { name, self_closing: true, };
-                        }
-
                         return Token::StartTag { name, self_closing: false };
                     } else {
                         self.buffer.push(ch);
@@ -116,7 +134,69 @@ impl Lexer {
                     } else {
                         self.buffer.push(ch);
                     }
+                },
+                HtmlLexerState::InTag => {
+                    if ch.is_whitespace() {
+                        //we do nothing here, we wait for more content
+                    } else if ch == '>' {
+                        self.state = HtmlLexerState::Data;
+                    } else {
+                        self.state = HtmlLexerState::AttributeName;
+                        self.buffer.push(ch);
+                    }
+                },
+                HtmlLexerState::AttributeName => {
+                    if ch.is_whitespace() {
+                        self.state = HtmlLexerState::InTag;
 
+                        let attribute_name = std::mem::take(&mut self.buffer);
+
+                        //for boolean attributes, the value is specced to be equal to the name
+                        return Token::Attribute { name: attribute_name.clone(), value: attribute_name };
+                    } else if ch == '>' {
+                        self.state = HtmlLexerState::Data;
+
+                        let attribute_name = std::mem::take(&mut self.buffer);
+
+                        //for boolean attributes, the value is specced to be equal to the name
+                        return Token::Attribute { name: attribute_name.clone(), value: attribute_name };
+                    } else if ch == '=' {
+                        self.open_attribute_name = Some(std::mem::take(&mut self.buffer));
+                        self.state = HtmlLexerState::AttributeValueStart;
+                    } else {
+                        self.buffer.push(ch);
+                    }
+                },
+                HtmlLexerState::AttributeValueStart => {
+                    if ch.is_whitespace() {
+                        //We do nothing, we wait to see an actual value
+                    } else if ch == '\'' {
+                        self.in_quotes = InQuotes::Single;
+                        self.state = HtmlLexerState::AttributeValue;
+                    } else if ch == '"' {
+                        self.in_quotes = InQuotes::Double;
+                        self.state = HtmlLexerState::AttributeValue;
+                    } else {
+                        self.in_quotes = InQuotes::None;
+                        self.buffer.push(ch);
+                        self.state = HtmlLexerState::AttributeValue;
+                    }
+                }
+                HtmlLexerState::AttributeValue => {
+                    if (ch == '\'' && self.in_quotes == InQuotes::Single) ||
+                       (ch == '"' && self.in_quotes == InQuotes::Double) {
+
+                        self.state = HtmlLexerState::InTag;
+
+                        let token = Token::Attribute {
+                            name: std::mem::take(&mut self.open_attribute_name).unwrap(),
+                            value: std::mem::take(&mut self.buffer),
+                        };
+                        self.open_attribute_name = None;
+                        return token;
+                    } else {
+                        self.buffer.push(ch);
+                    }
                 }
             }
         }

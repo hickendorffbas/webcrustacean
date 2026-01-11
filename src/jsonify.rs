@@ -329,7 +329,7 @@ pub fn dom_node_to_json(node: &Rc<RefCell<ElementDomNode>>, buffer: &mut String)
     buffer.push_str(", \"attributes:\": [");
     if node.attributes.is_some() {
         for attribute in node.attributes.as_ref().unwrap() {
-            buffer.push_str("{\"name\": ");
+            buffer.push_str("{\"name\": \"");
             buffer.push_str(&attribute.borrow().name);
             buffer.push_str("\", \"value\": \"");
             buffer.push_str(&attribute.borrow().value);

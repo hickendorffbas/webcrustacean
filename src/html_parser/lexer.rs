@@ -16,6 +16,7 @@ pub enum Token {
     EOF,
 }
 
+
 #[derive(Debug)]
 enum HtmlLexerState {
     Data,
@@ -27,6 +28,8 @@ enum HtmlLexerState {
     AttributeName,
     AttributeValueStart,
     AttributeValue,
+    EntityInData,
+    EntityInAttributeValue,
 }
 
 
@@ -43,6 +46,7 @@ pub struct Lexer {
     position: usize,
     state: HtmlLexerState,
     buffer: String,
+    entity_buffer: String,
     open_attribute_name: Option<String>,
     in_quotes: InQuotes,
 }
@@ -53,6 +57,7 @@ impl Lexer {
             position: 0,
             state: HtmlLexerState::Data,
             buffer: String::new(),
+            entity_buffer: String::new(),
             open_attribute_name: None,
             in_quotes: InQuotes::None,
         }
@@ -96,6 +101,8 @@ impl Lexer {
                             let text = std::mem::take(&mut self.buffer);
                             return Token::Text(text);
                         }
+                    } else if ch == '&' {
+                        self.state = HtmlLexerState::EntityInData;
                     } else {
                         self.buffer.push(ch);
                     }
@@ -194,10 +201,43 @@ impl Lexer {
                         };
                         self.open_attribute_name = None;
                         return token;
+                    } else if ch == '&' {
+                        self.state = HtmlLexerState::EntityInAttributeValue;
                     } else {
                         self.buffer.push(ch);
                     }
-                }
+                },
+                HtmlLexerState::EntityInData => {
+                    if ch == ';' {
+                        self.push_entity();
+                        self.state = HtmlLexerState::Data;
+                    } else {
+                        self.entity_buffer.push(ch);
+                    }
+                },
+                HtmlLexerState::EntityInAttributeValue => {
+                    if ch == ';' {
+                        self.push_entity();
+                        self.state = HtmlLexerState::AttributeValue;
+                    } else {
+                        self.entity_buffer.push(ch);
+                    }
+                },
+            }
+        }
+    }
+
+    fn push_entity(&mut self) {
+        let entity_text = std::mem::take(&mut self.entity_buffer);
+
+        match entity_text.as_str() {
+            "amp" => self.buffer.push('&'),
+            "gt" =>  self.buffer.push('>'),
+            "lt" =>  self.buffer.push('<'),
+            "quot" =>  self.buffer.push('"'),
+            //TODO: add more entities
+            _ => {
+                todo!(); //TODO: push the whole entity into the document as text?
             }
         }
     }

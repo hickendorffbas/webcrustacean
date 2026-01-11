@@ -1,7 +1,11 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::dom::{AttributeDomNode, Document, ElementDomNode};
+use crate::dom::{
+    AttributeDomNode,
+    Document,
+    ElementDomNode
+};
 use crate::html_parser::lexer::{Lexer, Token};
 
 mod lexer;
@@ -13,6 +17,7 @@ enum InsertionMode {
     ParsingRootNode,
     Parsing,
 }
+
 
 pub struct Parser {
     lexer: Lexer,

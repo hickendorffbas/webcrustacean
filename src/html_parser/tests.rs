@@ -1,4 +1,5 @@
-use crate::{html_parser::Parser, jsonify};
+use crate::html_parser::Parser;
+use crate::jsonify;
 
 
 #[test]
@@ -224,6 +225,62 @@ fn test_basic_parsing_attributes() {
                             {
                             "name":"",
                             "text":"test",
+                            "image":false,
+                            "scripts":0,
+                            "component":false,
+                            "attributes:":[],
+                            "children":[]
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+    "#.to_string();
+
+    assert!(jsonify::json_is_equal(&json, &expected_json));
+}
+
+
+#[test]
+fn test_simple_html_entity() {
+    let code = r#"<div>this is a test with &lt;entities&gt;</div>"#;
+
+    let mut parser = Parser::new(code.to_owned());
+    parser.parse();
+
+    let mut json = String::new();
+    jsonify::dom_node_to_json(&parser.document.document_node, &mut json);
+
+    let expected_json = r#"
+    {
+        "name":"",
+        "text":"",
+        "image":false,
+        "scripts":0,
+        "component":false,
+        "attributes:":[],
+        "children":[
+            {
+                "name":"html",
+                "text":"",
+                "image":false,
+                "scripts":0,
+                "component":false,
+                "attributes:":[],
+                "children":[
+                    {
+                        "name":"div",
+                        "text":"",
+                        "image":false,
+                        "scripts":0,
+                        "component":false,
+                        "attributes:":[],
+                        "children":[
+                            {
+                            "name":"",
+                            "text":"this is a test with <entities>",
                             "image":false,
                             "scripts":0,
                             "component":false,

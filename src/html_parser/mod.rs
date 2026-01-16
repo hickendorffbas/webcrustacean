@@ -138,6 +138,9 @@ impl Parser {
                 }
                 parent_node.attributes.as_mut().unwrap().push(Rc::from(RefCell::from(attribute_node)));
             },
+            Token::Doctype { content: _ } => {
+                todo!(); //TODO: implement
+            }
             Token::EOF => {
                 while self.stack.len() > 1 {
                     let node = self.stack.pop().unwrap();

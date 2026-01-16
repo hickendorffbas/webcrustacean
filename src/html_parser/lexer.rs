@@ -13,6 +13,9 @@ pub enum Token {
         name: String,
         value: String,
     },
+    Doctype {
+        content: String,
+    },
     EOF,
 }
 
@@ -31,6 +34,7 @@ enum HtmlLexerState {
     EntityInData,
     EntityInAttributeValue,
     InComment,
+    InDocType,
 }
 
 
@@ -119,7 +123,9 @@ impl Lexer {
                     self.state = HtmlLexerState::EndTagName;
                 },
                 HtmlLexerState::TagName => {
-                    if ch == '-' && self.buffer == "!-" {
+                    if ch == 'E' && self.buffer == "!DOCTYP" {
+                        self.state = HtmlLexerState::InDocType;
+                    } else if ch == '-' && self.buffer == "!-" {
                         self.state = HtmlLexerState::InComment;
                         self.buffer = String::new();
                     } else if ch.is_whitespace() {
@@ -229,6 +235,15 @@ impl Lexer {
                     if ch == '>' && self.buffer.ends_with("--") {
                         self.buffer = String::new();
                         self.state = HtmlLexerState::Data;
+                    } else {
+                        self.buffer.push(ch);
+                    }
+                },
+                HtmlLexerState::InDocType => {
+                    if ch == '>' {
+                        let doctype_content = std::mem::take(&mut self.buffer);
+                        self.state = HtmlLexerState::Data;
+                        return Token::Doctype { content: doctype_content };
                     } else {
                         self.buffer.push(ch);
                     }

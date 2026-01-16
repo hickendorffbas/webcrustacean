@@ -30,6 +30,7 @@ enum HtmlLexerState {
     AttributeValue,
     EntityInData,
     EntityInAttributeValue,
+    InComment,
 }
 
 
@@ -75,8 +76,6 @@ impl Lexer {
 
     pub fn next_token(&mut self) -> Token {
         loop {
-                            println!("{:?} {:?}", self.peek_char(), self.state);
-
             let ch = match self.next_char() {
                 Some(c) => c,
                 None => {
@@ -120,7 +119,10 @@ impl Lexer {
                     self.state = HtmlLexerState::EndTagName;
                 },
                 HtmlLexerState::TagName => {
-                    if ch.is_whitespace() {
+                    if ch == '-' && self.buffer == "!-" {
+                        self.state = HtmlLexerState::InComment;
+                        self.buffer = String::new();
+                    } else if ch.is_whitespace() {
                         let name = std::mem::take(&mut self.buffer);
                         self.state = HtmlLexerState::InTag;
 
@@ -223,6 +225,14 @@ impl Lexer {
                         self.entity_buffer.push(ch);
                     }
                 },
+                HtmlLexerState::InComment => {
+                    if ch == '>' && self.buffer.ends_with("--") {
+                        self.buffer = String::new();
+                        self.state = HtmlLexerState::Data;
+                    } else {
+                        self.buffer.push(ch);
+                    }
+                }
             }
         }
     }

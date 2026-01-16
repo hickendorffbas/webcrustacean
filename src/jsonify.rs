@@ -243,7 +243,7 @@ struct ParserState<'a>  {
     irrelevant_chars: [char;3]
 }
 impl ParserState<'_> {
-    fn make_for(text: &String) -> ParserState {
+    fn make_for(text: &String) -> ParserState<'_> {
         return ParserState {
             iterator: text.char_indices().peekable().clone(),
             original_string: text.clone(),

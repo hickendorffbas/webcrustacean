@@ -1,12 +1,13 @@
-use crate::html_parser::Parser;
+use crate::html_parser::HtmlParser;
 use crate::jsonify;
+use crate::network::url::Url;
 
 
 #[test]
 fn test_basic_parsing_1() {
     let code = r#"<b>test</b>"#;
 
-    let mut parser = Parser::new(code.to_owned());
+    let mut parser = HtmlParser::new(code.to_owned(), Url::empty());
     parser.parse();
 
     let mut json = String::new();
@@ -63,7 +64,7 @@ fn test_basic_parsing_1() {
 fn test_text_concatenation() {
     let code = r#"<div>two words</div>"#;
 
-    let mut parser = Parser::new(code.to_owned());
+    let mut parser = HtmlParser::new(code.to_owned(), Url::empty());
     parser.parse();
 
     let mut json = String::new();
@@ -119,7 +120,7 @@ fn test_text_concatenation() {
 fn test_handling_whitespace() {
     let code = r#"     <b>test       </b >        "#;
 
-    let mut parser = Parser::new(code.to_owned());
+    let mut parser = HtmlParser::new(code.to_owned(), Url::empty());
     parser.parse();
 
     let mut json = String::new();
@@ -176,8 +177,6 @@ fn test_handling_whitespace() {
     }
     "#.to_string();
 
-    println!("{}", json);
-
     assert!(jsonify::json_is_equal(&json, &expected_json));
 }
 
@@ -186,7 +185,7 @@ fn test_handling_whitespace() {
 fn test_basic_parsing_attributes() {
     let code = r#"<div color="red">test</div>"#;
 
-    let mut parser = Parser::new(code.to_owned());
+    let mut parser = HtmlParser::new(code.to_owned(), Url::empty());
     parser.parse();
 
     let mut json = String::new();
@@ -247,7 +246,7 @@ fn test_basic_parsing_attributes() {
 fn test_simple_html_entity() {
     let code = r#"<div>this is a test with &lt;entities&gt;</div>"#;
 
-    let mut parser = Parser::new(code.to_owned());
+    let mut parser = HtmlParser::new(code.to_owned(), Url::empty());
     parser.parse();
 
     let mut json = String::new();
@@ -303,7 +302,7 @@ fn test_simple_html_entity() {
 fn test_comments() {
     let code = r#"<div color="red">test</div><!-- this is a comment <b>node</b> -->"#;
 
-    let mut parser = Parser::new(code.to_owned());
+    let mut parser = HtmlParser::new(code.to_owned(), Url::empty());
     parser.parse();
 
     let mut json = String::new();

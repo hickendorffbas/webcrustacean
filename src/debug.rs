@@ -2,7 +2,6 @@ use std::rc::Rc;
 use std::cell::RefCell;
 
 use crate::dom::Document;
-use crate::html_lexer::HtmlTokenWithLocation;
 use crate::layout::LayoutNode;
 
 #[cfg(debug_assertions)] use crate::dom::ElementDomNode;
@@ -64,24 +63,6 @@ pub fn debug_log_warn<S: AsRef<str>>(_: S) {}
 #[cfg(debug_assertions)]
 pub fn debug_log_warn<S: AsRef<str>>(warning_text: S) {
     println!("WARN: {}", warning_text.as_ref());
-}
-
-
-#[allow(dead_code)]
-#[cfg(not(debug_assertions))]
-pub fn debug_print_html_tokens(_: &Vec<HtmlTokenWithLocation>) {}
-#[allow(dead_code)]
-#[cfg(debug_assertions)]
-pub fn debug_print_html_tokens(tokens: &Vec<HtmlTokenWithLocation>) {
-    let mut buffer = String::new();
-
-    //TODO: this is a quick and dirty way, it prints a lot of overhead (like HtmlToken all the time), could be a lot nicer
-
-    for token in tokens {
-        buffer = format!("{} {:?} {}:{}", buffer, token.html_token, token.line, token.character);
-    }
-
-    println!("tokenlist: {:?}", tokens);
 }
 
 

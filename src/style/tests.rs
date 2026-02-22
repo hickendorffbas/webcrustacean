@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 
 use crate::dom::{ElementDomNode, TagName};
@@ -10,7 +11,10 @@ use crate::style::{
     StyleContext,
     StyleRule,
 };
-use crate::test_util::get_next_test_id;
+
+
+static NEXT_TEST_ID: AtomicUsize = AtomicUsize::new(1);
+pub fn get_next_test_id() -> usize { NEXT_TEST_ID.fetch_add(1, Ordering::Relaxed) }
 
 
 fn check_style(resolved_styles: &HashMap<CssProperty, String>, property: &CssProperty, value: &str) {
@@ -22,7 +26,7 @@ fn check_style(resolved_styles: &HashMap<CssProperty, String>, property: &CssPro
 fn make_element_node(dom_node_id: usize, parent_node_id: usize, name: String) -> ElementDomNode {
     return ElementDomNode { internal_id: dom_node_id, parent_id: parent_node_id, text: None, is_document_node: false, dirty: false,
                             name: Some(name), name_for_layout: TagName::Other, children: Some(Vec::new()), attributes: None,
-                            image: None, img_job_tracker: None, script_job_tracker: None, scripts: None, page_component: None, styles: HashMap::new() };
+                            image: None, img_job_tracker: None, page_component: None, styles: HashMap::new() };
 }
 
 

@@ -1,4 +1,4 @@
-use crate::html_lexer::TrackingIterator;
+use crate::tracking_iterator::TrackingIterator;
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]

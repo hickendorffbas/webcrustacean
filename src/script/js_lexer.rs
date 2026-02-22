@@ -3,7 +3,7 @@ use std::{
     str::Chars
 };
 
-use crate::html_lexer::TrackingIterator;
+use crate::tracking_iterator::TrackingIterator;
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -156,6 +156,31 @@ impl <'document> JsSourceIterator<'document> {
 }
 
 
+const TOKENS_PROBABLY_PRECEDING_REGEX_LITERAL: &[JsToken] = &[
+    JsToken::OpenParenthesis,
+    JsToken::Dot,
+    JsToken::OpenBracket,
+    JsToken::Assign,
+    JsToken::Star,
+    JsToken::Plus,
+    JsToken::Minus,
+    JsToken::Semicolon,
+    JsToken::Bigger,
+    JsToken::Smaller,
+    JsToken::And,
+    JsToken::Pipe,
+    JsToken::ExclamationMark,
+    JsToken::BitWiseOr,
+    JsToken::EqualsEquals,
+    JsToken::LogicalAnd,
+    JsToken::LogicalOr,
+    //TODO: when we properly tokenize multi char operator tokens (like "&&" and "=="), we need to add them to this list (some done, not all)
+];
+
+
+const REGEX_ALLOWED_FLAGS: &[char] = &['d', 'g', 'i', 'm', 's', 'u', 'v', 'y'];
+
+
 pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec<JsTokenWithLocation> {
     let mut tokens = Vec::new();
 
@@ -206,28 +231,6 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
             //  parsing rather then lexing. For now we rely on heuristics as described in
             //  https://stackoverflow.com/questions/5519596/when-parsing-javascript-what-determines-the-meaning-of-a-slash
 
-            //TODO: put this in a better place where we don't need to instatiate it so often
-            const TOKENS_PROBABLY_PRECEDING_REGEX_LITERAL: [JsToken; 17] = [
-                JsToken::OpenParenthesis,
-                JsToken::Dot,
-                JsToken::OpenBracket,
-                JsToken::Assign,
-                JsToken::Star,
-                JsToken::Plus,
-                JsToken::Minus,
-                JsToken::Semicolon,
-                JsToken::Bigger,
-                JsToken::Smaller,
-                JsToken::And,
-                JsToken::Pipe,
-                JsToken::ExclamationMark,
-                JsToken::BitWiseOr,
-                JsToken::EqualsEquals,
-                JsToken::LogicalAnd,
-                JsToken::LogicalOr,
-                //TODO: when we properly tokenize multi char operator tokens (like "&&" and "=="), we need to add them to this list (some done, not all)
-            ];
-
             let mut last_token = None;
             for token in tokens.iter().rev() {
                 if token.token != JsToken::Newline {
@@ -252,9 +255,6 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
 
                     if !prev_was_escape_char && js_iterator.peek() == Some('/') {
                         buffer.push(js_iterator.next());  // read the closing slash
-
-                        //TODO: put this in a better place where we don't need to instatiate it so often
-                        const REGEX_ALLOWED_FLAGS: [char; 8] = ['d', 'g', 'i', 'm', 's', 'u', 'v', 'y'];
 
                         //read possible flags:
                         while js_iterator.has_next() {

@@ -12,10 +12,9 @@ use image::Rgba;
 use sdl2::rect::Rect as SdlRect;
 use threadpool::ThreadPool;
 
-use crate::html_lexer;
+use crate::html_parser;
 use crate::layout;
 use crate::network::url::Url;
-use crate::old_html_parser;
 use crate::platform::{Platform, self};
 use crate::renderer;
 use crate::resource_loader::{CookieStore, ResourceThreadPool};
@@ -50,10 +49,9 @@ fn read_file(file_path: &Path) -> String {
 fn render_doc(filename: &str, platform: &mut Platform, save_output: bool) -> Vec<u8> {
     let html = read_file(Path::new(&filename));
 
-    let url = Url::empty();
-
-    let lex_result = html_lexer::lex_html(&html);
-    let mut document = old_html_parser::parse(lex_result, &url);
+    let mut html_parser = html_parser::HtmlParser::new(html, Url::empty());
+    html_parser.parse();
+    let mut document = html_parser.document;
 
     document.document_node.borrow_mut().post_construct(platform);
     document.update_all_dom_nodes(&mut ResourceThreadPool { pool: ThreadPool::new(1) }, &CookieStore { cookies_by_domain: HashMap::new() });

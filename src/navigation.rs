@@ -1,12 +1,10 @@
 use std::cell::RefCell;
 
 use crate::dom::{Document, PostData};
-use crate::script::js_interpreter;
-use crate::html_lexer;
+use crate::html_parser::HtmlParser;
 use crate::layout;
 use crate::layout::{compute_layout, FullLayout};
 use crate::network::url::Url;
-use crate::old_html_parser;
 use crate::platform::Platform;
 use crate::resource_loader::{
     self,
@@ -97,7 +95,7 @@ pub fn start_navigate(navigation_action: &NavigationAction, platform: &Platform,
 }
 
 
-pub fn finish_navigate(navigation_action: &NavigationAction, ui_state: &mut UIState, page_content: &String, document: &RefCell<Document>,
+pub fn finish_navigate(navigation_action: &NavigationAction, ui_state: &mut UIState, page_content: String, document: &RefCell<Document>,
                        cookie_store: &CookieStore, full_layout: &RefCell<FullLayout>, platform: &mut Platform, resource_thread_pool: &mut ResourceThreadPool) {
 
     let url = match &navigation_action.action_type {
@@ -108,18 +106,14 @@ pub fn finish_navigate(navigation_action: &NavigationAction, ui_state: &mut UISt
         NavigationActionType::Post(post_data) => { &post_data.url },
     };
 
-    let lex_result = html_lexer::lex_html(&page_content);
-    document.replace(old_html_parser::parse(lex_result, &url));
+    let mut parser = HtmlParser::new(page_content, url.clone());
+    parser.parse();
+    document.replace(parser.document);
 
     compute_styles(&document.borrow().document_node, &document.borrow().all_nodes, &document.borrow().style_context);
 
     document.borrow_mut().document_node.borrow_mut().post_construct(platform);
     document.borrow_mut().update_all_dom_nodes(resource_thread_pool, cookie_store);
-
-    //for now we run scripts here, because we don't want to always run them fully in the main loop, and we need to have the DOM before we run
-    //but I'm not sure this is really the correct place
-    let mut interpreter = js_interpreter::JsInterpreter::new();
-    interpreter.run_scripts_in_document(document);
 
     #[cfg(feature="timings")] let start_layout_instant = Instant::now();
     full_layout.replace(layout::build_full_layout(&document.borrow(), &platform.font_context));

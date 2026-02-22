@@ -135,6 +135,7 @@ pub struct Selector {
 
 
 #[derive(PartialEq)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 enum Origin {
     Author,
     UserAgent,
@@ -142,6 +143,7 @@ enum Origin {
 }
 
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 struct ActiveStyleRule {
     property: CssProperty,
     property_value: CssValue,
@@ -245,7 +247,7 @@ pub fn compute_styles(dom_node: &Rc<RefCell<ElementDomNode>>, all_dom_nodes: &Ha
 }
 
 
-const HTML_BLOCK_ELEMENTS: [&'static str;11] = ["div", "form", "h1", "h2", "h3", "h4", "h5", "h6", "hr", "p", "table"];
+const HTML_BLOCK_ELEMENTS: &[&'static str] = &["div", "form", "h1", "h2", "h3", "h4", "h5", "h6", "hr", "p", "table", "html", "body"];
 
 
 pub fn get_user_agent_style_sheet() -> Vec<StyleRule> {

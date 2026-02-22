@@ -9,7 +9,6 @@ use crate::color::Color;
 use crate::dom::{
     DomText,
     ElementDomNode,
-    get_next_dom_node_interal_id
 };
 use crate::layout::{
     CssBox,
@@ -316,13 +315,6 @@ pub fn dom_node_to_json(node: &Rc<RefCell<ElementDomNode>>, buffer: &mut String)
     buffer.push_str("\", \"image\": ");
     buffer.push_str(node.image.is_some().to_string().as_str());
 
-    buffer.push_str(", \"scripts\": ");
-    if node.scripts.is_some() {
-        buffer.push_str(node.scripts.as_ref().unwrap().len().to_string().as_str());
-    } else {
-        buffer.push('0');
-    }
-
     buffer.push_str(", \"component\": ");
     buffer.push_str(node.page_component.is_some().to_string().as_str());
 
@@ -356,7 +348,6 @@ pub fn dom_node_from_json(json_data: &String) -> ElementDomNode {
 
 fn parse_dom_node_from_json(parser_state: &mut ParserState) -> ElementDomNode {
     let mut dom_node = ElementDomNode::new_empty();
-    dom_node.internal_id = get_next_dom_node_interal_id();
 
     parser_state.consume_until('{');
     parser_state.consume_until_next_relevant_char();

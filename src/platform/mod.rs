@@ -71,9 +71,13 @@ impl Platform {
 
         let rust_type_font = &self.font_context.font_data[&font.to_font_key()];
 
+        //TODO: We strip newlines here because we should not render these. There is probably a better place to do this?
+        //TODO: this also makes a new string every time we render, which is quite bad....
+        let text = text.replace("\n", "");
+
         let scale = Scale::uniform(font.size as f32);
         let v_metrics = rust_type_font.v_metrics(scale);
-        let glyphs: Vec<_> = rust_type_font.layout(text, scale, point(0.0, v_metrics.ascent)).collect();
+        let glyphs: Vec<_> = rust_type_font.layout(&text, scale, point(0.0, v_metrics.ascent)).collect();
 
         self.enable_blending(); //TODO: what if we always have blending on? Maybe more expensive?
 

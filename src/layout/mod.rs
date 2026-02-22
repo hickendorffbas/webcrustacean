@@ -1182,14 +1182,8 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
                 }
             }
 
-            //TODO: this one might not be neccesary any more after we fix our html parser to not try to parse the javascript
-            TagName::Script => { partial_node_visible = false; }
-
-            //TODO: same as for "script", do these need nodes in the DOM? probably not
-            TagName::Style => { partial_node_visible = false; }
-
-            //TODO: eventually we want to do something else with the title (update the window title or so)
-            TagName::Title => { partial_node_visible = false; }
+            //TODO: we need these in the DOM, but we should not even generate a layout box for them actually:
+            TagName::Script | TagName::Style | TagName::Title => { partial_node_visible = false; }
 
             TagName::Table => {
                 childs_to_recurse_on = &None; // we handle the children in our own method //TODO: it would still be nice to re-use the block/inline logic below

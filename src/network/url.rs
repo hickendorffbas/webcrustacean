@@ -47,6 +47,7 @@ impl Url {
         Url::from_base_url(url_str, None)
     }
 
+    #[cfg(test)] //currently only used in tests
     pub fn empty() -> Url {
         return Url {
             scheme: String::new(),

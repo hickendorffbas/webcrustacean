@@ -1,25 +1,23 @@
 mod color;
 mod debug;
 mod dom;
-mod html_lexer;
 mod html_parser;
 #[cfg(test)] mod jsonify; //TODO: would also like to use it for debug, not sure how to configure that. feature flag on the crate maybe?
 mod layout;
 mod macros;
 mod navigation;
 mod network;
-mod old_html_parser;
 mod platform;
 mod renderer;
 mod resource_loader;
 mod script;
 mod selection;
 mod style;
+mod tracking_iterator;
 mod ui;
 mod ui_components;
 
 #[cfg(test)] mod reftests;
-#[cfg(test)] mod test_util;
 
 use std::{
     cell::RefCell,
@@ -127,9 +125,6 @@ fn main() -> Result<(), String> {
     let mut mouse_state = MouseState { x: 0, y: 0, click_start_x: 0, click_start_y: 0, left_down: false };
     let mut ui_state = UIState::new(STARTING_SCREEN_WIDTH, STARTING_SCREEN_HEIGHT);
 
-    let document = RefCell::from(Document::new_empty());
-    let full_layout_tree = RefCell::from(FullLayout::new_empty());
-
     let mut cookie_store = CookieStore { cookies_by_domain: HashMap::new() };
 
     let args: Vec<String> = env::args().collect();
@@ -138,7 +133,10 @@ fn main() -> Result<(), String> {
     } else {
         Url::from(&args[1])
     };
-    document.borrow_mut().base_url = start_url.clone();
+
+    let document = RefCell::from(Document::new(start_url.clone()));
+    let full_layout_tree = RefCell::from(FullLayout::new_empty());
+
     let mut ongoing_navigation = Some(NavigationAction::new_get(start_url));
 
     let mut main_page_job_tracker = start_navigate(&ongoing_navigation.as_ref().unwrap(), &platform, &mut ui_state, &cookie_store, &mut resource_thread_pool);
@@ -186,7 +184,7 @@ fn main() -> Result<(), String> {
                             cookie_store.cookies_by_domain.get_mut(domain).unwrap().insert(new_cookie.0, new_cookie.1);
                         }
 
-                        finish_navigate(&ongoing_navigation.as_ref().unwrap(), &mut ui_state, &received_result.body, &document, &cookie_store, &full_layout_tree, &mut platform, &mut resource_thread_pool)
+                        finish_navigate(&ongoing_navigation.as_ref().unwrap(), &mut ui_state, received_result.body, &document, &cookie_store, &full_layout_tree, &mut platform, &mut resource_thread_pool)
                     },
                 }
 

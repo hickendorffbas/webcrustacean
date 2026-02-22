@@ -3,7 +3,7 @@ pub enum Token {
     //TODO: there are probably more places I can use anonymous enum structs
     StartTag {
         name: String,
-        self_closing: bool, //TODO: is this ever really used?
+        self_closing: bool,
     },
     EndTag {
         name: String,
@@ -17,6 +17,12 @@ pub enum Token {
         content: String,
     },
     EOF,
+}
+
+pub struct TokenWithLocation {
+    pub token: Token,
+    pub line: usize,
+    pub char: usize,
 }
 
 
@@ -35,6 +41,8 @@ enum HtmlLexerState {
     EntityInAttributeValue,
     InComment,
     InDocType,
+    InScript,
+    InStyle,
 }
 
 
@@ -46,6 +54,25 @@ enum InQuotes {
 }
 
 
+static SELF_CLOSING_TAGS: &[&str] = &[
+    "area",
+    "base",
+    "br",
+    "col",
+    "embed",
+    "hr",
+    "img",
+    "input",
+    "keygen",
+    "link",
+    "meta",
+    "param",
+    "source",
+    "track",
+    "wbr",
+];
+
+
 pub struct Lexer {
     input: String,
     position: usize,
@@ -54,6 +81,10 @@ pub struct Lexer {
     entity_buffer: String,
     open_attribute_name: Option<String>,
     in_quotes: InQuotes,
+    last_tag_name: String,
+    line_pos: usize,
+    char_pos: usize,
+    pending_token: Option<TokenWithLocation>,
 }
 impl Lexer {
     pub fn new(input: String) -> Self {
@@ -65,20 +96,38 @@ impl Lexer {
             entity_buffer: String::new(),
             open_attribute_name: None,
             in_quotes: InQuotes::None,
+            last_tag_name: String::new(),
+            line_pos: 0,
+            char_pos: 0,
+            pending_token: None,
         }
     }
 
     fn next_char(&mut self) -> Option<char> {
         let ch = self.input[self.position..].chars().next()?; //TODO: is it not way more efficient to store the chars (peekable) iterator on the state?
+                                                              //      seems we don't even need peekable
         self.position += ch.len_utf8();
+
+        if ch == '\n' {
+            self.line_pos += 1;
+            self.char_pos = 0;
+        } else {
+            self.char_pos += 1;
+        }
+
         Some(ch)
     }
 
-    fn peek_char(&self) -> Option<char> {
-        self.input[self.position..].chars().next()
+    pub fn make_token(&self, token: Token) -> TokenWithLocation {
+        return TokenWithLocation { token, line: self.line_pos, char: self.char_pos };
     }
 
-    pub fn next_token(&mut self) -> Token {
+    pub fn next_token(&mut self) -> TokenWithLocation {
+        if self.pending_token.is_some() {
+            let pending_token = std::mem::take(&mut self.pending_token);
+            return pending_token.unwrap();
+        }
+
         loop {
             let ch = match self.next_char() {
                 Some(c) => c,
@@ -87,12 +136,12 @@ impl Lexer {
                         match self.state {
                             HtmlLexerState::Data => {
                                 let text = std::mem::take(&mut self.buffer);
-                                return Token::Text(text);
+                                return self.make_token(Token::Text(text));
                             },
                             _ => todo!(), //TODO: we probably just ignore this and return EOF?
                         }
                     }
-                    return Token::EOF;
+                    return self.make_token(Token::EOF);
                 }
             };
 
@@ -102,7 +151,7 @@ impl Lexer {
                         self.state = HtmlLexerState::TagOpen;
                         if !self.buffer.is_empty() {
                             let text = std::mem::take(&mut self.buffer);
-                            return Token::Text(text);
+                            return self.make_token(Token::Text(text));
                         }
                     } else if ch == '&' {
                         self.state = HtmlLexerState::EntityInData;
@@ -131,12 +180,19 @@ impl Lexer {
                     } else if ch.is_whitespace() {
                         let name = std::mem::take(&mut self.buffer);
                         self.state = HtmlLexerState::InTag;
-
-                        return Token::StartTag { name, self_closing: false };
+                        self.last_tag_name = name.clone();
+                        return self.make_token(Token::StartTag { self_closing: is_self_closing(&name), name });
                     } else if ch == '>' {
                         let name = std::mem::take(&mut self.buffer);
-                        self.state = HtmlLexerState::Data;
-                        return Token::StartTag { name, self_closing: false };
+                        if name == "script" {
+                            self.state = HtmlLexerState::InScript;
+                        } else if name == "style" {
+                            self.state = HtmlLexerState::InStyle;
+                        } else {
+                            self.state = HtmlLexerState::Data;
+                        }
+                        self.last_tag_name = name.clone();
+                        return self.make_token(Token::StartTag { self_closing: is_self_closing(&name), name });
                     } else {
                         self.buffer.push(ch);
                     }
@@ -145,7 +201,7 @@ impl Lexer {
                     if ch == '>' {
                         let name = std::mem::take(&mut self.buffer);
                         self.state = HtmlLexerState::Data;
-                        return Token::EndTag { name };
+                        return self.make_token(Token::EndTag { name });
                     } else {
                         self.buffer.push(ch);
                     }
@@ -154,7 +210,16 @@ impl Lexer {
                     if ch.is_whitespace() {
                         //we do nothing here, we wait for more content
                     } else if ch == '>' {
-                        self.state = HtmlLexerState::Data;
+                        if self.last_tag_name == "script" {
+                            self.state = HtmlLexerState::InScript;
+                        } else if self.last_tag_name == "style" {
+                            self.state = HtmlLexerState::InStyle;
+                        } else {
+                            self.state = HtmlLexerState::Data;
+                        }
+                    } else if ch == '/' {
+                        //This does not mean its a closing tag, that case has been handled in TagOpen already
+                        //     this is the slash some people put in self-closing tags (even though its not needed), so we ignore it
                     } else {
                         self.state = HtmlLexerState::AttributeName;
                         self.buffer.push(ch);
@@ -167,14 +232,14 @@ impl Lexer {
                         let attribute_name = std::mem::take(&mut self.buffer);
 
                         //for boolean attributes, the value is specced to be equal to the name
-                        return Token::Attribute { name: attribute_name.clone(), value: attribute_name };
+                        return self.make_token(Token::Attribute { name: attribute_name.clone(), value: attribute_name });
                     } else if ch == '>' {
                         self.state = HtmlLexerState::Data;
 
                         let attribute_name = std::mem::take(&mut self.buffer);
 
                         //for boolean attributes, the value is specced to be equal to the name
-                        return Token::Attribute { name: attribute_name.clone(), value: attribute_name };
+                        return self.make_token(Token::Attribute { name: attribute_name.clone(), value: attribute_name });
                     } else if ch == '=' {
                         self.open_attribute_name = Some(std::mem::take(&mut self.buffer));
                         self.state = HtmlLexerState::AttributeValueStart;
@@ -208,7 +273,7 @@ impl Lexer {
                             value: std::mem::take(&mut self.buffer),
                         };
                         self.open_attribute_name = None;
-                        return token;
+                        return self.make_token(token);
                     } else if ch == '&' {
                         self.state = HtmlLexerState::EntityInAttributeValue;
                     } else {
@@ -243,7 +308,30 @@ impl Lexer {
                     if ch == '>' {
                         let doctype_content = std::mem::take(&mut self.buffer);
                         self.state = HtmlLexerState::Data;
-                        return Token::Doctype { content: doctype_content };
+                        return self.make_token(Token::Doctype { content: doctype_content });
+                    } else {
+                        self.buffer.push(ch);
+                    }
+                },
+                HtmlLexerState::InScript => {
+                    //TODO: we need to track quotes, otherwise this will fail: <script>var x = "</script>";</script>
+                    if ch == '>' && self.buffer.ends_with("</script") {
+                        let mut raw_text_content = std::mem::take(&mut self.buffer);
+                        raw_text_content = raw_text_content[..raw_text_content.len() - "</script".len()].to_string();
+                        self.state = HtmlLexerState::Data;
+                        self.pending_token = Some(self.make_token(Token::EndTag { name: "script".to_owned() }));
+                        return self.make_token(Token::Text(raw_text_content));
+                    } else {
+                        self.buffer.push(ch);
+                    }
+                },
+                HtmlLexerState::InStyle => {
+                    if ch == '>' && self.buffer.ends_with("</style") {
+                        let mut raw_text_content = std::mem::take(&mut self.buffer);
+                        raw_text_content = raw_text_content[..raw_text_content.len() - "</style".len()].to_string();
+                        self.state = HtmlLexerState::Data;
+                        self.pending_token = Some(self.make_token(Token::EndTag { name: "style".to_owned() }));
+                        return self.make_token(Token::Text(raw_text_content));
                     } else {
                         self.buffer.push(ch);
                     }
@@ -266,4 +354,9 @@ impl Lexer {
             }
         }
     }
+}
+
+
+fn is_self_closing(tagname: &String) -> bool {
+    return SELF_CLOSING_TAGS.contains(&tagname.as_str());
 }

@@ -185,7 +185,7 @@ fn build_about_page(url: &Url) -> String {
 
         get_all_html_in_folder(our_path, &mut local_file_urls);
 
-        let mut html = String::from("<html><h1>Webcrustacean Home<h1><br />");
+        let mut html = String::from("<html><h1>Webcrustacean Home</h1><br />");
         for local_file_url in local_file_urls {
             let file_url = &local_file_url.into_os_string().into_string().unwrap();
             html += format!("<a href=\"file://{file_url}\">{file_url}</a><br />").as_str();
@@ -201,7 +201,6 @@ fn build_about_page(url: &Url) -> String {
 
 
 fn get_all_html_in_folder(folder_path: PathBuf, local_file_urls: &mut Vec<PathBuf>) {
-    //TODO: test the folder walking code on windows
     let files_in_current_folder = fs::read_dir(folder_path).unwrap();
     for file in files_in_current_folder {
         let path = file.as_ref().unwrap().path();

@@ -351,7 +351,7 @@ impl Lexer {
             "nbsp" => self.buffer.push(' '),
             "quot" => self.buffer.push('"'),
             _ => {
-                todo!(); //TODO: push the whole entity into the document as text?
+                self.buffer.push_str(entity_text.as_str());
             }
         }
     }

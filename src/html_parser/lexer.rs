@@ -264,9 +264,14 @@ impl Lexer {
                 }
                 HtmlLexerState::AttributeValue => {
                     if (ch == '\'' && self.in_quotes == InQuotes::Single) ||
-                       (ch == '"' && self.in_quotes == InQuotes::Double) {
+                       (ch == '"' && self.in_quotes == InQuotes::Double) ||
+                       ((ch == ' ' || ch == '>') && self.in_quotes == InQuotes::None) {
 
-                        self.state = HtmlLexerState::InTag;
+                        if ch == '>' {
+                            self.state = HtmlLexerState::Data;
+                        } else {
+                            self.state = HtmlLexerState::InTag;
+                        }
 
                         let token = Token::Attribute {
                             name: std::mem::take(&mut self.open_attribute_name).unwrap(),

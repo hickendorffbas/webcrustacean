@@ -19,7 +19,6 @@ fn test_basic_parsing_1() {
         "name":"",
         "text":"",
         "image":false,
-        "scripts":0,
         "component":false,
         "attributes:":[],
         "children":[
@@ -27,7 +26,6 @@ fn test_basic_parsing_1() {
                 "name":"html",
                 "text":"",
                 "image":false,
-                "scripts":0,
                 "component":false,
                 "attributes:":[],
                 "children":[
@@ -35,7 +33,6 @@ fn test_basic_parsing_1() {
                         "name":"b",
                         "text":"",
                         "image":false,
-                        "scripts":0,
                         "component":false,
                         "attributes:":[],
                         "children":[
@@ -43,7 +40,6 @@ fn test_basic_parsing_1() {
                             "name":"",
                             "text":"test",
                             "image":false,
-                            "scripts":0,
                             "component":false,
                             "attributes:":[],
                             "children":[]
@@ -75,7 +71,6 @@ fn test_text_concatenation() {
         "name":"",
         "text":"",
         "image":false,
-        "scripts":0,
         "component":false,
         "attributes:":[],
         "children":[
@@ -83,7 +78,6 @@ fn test_text_concatenation() {
                 "name":"html",
                 "text":"",
                 "image":false,
-                "scripts":0,
                 "component":false,
                 "attributes:":[],
                 "children":[
@@ -91,7 +85,6 @@ fn test_text_concatenation() {
                         "name":"div",
                         "text":"",
                         "image":false,
-                        "scripts":0,
                         "component":false,
                         "attributes:":[],
                         "children":[
@@ -99,7 +92,6 @@ fn test_text_concatenation() {
                             "name":"",
                             "text":"two words",
                             "image":false,
-                            "scripts":0,
                             "component":false,
                             "attributes:":[],
                             "children":[]
@@ -131,7 +123,6 @@ fn test_handling_whitespace() {
         "name":"",
         "text":"",
         "image":false,
-        "scripts":0,
         "component":false,
         "attributes:":[],
         "children":[
@@ -139,7 +130,6 @@ fn test_handling_whitespace() {
                 "name":"html",
                 "text":"",
                 "image":false,
-                "scripts":0,
                 "component":false,
                 "attributes:":[],
                 "children":[
@@ -147,7 +137,6 @@ fn test_handling_whitespace() {
                         "name":"b",
                         "text":"",
                         "image":false,
-                        "scripts":0,
                         "component":false,
                         "attributes:":[],
                         "children":[
@@ -155,7 +144,6 @@ fn test_handling_whitespace() {
                             "name":"",
                             "text":"test       ",
                             "image":false,
-                            "scripts":0,
                             "component":false,
                             "attributes:":[],
                             "children":[]
@@ -166,7 +154,6 @@ fn test_handling_whitespace() {
                         "name":"",
                         "text":"        ",
                         "image":false,
-                        "scripts":0,
                         "component":false,
                         "attributes:":[],
                         "children":[]
@@ -196,7 +183,6 @@ fn test_basic_parsing_attributes() {
         "name":"",
         "text":"",
         "image":false,
-        "scripts":0,
         "component":false,
         "attributes:":[],
         "children":[
@@ -204,7 +190,6 @@ fn test_basic_parsing_attributes() {
                 "name":"html",
                 "text":"",
                 "image":false,
-                "scripts":0,
                 "component":false,
                 "attributes:":[],
                 "children":[
@@ -212,7 +197,6 @@ fn test_basic_parsing_attributes() {
                         "name":"div",
                         "text":"",
                         "image":false,
-                        "scripts":0,
                         "component":false,
                         "attributes:":[
                             {
@@ -225,7 +209,6 @@ fn test_basic_parsing_attributes() {
                             "name":"",
                             "text":"test",
                             "image":false,
-                            "scripts":0,
                             "component":false,
                             "attributes:":[],
                             "children":[]
@@ -257,7 +240,6 @@ fn test_simple_html_entity() {
         "name":"",
         "text":"",
         "image":false,
-        "scripts":0,
         "component":false,
         "attributes:":[],
         "children":[
@@ -265,7 +247,6 @@ fn test_simple_html_entity() {
                 "name":"html",
                 "text":"",
                 "image":false,
-                "scripts":0,
                 "component":false,
                 "attributes:":[],
                 "children":[
@@ -273,7 +254,6 @@ fn test_simple_html_entity() {
                         "name":"div",
                         "text":"",
                         "image":false,
-                        "scripts":0,
                         "component":false,
                         "attributes:":[],
                         "children":[
@@ -281,7 +261,6 @@ fn test_simple_html_entity() {
                             "name":"",
                             "text":"this is a test with <entities>",
                             "image":false,
-                            "scripts":0,
                             "component":false,
                             "attributes:":[],
                             "children":[]
@@ -313,7 +292,6 @@ fn test_comments() {
         "name":"",
         "text":"",
         "image":false,
-        "scripts":0,
         "component":false,
         "attributes:":[],
         "children":[
@@ -321,7 +299,6 @@ fn test_comments() {
                 "name":"html",
                 "text":"",
                 "image":false,
-                "scripts":0,
                 "component":false,
                 "attributes:":[],
                 "children":[
@@ -329,7 +306,6 @@ fn test_comments() {
                         "name":"div",
                         "text":"",
                         "image":false,
-                        "scripts":0,
                         "component":false,
                         "attributes:":[
                             {
@@ -342,7 +318,6 @@ fn test_comments() {
                             "name":"",
                             "text":"test",
                             "image":false,
-                            "scripts":0,
                             "component":false,
                             "attributes:":[],
                             "children":[]

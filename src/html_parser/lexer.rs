@@ -344,11 +344,12 @@ impl Lexer {
         let entity_text = std::mem::take(&mut self.entity_buffer);
 
         match entity_text.as_str() {
-            "amp" => self.buffer.push('&'),
-            "gt" =>  self.buffer.push('>'),
-            "lt" =>  self.buffer.push('<'),
-            "quot" =>  self.buffer.push('"'),
-            //TODO: add more entities
+            "amp" =>  self.buffer.push('&'),
+            "apos" => self.buffer.push('\''),
+            "gt" =>   self.buffer.push('>'),
+            "lt" =>   self.buffer.push('<'),
+            "nbsp" => self.buffer.push(' '),
+            "quot" => self.buffer.push('"'),
             _ => {
                 todo!(); //TODO: push the whole entity into the document as text?
             }

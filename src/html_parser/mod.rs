@@ -9,9 +9,10 @@ use crate::dom::{
 use crate::html_parser::lexer::{Lexer, Token};
 use crate::network::url::Url;
 use crate::script::{
+    js_console,
     js_interpreter,
     js_lexer,
-    js_parser
+    js_parser,
 };
 use crate::style::{css_lexer, css_parser};
 
@@ -198,19 +199,29 @@ impl HtmlParser {
             if node.borrow().name.is_some() {
                 if node.borrow().name.as_ref().unwrap().as_str() == "script" {
 
-                    //TODO: check if we have seen an src attribute, if so only download and run that, ignore the content
+                    let mut script_type = node.borrow().get_attribute_value("type");
+                    if script_type.is_none() {
+                        script_type = Some(String::from("text/javascript"));
+                    }
 
-                    let node_borr = node.borrow();
-                    let content_node = node_borr.children.as_ref().unwrap()[0].borrow();
-                    let content = &content_node.text.as_ref().unwrap().text_content;
+                    if script_type.as_ref().unwrap().as_str() != "text/javascript" {
+                        js_console::log_js_error(format!("Unsupported script type: {:}", script_type.unwrap()).as_str());
+                    } else {
 
-                    //TODO: for now we just execute the script, but we need to juse the correct execution context, so the right stuff is shared on the page
+                        //TODO: check if we have seen an src attribute, if so only download and run that, ignore the content
 
-                    let js_tokens = js_lexer::lex_js(content, self.last_line_idx as u32, self.last_char_idx as u32);
-                    let script = js_parser::parse_js(&js_tokens);
+                        let node_borr = node.borrow();
+                        let content_node = node_borr.children.as_ref().unwrap()[0].borrow();
+                        let content = &content_node.text.as_ref().unwrap().text_content;
 
-                    let mut interpreter = js_interpreter::JsInterpreter::new();
-                    interpreter.run_script(&script);
+                        //TODO: for now we just execute the script, but we need to juse the correct execution context, so the right stuff is shared on the page
+
+                        let js_tokens = js_lexer::lex_js(content, self.last_line_idx as u32, self.last_char_idx as u32);
+                        let script = js_parser::parse_js(&js_tokens);
+
+                        let mut interpreter = js_interpreter::JsInterpreter::new();
+                        interpreter.run_script(&script);
+                    }
                 }
                 if node.borrow().name.as_ref().unwrap().as_str() == "style" {
 

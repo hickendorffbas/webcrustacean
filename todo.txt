@@ -1,7 +1,6 @@
 
 goals for 0.8.0
-       - implement basic flex layout
-              - test more basic cases
+       - javascript ternary operator ( ? as an operator in the pratt parser, and then parse logic that reads until its finds the : )
        - load javascript and css files linked from a page
               - add new job system to not block main thread on this
               - css is still todo here

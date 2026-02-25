@@ -1,8 +1,9 @@
-0.7.0 [UNRELEASED]
+0.7.0
 ===================
 - Very basic flex layout support
 - New improved CSS parser
 - Horizontal scrolling is now supported
+- New incremental HTML parser
 
 
 0.6.0

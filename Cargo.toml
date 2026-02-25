@@ -1,6 +1,6 @@
 [package]
 name = "webcrustacean"
-version = "0.7.0-alpha"
+version = "0.7.0"
 authors = ["Bas Hickendorff <hickendorffbas@gmail.com>"]
 edition = "2021"
 

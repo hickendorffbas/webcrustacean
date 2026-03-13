@@ -3,12 +3,28 @@ use crate::jsonify;
 use crate::network::url::Url;
 
 
+fn run_parser(parser: &mut HtmlParser) {
+
+    while !parser.is_done() {
+        parser.step();
+
+        match parser.state {
+            super::ParserState::ContinueParsing => {},
+            super::ParserState::WaitingForScriptRun(_) | super::ParserState::WaitingForScriptDownloadAndRun(_) => {
+                panic!("These test don't support script")
+            },
+            super::ParserState::Done => break,
+        }
+    }
+}
+
+
 #[test]
 fn test_basic_parsing_1() {
     let code = r#"<b>test</b>"#;
 
     let mut parser = HtmlParser::new(code.to_owned(), Url::empty());
-    parser.parse();
+    run_parser(&mut parser);
 
     let mut json = String::new();
     jsonify::dom_node_to_json(&parser.document.document_node, &mut json);
@@ -61,7 +77,7 @@ fn test_text_concatenation() {
     let code = r#"<div>two words</div>"#;
 
     let mut parser = HtmlParser::new(code.to_owned(), Url::empty());
-    parser.parse();
+    run_parser(&mut parser);
 
     let mut json = String::new();
     jsonify::dom_node_to_json(&parser.document.document_node, &mut json);
@@ -113,7 +129,7 @@ fn test_handling_whitespace() {
     let code = r#"     <b>test       </b >        "#;
 
     let mut parser = HtmlParser::new(code.to_owned(), Url::empty());
-    parser.parse();
+    run_parser(&mut parser);
 
     let mut json = String::new();
     jsonify::dom_node_to_json(&parser.document.document_node, &mut json);
@@ -173,7 +189,7 @@ fn test_basic_parsing_attributes() {
     let code = r#"<div color="red">test</div>"#;
 
     let mut parser = HtmlParser::new(code.to_owned(), Url::empty());
-    parser.parse();
+    run_parser(&mut parser);
 
     let mut json = String::new();
     jsonify::dom_node_to_json(&parser.document.document_node, &mut json);
@@ -230,7 +246,7 @@ fn test_simple_html_entity() {
     let code = r#"<div>this is a test with &lt;entities&gt;</div>"#;
 
     let mut parser = HtmlParser::new(code.to_owned(), Url::empty());
-    parser.parse();
+    run_parser(&mut parser);
 
     let mut json = String::new();
     jsonify::dom_node_to_json(&parser.document.document_node, &mut json);
@@ -282,7 +298,7 @@ fn test_comments() {
     let code = r#"<div color="red">test</div><!-- this is a comment <b>node</b> -->"#;
 
     let mut parser = HtmlParser::new(code.to_owned(), Url::empty());
-    parser.parse();
+    run_parser(&mut parser);
 
     let mut json = String::new();
     jsonify::dom_node_to_json(&parser.document.document_node, &mut json);

@@ -12,7 +12,7 @@ use image::Rgba;
 use sdl2::rect::Rect as SdlRect;
 use threadpool::ThreadPool;
 
-use crate::html_parser;
+use crate::html_parser::{HtmlParser, ParserState};
 use crate::layout;
 use crate::network::url::Url;
 use crate::platform::{Platform, self};
@@ -46,11 +46,27 @@ fn read_file(file_path: &Path) -> String {
 }
 
 
+fn run_parser(parser: &mut HtmlParser) {
+
+    while !parser.is_done() {
+        parser.step();
+
+        match parser.state {
+            ParserState::ContinueParsing => {},
+            ParserState::WaitingForScriptRun(_) | ParserState::WaitingForScriptDownloadAndRun(_) => {
+                panic!("These test don't support script")
+            },
+            ParserState::Done => break,
+        }
+    }
+}
+
+
 fn render_doc(filename: &str, platform: &mut Platform, save_output: bool) -> Vec<u8> {
     let html = read_file(Path::new(&filename));
 
-    let mut html_parser = html_parser::HtmlParser::new(html, Url::empty());
-    html_parser.parse();
+    let mut html_parser = HtmlParser::new(html, Url::empty());
+    run_parser(&mut html_parser);
     let mut document = html_parser.document;
 
     document.document_node.borrow_mut().post_construct(platform);

@@ -1,7 +1,11 @@
 use std::cell::RefCell;
 
 use crate::dom::{Document, PostData};
-use crate::html_parser::HtmlParser;
+use crate::html_parser::{
+    self,
+    HtmlParser,
+    ParserState
+};
 use crate::layout;
 use crate::layout::{compute_layout, FullLayout};
 use crate::network::url::Url;
@@ -12,6 +16,11 @@ use crate::resource_loader::{
     ResourceRequestJobTracker,
     ResourceRequestResult,
     ResourceThreadPool
+};
+use crate::script::{
+    js_interpreter,
+    js_lexer,
+    js_parser,
 };
 use crate::style::compute_styles;
 use crate::ui::{
@@ -107,7 +116,60 @@ pub fn finish_navigate(navigation_action: &NavigationAction, ui_state: &mut UISt
     };
 
     let mut parser = HtmlParser::new(page_content, url.clone());
-    parser.parse();
+
+
+    //TODO: for now we parse all the html here and run scripts. Eventually that should happen in a state machine, and every frame we should just check
+    //       is there something to parse, something to download, something to run, something to layout/render etc.
+    //       but then this should not be in a "finish_navigate" method
+
+
+    while !parser.is_done() {
+        parser.step();
+
+        match parser.state {
+            html_parser::ParserState::ContinueParsing => {},
+            html_parser::ParserState::WaitingForScriptRun(ref script) => {
+                //TODO: for now we run the script directly here, this will need to happen on possibly different frames (without blocking main for long)
+
+                let js_tokens = js_lexer::lex_js(script, parser.last_line_idx as u32, parser.last_char_idx as u32);
+                let script = js_parser::parse_js(&js_tokens);
+
+                //TODO: for now we just execute the script, but we need to juse the correct execution context, so the right stuff is shared on the page
+                let mut interpreter = js_interpreter::JsInterpreter::new();
+                interpreter.run_script(&script);
+
+                parser.state = ParserState::ContinueParsing;
+            },
+            html_parser::ParserState::WaitingForScriptDownloadAndRun(ref url) => {
+                //TODO: for now we download run the script directly here, this will need to happen on possibly different frames (without blocking main for long)
+
+                let job_tracker = resource_loader::schedule_load_text(url, cookie_store, resource_thread_pool);
+                let result = job_tracker.receiver.recv().unwrap(); //TODO: for now blocking
+
+                match result {
+                    ResourceRequestResult::NotFound => {
+                        todo!(); //TODO: handle this case, log error and continue?
+                    },
+                    ResourceRequestResult::Success(script_content) => {
+                        //TODO: the script_content als has cookies, can we expect new cookies here, and should we process them?
+                        let js_tokens = js_lexer::lex_js(&script_content.body, 1, 0);
+                        let script = js_parser::parse_js(&js_tokens);
+
+                        //TODO: for now we just execute the script, but we need to juse the correct execution context, so the right stuff is shared on the page
+                        let mut interpreter = js_interpreter::JsInterpreter::new();
+                        interpreter.run_script(&script);
+
+                    },
+                }
+
+                parser.state = ParserState::ContinueParsing;
+            },
+            html_parser::ParserState::Done => {
+                break;
+            },
+        }
+    };
+
     document.replace(parser.document);
 
     compute_styles(&document.borrow().document_node, &document.borrow().all_nodes, &document.borrow().style_context);

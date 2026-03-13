@@ -8,12 +8,7 @@ use crate::dom::{
 };
 use crate::html_parser::lexer::{Lexer, Token};
 use crate::network::url::Url;
-use crate::script::{
-    js_console,
-    js_interpreter,
-    js_lexer,
-    js_parser,
-};
+use crate::script::js_console;
 use crate::style::{css_lexer, css_parser};
 
 mod lexer;
@@ -26,6 +21,12 @@ enum InsertionMode {
     Parsing,
 }
 
+pub enum ParserState {
+    ContinueParsing,
+    WaitingForScriptRun(String),
+    WaitingForScriptDownloadAndRun(Url),
+    Done,
+}
 
 pub struct HtmlParser {
     lexer: Lexer,
@@ -33,8 +34,9 @@ pub struct HtmlParser {
     stack: Vec<Rc<RefCell<ElementDomNode>>>,
     pub document: Document,
     self_closing_top_stack_node: bool,
-    last_line_idx: usize,
-    last_char_idx: usize,
+    pub last_line_idx: usize,
+    pub last_char_idx: usize,
+    pub state: ParserState,
 }
 impl HtmlParser {
     pub fn new(input: String, base_url: Url) -> Self {
@@ -46,20 +48,36 @@ impl HtmlParser {
             self_closing_top_stack_node: false,
             last_line_idx: 0,
             last_char_idx: 0,
+            state: ParserState::ContinueParsing,
         }
     }
 
-    pub fn parse(&mut self) {
-        loop {
-            let token = self.lexer.next_token();
-            if token.token == Token::EOF {
-                break;
-            }
+    pub fn step(&mut self) {
+        match self.state {
+            ParserState::ContinueParsing => {
+                let token = self.lexer.next_token();
+                if token.token == Token::EOF {
+                    self.state = ParserState::Done;
+                    return;
+                }
 
-            self.last_line_idx = token.line;
-            self.last_char_idx = token.char;
+                self.last_line_idx = token.line;
+                self.last_char_idx = token.char;
 
-            self.handle_token(token.token);
+                self.handle_token(token.token);
+            },
+            ParserState::WaitingForScriptDownloadAndRun(_) |
+            ParserState::WaitingForScriptRun(_) |
+            ParserState::Done => {
+                return;
+            },
+        }
+    }
+
+    pub fn is_done(&self) -> bool {
+        return match self.state {
+            ParserState::Done => true,
+            _ => false,
         }
     }
 
@@ -208,19 +226,17 @@ impl HtmlParser {
                         js_console::log_js_error(format!("Unsupported script type: {:}", script_type.unwrap()).as_str());
                     } else {
 
-                        //TODO: check if we have seen an src attribute, if so only download and run that, ignore the content
+                        let script_src = node.borrow().get_attribute_value("src");
+                        if script_src.is_some() {
+                            let source_url = Url::from_base_url(&script_src.unwrap(), Some(&self.document.base_url));
+                            self.state = ParserState::WaitingForScriptDownloadAndRun(source_url);
+                        } else {
+                            let node_borr = node.borrow();
+                            let content = node_borr.children.as_ref().unwrap().get(0);
+                            let text_content = content.unwrap().borrow().text.as_ref().unwrap().text_content.clone();
+                            self.state = ParserState::WaitingForScriptRun(text_content);
+                        };
 
-                        let node_borr = node.borrow();
-                        let content_node = node_borr.children.as_ref().unwrap()[0].borrow();
-                        let content = &content_node.text.as_ref().unwrap().text_content;
-
-                        //TODO: for now we just execute the script, but we need to juse the correct execution context, so the right stuff is shared on the page
-
-                        let js_tokens = js_lexer::lex_js(content, self.last_line_idx as u32, self.last_char_idx as u32);
-                        let script = js_parser::parse_js(&js_tokens);
-
-                        let mut interpreter = js_interpreter::JsInterpreter::new();
-                        interpreter.run_script(&script);
                     }
                 }
                 if node.borrow().name.as_ref().unwrap().as_str() == "style" {

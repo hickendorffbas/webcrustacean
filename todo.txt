@@ -2,8 +2,12 @@
 goals for 0.8.0
        - javascript ternary operator ( ? as an operator in the pratt parser, and then parse logic that reads until its finds the : )
        - load javascript and css files linked from a page
+              - move to a better jobsystem
+                     - Have a defined set of jobtypes (fetch resource, etc.)
+                     - Have a JobSchedular that takes a new job type, and gives you a mpsc::Receiver
               - add new job system to not block main thread on this
               - css is still todo here
+       - fix reftest
        - scrolling
               - we cull to soon now (check with long page of text paragraphs)
        - handle redirects better. Its seems reqwest follows them, but our url bar does not update etc. we want to follow them ourselves

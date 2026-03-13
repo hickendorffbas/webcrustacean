@@ -2,6 +2,7 @@ mod color;
 mod debug;
 mod dom;
 mod html_parser;
+mod job_scheduler;
 #[cfg(test)] mod jsonify; //TODO: would also like to use it for debug, not sure how to configure that. feature flag on the crate maybe?
 mod layout;
 mod macros;

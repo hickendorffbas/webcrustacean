@@ -6,6 +6,7 @@ use crate::html_parser::{
     HtmlParser,
     ParserState
 };
+use crate::job_scheduler::{JobResult, JobScheduler};
 use crate::layout;
 use crate::layout::{compute_layout, FullLayout};
 use crate::network::url::Url;
@@ -105,7 +106,7 @@ pub fn start_navigate(navigation_action: &NavigationAction, platform: &Platform,
 
 
 pub fn finish_navigate(navigation_action: &NavigationAction, ui_state: &mut UIState, page_content: String, document: &RefCell<Document>,
-                       cookie_store: &CookieStore, full_layout: &RefCell<FullLayout>, platform: &mut Platform, resource_thread_pool: &mut ResourceThreadPool) {
+                       cookie_store: &CookieStore, full_layout: &RefCell<FullLayout>, platform: &mut Platform, scheduler: &JobScheduler, resource_thread_pool: &mut ResourceThreadPool) {
 
     let url = match &navigation_action.action_type {
         NavigationActionType::None => {
@@ -143,22 +144,31 @@ pub fn finish_navigate(navigation_action: &NavigationAction, ui_state: &mut UISt
             html_parser::ParserState::WaitingForScriptDownloadAndRun(ref url) => {
                 //TODO: for now we download run the script directly here, this will need to happen on possibly different frames (without blocking main for long)
 
-                let job_tracker = resource_loader::schedule_load_text(url, cookie_store, resource_thread_pool);
-                let result = job_tracker.receiver.recv().unwrap(); //TODO: for now blocking
+                println!("url: {:?}", url.to_string());
+
+                let reciever = scheduler.submit_http_get_text_job(url, cookie_store.get_for_domain(&url.host));
+                let result = reciever.recv().unwrap(); //TODO: for now this is blocking, eventually shouldn't be
 
                 match result {
-                    ResourceRequestResult::NotFound => {
-                        todo!(); //TODO: handle this case, log error and continue?
-                    },
-                    ResourceRequestResult::Success(script_content) => {
-                        //TODO: the script_content als has cookies, can we expect new cookies here, and should we process them?
-                        let js_tokens = js_lexer::lex_js(&script_content.body, 1, 0);
-                        let script = js_parser::parse_js(&js_tokens);
+                    JobResult::ResourceRequestResultString { value: resource_request_result } => {
 
-                        //TODO: for now we just execute the script, but we need to juse the correct execution context, so the right stuff is shared on the page
-                        let mut interpreter = js_interpreter::JsInterpreter::new();
-                        interpreter.run_script(&script);
+                        match resource_request_result {
+                            ResourceRequestResult::NotFound => {
+                                //TODO: figure out what to do here (log and ignore probably)
+                                todo!();
+                            },
+                            ResourceRequestResult::Success{ body, new_cookies: _ } => {
+                                //TODO: the resource_request_result_success also has cookies, can we expect new cookies here, and should we process them?
 
+                                let js_tokens = js_lexer::lex_js(&body, 1, 0);
+                                let script = js_parser::parse_js(&js_tokens);
+
+                                //TODO: for now we just execute the script, but we need to juse the correct execution context, so the right stuff is shared on the page
+                                let mut interpreter = js_interpreter::JsInterpreter::new();
+                                interpreter.run_script(&script);
+
+                            },
+                        }
                     },
                 }
 

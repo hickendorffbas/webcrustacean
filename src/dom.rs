@@ -223,8 +223,8 @@ impl ElementDomNode {
                             ResourceRequestResult::NotFound => {
                                 self.image = Some(Rc::from(resource_loader::fallback_image()));
                             },
-                            ResourceRequestResult::Success(received_image) => {
-                                self.image = Some(Rc::from(received_image.body));
+                            ResourceRequestResult::Success{ body, new_cookies: _new_cookies } => {
+                                self.image = Some(Rc::from(body));
                             },
                         }
                         self.dirty = true;

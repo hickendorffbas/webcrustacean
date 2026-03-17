@@ -39,6 +39,7 @@ use threadpool::ThreadPool;
 
 use crate::debug::debug_log_warn;
 use crate::dom::Document;
+use crate::job_scheduler::JobScheduler;
 use crate::layout::{
     collect_content_nodes_in_walk_order_for_normal_flow,
     compute_layout,
@@ -121,7 +122,10 @@ fn main() -> Result<(), String> {
     let sdl_context = sdl2::init()?;
     let mut platform = platform::init_platform(sdl_context, STARTING_SCREEN_WIDTH, STARTING_SCREEN_HEIGHT, false).unwrap();
 
+    //TODO: fase this one out and use the job scheduler instead
     let mut resource_thread_pool = ResourceThreadPool { pool: ThreadPool::new(NR_RESOURCE_LOADING_THREADS) };
+
+    let scheduler = JobScheduler::new(NR_RESOURCE_LOADING_THREADS);
 
     let mut mouse_state = MouseState { x: 0, y: 0, click_start_x: 0, click_start_y: 0, left_down: false };
     let mut ui_state = UIState::new(STARTING_SCREEN_WIDTH, STARTING_SCREEN_HEIGHT);
@@ -170,7 +174,7 @@ fn main() -> Result<(), String> {
                             restarted_navigation = true;
                         }
                     },
-                    ResourceRequestResult::Success(received_result) => {
+                    ResourceRequestResult::Success {body, new_cookies} => {
                         let domain = match &ongoing_navigation.as_ref().unwrap().action_type {
                             NavigationActionType::None => &String::new(),
                             NavigationActionType::Get(url) => &url.host,
@@ -178,14 +182,15 @@ fn main() -> Result<(), String> {
                         };
 
                         //TODO: I think we want to extract cookies in a more centralized place
-                        for new_cookie in received_result.new_cookies {
+                        for new_cookie in new_cookies {
                             if !cookie_store.cookies_by_domain.contains_key(domain) {
                                 cookie_store.cookies_by_domain.insert(domain.clone(), HashMap::new());
                             }
                             cookie_store.cookies_by_domain.get_mut(domain).unwrap().insert(new_cookie.0, new_cookie.1);
                         }
 
-                        finish_navigate(&ongoing_navigation.as_ref().unwrap(), &mut ui_state, received_result.body, &document, &cookie_store, &full_layout_tree, &mut platform, &mut resource_thread_pool)
+                        finish_navigate(&ongoing_navigation.as_ref().unwrap(), &mut ui_state, body, &document,
+                                        &cookie_store, &full_layout_tree, &mut platform, &scheduler, &mut resource_thread_pool);
                     },
                 }
 

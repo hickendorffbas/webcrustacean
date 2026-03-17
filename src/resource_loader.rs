@@ -30,7 +30,7 @@ static NEXT_JOB_ID: AtomicUsize = AtomicUsize::new(1);
 pub fn get_next_job_id() -> usize { NEXT_JOB_ID.fetch_add(1, Ordering::Relaxed) }
 
 #[derive(PartialEq)]
-enum RequestType {
+pub enum RequestType {
     Get,
     Post,
 }
@@ -38,15 +38,11 @@ enum RequestType {
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub enum ResourceRequestResult<T> {
     NotFound,
-    Success(ResourceRequestResultSuccess<T>),
+    Success {
+        body: T,
+        new_cookies: HashMap<String, CookieEntry>,
+    },
 }
-
-#[cfg_attr(debug_assertions, derive(Debug))]
-pub struct ResourceRequestResultSuccess<T> {
-    pub body: T,
-    pub new_cookies: HashMap<String, CookieEntry>,
-}
-
 
 struct ResourceRequestJob<T> {
     #[allow(dead_code)] job_id: usize, //TODO: check if we want to use this (probably for logging / debugging?)
@@ -67,7 +63,7 @@ pub struct CookieStore {
     pub cookies_by_domain: HashMap<String, CookieStoreForDomain>,
 }
 impl CookieStore {
-    fn get_for_domain(&self, domain: &String) -> HashMap<String, String> {
+    pub fn get_for_domain(&self, domain: &String) -> HashMap<String, String> {
         let mut cookies = HashMap::new();
         let domain_entries = self.cookies_by_domain.get(domain);
         if domain_entries.is_some() {
@@ -142,12 +138,12 @@ pub fn submit_post(url: &Url, cookie_store: &CookieStore, fields: &HashMap<Strin
 }
 
 
-fn load_text(url: &Url, request_type: RequestType, body: Option<String>, cookies: &HashMap<String, String>) -> ResourceRequestResult<String> {
+pub fn load_text(url: &Url, request_type: RequestType, body: Option<String>, cookies: &HashMap<String, String>) -> ResourceRequestResult<String> {
     //TODO: this should not be text specific, we need to refactor this a bit
 
     if url.scheme == "about" {
         if request_type == RequestType::Get {
-            return ResourceRequestResult::Success(ResourceRequestResultSuccess { body: build_about_page(&url), new_cookies: HashMap::new() });
+            return ResourceRequestResult::Success { body: build_about_page(&url), new_cookies: HashMap::new() };
         } else {
             todo!(); //TODO: report some kind of non-crashing error
         }
@@ -162,7 +158,7 @@ fn load_text(url: &Url, request_type: RequestType, body: Option<String>, cookies
                 return ResourceRequestResult::NotFound;
             }
 
-            return ResourceRequestResult::Success(ResourceRequestResultSuccess { body: read_result.unwrap(), new_cookies: HashMap::new() });
+            return ResourceRequestResult::Success { body: read_result.unwrap(), new_cookies: HashMap::new() };
         } else {
             todo!(); //TODO: report some kind of non-crashing error
         }
@@ -252,19 +248,19 @@ fn load_image(url: &Url, cookies: &HashMap<String, String>) -> ResourceRequestRe
             panic!("decoding the image failed"); //TODO: we need to handle this in a better way
         };
 
-        return ResourceRequestResult::Success(ResourceRequestResultSuccess { body: dyn_image.to_rgba8(), new_cookies: HashMap::new() });
+        return ResourceRequestResult::Success { body: dyn_image.to_rgba8(), new_cookies: HashMap::new() };
     }
 
     let extension = url.file_extension();
     if extension.is_some() && extension.unwrap() == "svg".to_owned() {
         //svg is currently not implemented
         debug_log_warn(format!("Svg's are not supported currently: {}", url.to_string()));
-        return ResourceRequestResult::Success(ResourceRequestResultSuccess {  body: fallback_image(), new_cookies: HashMap::new() });
+        return ResourceRequestResult::Success {  body: fallback_image(), new_cookies: HashMap::new() };
     }
     if url.scheme == "data".to_owned() {
         //data scheme is currently not implemented
         debug_log_warn(format!("the data: scheme is not supported currently: {}", url.to_string()));
-        return ResourceRequestResult::Success(ResourceRequestResultSuccess {  body: fallback_image(), new_cookies: HashMap::new() });
+        return ResourceRequestResult::Success {  body: fallback_image(), new_cookies: HashMap::new() };
     }
 
     #[cfg(debug_assertions)] println!("loading {}", url.to_string()); //TODO: debug mode should have a more general way of logging all HTTP request/responses

@@ -3,9 +3,18 @@ goals for 0.8.0
        - javascript ternary operator ( ? as an operator in the pratt parser, and then parse logic that reads until its finds the : )
        - load javascript and css files linked from a page
               - move to a better jobsystem
-                     - Have a defined set of jobtypes (fetch resource, etc.)
-                     - Have a JobSchedular that takes a new job type, and gives you a mpsc::Receiver
-              - add new job system to not block main thread on this
+                     - We have the job system now, but we need a way to yield back to rendering frames while downloading
+                       for pages this is currently done by just keeping track of a variable that we are loading a page, en then we check for result
+                            we need to move to a model where we have a frame loop like this:
+                                   - check for user input and process it
+                                   - check on running network requests (and put them in the right place when they are done)
+                                          - for page, set them to be parsed
+                                          - for script, set them to be runned
+                                          - for images, load them in the DOM
+                                   - if any html parsing is in progress, run it forward
+                                   - if any script running should be done, run it
+                                   - do a layout pass (if needed)
+                                   - render
               - css is still todo here
        - fix reftest
        - scrolling

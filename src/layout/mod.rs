@@ -787,29 +787,56 @@ fn fix_inline_whitespace(node: &mut LayoutNode) {
     //We remove whitespace at the beginning or end of the sequence of inline nodes because it should not show,
     //      and we can't really handle this earlier in the process (like other whitespace correctness) since we don't know what the inline nodes will be then.
 
-    if !node.children.as_ref().unwrap().is_empty() {
-        {
-            let mut first_child = node.children.as_ref().unwrap().first().unwrap().borrow_mut();
+    //TODO: to do this correctly we need to implement lineboxes, because if whitespace should be stripped also depends on wrapping (if next word goes on
+    //      new line, all whitespace should be stripped)
+    //      for now we do a best effort
 
-            if let LayoutNodeContent::TextLayoutNode(text_node) = &mut first_child.content {
-                let first_box = text_node.css_text_boxes.first_mut().unwrap();
-                if first_box.text.starts_with(" ") {
+    if !node.children.as_ref().unwrap().is_empty() {
+
+        let mut is_first = true;
+        for child in node.children.as_ref().unwrap() {
+
+            if is_first {
+                if let LayoutNodeContent::TextLayoutNode(text_node) = &mut child.borrow_mut().content {
+                    let first_box = text_node.css_text_boxes.first_mut().unwrap();
                     first_box.text = first_box.text.trim_start_matches(' ').to_string();
                 }
             }
+
+            if let LayoutNodeContent::TextLayoutNode(ref mut text_node) = child.borrow_mut().content {
+                let first_box = text_node.css_text_boxes.first_mut().unwrap();
+                first_box.text = collapse_whitespace(&first_box.text);
+            }
+
+            is_first = false;
         }
 
-        {
-            let mut last_child = node.children.as_ref().unwrap().last().unwrap().borrow_mut();
-
-            if let LayoutNodeContent::TextLayoutNode(text_node) = &mut last_child.content {
-                let last_box = text_node.css_text_boxes.last_mut().unwrap();
-                if last_box.text.ends_with(" ") {
-                    last_box.text = last_box.text.trim_end_matches(' ').to_string();
-                }
-            }
+        let mut last_child = node.children.as_ref().unwrap().last().unwrap().borrow_mut();
+        if let LayoutNodeContent::TextLayoutNode(ref mut text_node) = last_child.content {
+            let first_box = text_node.css_text_boxes.first_mut().unwrap();
+            first_box.text = first_box.text.trim_end_matches(' ').to_string();
         }
     }
+}
+
+
+fn collapse_whitespace(input: &str) -> String {
+    let mut result = String::with_capacity(input.len());
+    let mut prev_was_ws = false;
+
+    for c in input.chars() {
+        if c.is_whitespace() {
+            if !prev_was_ws {
+                result.push(' ');
+                prev_was_ws = true;
+            }
+        } else {
+            result.push(c);
+            prev_was_ws = false;
+        }
+    }
+
+    return result;
 }
 
 
@@ -822,6 +849,9 @@ fn apply_inline_layout(node: &mut LayoutNode, top_left_x: f32, top_left_y: f32, 
 
 
     fix_inline_whitespace(node);
+
+    //TODO: we track this because we don't have proper lineboxes (we need to implement those) and the first items behaves differently (has leading space stripped)
+    let mut next_is_first_child_on_line = true;
 
     for child in node.children.as_ref().unwrap() {
 
@@ -875,6 +905,7 @@ fn apply_inline_layout(node: &mut LayoutNode, top_left_x: f32, top_left_y: f32, 
             }
 
             RefCell::borrow_mut(child).update_css_box(CssBox { x: cursor_x, y: cursor_y, width: 0.0, height: child_height });
+            next_is_first_child_on_line = true;
             continue;
         }
 
@@ -919,10 +950,18 @@ fn apply_inline_layout(node: &mut LayoutNode, top_left_x: f32, top_left_y: f32, 
                                     cursor_x = top_left_x;
                                     cursor_y += max_height_of_line;
                                     max_height_of_line = 0.0;
+                                    next_is_first_child_on_line = true;
                                 }
                             }
 
                             new_css_text_box.css_box = CssBox { x: cursor_x, y: cursor_y, width: rect_width, height: rect_height };
+
+                            if next_is_first_child_on_line {
+                                //TODO: we now do this here, because we lack the concept of a CSS linebox. Leading spaces in a linebox should be stripped
+                                new_css_text_box.text = new_css_text_box.text.trim_start_matches(' ').to_string();
+                                next_is_first_child_on_line = false;
+                            }
+
                             new_css_text_boxes.push(new_css_text_box);
 
                             cursor_x += rect_width;

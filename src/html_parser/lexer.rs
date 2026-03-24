@@ -155,6 +155,9 @@ impl Lexer {
                         }
                     } else if ch == '&' {
                         self.state = HtmlLexerState::EntityInData;
+                    } else if ch.is_whitespace() {
+                        // According to the spec, at parsing time, whitespace is normalized to spaces. At rendering time, multiple spaces can be collapsed
+                        self.buffer.push(' ');
                     } else {
                         self.buffer.push(ch);
                     }

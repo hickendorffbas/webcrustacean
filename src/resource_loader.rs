@@ -6,7 +6,8 @@ use std::sync::atomic::{Ordering, AtomicUsize};
 use std::sync::mpsc::{
     channel,
     Receiver,
-    Sender
+    Sender,
+    TryRecvError,
 };
 
 use chrono::{DateTime, Utc};
@@ -17,7 +18,13 @@ use image::{
 };
 use threadpool::ThreadPool;
 
+use crate::NR_RESOURCE_LOADING_THREADS;
 use crate::debug::debug_log_warn;
+use crate::job_scheduler::{
+    JobResult,
+    JobScheduler,
+    Task, TaskPayload,
+};
 use crate::network::url::Url;
 use crate::network::{
     http_get_image,
@@ -26,8 +33,109 @@ use crate::network::{
 };
 
 
+//TODO: this should be removed (it will overlap with the job and task ids from the job scheduler) when the jobs are gone from here
 static NEXT_JOB_ID: AtomicUsize = AtomicUsize::new(1);
 pub fn get_next_job_id() -> usize { NEXT_JOB_ID.fetch_add(1, Ordering::Relaxed) }
+
+
+pub struct ResourceLoader {
+    scheduler: JobScheduler,
+    active_jobs: Vec<(Receiver<JobResult>, Task)>,
+}
+impl ResourceLoader {
+    pub fn new() -> ResourceLoader {
+        let scheduler = JobScheduler::new(NR_RESOURCE_LOADING_THREADS);
+        return ResourceLoader { scheduler, active_jobs: Vec::new() }
+    }
+
+    pub fn request_text_http_get_text(&mut self, url: &Url, cookies: HashMap<String, String>, task: Task) {
+        let job = self.scheduler.submit_http_get_text_job(url, cookies);
+        self.active_jobs.push((job, task));
+    }
+
+    pub fn any_jobs_in_progress(&self) -> bool {
+        return self.active_jobs.len() > 0;
+    }
+
+    pub fn handle_possible_finished_job(&mut self, task_store: &mut Vec<Task>, cookie_store: &mut CookieStore) {
+        //This method handles max 1 finished job, because we call it each frame this is fine
+
+        let mut finshed_job_result = None;
+        let finished_job_position = self.active_jobs.iter_mut().position(|job| {
+            match job.0.try_recv() {
+                Ok(data) => {
+                    finshed_job_result = Some(data);
+                    true
+                },
+                Err(TryRecvError::Empty) => false,
+                _ => {
+                   todo!(); //TODO: probably always an error?
+                }
+            }
+        });
+
+        if finished_job_position.is_none() {
+            return;
+        }
+
+        let (_, future_task) = self.active_jobs.remove(finished_job_position.unwrap());
+
+        match finshed_job_result.unwrap() {
+            JobResult::ResourceRequestResultString { value } => {
+                match value {
+                    ResourceRequestResult::Success { body, new_cookies, domain } => {
+                        let mut future_task = future_task;
+
+                        //TODO: I think we want to extract cookies in a more centralized place
+                        for new_cookie in new_cookies {
+                            if !cookie_store.cookies_by_domain.contains_key(&domain) {
+                                cookie_store.cookies_by_domain.insert(domain.clone(), HashMap::new());
+                            }
+                            cookie_store.cookies_by_domain.get_mut(&domain).unwrap().insert(new_cookie.0, new_cookie.1);
+                        }
+
+                        match &mut future_task.payload {
+                            TaskPayload::ParseJs { script_data } => {
+                                *script_data = body;
+                            },
+                            TaskPayload::StartParseHtml { html } => {
+                                *html = body;
+                            },
+                        }
+
+                        future_task.ready = true;
+                        task_store.push(future_task);
+                    },
+                    ResourceRequestResult::NotFound => {
+
+                        //if ongoing_navigation.as_ref().unwrap().from_address_bar && ongoing_navigation.as_ref().unwrap().https_was_inserted {
+                            //let mut url = match ongoing_navigation.unwrap().action_type {
+                            //    NavigationActionType::Get(url) => { url.clone() },
+                            //    _ => panic!("Invalid state"),
+                            //};
+
+                            //url.scheme = String::from("http");
+
+                            //let navigation_action = NavigationAction::new_get_from_addressbar(url, false);
+                            //main_page_job_tracker = start_navigate(&navigation_action, &platform, &mut ui_state, &cookie_store, &mut resource_thread_pool);
+                            //ongoing_navigation = Some(navigation_action);
+                            //restarted_navigation = true;
+
+                            todo!(); //TODO: submit a new job with the same task id behind it (don't push the task yet)
+
+                        //} else {
+                        //    todo!(); //TODO: implement
+                        //}
+
+                    },
+                }
+            },
+        }
+
+    }
+}
+
+
 
 #[derive(PartialEq)]
 pub enum RequestType {
@@ -41,6 +149,7 @@ pub enum ResourceRequestResult<T> {
     Success {
         body: T,
         new_cookies: HashMap<String, CookieEntry>,
+        domain: String, //TODO: should this be domain or host?
     },
 }
 
@@ -104,21 +213,6 @@ impl ResourceThreadPool {
 }
 
 
-pub fn schedule_load_text(url: &Url, cookie_store: &CookieStore, resource_thread_pool: &mut ResourceThreadPool) -> ResourceRequestJobTracker<ResourceRequestResult<String>> {
-    let (sender, receiver) = channel::<ResourceRequestResult<String>>();
-    let job_id = get_next_job_id();
-
-    let cookies = cookie_store.get_for_domain(&url.host);
-
-    let job = ResourceRequestJob { job_id, url: url.clone(), sender, request_type: RequestType::Get, body: None, cookies: cookies };
-    let job_tracker = ResourceRequestJobTracker { job_id, receiver };
-
-    resource_thread_pool.fire_and_forget_load_text(job);
-
-    return job_tracker;
-}
-
-
 pub fn submit_post(url: &Url, cookie_store: &CookieStore, fields: &HashMap<String, String>,
                    resource_thread_pool: &mut ResourceThreadPool) -> ResourceRequestJobTracker<ResourceRequestResult<String>> {
     let (sender, receiver) = channel::<ResourceRequestResult<String>>();
@@ -143,7 +237,7 @@ pub fn load_text(url: &Url, request_type: RequestType, body: Option<String>, coo
 
     if url.scheme == "about" {
         if request_type == RequestType::Get {
-            return ResourceRequestResult::Success { body: build_about_page(&url), new_cookies: HashMap::new() };
+            return ResourceRequestResult::Success { body: build_about_page(&url), new_cookies: HashMap::new(), domain: url.host.clone() };
         } else {
             todo!(); //TODO: report some kind of non-crashing error
         }
@@ -158,7 +252,7 @@ pub fn load_text(url: &Url, request_type: RequestType, body: Option<String>, coo
                 return ResourceRequestResult::NotFound;
             }
 
-            return ResourceRequestResult::Success { body: read_result.unwrap(), new_cookies: HashMap::new() };
+            return ResourceRequestResult::Success { body: read_result.unwrap(), new_cookies: HashMap::new(), domain: url.host.clone() };
         } else {
             todo!(); //TODO: report some kind of non-crashing error
         }
@@ -248,19 +342,19 @@ fn load_image(url: &Url, cookies: &HashMap<String, String>) -> ResourceRequestRe
             panic!("decoding the image failed"); //TODO: we need to handle this in a better way
         };
 
-        return ResourceRequestResult::Success { body: dyn_image.to_rgba8(), new_cookies: HashMap::new() };
+        return ResourceRequestResult::Success { body: dyn_image.to_rgba8(), new_cookies: HashMap::new(), domain: url.host.clone() };
     }
 
     let extension = url.file_extension();
     if extension.is_some() && extension.unwrap() == "svg".to_owned() {
         //svg is currently not implemented
         debug_log_warn(format!("Svg's are not supported currently: {}", url.to_string()));
-        return ResourceRequestResult::Success {  body: fallback_image(), new_cookies: HashMap::new() };
+        return ResourceRequestResult::Success {  body: fallback_image(), new_cookies: HashMap::new(), domain: url.host.clone() };
     }
     if url.scheme == "data".to_owned() {
         //data scheme is currently not implemented
         debug_log_warn(format!("the data: scheme is not supported currently: {}", url.to_string()));
-        return ResourceRequestResult::Success {  body: fallback_image(), new_cookies: HashMap::new() };
+        return ResourceRequestResult::Success {  body: fallback_image(), new_cookies: HashMap::new(), domain: url.host.clone() };
     }
 
     #[cfg(debug_assertions)] println!("loading {}", url.to_string()); //TODO: debug mode should have a more general way of logging all HTTP request/responses

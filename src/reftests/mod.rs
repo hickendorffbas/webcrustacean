@@ -10,14 +10,13 @@ use std::{
 use image::ImageBuffer;
 use image::Rgba;
 use sdl2::rect::Rect as SdlRect;
-use threadpool::ThreadPool;
 
 use crate::html_parser::{HtmlParser, ParserState};
 use crate::layout;
 use crate::network::url::Url;
 use crate::platform::{Platform, self};
 use crate::renderer;
-use crate::resource_loader::{CookieStore, ResourceThreadPool};
+use crate::resource_loader::CookieStore;
 use crate::ui::{
     UIState,
     CONTENT_TOP_LEFT_X,
@@ -52,11 +51,12 @@ fn run_parser(parser: &mut HtmlParser) {
         parser.step();
 
         match parser.state {
+            ParserState::WaitingToStart => {},
             ParserState::ContinueParsing => {},
-            ParserState::WaitingForScriptRun(_) | ParserState::WaitingForScriptDownloadAndRun(_) => {
-                panic!("These test don't support script")
-            },
             ParserState::Done => break,
+            _ => {
+                panic!("These tesst don't support script")
+            },
         }
     }
 }
@@ -65,12 +65,13 @@ fn run_parser(parser: &mut HtmlParser) {
 fn render_doc(filename: &str, platform: &mut Platform, save_output: bool) -> Vec<u8> {
     let html = read_file(Path::new(&filename));
 
-    let mut html_parser = HtmlParser::new(html, Url::empty());
+    let mut html_parser = HtmlParser::new();
+    html_parser.start(html, Url::empty());
     run_parser(&mut html_parser);
     let mut document = html_parser.document;
 
     document.document_node.borrow_mut().post_construct(platform);
-    document.update_all_dom_nodes(&mut ResourceThreadPool { pool: ThreadPool::new(1) }, &CookieStore { cookies_by_domain: HashMap::new() });
+    document.update_all_dom_nodes(&CookieStore { cookies_by_domain: HashMap::new() });
 
     let full_layout = layout::build_full_layout(&document, &platform.font_context);
 

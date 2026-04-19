@@ -1,37 +1,13 @@
-use std::cell::RefCell;
-
-use crate::dom::{Document, PostData};
-use crate::html_parser::{
-    self,
-    HtmlParser,
-    ParserState
-};
-use crate::job_scheduler::{JobResult, JobScheduler};
-use crate::layout;
-use crate::layout::{compute_layout, FullLayout};
+use crate::dom::PostData;
+use crate::html_parser::{HtmlParser, ParserState};
+use crate::job_scheduler::{Task, TaskPayload};
 use crate::network::url::Url;
 use crate::platform::Platform;
-use crate::resource_loader::{
-    self,
-    CookieStore,
-    ResourceRequestJobTracker,
-    ResourceRequestResult,
-    ResourceThreadPool
-};
-use crate::script::{
-    js_interpreter,
-    js_lexer,
-    js_parser,
-};
-use crate::style::compute_styles;
-use crate::ui::{
-    self,
-    UIState,
-    CONTENT_TOP_LEFT_X,
-    CONTENT_TOP_LEFT_Y
-};
+use crate::resource_loader::{CookieStore, ResourceLoader};
+use crate::ui::{self, UIState};
 
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct NavigationAction {
     pub action_type: NavigationActionType,
     pub from_address_bar: bool,
@@ -53,6 +29,7 @@ impl NavigationAction {
 }
 
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(PartialEq)]
 pub enum NavigationActionType {
     None,
@@ -69,9 +46,9 @@ pub struct History {
 
 
 pub fn start_navigate(navigation_action: &NavigationAction, platform: &Platform, ui_state: &mut UIState, cookie_store: &CookieStore,
-                      resource_thread_pool: &mut ResourceThreadPool) -> ResourceRequestJobTracker<ResourceRequestResult<String>> {
+                      resource_loader: &mut ResourceLoader, html_parser: &mut HtmlParser) {
 
-    let tracker = match &navigation_action.action_type {
+    match &navigation_action.action_type {
         NavigationActionType::None => {
             panic!("Illegal state"); // we should not get in this method if we have nothing to navigate to...
         },
@@ -82,7 +59,11 @@ pub fn start_navigate(navigation_action: &NavigationAction, platform: &Platform,
                 ui::register_in_history(ui_state, &url);
             }
 
-            resource_loader::schedule_load_text(&url, cookie_store, resource_thread_pool) //TODO: should this be a different thread pool, or rename it?
+            let future_task = Task::new_task_not_yet_ready(TaskPayload::StartParseHtml { html: String::new() });
+            html_parser.reset();
+            html_parser.state = ParserState::WaitingForContent { task_id: future_task.id };
+            resource_loader.request_text_http_get_text(&url, cookie_store.get_for_domain(&url.host), future_task);
+
         },
         NavigationActionType::Post(post_data) => {
             ui_state.addressbar.set_text(platform, post_data.url.to_string());
@@ -92,109 +73,66 @@ pub fn start_navigate(navigation_action: &NavigationAction, platform: &Platform,
                 ui::register_in_history(ui_state, &post_data.url);
             }
 
-            resource_loader::submit_post(&post_data.url, cookie_store, &post_data.fields, resource_thread_pool) //TODO: should this be a different thread pool, or rename it?
+            todo!(); //TODO: How do do POST with the new setup?
+            //resource_loader::submit_post(&post_data.url, cookie_store, &post_data.fields, resource_thread_pool) //TODO: should this be a different thread pool, or rename it?
         }
     };
 
-
+    ui_state.current_scroll_x = 0.0;
+    ui_state.current_scroll_y = 0.0;
     ui_state.currently_loading_page = true;
     ui_state.history.currently_navigating_from_history = false;
     ui::update_history_buttons(ui_state);
-
-    return tracker;
 }
 
 
-pub fn finish_navigate(navigation_action: &NavigationAction, ui_state: &mut UIState, page_content: String, document: &RefCell<Document>,
-                       cookie_store: &CookieStore, full_layout: &RefCell<FullLayout>, platform: &mut Platform, scheduler: &JobScheduler, resource_thread_pool: &mut ResourceThreadPool) {
-
-    let url = match &navigation_action.action_type {
-        NavigationActionType::None => {
-            panic!("Illegal state"); // we should not get in this method if we have nothing to navigate to...
-        },
-        NavigationActionType::Get(url) => { url },
-        NavigationActionType::Post(post_data) => { &post_data.url },
-    };
-
-    let mut parser = HtmlParser::new(page_content, url.clone());
-
-
-    //TODO: for now we parse all the html here and run scripts. Eventually that should happen in a state machine, and every frame we should just check
-    //       is there something to parse, something to download, something to run, something to layout/render etc.
-    //       but then this should not be in a "finish_navigate" method
-
-
+pub fn progress_html_parser(parser: &mut HtmlParser, resource_loader: &mut ResourceLoader, cookie_store: &CookieStore, task_store: &mut Vec<Task>) {
     while !parser.is_done() {
         parser.step();
 
-        match parser.state {
-            html_parser::ParserState::ContinueParsing => {},
-            html_parser::ParserState::WaitingForScriptRun(ref script) => {
-                //TODO: for now we run the script directly here, this will need to happen on possibly different frames (without blocking main for long)
-
-                let js_tokens = js_lexer::lex_js(script, parser.last_line_idx as u32, parser.last_char_idx as u32);
-                let script = js_parser::parse_js(&js_tokens);
-
-                //TODO: for now we just execute the script, but we need to juse the correct execution context, so the right stuff is shared on the page
-                let mut interpreter = js_interpreter::JsInterpreter::new();
-                interpreter.run_script(&script);
-
-                parser.state = ParserState::ContinueParsing;
+        let state = std::mem::replace(&mut parser.state, ParserState::ContinueParsing);
+        match state {
+            ParserState::WaitingToStart => {
+                parser.state = state;
+                return;
             },
-            html_parser::ParserState::WaitingForScriptDownloadAndRun(ref url) => {
-                //TODO: for now we download run the script directly here, this will need to happen on possibly different frames (without blocking main for long)
-
-                println!("url: {:?}", url.to_string());
-
-                let reciever = scheduler.submit_http_get_text_job(url, cookie_store.get_for_domain(&url.host));
-                let result = reciever.recv().unwrap(); //TODO: for now this is blocking, eventually shouldn't be
-
-                match result {
-                    JobResult::ResourceRequestResultString { value: resource_request_result } => {
-
-                        match resource_request_result {
-                            ResourceRequestResult::NotFound => {
-                                //TODO: figure out what to do here (log and ignore probably)
-                                todo!();
-                            },
-                            ResourceRequestResult::Success{ body, new_cookies: _ } => {
-                                //TODO: the resource_request_result_success also has cookies, can we expect new cookies here, and should we process them?
-
-                                let js_tokens = js_lexer::lex_js(&body, 1, 0);
-                                let script = js_parser::parse_js(&js_tokens);
-
-                                //TODO: for now we just execute the script, but we need to juse the correct execution context, so the right stuff is shared on the page
-                                let mut interpreter = js_interpreter::JsInterpreter::new();
-                                interpreter.run_script(&script);
-
-                            },
-                        }
-                    },
+            ParserState::WaitingForContent { task_id } => {
+                for task in task_store.iter() {
+                    if task.id == task_id && task.finished {
+                        parser.state = ParserState::ContinueParsing;
+                        return;
+                    }
                 }
-
-                parser.state = ParserState::ContinueParsing;
+                parser.state = state;
+                return;
             },
-            html_parser::ParserState::Done => {
-                break;
+            ParserState::ContinueParsing => {}
+            ParserState::WaitingForScriptRun { task_id } => {
+                for task in task_store.iter() {
+                    if task.id == task_id && task.finished {
+                        parser.state = ParserState::ContinueParsing;
+                        return;
+                    }
+                }
+                parser.state = state;
+                return;
+            },
+            ParserState::ShouldDownloadScript(url) => {
+                let future_task = Task::new_task_not_yet_ready(TaskPayload::ParseJs { script_data: String::new() });
+                parser.state = ParserState::WaitingForScriptRun { task_id: future_task.id };
+                resource_loader.request_text_http_get_text(&url, cookie_store.get_for_domain(&url.host), future_task);
+            },
+            ParserState::ShouldExecuteScript { script } => {
+                let task = Task::new(TaskPayload::ParseJs { script_data: script });
+                let task_id = task.id;
+                task_store.push(task);
+                parser.state = ParserState::WaitingForScriptRun { task_id };
+                return;
+            },
+            ParserState::Done => {
+                parser.state = state;
+                return;
             },
         }
     };
-
-    document.replace(parser.document);
-
-    compute_styles(&document.borrow().document_node, &document.borrow().all_nodes, &document.borrow().style_context);
-
-    document.borrow_mut().document_node.borrow_mut().post_construct(platform);
-    document.borrow_mut().update_all_dom_nodes(resource_thread_pool, cookie_store);
-
-    #[cfg(feature="timings")] let start_layout_instant = Instant::now();
-    full_layout.replace(layout::build_full_layout(&document.borrow(), &platform.font_context));
-
-    ui_state.current_scroll_y = 0.0;
-    ui_state.currently_loading_page = false;
-
-    compute_layout(&full_layout.borrow().root_node, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y,
-                   &platform.font_context, ui_state.current_scroll_y, false, true, ui_state.window_dimensions.content_viewport_width);
-
-    #[cfg(feature="timings")] println!("layout elapsed millis: {}", start_layout_instant.elapsed().as_millis());
 }

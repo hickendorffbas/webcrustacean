@@ -35,35 +35,37 @@ use sdl2::{
     keyboard::{Keycode, Mod as SdlKeyMod},
     mouse::MouseButton,
 };
-use threadpool::ThreadPool;
 
 use crate::debug::debug_log_warn;
 use crate::dom::Document;
-use crate::job_scheduler::JobScheduler;
+use crate::html_parser::HtmlParser;
 use crate::layout::{
     collect_content_nodes_in_walk_order_for_normal_flow,
     compute_layout,
     FullLayout,
     rebuild_dirty_layout_childs,
 };
+use crate::job_scheduler::{Task, TaskPayload};
 use crate::navigation::{
-    finish_navigate,
     NavigationAction,
     NavigationActionType,
+    progress_html_parser,
     start_navigate
 };
 use crate::network::url::Url;
 use crate::renderer::render;
-use crate::resource_loader::{
-    CookieStore,
-    ResourceRequestResult,
-    ResourceThreadPool,
+use crate::resource_loader::{CookieStore, ResourceLoader};
+use crate::script::{
+    js_interpreter,
+    js_lexer,
+    js_parser
 };
 use crate::selection::{
     Selection,
     SelectionRect,
     set_selection_regions
 };
+use crate::style::compute_styles;
 use crate::ui::{
     CONTENT_TOP_LEFT_X,
     CONTENT_TOP_LEFT_Y,
@@ -122,10 +124,7 @@ fn main() -> Result<(), String> {
     let sdl_context = sdl2::init()?;
     let mut platform = platform::init_platform(sdl_context, STARTING_SCREEN_WIDTH, STARTING_SCREEN_HEIGHT, false).unwrap();
 
-    //TODO: fase this one out and use the job scheduler instead
-    let mut resource_thread_pool = ResourceThreadPool { pool: ThreadPool::new(NR_RESOURCE_LOADING_THREADS) };
-
-    let scheduler = JobScheduler::new(NR_RESOURCE_LOADING_THREADS);
+    let mut resource_loader = ResourceLoader::new();
 
     let mut mouse_state = MouseState { x: 0, y: 0, click_start_x: 0, click_start_y: 0, left_down: false };
     let mut ui_state = UIState::new(STARTING_SCREEN_WIDTH, STARTING_SCREEN_HEIGHT);
@@ -139,66 +138,71 @@ fn main() -> Result<(), String> {
         Url::from(&args[1])
     };
 
-    let document = RefCell::from(Document::new(start_url.clone()));
     let full_layout_tree = RefCell::from(FullLayout::new_empty());
+    let mut html_parser = HtmlParser::new();
+    let mut task_store: Vec<Task> = Vec::new();
 
-    let mut ongoing_navigation = Some(NavigationAction::new_get(start_url));
+    start_navigate(&NavigationAction::new_get(start_url), &platform, &mut ui_state, &cookie_store, &mut resource_loader, &mut html_parser);
 
-    let mut main_page_job_tracker = start_navigate(&ongoing_navigation.as_ref().unwrap(), &platform, &mut ui_state, &cookie_store, &mut resource_thread_pool);
 
     let mut event_pump = platform.sdl_context.event_pump()?;
     'main_loop: loop {
         let start_loop_instant = Instant::now();
 
-        if ongoing_navigation.is_some() {
-            let try_recv_result = main_page_job_tracker.receiver.try_recv();
-            if try_recv_result.is_ok() {
-                let mut restarted_navigation = false;
-                match try_recv_result.unwrap() {
-                    ResourceRequestResult::NotFound => { //TODO: we need more types of result here, and the http status code
-                        ui_state.currently_loading_page = false;
 
-                        if ongoing_navigation.as_ref().unwrap().from_address_bar && ongoing_navigation.as_ref().unwrap().https_was_inserted {
-                            //TODO: we now do this on ResourceRequestResult::NotFound , we need to do it on all 4xx or timeout responses
+        //TODO: the below code that runs the tasks probably needs to be in some other file (make task_store a module?), but belongs here controlflow wise:
+        for task in task_store.iter_mut() {
+            if task.ready && !task.finished { //TODO: we might want to clean up finished tasks at some point, but cannot do so directly, because things
+                                              //      might trigger on the task being done (maybe the one blocking on it should clean it up?)
 
-                            let mut url = match ongoing_navigation.unwrap().action_type {
-                                NavigationActionType::Get(url) => { url.clone() },
-                                _ => panic!("Invalid state"),
-                            };
+                match &task.payload {
+                    TaskPayload::ParseJs { script_data } => {
+                        let js_tokens = js_lexer::lex_js(&script_data, 1, 0);
+                        let script = js_parser::parse_js(&js_tokens);
 
-                            url.scheme = String::from("http");
+                        //TODO: for now we just execute the script, but we need to juse the correct execution context, so the right stuff is shared on the page
+                        let mut interpreter = js_interpreter::JsInterpreter::new();
+                        interpreter.run_script(&script);
 
-                            let navigation_action = NavigationAction::new_get_from_addressbar(url, false);
-                            main_page_job_tracker = start_navigate(&navigation_action, &platform, &mut ui_state, &cookie_store, &mut resource_thread_pool);
-                            ongoing_navigation = Some(navigation_action);
-                            restarted_navigation = true;
-                        }
+                        task.finished = true;
+                        break; // We do one task per frame max. on pupose to keep the UI responsive
                     },
-                    ResourceRequestResult::Success {body, new_cookies} => {
-                        let domain = match &ongoing_navigation.as_ref().unwrap().action_type {
-                            NavigationActionType::None => &String::new(),
-                            NavigationActionType::Get(url) => &url.host,
-                            NavigationActionType::Post(post_data) => &post_data.url.host,
-                        };
-
-                        //TODO: I think we want to extract cookies in a more centralized place
-                        for new_cookie in new_cookies {
-                            if !cookie_store.cookies_by_domain.contains_key(domain) {
-                                cookie_store.cookies_by_domain.insert(domain.clone(), HashMap::new());
-                            }
-                            cookie_store.cookies_by_domain.get_mut(domain).unwrap().insert(new_cookie.0, new_cookie.1);
-                        }
-
-                        finish_navigate(&ongoing_navigation.as_ref().unwrap(), &mut ui_state, body, &document,
-                                        &cookie_store, &full_layout_tree, &mut platform, &scheduler, &mut resource_thread_pool);
-                    },
-                }
-
-                if !restarted_navigation {
-                    ongoing_navigation = None;
+                    TaskPayload::StartParseHtml { html } => { //TODO: generate this taks somewhere....
+                        //TODO: we probably want to get the url from some browsing context, not directly from the UI
+                        html_parser.start(html.clone(), Url::from(&ui_state.addressbar.text));
+                        task.finished = true;
+                        break; // We do one task per frame max. on pupose to keep the UI responsive
+                    }
                 }
             }
         }
+
+        resource_loader.handle_possible_finished_job(&mut task_store, &mut cookie_store);
+        ui_state.currently_loading_page = resource_loader.any_jobs_in_progress();
+
+
+        progress_html_parser(&mut html_parser, &mut resource_loader, &cookie_store, &mut task_store);
+
+
+        {
+            let document = &mut html_parser.document;
+
+            compute_styles(&document.document_node, &document.all_nodes, &document.style_context);
+
+
+            document.document_node.borrow_mut().post_construct(&mut platform);
+            document.update_all_dom_nodes(&mut cookie_store);
+
+
+            //TODO: we need some flag, if nothing was changed don't rebuild full layout? We use to have that already
+
+
+            full_layout_tree.replace(layout::build_full_layout(&document, &platform.font_context));
+
+            compute_layout(&full_layout_tree.borrow().root_node, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y,
+                            &platform.font_context, ui_state.current_scroll_y, false, true, ui_state.window_dimensions.content_viewport_width);
+        }
+
 
         ui_state.current_scroll_y = ui_state.main_scrollbar_vert.update_content_size(full_layout_tree.borrow().page_height(), ui_state.current_scroll_y);
         ui_state.current_scroll_x = ui_state.main_scrollbar_hori.update_content_size(full_layout_tree.borrow().page_width(), ui_state.current_scroll_x);
@@ -214,7 +218,7 @@ fn main() -> Result<(), String> {
                     match win_event {
                         sdl2::event::WindowEvent::SizeChanged(width, height) => {
                             ui_state.update_window_dimensions(width as f32, height as f32);
-                            document.borrow_mut().document_node.borrow_mut().mark_all_as_dirty();
+                            html_parser.document.document_node.borrow_mut().mark_all_as_dirty();
                         },
                         _ => {},
                     }
@@ -266,7 +270,7 @@ fn main() -> Result<(), String> {
 
                     RefCell::borrow_mut(&full_layout_tree.borrow_mut().root_node).reset_selection();
 
-                    ui::handle_possible_ui_mouse_down(&full_layout_tree.borrow().root_node, &document, &mut platform, &mut ui_state, mouse_x as f32, mouse_y as f32);
+                    ui::handle_possible_ui_mouse_down(&full_layout_tree.borrow().root_node, &html_parser.document, &mut platform, &mut ui_state, mouse_x as f32, mouse_y as f32);
                 },
                 SdlEvent::MouseButtonUp { mouse_btn: MouseButton::Left, x: mouse_x, y: mouse_y, .. } => {
                     mouse_state.x = mouse_x;
@@ -283,12 +287,11 @@ fn main() -> Result<(), String> {
 
                     if !was_dragging {
                         let page_relative_mouse_y = mouse_y as f32 + ui_state.current_scroll_y;
-                        let navigation_action = handle_left_click(&mut ui_state, mouse_x as f32, mouse_y as f32, page_relative_mouse_y, &full_layout_tree.borrow(), &document.borrow());
+                        let navigation_action = handle_left_click(&mut ui_state, mouse_x as f32, mouse_y as f32, page_relative_mouse_y, &full_layout_tree.borrow(), &html_parser.document);
 
                         //TODO: we should do this above in the next loop, just schedule the action for the next loop?
                         if navigation_action.action_type != NavigationActionType::None {
-                            main_page_job_tracker = start_navigate(&navigation_action, &platform, &mut ui_state, &cookie_store, &mut resource_thread_pool);
-                            ongoing_navigation = Some(navigation_action);
+                            start_navigate(&navigation_action, &platform, &mut ui_state, &cookie_store, &mut resource_loader, &mut html_parser);
                         }
                     }
                 },
@@ -388,17 +391,15 @@ fn main() -> Result<(), String> {
                                     }
 
                                     let navigation_action = NavigationAction::new_get_from_addressbar(Url::from(&url), !has_protocol);
-                                    main_page_job_tracker = start_navigate(&navigation_action, &platform, &mut ui_state, &cookie_store, &mut resource_thread_pool);
-                                    ongoing_navigation = Some(navigation_action);
+                                    start_navigate(&navigation_action, &platform, &mut ui_state, &cookie_store, &mut resource_loader, &mut html_parser);
                                 }
                             },
 
                             FocusTarget::Component(ref component) => {
                                 if keycode.unwrap().name() == "Return" {
-                                    let dom_node = dom::find_dom_node_for_component(&component.borrow(), &document.borrow());
-                                    let navigation_action = dom_node.borrow().submit_form(&document.borrow());
-                                    main_page_job_tracker = start_navigate(&navigation_action, &platform, &mut ui_state, &cookie_store, &mut resource_thread_pool);
-                                    ongoing_navigation = Some(navigation_action);
+                                    let dom_node = dom::find_dom_node_for_component(&component.borrow(), &html_parser.document);
+                                    let navigation_action = dom_node.borrow().submit_form(&html_parser.document);
+                                    start_navigate(&navigation_action, &platform, &mut ui_state, &cookie_store, &mut resource_loader, &mut html_parser);
                                 }
                             },
                         }
@@ -413,10 +414,10 @@ fn main() -> Result<(), String> {
         }
         #[cfg(feature="timings")] println!("event pump elapsed millis: {}", start_event_pump_instant.elapsed().as_millis());
 
-        let document_has_dirty_nodes = document.borrow_mut().update_all_dom_nodes(&mut resource_thread_pool, &cookie_store);
+        let document_has_dirty_nodes = html_parser.document.update_all_dom_nodes(&cookie_store);
 
         if document_has_dirty_nodes {
-            rebuild_dirty_layout_childs(&full_layout_tree.borrow().root_node, &document.borrow(), &platform.font_context);
+            rebuild_dirty_layout_childs(&full_layout_tree.borrow().root_node, &html_parser.document, &platform.font_context);
 
             let mut content_nodes_in_selection_order = Vec::new();
             collect_content_nodes_in_walk_order_for_normal_flow(&full_layout_tree.borrow().root_node, &mut content_nodes_in_selection_order);

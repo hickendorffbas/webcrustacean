@@ -205,7 +205,7 @@ pub fn handle_possible_ui_click(ui_state: &mut UIState, x: f32, y: f32) -> Optio
     return None;
 }
 
-pub fn handle_possible_ui_mouse_down(root_layout_node: &Rc<RefCell<LayoutNode>>, document: &RefCell<Document>, platform: &mut Platform, ui_state: &mut UIState, x: f32, y: f32) -> Option<Url> {
+pub fn handle_possible_ui_mouse_down(root_layout_node: &Rc<RefCell<LayoutNode>>, document: &Document, platform: &mut Platform, ui_state: &mut UIState, x: f32, y: f32) -> Option<Url> {
     let mut any_text_field_has_focus = false;
 
     if ui_state.addressbar.is_inside(x, y) {
@@ -262,7 +262,7 @@ pub fn handle_possible_ui_mouse_down(root_layout_node: &Rc<RefCell<LayoutNode>>,
 }
 
 
-fn clear_other_focus(ui_state: &mut UIState, document: &RefCell<Document>) {
+fn clear_other_focus(ui_state: &mut UIState, document: &Document) {
 
     let mut component_id_with_focus = None;
     let mut addressbar_has_focus = false;
@@ -283,7 +283,7 @@ fn clear_other_focus(ui_state: &mut UIState, document: &RefCell<Document>) {
         ui_state.addressbar.clear_selection();
     }
 
-    for node in document.borrow().all_nodes.values() {
+    for node in document.all_nodes.values() {
         let node_borr = node.borrow();
         if node_borr.page_component.is_some() {
             if component_id_with_focus.is_none() || node_borr.page_component.as_ref().unwrap().borrow().get_id() != component_id_with_focus.unwrap() {

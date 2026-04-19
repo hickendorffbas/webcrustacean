@@ -21,15 +21,21 @@ enum InsertionMode {
     Parsing,
 }
 
+
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum ParserState {
+    WaitingToStart,
+    WaitingForContent { task_id: usize },
     ContinueParsing,
-    WaitingForScriptRun(String),
-    WaitingForScriptDownloadAndRun(Url),
+    ShouldDownloadScript(Url),
+    ShouldExecuteScript { script: String },
+    WaitingForScriptRun { task_id: usize },
     Done,
 }
 
+
 pub struct HtmlParser {
-    lexer: Lexer,
+    lexer: Option<Lexer>,
     mode: InsertionMode,
     stack: Vec<Rc<RefCell<ElementDomNode>>>,
     pub document: Document,
@@ -39,23 +45,34 @@ pub struct HtmlParser {
     pub state: ParserState,
 }
 impl HtmlParser {
-    pub fn new(input: String, base_url: Url) -> Self {
+    pub fn new() -> Self {
         Self {
-            lexer: Lexer::new(input),
+            lexer: None,
             mode: InsertionMode::ParsingRootNode,
             stack: Vec::new(),
-            document: Document::new(base_url),
+            document: Document::new(Url::empty()),
             self_closing_top_stack_node: false,
             last_line_idx: 0,
             last_char_idx: 0,
-            state: ParserState::ContinueParsing,
+            state: ParserState::WaitingToStart,
         }
     }
 
+    pub fn start(&mut self, input: String, base_url: Url) {
+        self.reset();
+        self.lexer = Some(Lexer::new(input));
+        self.document = Document::new(base_url);
+        self.state = ParserState::ContinueParsing;
+    }
+
+    pub fn reset(&mut self) {
+        *self = HtmlParser::new();
+    }
+
     pub fn step(&mut self) {
-        match self.state {
+        match &self.state {
             ParserState::ContinueParsing => {
-                let token = self.lexer.next_token();
+                let token = self.lexer.as_mut().unwrap().next_token();
                 if token.token == Token::EOF {
                     self.state = ParserState::Done;
                     return;
@@ -66,9 +83,7 @@ impl HtmlParser {
 
                 self.handle_token(token.token);
             },
-            ParserState::WaitingForScriptDownloadAndRun(_) |
-            ParserState::WaitingForScriptRun(_) |
-            ParserState::Done => {
+            _ => {
                 return;
             },
         }
@@ -143,7 +158,9 @@ impl HtmlParser {
                 //TODO: some tags (like "li" and "p") have optional endtags, those need to be closed when seeing the next one of those
 
                 let node = ElementDomNode::new(name);
-                self.stack.push(Rc::from(RefCell::from(node)));
+                let node_rc = Rc::from(RefCell::from(node));
+                self.document.all_nodes.insert(node_rc.borrow().internal_id, node_rc.clone());
+                self.stack.push(node_rc);
                 self.self_closing_top_stack_node = self_closing;
             },
             Token::EndTag { name } => {
@@ -181,6 +198,7 @@ impl HtmlParser {
                 if let Some(parent_node) = self.stack.last() {
                     let non_breaking_space_positions = None; //TODO: implement (check old parser?)
                     let text_node = Rc::from(RefCell::from(ElementDomNode::new_with_text(text, non_breaking_space_positions)));
+                    self.document.all_nodes.insert(text_node.borrow().internal_id, text_node.clone());
                     self.register_node_as_child(parent_node.clone(), text_node);
                 } else {
                     todo!(); //TODO: this should be an error, since we already parsed a root
@@ -229,12 +247,12 @@ impl HtmlParser {
                         let script_src = node.borrow().get_attribute_value("src");
                         if script_src.is_some() {
                             let source_url = Url::from_base_url(&script_src.unwrap(), Some(&self.document.base_url));
-                            self.state = ParserState::WaitingForScriptDownloadAndRun(source_url);
+                            self.state = ParserState::ShouldDownloadScript(source_url);
                         } else {
                             let node_borr = node.borrow();
                             let content = node_borr.children.as_ref().unwrap().get(0);
                             let text_content = content.unwrap().borrow().text.as_ref().unwrap().text_content.clone();
-                            self.state = ParserState::WaitingForScriptRun(text_content);
+                            self.state = ParserState::ShouldExecuteScript { script: text_content };
                         };
 
                     }

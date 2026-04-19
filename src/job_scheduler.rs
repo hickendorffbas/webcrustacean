@@ -1,5 +1,10 @@
 use std::collections::HashMap;
-use std::sync::mpsc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc::{
+    channel,
+    Receiver,
+    Sender,
+};
 use std::thread;
 use threadpool::ThreadPool;
 
@@ -11,11 +16,54 @@ use crate::resource_loader::{
 };
 
 
+static NEXT_JOB_ID: AtomicUsize = AtomicUsize::new(1);
+pub fn get_next_job_id() -> usize { NEXT_JOB_ID.fetch_add(1, Ordering::Relaxed) }
+
+static NEXT_TASK_ID: AtomicUsize = AtomicUsize::new(1);
+pub fn get_next_task_id() -> usize { NEXT_TASK_ID.fetch_add(1, Ordering::Relaxed) }
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub enum TaskPayload {
+    ParseJs { script_data: String },
+    StartParseHtml { html: String },
+}
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub struct Task {
+    pub id: usize,
+    pub payload: TaskPayload,
+    pub ready: bool,
+    pub finished: bool,
+}
+impl Task {
+    pub fn new(payload: TaskPayload) -> Task {
+        return Task::new_with_id(get_next_task_id(), payload);
+    }
+    pub fn new_with_id(id: usize, payload: TaskPayload) -> Task {
+        return Task {
+            id,
+            payload,
+            ready: true,
+            finished: false,
+        };
+    }
+    pub fn new_task_not_yet_ready(payload: TaskPayload) -> Task {
+        return Task {
+            id: get_next_task_id(),
+            payload,
+            ready: false,
+            finished: false,
+        }
+    }
+}
+
+
 pub enum Job {
     HttpGetText {
+        job_id: usize, //TODO: do we use this for anything?
         location: Url,
         cookies: HashMap<String, String>,
-        result_sender: mpsc::Sender<JobResult>,
+        result_sender: Sender<JobResult>,
     },
 }
 
@@ -27,13 +75,13 @@ pub enum JobResult {
 }
 
 pub struct JobScheduler {
-    sender: mpsc::Sender<Job>,
+    sender: Sender<Job>,
     _dispatcher: thread::JoinHandle<()>,
 }
 
 impl JobScheduler {
     pub fn new(max_concurrent_jobs: usize) -> Self {
-        let (sender, receiver) = mpsc::channel::<Job>();
+        let (sender, receiver) = channel::<Job>();
         let pool = ThreadPool::new(max_concurrent_jobs);
 
         let dispatcher = thread::spawn(move || {
@@ -52,10 +100,11 @@ impl JobScheduler {
         }
     }
 
-    pub fn submit_http_get_text_job(&self, url: &Url, cookies: HashMap<String, String>) -> mpsc::Receiver<JobResult> {
-        let (tx, rx) = mpsc::channel();
+    pub fn submit_http_get_text_job(&self, url: &Url, cookies: HashMap<String, String>) -> Receiver<JobResult> {
+        let (tx, rx) = channel();
 
-        let job = Job::HttpGetText { location: url.clone(), cookies: cookies, result_sender: tx };
+        let job_id = get_next_job_id();
+        let job = Job::HttpGetText { job_id, location: url.clone(), cookies: cookies, result_sender: tx };
 
         let _ = self.sender.send(job);
         return rx;
@@ -63,7 +112,7 @@ impl JobScheduler {
 
     fn run_job(job: Job) {
         match job {
-            Job::HttpGetText { location, cookies, result_sender } => {
+            Job::HttpGetText { job_id: _, location, cookies, result_sender, ..} => {
                 let result = load_text(&location, RequestType::Get, None, &cookies);
                 let _ = result_sender.send(JobResult::ResourceRequestResultString { value: result });
             }

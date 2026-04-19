@@ -33,7 +33,7 @@ pub fn http_get_text(url: &Url, cookies: &HashMap<String, String>) -> ResourceRe
     let text_result = response.text();
 
     if text_result.is_ok() {
-        return ResourceRequestResult::Success{ body: text_result.unwrap(), new_cookies: new_cookies };
+        return ResourceRequestResult::Success{ body: text_result.unwrap(), new_cookies: new_cookies , domain: url.host.clone() };
     } else {
         return ResourceRequestResult::NotFound;
     }
@@ -52,7 +52,7 @@ pub fn http_get_image(url: &Url, cookies: &HashMap<String, String>) -> ResourceR
     let image_result = image::load_from_memory(&response.bytes().unwrap());
 
     if image_result.is_ok() {
-        return ResourceRequestResult::Success{ body: image_result.unwrap().to_rgba8(), new_cookies: new_cookies };
+        return ResourceRequestResult::Success{ body: image_result.unwrap().to_rgba8(), new_cookies: new_cookies, domain: url.host.clone() };
     } else {
         return ResourceRequestResult::NotFound;
     }
@@ -71,7 +71,7 @@ pub fn http_post_for_text(url: &Url, body: String, cookies: &HashMap<String, Str
     let text_result = response.text();
 
     if text_result.is_ok() {
-        return ResourceRequestResult::Success{ body: text_result.unwrap(), new_cookies: new_cookies };
+        return ResourceRequestResult::Success{ body: text_result.unwrap(), new_cookies: new_cookies, domain: url.host.clone() };
     } else {
         return ResourceRequestResult::NotFound;
     }

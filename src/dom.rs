@@ -14,7 +14,6 @@ use crate::resource_loader::{
     CookieStore,
     ResourceRequestJobTracker,
     ResourceRequestResult,
-    ResourceThreadPool,
 };
 use crate::style::{
     CssProperty,
@@ -48,10 +47,10 @@ impl Document {
         return Document { document_node: Rc::from(RefCell::from(ElementDomNode::new_empty())),
                           all_nodes: HashMap::new(), style_context, base_url };
     }
-    pub fn update_all_dom_nodes(&mut self, resource_thread_pool: &mut ResourceThreadPool, cookie_store: &CookieStore) -> bool {
+    pub fn update_all_dom_nodes(&mut self, cookie_store: &CookieStore) -> bool {
         //returns whether there are dirty nodes after the update
 
-        return self.document_node.borrow_mut().update(resource_thread_pool, self, cookie_store);
+        return self.document_node.borrow_mut().update(self, cookie_store);
     }
     pub fn find_parent_with_name(&self, start_node: &ElementDomNode, name_to_match: &str) -> Option<Rc<RefCell<ElementDomNode>>> {
         let mut node_id_to_check = start_node.parent_id;
@@ -106,6 +105,7 @@ impl TagName {
 
 //TODO: this should be moved to a network related module (just a seperate thing in network?)
 #[derive(PartialEq)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct PostData {
     pub url: Url,
     pub fields: HashMap<String, String>,
@@ -192,14 +192,14 @@ impl ElementDomNode {
         }
     }
 
-    fn update(&mut self, resource_thread_pool: &mut ResourceThreadPool, document: &Document, cookie_store: &CookieStore) -> bool {
+    fn update(&mut self, document: &Document, cookie_store: &CookieStore) -> bool {
         //returns whether there are dirty nodes after the update (being itself, or any of the children)
 
         let mut any_child_dirty = false;
 
         if self.children.is_some() {
             for child in self.children.as_ref().unwrap() {
-                let child_dirty = child.borrow_mut().update(resource_thread_pool, document, cookie_store);
+                let child_dirty = child.borrow_mut().update(document, cookie_store);
                 if child_dirty {
                     any_child_dirty = true;
                 }
@@ -211,10 +211,11 @@ impl ElementDomNode {
 
             if image_src.is_some() {
                 if self.img_job_tracker.is_none() {
-                    let image_url = Url::from_base_url(&image_src.unwrap(), Some(&document.base_url));
+                    let _image_url = Url::from_base_url(&image_src.unwrap(), Some(&document.base_url));
 
-                     //TODO: eventually store the threadpool on a more general context object
-                    self.img_job_tracker = Some(resource_loader::schedule_load_image(&image_url, &cookie_store, resource_thread_pool));
+                    todo!(); //TODO: we need to fire off the image request as a job, the task should know where in the DOM to set it
+                             //      (but what if that is no longer a valid location? When setting the src of the image needs to be checked again....)
+                             //self.img_job_tracker = Some(resource_loader::schedule_load_image(&image_url, &cookie_store, resource_thread_pool));
 
                 } else {
                     let try_recv_result = self.img_job_tracker.as_ref().unwrap().receiver.try_recv();
@@ -223,7 +224,7 @@ impl ElementDomNode {
                             ResourceRequestResult::NotFound => {
                                 self.image = Some(Rc::from(resource_loader::fallback_image()));
                             },
-                            ResourceRequestResult::Success{ body, new_cookies: _new_cookies } => {
+                            ResourceRequestResult::Success{ body, new_cookies: _, domain: _ } => {
                                 self.image = Some(Rc::from(body));
                             },
                         }

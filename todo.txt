@@ -1,4 +1,3 @@
-
 goals for 0.8.0
        - javascript ternary operator ( ? as an operator in the pratt parser, and then parse logic that reads until its finds the : )
        - load javascript and css files linked from a page
@@ -22,7 +21,7 @@ goals for 0.8.0
        - handle redirects better. Its seems reqwest follows them, but our url bar does not update etc. we want to follow them ourselves
        - implement more box layout css options
        - add ASI to the js parser
-
+       - make the timeings feature work again / better (i.e. averages etc.)
 
 
 other things (later versions):

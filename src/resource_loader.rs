@@ -1,7 +1,9 @@
+use core::panic;
 use std::collections::HashMap;
 use std::env;
 use std::fs::{self, metadata};
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::sync::atomic::{Ordering, AtomicUsize};
 use std::sync::mpsc::{
     channel,
@@ -40,7 +42,7 @@ pub fn get_next_job_id() -> usize { NEXT_JOB_ID.fetch_add(1, Ordering::Relaxed) 
 
 pub struct ResourceLoader {
     scheduler: JobScheduler,
-    active_jobs: Vec<(Receiver<JobResult>, Task)>,
+    active_jobs: Vec<(Receiver<JobResult>, Task)>, //TODO: should these not live on the job scheduler?
 }
 impl ResourceLoader {
     pub fn new() -> ResourceLoader {
@@ -50,6 +52,11 @@ impl ResourceLoader {
 
     pub fn request_text_http_get_text(&mut self, url: &Url, cookies: HashMap<String, String>, task: Task) {
         let job = self.scheduler.submit_http_get_text_job(url, cookies);
+        self.active_jobs.push((job, task));
+    }
+
+    pub fn request_text_http_get_image(&mut self, url: &Url, cookies: HashMap<String, String>, task: Task) {
+        let job = self.scheduler.submit_http_get_image_job(url, cookies);
         self.active_jobs.push((job, task));
     }
 
@@ -78,13 +85,12 @@ impl ResourceLoader {
             return;
         }
 
-        let (_, future_task) = self.active_jobs.remove(finished_job_position.unwrap());
+        let (_, mut future_task) = self.active_jobs.remove(finished_job_position.unwrap());
 
         match finshed_job_result.unwrap() {
             JobResult::ResourceRequestResultString { value } => {
                 match value {
                     ResourceRequestResult::Success { body, new_cookies, domain } => {
-                        let mut future_task = future_task;
 
                         //TODO: I think we want to extract cookies in a more centralized place
                         for new_cookie in new_cookies {
@@ -101,6 +107,9 @@ impl ResourceLoader {
                             TaskPayload::StartParseHtml { html } => {
                                 *html = body;
                             },
+                            _ => {
+                                panic!("Unsupported task payload for this jobresult");
+                            }
                         }
 
                         future_task.ready = true;
@@ -130,8 +139,36 @@ impl ResourceLoader {
                     },
                 }
             },
-        }
+            JobResult::ResourceRequestResultImage { value } => {
+                match value {
+                    ResourceRequestResult::Success { body, new_cookies, domain } => {
 
+                        //TODO: I think we want to extract cookies in a more centralized place
+                        for new_cookie in new_cookies {
+                            if !cookie_store.cookies_by_domain.contains_key(&domain) {
+                                cookie_store.cookies_by_domain.insert(domain.clone(), HashMap::new());
+                            }
+                            cookie_store.cookies_by_domain.get_mut(&domain).unwrap().insert(new_cookie.0, new_cookie.1);
+                        }
+
+                        match &mut future_task.payload {
+                            TaskPayload::SetImageOnDomNode { dom_node_id: _, image  } => {
+                                *image = Some(Rc::from(body));
+                            },
+                            _ => {
+                                panic!("Unsupported task payload for this jobresult");
+                            }
+                        }
+
+                        future_task.ready = true;
+                        task_store.push(future_task);
+                    },
+                    ResourceRequestResult::NotFound => {
+                        todo!(); //TODO: implement
+                    },
+                }
+            },
+        }
     }
 }
 
@@ -309,22 +346,7 @@ fn get_all_html_in_folder(folder_path: PathBuf, local_file_urls: &mut Vec<PathBu
 }
 
 
-pub fn schedule_load_image(url: &Url, cookie_store: &CookieStore, resource_thread_pool: &mut ResourceThreadPool) -> ResourceRequestJobTracker<ResourceRequestResult<RgbaImage>> {
-    let (sender, receiver) = channel::<ResourceRequestResult<RgbaImage>>();
-    let job_id = get_next_job_id();
-
-    let cookies = cookie_store.get_for_domain(&url.host);
-
-    let job = ResourceRequestJob { job_id, url: url.clone(), sender, request_type: RequestType::Get, body: None, cookies: cookies };
-    let job_tracker = ResourceRequestJobTracker { job_id, receiver };
-
-    resource_thread_pool.fire_and_forget_load_image(job);
-
-    return job_tracker;
-}
-
-
-fn load_image(url: &Url, cookies: &HashMap<String, String>) -> ResourceRequestResult<RgbaImage> {
+pub fn load_image(url: &Url, cookies: &HashMap<String, String>) -> ResourceRequestResult<RgbaImage> {
     if url.scheme == "file" {
         let mut local_path = String::from("//");
         local_path.push_str(&url.path.join("/"));

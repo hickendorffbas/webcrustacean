@@ -6,14 +6,14 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use image::RgbaImage;
 
+use crate::job_scheduler::{Task, TaskPayload};
 use crate::navigation::NavigationAction;
 use crate::network::url::Url;
 use crate::platform::Platform;
 use crate::resource_loader::{
     self,
     CookieStore,
-    ResourceRequestJobTracker,
-    ResourceRequestResult,
+    ResourceLoader
 };
 use crate::style::{
     CssProperty,
@@ -47,10 +47,10 @@ impl Document {
         return Document { document_node: Rc::from(RefCell::from(ElementDomNode::new_empty())),
                           all_nodes: HashMap::new(), style_context, base_url };
     }
-    pub fn update_all_dom_nodes(&mut self, cookie_store: &CookieStore) -> bool {
+    pub fn update_all_dom_nodes(&mut self, cookie_store: &CookieStore, resource_loader: &mut ResourceLoader) -> bool {
         //returns whether there are dirty nodes after the update
 
-        return self.document_node.borrow_mut().update(self, cookie_store);
+        return self.document_node.borrow_mut().update(self, cookie_store, resource_loader);
     }
     pub fn find_parent_with_name(&self, start_node: &ElementDomNode, name_to_match: &str) -> Option<Rc<RefCell<ElementDomNode>>> {
         let mut node_id_to_check = start_node.parent_id;
@@ -133,7 +133,7 @@ pub struct ElementDomNode {
     pub styles: HashMap<CssProperty, String>,
 
     pub image: Option<Rc<RgbaImage>>,
-    pub img_job_tracker: Option<ResourceRequestJobTracker<ResourceRequestResult<RgbaImage>>>,
+    pub image_load_task_id: Option<usize>,
 
     pub page_component: Option<Rc<RefCell<PageComponent>>>,
 }
@@ -192,14 +192,14 @@ impl ElementDomNode {
         }
     }
 
-    fn update(&mut self, document: &Document, cookie_store: &CookieStore) -> bool {
+    fn update(&mut self, document: &Document, cookie_store: &CookieStore, resource_loader: &mut ResourceLoader) -> bool {
         //returns whether there are dirty nodes after the update (being itself, or any of the children)
 
         let mut any_child_dirty = false;
 
         if self.children.is_some() {
             for child in self.children.as_ref().unwrap() {
-                let child_dirty = child.borrow_mut().update(document, cookie_store);
+                let child_dirty = child.borrow_mut().update(document, cookie_store, resource_loader);
                 if child_dirty {
                     any_child_dirty = true;
                 }
@@ -210,30 +210,14 @@ impl ElementDomNode {
             let image_src = self.get_attribute_value("src");
 
             if image_src.is_some() {
-                if self.img_job_tracker.is_none() {
-                    let _image_url = Url::from_base_url(&image_src.unwrap(), Some(&document.base_url));
+                if self.image_load_task_id.is_none() {
+                    let image_url = Url::from_base_url(&image_src.unwrap(), Some(&document.base_url));
+                    let future_task = Task::new_task_not_yet_ready(TaskPayload::SetImageOnDomNode { dom_node_id: self.internal_id, image: None });
+                    self.image_load_task_id = Some(future_task.id);
 
-                    todo!(); //TODO: we need to fire off the image request as a job, the task should know where in the DOM to set it
-                             //      (but what if that is no longer a valid location? When setting the src of the image needs to be checked again....)
-                             //self.img_job_tracker = Some(resource_loader::schedule_load_image(&image_url, &cookie_store, resource_thread_pool));
-
-                } else {
-                    let try_recv_result = self.img_job_tracker.as_ref().unwrap().receiver.try_recv();
-                    if try_recv_result.is_ok() {
-                        match try_recv_result.unwrap() {
-                            ResourceRequestResult::NotFound => {
-                                self.image = Some(Rc::from(resource_loader::fallback_image()));
-                            },
-                            ResourceRequestResult::Success{ body, new_cookies: _, domain: _ } => {
-                                self.image = Some(Rc::from(body));
-                            },
-                        }
-                        self.dirty = true;
-                        self.img_job_tracker = None;
-                    }
-
+                    //TODO: we are now missing the whole local file stuff. Where is that handled for the text version of this infra?
+                    resource_loader.request_text_http_get_image(&image_url, cookie_store.get_for_domain(&image_url.host), future_task);
                 }
-
             } else {
                 self.image = Some(Rc::from(resource_loader::fallback_image()));
                 self.dirty = true;
@@ -241,6 +225,13 @@ impl ElementDomNode {
         }
 
         return any_child_dirty || self.dirty;
+    }
+
+    pub fn set_image(&mut self, image: Rc<RgbaImage>, task_id: usize) {
+        if self.image_load_task_id.is_some() && task_id == self.image_load_task_id.unwrap() {
+            self.image = Some(image);
+            self.image_load_task_id = None;
+        }
     }
 
     pub fn click(&self, document: &Document) -> NavigationAction {
@@ -374,7 +365,7 @@ impl ElementDomNode {
             attributes: None,
             styles: HashMap::new(), //TODO: its worth checking if we can have 1 static immutable hashmap or something (with COW copy on write?)
             image: None,
-            img_job_tracker: None,
+            image_load_task_id: None,
             page_component: None,
         };
     }

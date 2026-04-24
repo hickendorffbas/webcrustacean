@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{
     channel,
@@ -6,11 +7,12 @@ use std::sync::mpsc::{
     Sender,
 };
 use std::thread;
+use image::RgbaImage;
 use threadpool::ThreadPool;
 
 use crate::network::url::Url;
 use crate::resource_loader::{
-    load_text,
+    self,
     RequestType,
     ResourceRequestResult,
 };
@@ -26,8 +28,10 @@ pub fn get_next_task_id() -> usize { NEXT_TASK_ID.fetch_add(1, Ordering::Relaxed
 pub enum TaskPayload {
     ParseJs { script_data: String },
     StartParseHtml { html: String },
+    SetImageOnDomNode { dom_node_id: usize, image: Option<Rc<RgbaImage>>}
 }
 
+//TODO: all this stuff should live in some task store module
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Task {
     pub id: usize,
@@ -65,14 +69,21 @@ pub enum Job {
         cookies: HashMap<String, String>,
         result_sender: Sender<JobResult>,
     },
+    HttpGetImage {
+        job_id: usize, //TODO: do we use this for anything?
+        location: Url,
+        cookies: HashMap<String, String>,
+        result_sender: Sender<JobResult>,
+    }
 }
 
 pub enum JobResult {
     ResourceRequestResultString {
         value: ResourceRequestResult<String>,
     },
-    //TODO: add some binary type for loading images etc.
-}
+    ResourceRequestResultImage {
+        value: ResourceRequestResult<RgbaImage>,
+    },}
 
 pub struct JobScheduler {
     sender: Sender<Job>,
@@ -110,11 +121,25 @@ impl JobScheduler {
         return rx;
     }
 
+    pub fn submit_http_get_image_job(&self, url: &Url, cookies: HashMap<String, String>) -> Receiver<JobResult> {
+        let (tx, rx) = channel();
+
+        let job_id = get_next_job_id();
+        let job = Job::HttpGetImage { job_id, location: url.clone(), cookies: cookies, result_sender: tx };
+
+        let _ = self.sender.send(job);
+        return rx;
+    }
+
     fn run_job(job: Job) {
         match job {
-            Job::HttpGetText { job_id: _, location, cookies, result_sender, ..} => {
-                let result = load_text(&location, RequestType::Get, None, &cookies);
+            Job::HttpGetText { job_id: _, location, cookies, result_sender } => {
+                let result = resource_loader::load_text(&location, RequestType::Get, None, &cookies);
                 let _ = result_sender.send(JobResult::ResourceRequestResultString { value: result });
+            },
+            Job::HttpGetImage { job_id: _, location, cookies, result_sender } => {
+                let result = resource_loader::load_image(&location, &cookies);
+                let _ = result_sender.send(JobResult::ResourceRequestResultImage { value: result });
             }
         }
     }

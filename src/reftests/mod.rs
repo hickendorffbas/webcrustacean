@@ -16,7 +16,7 @@ use crate::layout;
 use crate::network::url::Url;
 use crate::platform::{Platform, self};
 use crate::renderer;
-use crate::resource_loader::CookieStore;
+use crate::resource_loader::{CookieStore, ResourceLoader};
 use crate::ui::{
     UIState,
     CONTENT_TOP_LEFT_X,
@@ -70,8 +70,10 @@ fn render_doc(filename: &str, platform: &mut Platform, save_output: bool) -> Vec
     run_parser(&mut html_parser);
     let mut document = html_parser.document;
 
+    let resource_loader = &mut ResourceLoader::new();
+
     document.document_node.borrow_mut().post_construct(platform);
-    document.update_all_dom_nodes(&CookieStore { cookies_by_domain: HashMap::new() });
+    document.update_all_dom_nodes(&CookieStore { cookies_by_domain: HashMap::new() }, resource_loader);
 
     let full_layout = layout::build_full_layout(&document, &platform.font_context);
 

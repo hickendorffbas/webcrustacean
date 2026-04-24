@@ -163,17 +163,20 @@ fn main() -> Result<(), String> {
                         //TODO: for now we just execute the script, but we need to juse the correct execution context, so the right stuff is shared on the page
                         let mut interpreter = js_interpreter::JsInterpreter::new();
                         interpreter.run_script(&script);
-
-                        task.finished = true;
-                        break; // We do one task per frame max. on pupose to keep the UI responsive
                     },
-                    TaskPayload::StartParseHtml { html } => { //TODO: generate this taks somewhere....
+                    TaskPayload::StartParseHtml { html } => {
                         //TODO: we probably want to get the url from some browsing context, not directly from the UI
                         html_parser.start(html.clone(), Url::from(&ui_state.addressbar.text));
-                        task.finished = true;
-                        break; // We do one task per frame max. on pupose to keep the UI responsive
+
+                    },
+                    TaskPayload::SetImageOnDomNode { dom_node_id, image } => {
+                        let node = html_parser.document.all_nodes.get(dom_node_id).unwrap();
+                        node.borrow_mut().set_image(image.as_ref().unwrap().clone(), task.id);
                     }
                 }
+
+                task.finished = true;
+                break; // We do one task per frame max. on pupose to keep the UI responsive
             }
         }
 
@@ -191,7 +194,7 @@ fn main() -> Result<(), String> {
 
 
             document.document_node.borrow_mut().post_construct(&mut platform);
-            document.update_all_dom_nodes(&mut cookie_store);
+            document.update_all_dom_nodes(&mut cookie_store, &mut resource_loader);
 
 
             //TODO: we need some flag, if nothing was changed don't rebuild full layout? We use to have that already
@@ -414,7 +417,7 @@ fn main() -> Result<(), String> {
         }
         #[cfg(feature="timings")] println!("event pump elapsed millis: {}", start_event_pump_instant.elapsed().as_millis());
 
-        let document_has_dirty_nodes = html_parser.document.update_all_dom_nodes(&cookie_store);
+        let document_has_dirty_nodes = html_parser.document.update_all_dom_nodes(&cookie_store, &mut resource_loader);
 
         if document_has_dirty_nodes {
             rebuild_dirty_layout_childs(&full_layout_tree.borrow().root_node, &html_parser.document, &platform.font_context);

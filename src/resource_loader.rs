@@ -20,7 +20,7 @@ use image::{
 };
 use threadpool::ThreadPool;
 
-use crate::NR_RESOURCE_LOADING_THREADS;
+use crate::{NR_RESOURCE_LOADING_THREADS, resource_loader};
 use crate::debug::debug_log_warn;
 use crate::job_scheduler::{
     JobResult,
@@ -140,7 +140,7 @@ impl ResourceLoader {
                 }
             },
             JobResult::ResourceRequestResultImage { value } => {
-                match value {
+                let image_result = match value {
                     ResourceRequestResult::Success { body, new_cookies, domain } => {
 
                         //TODO: I think we want to extract cookies in a more centralized place
@@ -151,22 +151,24 @@ impl ResourceLoader {
                             cookie_store.cookies_by_domain.get_mut(&domain).unwrap().insert(new_cookie.0, new_cookie.1);
                         }
 
-                        match &mut future_task.payload {
-                            TaskPayload::SetImageOnDomNode { dom_node_id: _, image  } => {
-                                *image = Some(Rc::from(body));
-                            },
-                            _ => {
-                                panic!("Unsupported task payload for this jobresult");
-                            }
-                        }
-
-                        future_task.ready = true;
-                        task_store.push(future_task);
+                        body
                     },
                     ResourceRequestResult::NotFound => {
-                        todo!(); //TODO: implement
+                        resource_loader::fallback_image()
                     },
+                };
+
+                match &mut future_task.payload {
+                    TaskPayload::SetImageOnDomNode { dom_node_id: _, image  } => {
+                        *image = Some(Rc::from(image_result));
+                    },
+                    _ => {
+                        panic!("Unsupported task payload for this jobresult");
+                    }
                 }
+
+                future_task.ready = true;
+                task_store.push(future_task);
             },
         }
     }

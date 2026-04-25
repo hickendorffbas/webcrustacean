@@ -626,7 +626,7 @@ fn compute_layout_for_node(node: &Rc<RefCell<LayoutNode>>, top_left_x: f32, top_
                     }
                 },
                 None => {
-                    set_css_boxes_for_node_without_children(&mut mut_node, top_left_x, top_left_y, font_context, current_scroll_y, available_width, allow_single_node_wrap);
+                    set_css_boxes_for_node_without_children(&mut mut_node, top_left_x, top_left_y, font_context, available_width, allow_single_node_wrap);
                 },
             }
         },
@@ -637,7 +637,7 @@ fn compute_layout_for_node(node: &Rc<RefCell<LayoutNode>>, top_left_x: f32, top_
 
 
 fn set_css_boxes_for_node_without_children(node: &mut LayoutNode, top_left_x: f32, top_left_y: f32, font_context: &FontContext,
-                                           current_scroll_y: f32, available_width: f32, allow_single_node_wrap: bool) {
+                                           available_width: f32, allow_single_node_wrap: bool) {
 
     match &mut node.content {
         LayoutNodeContent::TextLayoutNode(ref mut text_layout_node) => {
@@ -693,7 +693,7 @@ fn set_css_boxes_for_node_without_children(node: &mut LayoutNode, top_left_x: f3
                     //TODO: here we get the text size, and then add margins, but that is knowledge that should be inside the ui component...
                     //      (for example the exact size of the margins)
                     let text_dimension = font_context.get_text_dimension(&button.text, &button.font);
-                    button.update_position(top_left_x, top_left_y - current_scroll_y, text_dimension.0 + 10.0, text_dimension.1 + 10.0);
+                    button.update_position(top_left_x, top_left_y, text_dimension.0 + 10.0, text_dimension.1 + 10.0);
                 }
                 PageComponent::TextField(_) => { panic!("Invalid state"); },
             }
@@ -711,7 +711,7 @@ fn set_css_boxes_for_node_without_children(node: &mut LayoutNode, top_left_x: f3
             match page_component.deref_mut() {
                 PageComponent::Button(_) => { panic!("Invalid state"); },
                 PageComponent::TextField(text_field) => {
-                    text_field.update_position(top_left_x, top_left_y - current_scroll_y, field_width, field_height);
+                    text_field.update_position(top_left_x, top_left_y, field_width, field_height);
                 }
             }
         },

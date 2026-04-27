@@ -13,6 +13,8 @@ use image::{
     RgbaImage
 };
 
+use crate::navigation::{NavigationAction, NavigationActionType};
+use crate::ui::UIState;
 use crate::{NR_RESOURCE_LOADING_THREADS, resource_loader};
 use crate::debug::debug_log_warn;
 use crate::job_scheduler::{
@@ -38,13 +40,14 @@ impl ResourceLoader {
         return ResourceLoader { scheduler, active_jobs: Vec::new() }
     }
 
-    pub fn request_text_http_get_text(&mut self, url: &Url, cookies: HashMap<String, String>, task: Task) {
-        let job = self.scheduler.submit_http_get_text_job(url, cookies);
+    pub fn request_text_http_get_text(&mut self, url: &Url, cookies: HashMap<String, String>, task: Task, from_navigation_action: Option<NavigationAction>) {
+        let job = self.scheduler.submit_http_get_text_job(url, cookies, from_navigation_action);
         self.active_jobs.push((job, task));
     }
 
-    pub fn request_text_http_post_text(&mut self, url: &Url, fields: HashMap<String, String>, cookies: HashMap<String, String>, task: Task) {
-        let job = self.scheduler.submit_http_post_text_job(url, fields, cookies);
+    pub fn request_text_http_post_text(&mut self, url: &Url, fields: HashMap<String, String>, cookies: HashMap<String, String>,
+                                       task: Task, from_navigation_action: Option<NavigationAction>) {
+        let job = self.scheduler.submit_http_post_text_job(url, fields, cookies, from_navigation_action);
         self.active_jobs.push((job, task));
     }
 
@@ -57,7 +60,7 @@ impl ResourceLoader {
         return self.active_jobs.len() > 0;
     }
 
-    pub fn handle_possible_finished_job(&mut self, task_store: &mut Vec<Task>, cookie_store: &mut CookieStore) {
+    pub fn handle_possible_finished_job(&mut self, task_store: &mut Vec<Task>, cookie_store: &mut CookieStore, ui_state: &mut UIState) {
         //This method handles max 1 finished job, because we call it each frame this is fine
 
         let mut finshed_job_result = None;
@@ -81,7 +84,7 @@ impl ResourceLoader {
         let (_, mut future_task) = self.active_jobs.remove(finished_job_position.unwrap());
 
         match finshed_job_result.unwrap() {
-            JobResult::ResourceRequestResultString { value } => {
+            JobResult::ResourceRequestResultString { value, from_navigation_action } => {
                 match value {
                     ResourceRequestResult::Success { body, new_cookies, domain } => {
 
@@ -110,25 +113,25 @@ impl ResourceLoader {
                     },
                     ResourceRequestResult::NotFound => {
 
-                        //if ongoing_navigation.as_ref().unwrap().from_address_bar && ongoing_navigation.as_ref().unwrap().https_was_inserted {
-                            //let mut url = match ongoing_navigation.unwrap().action_type {
-                            //    NavigationActionType::Get(url) => { url.clone() },
-                            //    _ => panic!("Invalid state"),
-                            //};
+                        if from_navigation_action.is_some() {
+                            if from_navigation_action.as_ref().unwrap().from_address_bar && from_navigation_action.as_ref().unwrap().https_was_inserted {
 
-                            //url.scheme = String::from("http");
+                                let mut url = match from_navigation_action.unwrap().action_type {
+                                   NavigationActionType::Get(url) => { url.clone() },
+                                   _ => panic!("Invalid state"),
+                                };
 
-                            //let navigation_action = NavigationAction::new_get_from_addressbar(url, false);
-                            //main_page_job_tracker = start_navigate(&navigation_action, &platform, &mut ui_state, &cookie_store, &mut resource_thread_pool);
-                            //ongoing_navigation = Some(navigation_action);
-                            //restarted_navigation = true;
+                                url.scheme = String::from("http");
+                                ui_state.addressbar.text = url.to_string(); //TODO: I think updating the address should go via a function, to record history etc.
 
-                            todo!(); //TODO: submit a new job with the same task id behind it (don't push the task yet)
+                                let cookies = cookie_store.get_for_domain(&url.host);
+                                let new_action = NavigationAction::new_get(url.clone());
+                                self.request_text_http_get_text(&url, cookies, future_task, Some(new_action));
+                                return;
+                            }
+                        }
 
-                        //} else {
-                        //    todo!(); //TODO: implement
-                        //}
-
+                        todo!(); //TODO: decide how we are going to handle not found in general (display a standard 404 page?
                     },
                 }
             },

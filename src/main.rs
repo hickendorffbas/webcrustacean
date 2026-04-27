@@ -180,7 +180,7 @@ fn main() -> Result<(), String> {
             }
         }
 
-        resource_loader.handle_possible_finished_job(&mut task_store, &mut cookie_store);
+        resource_loader.handle_possible_finished_job(&mut task_store, &mut cookie_store, &mut ui_state);
         ui_state.currently_loading_page = resource_loader.any_jobs_in_progress();
 
 

@@ -7,6 +7,7 @@ use crate::resource_loader::{CookieStore, ResourceLoader};
 use crate::ui::{self, UIState};
 
 
+#[derive(Clone)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct NavigationAction {
     pub action_type: NavigationActionType,
@@ -30,7 +31,7 @@ impl NavigationAction {
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub enum NavigationActionType {
     None,
     Get(Url),
@@ -62,7 +63,7 @@ pub fn start_navigate(navigation_action: &NavigationAction, platform: &Platform,
             let future_task = Task::new_task_not_yet_ready(TaskPayload::StartParseHtml { html: String::new() });
             html_parser.reset();
             html_parser.state = ParserState::WaitingForContent { task_id: future_task.id };
-            resource_loader.request_text_http_get_text(&url, cookie_store.get_for_domain(&url.host), future_task);
+            resource_loader.request_text_http_get_text(&url, cookie_store.get_for_domain(&url.host), future_task, Some(navigation_action.clone()));
 
         },
         NavigationActionType::Post(post_data) => {
@@ -76,7 +77,8 @@ pub fn start_navigate(navigation_action: &NavigationAction, platform: &Platform,
             let future_task = Task::new_task_not_yet_ready(TaskPayload::StartParseHtml { html: String::new() });
             html_parser.reset();
             html_parser.state = ParserState::WaitingForContent { task_id: future_task.id };
-            resource_loader.request_text_http_post_text(&post_data.url, post_data.fields.clone(), cookie_store.get_for_domain(&post_data.url.host), future_task);
+            resource_loader.request_text_http_post_text(&post_data.url, post_data.fields.clone(), cookie_store.get_for_domain(&post_data.url.host),
+                                                        future_task, Some(navigation_action.clone()));
         }
     };
 
@@ -128,7 +130,7 @@ pub fn progress_html_parser(parser: &mut HtmlParser, resource_loader: &mut Resou
             ParserState::ShouldDownloadScript(url) => {
                 let future_task = Task::new_task_not_yet_ready(TaskPayload::ParseJs { script_data: String::new() });
                 parser.state = ParserState::WaitingForScriptRun { task_id: future_task.id };
-                resource_loader.request_text_http_get_text(&url, cookie_store.get_for_domain(&url.host), future_task);
+                resource_loader.request_text_http_get_text(&url, cookie_store.get_for_domain(&url.host), future_task, None);
                 return any_work_was_performed;
             },
             ParserState::ShouldExecuteScript { script } => {

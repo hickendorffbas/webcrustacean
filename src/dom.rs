@@ -104,7 +104,7 @@ impl TagName {
 
 
 //TODO: this should be moved to a network related module (just a seperate thing in network?)
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct PostData {
     pub url: Url,

@@ -73,8 +73,10 @@ pub fn start_navigate(navigation_action: &NavigationAction, platform: &Platform,
                 ui::register_in_history(ui_state, &post_data.url);
             }
 
-            todo!(); //TODO: How do do POST with the new setup?
-            //resource_loader::submit_post(&post_data.url, cookie_store, &post_data.fields, resource_thread_pool) //TODO: should this be a different thread pool, or rename it?
+            let future_task = Task::new_task_not_yet_ready(TaskPayload::StartParseHtml { html: String::new() });
+            html_parser.reset();
+            html_parser.state = ParserState::WaitingForContent { task_id: future_task.id };
+            resource_loader.request_text_http_post_text(&post_data.url, post_data.fields.clone(), cookie_store.get_for_domain(&post_data.url.host), future_task);
         }
     };
 

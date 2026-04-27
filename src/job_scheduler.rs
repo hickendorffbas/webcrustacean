@@ -18,9 +18,6 @@ use crate::resource_loader::{
 };
 
 
-static NEXT_JOB_ID: AtomicUsize = AtomicUsize::new(1);
-pub fn get_next_job_id() -> usize { NEXT_JOB_ID.fetch_add(1, Ordering::Relaxed) }
-
 static NEXT_TASK_ID: AtomicUsize = AtomicUsize::new(1);
 pub fn get_next_task_id() -> usize { NEXT_TASK_ID.fetch_add(1, Ordering::Relaxed) }
 
@@ -64,13 +61,17 @@ impl Task {
 
 pub enum Job {
     HttpGetText {
-        job_id: usize, //TODO: do we use this for anything?
         location: Url,
         cookies: HashMap<String, String>,
         result_sender: Sender<JobResult>,
     },
+    HttpPostText {
+        location: Url,
+        fields: HashMap<String, String>,
+        cookies: HashMap<String, String>,
+        result_sender: Sender<JobResult>,
+    },
     HttpGetImage {
-        job_id: usize, //TODO: do we use this for anything?
         location: Url,
         cookies: HashMap<String, String>,
         result_sender: Sender<JobResult>,
@@ -113,31 +114,40 @@ impl JobScheduler {
 
     pub fn submit_http_get_text_job(&self, url: &Url, cookies: HashMap<String, String>) -> Receiver<JobResult> {
         let (tx, rx) = channel();
+        let job = Job::HttpGetText { location: url.clone(), cookies: cookies, result_sender: tx };
+        let _ = self.sender.send(job);
+        return rx;
+    }
 
-        let job_id = get_next_job_id();
-        let job = Job::HttpGetText { job_id, location: url.clone(), cookies: cookies, result_sender: tx };
-
+    pub fn submit_http_post_text_job(&self, url: &Url, fields: HashMap<String, String>, cookies: HashMap<String, String>) -> Receiver<JobResult> {
+        let (tx, rx) = channel();
+        let job = Job::HttpPostText { location: url.clone(), fields, cookies: cookies, result_sender: tx };
         let _ = self.sender.send(job);
         return rx;
     }
 
     pub fn submit_http_get_image_job(&self, url: &Url, cookies: HashMap<String, String>) -> Receiver<JobResult> {
         let (tx, rx) = channel();
-
-        let job_id = get_next_job_id();
-        let job = Job::HttpGetImage { job_id, location: url.clone(), cookies: cookies, result_sender: tx };
-
+        let job = Job::HttpGetImage { location: url.clone(), cookies: cookies, result_sender: tx };
         let _ = self.sender.send(job);
         return rx;
     }
 
     fn run_job(job: Job) {
         match job {
-            Job::HttpGetText { job_id: _, location, cookies, result_sender } => {
+            Job::HttpGetText { location, cookies, result_sender } => {
                 let result = resource_loader::load_text(&location, RequestType::Get, None, &cookies);
                 let _ = result_sender.send(JobResult::ResourceRequestResultString { value: result });
             },
-            Job::HttpGetImage { job_id: _, location, cookies, result_sender } => {
+            Job::HttpPostText { location, fields, cookies, result_sender } => {
+
+                //TODO: we need to esape values here I think, what if "&" is in a post value?
+                let body = fields.iter().map(|(k, v)| format!("{}={}", k, v)).collect::<Vec<String>>().join("&");
+
+                let result = resource_loader::load_text(&location, RequestType::Post, Some(body), &cookies);
+                let _ = result_sender.send(JobResult::ResourceRequestResultString{ value: result });
+            }
+            Job::HttpGetImage { location, cookies, result_sender } => {
                 let result = resource_loader::load_image(&location, &cookies);
                 let _ = result_sender.send(JobResult::ResourceRequestResultImage { value: result });
             }

@@ -4,13 +4,7 @@ use std::env;
 use std::fs::{self, metadata};
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::sync::atomic::{Ordering, AtomicUsize};
-use std::sync::mpsc::{
-    channel,
-    Receiver,
-    Sender,
-    TryRecvError,
-};
+use std::sync::mpsc::{Receiver, TryRecvError};
 
 use chrono::{DateTime, Utc};
 use image::{
@@ -18,7 +12,6 @@ use image::{
     ImageReader,
     RgbaImage
 };
-use threadpool::ThreadPool;
 
 use crate::{NR_RESOURCE_LOADING_THREADS, resource_loader};
 use crate::debug::debug_log_warn;
@@ -35,11 +28,6 @@ use crate::network::{
 };
 
 
-//TODO: this should be removed (it will overlap with the job and task ids from the job scheduler) when the jobs are gone from here
-static NEXT_JOB_ID: AtomicUsize = AtomicUsize::new(1);
-pub fn get_next_job_id() -> usize { NEXT_JOB_ID.fetch_add(1, Ordering::Relaxed) }
-
-
 pub struct ResourceLoader {
     scheduler: JobScheduler,
     active_jobs: Vec<(Receiver<JobResult>, Task)>, //TODO: should these not live on the job scheduler?
@@ -52,6 +40,11 @@ impl ResourceLoader {
 
     pub fn request_text_http_get_text(&mut self, url: &Url, cookies: HashMap<String, String>, task: Task) {
         let job = self.scheduler.submit_http_get_text_job(url, cookies);
+        self.active_jobs.push((job, task));
+    }
+
+    pub fn request_text_http_post_text(&mut self, url: &Url, fields: HashMap<String, String>, cookies: HashMap<String, String>, task: Task) {
+        let job = self.scheduler.submit_http_post_text_job(url, fields, cookies);
         self.active_jobs.push((job, task));
     }
 
@@ -192,20 +185,6 @@ pub enum ResourceRequestResult<T> {
     },
 }
 
-struct ResourceRequestJob<T> {
-    #[allow(dead_code)] job_id: usize, //TODO: check if we want to use this (probably for logging / debugging?)
-    url: Url,
-    sender: Sender<T>,
-    request_type: RequestType,
-    body: Option<String>,
-    cookies: HashMap<String, String>,
-}
-#[derive(Debug)]
-pub struct ResourceRequestJobTracker<T> {
-    #[allow(dead_code)] pub job_id: usize, //TODO: check if we want to use this (probably for logging / debugging?)
-    pub receiver: Receiver<T>,
-}
-
 
 pub struct CookieStore {
     pub cookies_by_domain: HashMap<String, CookieStoreForDomain>,
@@ -230,44 +209,6 @@ type CookieStoreForDomain = HashMap<String, CookieEntry>;
 pub struct CookieEntry {
     pub value: String,
     #[allow(dead_code)] pub expiry_time: DateTime<Utc>,  //TODO: use this
-}
-
-
-pub struct ResourceThreadPool {
-    pub pool: ThreadPool,
-}
-impl ResourceThreadPool {
-    fn fire_and_forget_load_image(&mut self, job: ResourceRequestJob<ResourceRequestResult<RgbaImage>>) {
-        self.pool.execute(move || {
-            let result = load_image(&job.url, &job.cookies);
-            job.sender.send(result).expect("Could not send over channel");
-        });
-    }
-    fn fire_and_forget_load_text(&mut self, job: ResourceRequestJob<ResourceRequestResult<String>>) {
-        self.pool.execute(move || {
-            let result = load_text(&job.url, job.request_type, job.body, &job.cookies);
-            job.sender.send(result).expect("Could not send over channel");
-        });
-    }
-}
-
-
-pub fn submit_post(url: &Url, cookie_store: &CookieStore, fields: &HashMap<String, String>,
-                   resource_thread_pool: &mut ResourceThreadPool) -> ResourceRequestJobTracker<ResourceRequestResult<String>> {
-    let (sender, receiver) = channel::<ResourceRequestResult<String>>();
-    let job_id = get_next_job_id();
-
-    //TODO: we need to esape values here I think, what if "&" is in a post value?
-    let body = fields.iter().map(|(k, v)| format!("{}={}", k, v)).collect::<Vec<String>>().join("&");
-
-    let cookies = cookie_store.get_for_domain(&url.host);
-
-    let job = ResourceRequestJob { job_id, url: url.clone(), sender, request_type: RequestType::Post, body: Some(body), cookies: cookies };
-    let job_tracker = ResourceRequestJobTracker { job_id, receiver };
-
-    resource_thread_pool.fire_and_forget_load_text(job);
-
-    return job_tracker;
 }
 
 

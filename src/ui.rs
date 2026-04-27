@@ -181,7 +181,7 @@ pub fn handle_keyboard_input(platform: &mut Platform, input: Option<&String>, ke
         FocusTarget::Component(component) => {
             match component.borrow_mut().deref_mut() {
                 PageComponent::Button(_) => {
-                    //TODO: handle enter here
+                    todo!(); //TODO: handle enter here
                 }
                 PageComponent::TextField(text_field) => {
                     text_field.handle_keyboard_input(platform, input, key_code);
@@ -210,7 +210,7 @@ pub fn handle_possible_ui_mouse_down(root_layout_node: &Rc<RefCell<LayoutNode>>,
 
     if ui_state.addressbar.is_inside(x, y) {
         ui_state.focus_target = FocusTarget::AddressBar;
-        ui_state.addressbar.mouse_down(x, y);
+        ui_state.addressbar.mouse_down(x, y, &ui_state.focus_target);
         any_text_field_has_focus = true;
     } else if ui_state.main_scrollbar_hori.is_on_scrollblock(x, y) {
         ui_state.focus_target = FocusTarget::ScrollBlockHori;
@@ -227,17 +227,14 @@ pub fn handle_possible_ui_mouse_down(root_layout_node: &Rc<RefCell<LayoutNode>>,
             if borr_dom_node.page_component.is_some() {
                 let rc_component_clone = borr_dom_node.page_component.as_ref().unwrap().clone();
 
+                ui_state.focus_target = FocusTarget::Component(rc_component_clone);
+                component_found = true;
+
                 match borr_dom_node.page_component.as_ref().unwrap().borrow_mut().deref_mut() {
-                    PageComponent::Button(button) => {
-                        ui_state.focus_target = FocusTarget::Component(rc_component_clone);
-                        button.has_focus = true;
-                        component_found = true;
-                    },
+                    PageComponent::Button(_) => { },
                     PageComponent::TextField(text_field) => {
-                        ui_state.focus_target = FocusTarget::Component(rc_component_clone);
-                        component_found = true;
                         any_text_field_has_focus = true;
-                        text_field.mouse_down(x, y);
+                        text_field.mouse_down(x, y, &ui_state.focus_target);
                     },
                 }
             }
@@ -279,7 +276,6 @@ fn clear_other_focus(ui_state: &mut UIState, document: &Document) {
     }
 
     if !addressbar_has_focus {
-        ui_state.addressbar.has_focus = false;
         ui_state.addressbar.clear_selection();
     }
 
@@ -288,11 +284,8 @@ fn clear_other_focus(ui_state: &mut UIState, document: &Document) {
         if node_borr.page_component.is_some() {
             if component_id_with_focus.is_none() || node_borr.page_component.as_ref().unwrap().borrow().get_id() != component_id_with_focus.unwrap() {
                 match node_borr.page_component.as_ref().unwrap().borrow_mut().deref_mut() {
-                    PageComponent::Button(button) => {
-                        button.has_focus = false;
-                    }
+                    PageComponent::Button(_) => { }
                     PageComponent::TextField(text_field) => {
-                        text_field.has_focus = false;
                         text_field.clear_selection();
                     },
                 }

@@ -86,53 +86,62 @@ pub fn start_navigate(navigation_action: &NavigationAction, platform: &Platform,
 }
 
 
-pub fn progress_html_parser(parser: &mut HtmlParser, resource_loader: &mut ResourceLoader, cookie_store: &CookieStore, task_store: &mut Vec<Task>) {
+pub fn progress_html_parser(parser: &mut HtmlParser, resource_loader: &mut ResourceLoader, cookie_store: &CookieStore, task_store: &mut Vec<Task>) -> bool {
+    let mut any_work_was_performed = false;
+
     while !parser.is_done() {
-        parser.step();
+        let step_has_done_work = parser.step();
+        if step_has_done_work {
+            any_work_was_performed = true;
+        }
 
         let state = std::mem::replace(&mut parser.state, ParserState::ContinueParsing);
         match state {
+            ParserState::ContinueParsing => {},
+
             ParserState::WaitingToStart => {
                 parser.state = state;
-                return;
+                return false;
             },
             ParserState::WaitingForContent { task_id } => {
                 for task in task_store.iter() {
                     if task.id == task_id && task.finished {
                         parser.state = ParserState::ContinueParsing;
-                        return;
+                        return any_work_was_performed;
                     }
                 }
                 parser.state = state;
-                return;
+                return any_work_was_performed;
             },
-            ParserState::ContinueParsing => {}
             ParserState::WaitingForScriptRun { task_id } => {
                 for task in task_store.iter() {
                     if task.id == task_id && task.finished {
                         parser.state = ParserState::ContinueParsing;
-                        return;
+                        return any_work_was_performed;
                     }
                 }
                 parser.state = state;
-                return;
+                return any_work_was_performed;
             },
             ParserState::ShouldDownloadScript(url) => {
                 let future_task = Task::new_task_not_yet_ready(TaskPayload::ParseJs { script_data: String::new() });
                 parser.state = ParserState::WaitingForScriptRun { task_id: future_task.id };
                 resource_loader.request_text_http_get_text(&url, cookie_store.get_for_domain(&url.host), future_task);
+                return any_work_was_performed;
             },
             ParserState::ShouldExecuteScript { script } => {
                 let task = Task::new(TaskPayload::ParseJs { script_data: script });
                 let task_id = task.id;
                 task_store.push(task);
                 parser.state = ParserState::WaitingForScriptRun { task_id };
-                return;
+                return any_work_was_performed;
             },
             ParserState::Done => {
                 parser.state = state;
-                return;
+                return any_work_was_performed;
             },
         }
     };
+
+    return any_work_was_performed;
 }

@@ -12,6 +12,7 @@ use crate::platform::{
 };
 use crate::selection::Selection;
 use crate::ui::{
+    FocusTarget,
     HEADER_HEIGHT,
     UI_BASIC_COLOR,
     UI_BASIC_DARKER_COLOR,
@@ -56,7 +57,6 @@ pub struct TextField {
     pub width: f32,
     pub height: f32,
 
-    pub has_focus: bool,
     pub cursor_text_position: usize, // this position means the string index it is _before_, so starts at 0, and has length string.len()
     pub text: String,
 
@@ -76,9 +76,10 @@ impl TextField {
         //TODO: it would be nicer to have the font_context (and other contexts) in some kind of global
         //      -> yes, we are going to make a lazy_static PLATFORM variable
         let font = Font::default();
-        return TextField { id: get_next_component_id(), x, y, width, height, has_focus: false, cursor_text_position: 0, text: String::new(), select_on_first_click,
+        return TextField { id: get_next_component_id(), x, y, width, height, cursor_text_position: 0, text: String::new(), select_on_first_click,
                            selection_start_x: 0.0, selection_end_x: 0.0, selection_start_idx: 0, selection_end_idx: 0, font, char_position_mapping: Vec::new() };
     }
+
     pub fn render(&self, ui_state: &UIState, platform: &mut Platform, x_offset: f32, y_offset: f32) {
         platform.draw_square(self.x - x_offset, self.y - y_offset, self.width, self.height, Color::BLACK, 255);
 
@@ -93,7 +94,7 @@ impl TextField {
 
         platform.render_text(&self.text, self.x + TEXT_FIELD_OFFSET_FROM_BORDER - x_offset, self.y + TEXT_FIELD_OFFSET_FROM_BORDER - y_offset, &self.font, Color::BLACK);
 
-        if self.has_focus && !self.has_selection_active() {
+        if self.has_focus(&ui_state.focus_target) && !self.has_selection_active() {
 
             //TODO: also we need to make sure we reset the cycle whenever the cursor is moved, so it stays visible while using the arrow keys quickly
             let cursor_visible = ui_state.animation_tick % (CURSOR_BLINK_SPEED_MILLIS * 2) > CURSOR_BLINK_SPEED_MILLIS;
@@ -111,6 +112,15 @@ impl TextField {
                                    Position { x: cursor_position - x_offset, y: cursor_bottom_pos - y_offset },
                                    Color::BLACK);
             }
+        }
+    }
+
+    fn has_focus(&self, focus_target: &FocusTarget) -> bool {
+        match focus_target {
+            FocusTarget::Component(component) => {
+                return component.borrow().get_id() == self.id;
+            },
+            _ => return false,
         }
     }
 
@@ -148,17 +158,14 @@ impl TextField {
                y > self.y && y < (self.y + self.height);
     }
 
-    pub fn mouse_down(&mut self, x: f32, _: f32) {
-        if self.select_on_first_click && !self.has_focus {
+    pub fn mouse_down(&mut self, x: f32, _: f32, focus_target: &FocusTarget) {
+        if self.select_on_first_click && !self.has_focus(focus_target) {
             self.selection_start_idx = 0;
             self.selection_end_idx = self.text.len() - 1;
             self.selection_start_x = self.x + TEXT_FIELD_OFFSET_FROM_BORDER;
             self.selection_end_x = self.x + TEXT_FIELD_OFFSET_FROM_BORDER + self.char_position_mapping.iter().last().unwrap();
-            self.has_focus = true;
             return;
         }
-
-        self.has_focus = true;
 
         let mut found = false;
         for (idx, x_position) in self.char_position_mapping.iter().enumerate() {
@@ -195,7 +202,6 @@ impl TextField {
             }
             if !found {
                 self.clear_selection();
-                self.has_focus = false;
                 return;
             }
 
@@ -213,10 +219,8 @@ impl TextField {
                 self.selection_end_idx = self.text.len() - 1;
             }
 
-            self.has_focus = true;
         } else {
             self.clear_selection();
-            self.has_focus = false;
         }
     }
 
@@ -294,7 +298,6 @@ pub struct Button {
     pub y: f32, //TODO: we need to make sure x and y are updated when the page is scrolled (for <input> TextFields) and disable / hide them when outside of the window
     pub width: f32,
     pub height: f32,
-    #[allow(dead_code)] pub has_focus: bool,  //TODO: set in the correct cases, and use (to trigger on enter)
     pub text: String,
     pub font: Font,
 }
@@ -303,7 +306,7 @@ impl Button {
         //TODO: for now the width with not neccesarily be compatible with the text, but when we have a PLATFORM global we can fix this with the width of the text
         //TODO: it would be nicer to have the font_context (and other contexts) in some kind of global
         //      -> yes, we are going to make a lazy_static PLATFORM variable
-        return Button { id: get_next_component_id(), x, y, width, height, has_focus: false, text, font: Font::default()};
+        return Button { id: get_next_component_id(), x, y, width, height, text, font: Font::default()};
     }
 
     pub fn render(&self, platform: &mut Platform, x_offset: f32, y_offset: f32) {

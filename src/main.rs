@@ -184,28 +184,20 @@ fn main() -> Result<(), String> {
         ui_state.currently_loading_page = resource_loader.any_jobs_in_progress();
 
 
-        progress_html_parser(&mut html_parser, &mut resource_loader, &cookie_store, &mut task_store);
+        let work_was_performed = progress_html_parser(&mut html_parser, &mut resource_loader, &cookie_store, &mut task_store);
 
-
-        {
+        if work_was_performed {
             let document = &mut html_parser.document;
 
             compute_styles(&document.document_node, &document.all_nodes, &document.style_context);
 
-
-            document.document_node.borrow_mut().post_construct(&mut platform);
+            document.document_node.borrow_mut().post_construct(&mut platform); //TODO: this is not idempotent, it creates new components!
             document.update_all_dom_nodes(&mut cookie_store, &mut resource_loader);
 
-
-            //TODO: we need some flag, if nothing was changed don't rebuild full layout? We use to have that already
-
-
             full_layout_tree.replace(layout::build_full_layout(&document, &platform.font_context));
-
             compute_layout(&full_layout_tree.borrow().root_node, CONTENT_TOP_LEFT_X, CONTENT_TOP_LEFT_Y,
                             &platform.font_context, ui_state.current_scroll_y, false, true, ui_state.window_dimensions.content_viewport_width);
         }
-
 
         ui_state.current_scroll_y = ui_state.main_scrollbar_vert.update_content_size(full_layout_tree.borrow().page_height(), ui_state.current_scroll_y);
         ui_state.current_scroll_x = ui_state.main_scrollbar_hori.update_content_size(full_layout_tree.borrow().page_width(), ui_state.current_scroll_x);

@@ -1,5 +1,6 @@
 0.8.0 [UNRELEASED]
 ===================
+- Introduce a resumable html parser, and use a new taks model for the main render loop
 
 
 0.7.0

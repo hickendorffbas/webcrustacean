@@ -69,22 +69,23 @@ impl HtmlParser {
         *self = HtmlParser::new();
     }
 
-    pub fn step(&mut self) {
+    pub fn step(&mut self) -> bool {
         match &self.state {
             ParserState::ContinueParsing => {
                 let token = self.lexer.as_mut().unwrap().next_token();
                 if token.token == Token::EOF {
                     self.state = ParserState::Done;
-                    return;
+                    return false;
                 }
 
                 self.last_line_idx = token.line;
                 self.last_char_idx = token.char;
 
                 self.handle_token(token.token);
+                return true;
             },
             _ => {
-                return;
+                return false;
             },
         }
     }

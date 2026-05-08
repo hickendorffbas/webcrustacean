@@ -214,8 +214,6 @@ impl ElementDomNode {
                     let image_url = Url::from_base_url(&image_src.unwrap(), Some(&document.base_url));
                     let future_task = Task::new_task_not_yet_ready(TaskPayload::SetImageOnDomNode { dom_node_id: self.internal_id, image: None });
                     self.image_load_task_id = Some(future_task.id);
-
-                    //TODO: we are now missing the whole local file stuff. Where is that handled for the text version of this infra?
                     resource_loader.request_text_http_get_image(&image_url, cookie_store.get_for_domain(&image_url.host), future_task);
                 }
             } else {
@@ -231,6 +229,7 @@ impl ElementDomNode {
         if self.image_load_task_id.is_some() && task_id == self.image_load_task_id.unwrap() {
             self.image = Some(image);
             self.image_load_task_id = None;
+            self.dirty = true;
         }
     }
 

@@ -25,5 +25,6 @@ goals for 0.8.0
 
 
 other things (later versions):
+       - switch to winit?
        - fix transparancy in png's (loading works, rendering in SDL does not)
        - figure out how do build standalone binaries

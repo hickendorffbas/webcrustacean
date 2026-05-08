@@ -65,7 +65,7 @@ fn run_parser(parser: &mut HtmlParser) {
 fn render_doc(filename: &str, platform: &mut Platform, save_output: bool) -> Vec<u8> {
     let html = read_file(Path::new(&filename));
 
-    let mut html_parser = HtmlParser::new();
+    let mut html_parser = HtmlParser::new(Url::empty());
     html_parser.start(html, Url::empty());
     run_parser(&mut html_parser);
     let mut document = html_parser.document;

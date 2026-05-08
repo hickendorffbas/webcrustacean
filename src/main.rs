@@ -139,7 +139,7 @@ fn main() -> Result<(), String> {
     };
 
     let full_layout_tree = RefCell::from(FullLayout::new_empty());
-    let mut html_parser = HtmlParser::new();
+    let mut html_parser = HtmlParser::new(start_url.clone());
     let mut task_store: Vec<Task> = Vec::new();
 
     start_navigate(&NavigationAction::new_get(start_url), &platform, &mut ui_state, &cookie_store, &mut resource_loader, &mut html_parser);
@@ -156,9 +156,9 @@ fn main() -> Result<(), String> {
                                               //      might trigger on the task being done (maybe the one blocking on it should clean it up?)
 
                 match &task.payload {
-                    TaskPayload::ParseJs { script_data } => {
+                    TaskPayload::ParseJs { source_url, script_data } => {
                         let js_tokens = js_lexer::lex_js(&script_data, 1, 0);
-                        let script = js_parser::parse_js(&js_tokens);
+                        let script = js_parser::parse_js(&js_tokens, source_url);
 
                         //TODO: for now we just execute the script, but we need to juse the correct execution context, so the right stuff is shared on the page
                         let mut interpreter = js_interpreter::JsInterpreter::new();

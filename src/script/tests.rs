@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use crate::network::url::Url;
+
 use super::js_execution_context::{JsObject, JsValue};
 use super::js_interpreter::JsInterpreter;
 use super::js_lexer;
@@ -48,7 +50,7 @@ fn test_basic_assignment_and_export() {
     let code = "x = 3; tester.export(x + 4);";
 
     let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
 
     let mut interpreter = JsInterpreter::new();
     interpreter.run_script(&script);
@@ -62,7 +64,7 @@ fn test_binop_associativity() {
     let code = "x = 12 / 3 * 2; tester.export(x);";
 
     let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
     let mut interpreter = JsInterpreter::new();
     interpreter.run_script(&script);
 
@@ -78,7 +80,7 @@ fn test_literal_object_notation() {
                   tester.export(x.a + x.b + x.c);"#;
 
     let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
     let mut interpreter = JsInterpreter::new();
     interpreter.run_script(&script);
 
@@ -96,7 +98,7 @@ fn test_basic_function_call() {
         tester.export(x);"#;
 
     let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
     let mut interpreter = JsInterpreter::new();
     interpreter.run_script(&script);
 
@@ -113,7 +115,7 @@ fn test_basic_function_call_no_args() {
         tester.export(x);"#;
 
     let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
     let mut interpreter = JsInterpreter::new();
     interpreter.run_script(&script);
 
@@ -128,7 +130,7 @@ fn test_string_with_escape() {
         tester.export(x);"#;
 
     let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
     let mut interpreter = JsInterpreter::new();
     interpreter.run_script(&script);
 
@@ -146,7 +148,7 @@ fn test_not_parsing_comments() {
         tester.export(x);"#;
 
     let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
     let mut interpreter = JsInterpreter::new();
     interpreter.run_script(&script);
 
@@ -159,7 +161,7 @@ fn test_double_slash_in_string_is_not_a_comment() {
     let code = r#"x = "https://www.reddit.com"; tester.export(x);"#;
 
     let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
     let mut interpreter = JsInterpreter::new();
     interpreter.run_script(&script);
 
@@ -175,7 +177,7 @@ fn test_escaping_the_escape_char() {
         tester.export(y); "#;
 
     let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
     let mut interpreter = JsInterpreter::new();
     interpreter.run_script(&script);
 
@@ -189,7 +191,7 @@ fn test_create_empty_object() {
         tester.export(x1); "#;
 
     let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
     let mut interpreter = JsInterpreter::new();
     interpreter.run_script(&script);
 
@@ -203,7 +205,7 @@ fn test_empty_statement_in_front() {
         tester.export(x);"#;
 
     let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
     let mut interpreter = JsInterpreter::new();
     interpreter.run_script(&script);
 
@@ -225,7 +227,7 @@ fn test_basic_if_statement() {
         tester.export(b); "#;
 
     let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
 
     let mut interpreter = JsInterpreter::new();
     interpreter.run_script(&script);
@@ -241,7 +243,7 @@ fn test_negative_number() {
         tester.export(x);"#;
 
     let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
     let mut interpreter = JsInterpreter::new();
     interpreter.run_script(&script);
 
@@ -255,7 +257,7 @@ fn test_index_operator_for_object_properties() {
         tester.export(x["item"]);"#;
 
     let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
     let mut interpreter = JsInterpreter::new();
     interpreter.run_script(&script);
 
@@ -269,7 +271,7 @@ fn test_array() {
         tester.export(x[1]);"#;
 
     let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
     let mut interpreter = JsInterpreter::new();
     interpreter.run_script(&script);
 
@@ -283,7 +285,7 @@ fn test_muti_dimensional_array() {
         tester.export(x[1][1]);"#;
 
     let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
     let mut interpreter = JsInterpreter::new();
     interpreter.run_script(&script);
 
@@ -299,7 +301,7 @@ fn test_new_object_with_newlines() {
     }; tester.export(data.b);"#;
 
     let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
     let mut interpreter = JsInterpreter::new();
     interpreter.run_script(&script);
 
@@ -312,7 +314,7 @@ fn test_anonymous_function() {
     let code = r#"(function (w) { tester.export(w); })(13);"#;
 
     let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
     let mut interpreter = JsInterpreter::new();
     interpreter.run_script(&script);
 
@@ -326,7 +328,7 @@ fn test_comma_operator() {
         tester.export(x);"#;
 
     let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
     let mut interpreter = JsInterpreter::new();
     interpreter.run_script(&script);
 

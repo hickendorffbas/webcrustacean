@@ -97,7 +97,7 @@ impl ResourceLoader {
                         }
 
                         match &mut future_task.payload {
-                            TaskPayload::ParseJs { script_data } => {
+                            TaskPayload::ParseJs { source_url: _source_url, script_data } => {
                                 *script_data = body;
                             },
                             TaskPayload::StartParseHtml { html } => {

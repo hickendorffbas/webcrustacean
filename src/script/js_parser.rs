@@ -1,13 +1,15 @@
 use std::rc::Rc;
 
-use super::js_ast::*;
-use super::js_console;
-use super::js_lexer::{JsToken, JsTokenWithLocation};
+use crate::network::url::Url;
+use crate::script::js_ast::*;
+use crate::script::js_console;
+use crate::script::js_lexer::{JsToken, JsTokenWithLocation};
 
 
 struct ParserState {
     cursor: usize,  //cursor points at the next token to read
     number_of_tokens: usize,
+    source_url: Url,
 }
 impl ParserState {
     fn has_ended(&self) -> bool {
@@ -26,7 +28,8 @@ pub enum ParseResult<T> {
 pub struct ParseError {
     error_type: ParseErrorType,
     line: u32,
-    character: u32
+    character: u32,
+    url: Url,
 }
 pub enum ParseErrorType {
     EOF,
@@ -34,22 +37,22 @@ pub enum ParseErrorType {
     ExpectedEndOfArgumentList,
 }
 impl ParseError {
-    pub fn error_message(&self) -> String {
+    fn error_message(&self) -> String {
         match self.error_type {
-            ParseErrorType::EOF => format!("Unexpected end of script at {}:{}", self.line, self.character),
-            ParseErrorType::IdentierExpected => format!("Identifier expected at {}:{}", self.line, self.character),
-            ParseErrorType::ExpectedEndOfArgumentList => format!("Expected end of argument list at {}:{}", self.line, self.character),
+            ParseErrorType::EOF => format!("Unexpected end of script at {}:{} ({})", self.line, self.character, self.url.to_string()),
+            ParseErrorType::IdentierExpected => format!("Identifier expected at {}:{} ({})", self.line, self.character, self.url.to_string()),
+            ParseErrorType::ExpectedEndOfArgumentList => format!("Expected end of argument list at {}:{} ({})", self.line, self.character, self.url.to_string()),
         }
     }
-    pub fn error_for_token(error_type: ParseErrorType, token: &JsTokenWithLocation) -> ParseError {
-        return ParseError { error_type, line: token.line, character: token.character }
+    fn error_for_token(error_type: ParseErrorType, tokens: &Vec<JsTokenWithLocation>, parser_state: &ParserState) -> ParseError {
+        return ParseError { error_type, line: tokens[parser_state.cursor].line, character: tokens[parser_state.cursor].character, url: parser_state.source_url.clone() }
     }
 }
 
 
-pub fn parse_js(tokens: &Vec<JsTokenWithLocation>) -> Script {
+pub fn parse_js(tokens: &Vec<JsTokenWithLocation>, source_url: &Url) -> Script {
 
-    let mut parser_state = ParserState { cursor: 0, number_of_tokens: tokens.len() };
+    let mut parser_state = ParserState { cursor: 0, number_of_tokens: tokens.len(), source_url: source_url.clone() };
     let mut statements = Vec::new();
 
     while !parser_state.has_ended() {
@@ -145,8 +148,9 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
     };
 
     loop {
-
-        if parser_state.has_ended() { return ParseResult::ParsingFailed(ParseError::error_for_token(ParseErrorType::EOF, &tokens[parser_state.cursor - 1])) };
+        if parser_state.has_ended() {
+            return ParseResult::ParsingFailed(ParseError::error_for_token(ParseErrorType::EOF, tokens, parser_state))
+        };
 
         match (&tokens[parser_state.cursor].token, needs_assignment_expression) {
             (JsToken::Semicolon, _) | (JsToken::CloseParenthesis, _) | (JsToken::CloseBrace, _) | (JsToken::CloseBracket, _) | (JsToken::Comma, true) => {
@@ -199,7 +203,7 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                                                                   right: Rc::from(JsAstExpression::Identifier(JsAstIdentifier { name: ident.clone() })) });
                     },
                     _ => {
-                        return ParseResult::ParsingFailed(ParseError::error_for_token(ParseErrorType::IdentierExpected, &tokens[parser_state.cursor]));
+                        return ParseResult::ParsingFailed(ParseError::error_for_token(ParseErrorType::IdentierExpected, tokens, parser_state));
                     }
                 }
             },
@@ -258,7 +262,7 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
 
     eat_newlines(tokens, parser_state); //TODO: not sure if this is always correct, given semicolon insertion
     if parser_state.has_ended() {
-        return ParseResult::ParsingFailed(ParseError::error_for_token(ParseErrorType::EOF, &tokens[parser_state.cursor - 1]));
+        return ParseResult::ParsingFailed(ParseError::error_for_token(ParseErrorType::EOF, tokens, parser_state));
     }
 
     match &tokens[parser_state.cursor].token {
@@ -546,7 +550,9 @@ fn parse_list_of_expressions(tokens: &Vec<JsTokenWithLocation>, parser_state: &m
     let mut first = true;
 
     loop {
-        if parser_state.has_ended() { return ParseResult::ParsingFailed(ParseError::error_for_token(ParseErrorType::EOF, &tokens[parser_state.cursor - 1])) };
+        if parser_state.has_ended() {
+            return ParseResult::ParsingFailed(ParseError::error_for_token(ParseErrorType::EOF, tokens, parser_state))
+        };
 
         match &tokens[parser_state.cursor].token {
             JsToken::CloseParenthesis => {
@@ -560,7 +566,9 @@ fn parse_list_of_expressions(tokens: &Vec<JsTokenWithLocation>, parser_state: &m
                 parser_state.next();
             },
             _ => {
-                if !first { return ParseResult::ParsingFailed(ParseError::error_for_token(ParseErrorType::ExpectedEndOfArgumentList, &tokens[parser_state.cursor])) }
+                if !first {
+                    return ParseResult::ParsingFailed(ParseError::error_for_token(ParseErrorType::ExpectedEndOfArgumentList, tokens, parser_state))
+                }
             },
         }
         match pratt_parse_expression(tokens, parser_state, 0, true) {
@@ -820,7 +828,7 @@ fn parse_declaration(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Parse
     let mut declarations = Vec::new();
 
     loop {
-        if parser_state.has_ended() { return ParseResult::ParsingFailed(ParseError::error_for_token(ParseErrorType::EOF, &tokens[parser_state.cursor - 1])) };
+        if parser_state.has_ended() { return ParseResult::ParsingFailed(ParseError::error_for_token(ParseErrorType::EOF, tokens, parser_state)) };
 
         let ident = match &tokens[parser_state.cursor].token {
             JsToken::Identifier(ident) => {

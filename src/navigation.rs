@@ -61,7 +61,7 @@ pub fn start_navigate(navigation_action: &NavigationAction, platform: &Platform,
             }
 
             let future_task = Task::new_task_not_yet_ready(TaskPayload::StartParseHtml { html: String::new() });
-            html_parser.reset();
+            html_parser.reset(url.clone());
             html_parser.state = ParserState::WaitingForContent { task_id: future_task.id };
             resource_loader.request_text_http_get_text(&url, cookie_store.get_for_domain(&url.host), future_task, Some(navigation_action.clone()));
 
@@ -75,7 +75,7 @@ pub fn start_navigate(navigation_action: &NavigationAction, platform: &Platform,
             }
 
             let future_task = Task::new_task_not_yet_ready(TaskPayload::StartParseHtml { html: String::new() });
-            html_parser.reset();
+            html_parser.reset(post_data.url.clone());
             html_parser.state = ParserState::WaitingForContent { task_id: future_task.id };
             resource_loader.request_text_http_post_text(&post_data.url, post_data.fields.clone(), cookie_store.get_for_domain(&post_data.url.host),
                                                         future_task, Some(navigation_action.clone()));
@@ -128,13 +128,13 @@ pub fn progress_html_parser(parser: &mut HtmlParser, resource_loader: &mut Resou
                 return any_work_was_performed;
             },
             ParserState::ShouldDownloadScript(url) => {
-                let future_task = Task::new_task_not_yet_ready(TaskPayload::ParseJs { script_data: String::new() });
+                let future_task = Task::new_task_not_yet_ready(TaskPayload::ParseJs { source_url: url.clone(), script_data: String::new() });
                 parser.state = ParserState::WaitingForScriptRun { task_id: future_task.id };
                 resource_loader.request_text_http_get_text(&url, cookie_store.get_for_domain(&url.host), future_task, None);
                 return any_work_was_performed;
             },
-            ParserState::ShouldExecuteScript { script } => {
-                let task = Task::new(TaskPayload::ParseJs { script_data: script });
+            ParserState::ShouldExecuteScript { script, source_url } => {
+                let task = Task::new(TaskPayload::ParseJs { source_url, script_data: script });
                 let task_id = task.id;
                 task_store.push(task);
                 parser.state = ParserState::WaitingForScriptRun { task_id };

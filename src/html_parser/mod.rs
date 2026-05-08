@@ -28,7 +28,7 @@ pub enum ParserState {
     WaitingForContent { task_id: usize },
     ContinueParsing,
     ShouldDownloadScript(Url),
-    ShouldExecuteScript { script: String },
+    ShouldExecuteScript { script: String, source_url: Url },
     WaitingForScriptRun { task_id: usize },
     Done,
 }
@@ -43,9 +43,10 @@ pub struct HtmlParser {
     pub last_line_idx: usize,
     pub last_char_idx: usize,
     pub state: ParserState,
+    pub url: Url,
 }
 impl HtmlParser {
-    pub fn new() -> Self {
+    pub fn new(url: Url) -> Self {
         Self {
             lexer: None,
             mode: InsertionMode::ParsingRootNode,
@@ -55,18 +56,19 @@ impl HtmlParser {
             last_line_idx: 0,
             last_char_idx: 0,
             state: ParserState::WaitingToStart,
+            url: url,
         }
     }
 
     pub fn start(&mut self, input: String, base_url: Url) {
-        self.reset();
+        self.reset(base_url.clone());
         self.lexer = Some(Lexer::new(input));
         self.document = Document::new(base_url);
         self.state = ParserState::ContinueParsing;
     }
 
-    pub fn reset(&mut self) {
-        *self = HtmlParser::new();
+    pub fn reset(&mut self, url: Url) {
+        *self = HtmlParser::new(url);
     }
 
     pub fn step(&mut self) -> bool {
@@ -253,7 +255,7 @@ impl HtmlParser {
                             let node_borr = node.borrow();
                             let content = node_borr.children.as_ref().unwrap().get(0);
                             let text_content = content.unwrap().borrow().text.as_ref().unwrap().text_content.clone();
-                            self.state = ParserState::ShouldExecuteScript { script: text_content };
+                            self.state = ParserState::ShouldExecuteScript { source_url: self.url.clone(), script: text_content };
                         };
 
                     }

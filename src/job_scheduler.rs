@@ -24,7 +24,7 @@ pub fn get_next_task_id() -> usize { NEXT_TASK_ID.fetch_add(1, Ordering::Relaxed
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub enum TaskPayload {
-    ParseJs { script_data: String },
+    ParseJs { source_url: Url, script_data: String },
     StartParseHtml { html: String },
     SetImageOnDomNode { dom_node_id: usize, image: Option<Rc<RgbaImage>>}
 }

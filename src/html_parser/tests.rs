@@ -24,7 +24,7 @@ fn run_parser(parser: &mut HtmlParser) {
 fn test_basic_parsing_1() {
     let code = r#"<b>test</b>"#;
 
-    let mut parser = HtmlParser::new();
+    let mut parser = HtmlParser::new(Url::empty());
     parser.start(code.to_owned(), Url::empty());
     run_parser(&mut parser);
 
@@ -78,7 +78,7 @@ fn test_basic_parsing_1() {
 fn test_text_concatenation() {
     let code = r#"<div>two words</div>"#;
 
-    let mut parser = HtmlParser::new();
+    let mut parser = HtmlParser::new(Url::empty());
     parser.start(code.to_owned(), Url::empty());
     run_parser(&mut parser);
 
@@ -131,7 +131,7 @@ fn test_text_concatenation() {
 fn test_handling_whitespace() {
     let code = r#"     <b>test       </b >        "#;
 
-    let mut parser = HtmlParser::new();
+    let mut parser = HtmlParser::new(Url::empty());
     parser.start(code.to_owned(), Url::empty());
     run_parser(&mut parser);
 
@@ -192,7 +192,7 @@ fn test_handling_whitespace() {
 fn test_basic_parsing_attributes() {
     let code = r#"<div color="red">test</div>"#;
 
-    let mut parser = HtmlParser::new();
+    let mut parser = HtmlParser::new(Url::empty());
     parser.start(code.to_owned(), Url::empty());
     run_parser(&mut parser);
 
@@ -250,7 +250,7 @@ fn test_basic_parsing_attributes() {
 fn test_simple_html_entity() {
     let code = r#"<div>this is a test with &lt;entities&gt;</div>"#;
 
-    let mut parser = HtmlParser::new();
+    let mut parser = HtmlParser::new(Url::empty());
     parser.start(code.to_owned(), Url::empty());
     run_parser(&mut parser);
 
@@ -303,7 +303,7 @@ fn test_simple_html_entity() {
 fn test_comments() {
     let code = r#"<div color="red">test</div><!-- this is a comment <b>node</b> -->"#;
 
-    let mut parser = HtmlParser::new();
+    let mut parser = HtmlParser::new(Url::empty());
     parser.start(code.to_owned(), Url::empty());
     run_parser(&mut parser);
 

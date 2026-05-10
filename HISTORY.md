@@ -1,6 +1,7 @@
 0.8.0 [UNRELEASED]
 ===================
 - Introduce a resumable html parser, and use a new taks model for the main render loop
+- Linked javascript is now executed as well, and at the correct time
 
 
 0.7.0

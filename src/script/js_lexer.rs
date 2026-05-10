@@ -78,6 +78,7 @@ pub struct JsSourceIterator<'document> {
     next: Option<char>,
     prev: Option<char>,
     current_string_starter: Option<char>,
+    in_regex_literal: bool,
 }
 impl <'document> JsSourceIterator<'document> {
     pub fn new(inner_iter: Peekable<Chars<'document>>, current_line: u32, current_char: u32) -> JsSourceIterator<'document> {
@@ -91,6 +92,7 @@ impl <'document> JsSourceIterator<'document> {
             next: None,
             prev: None,
             current_string_starter: None,
+            in_regex_literal: false,
         }
     }
     pub fn has_next(&mut self) -> bool {
@@ -132,7 +134,10 @@ impl <'document> JsSourceIterator<'document> {
             self.next = Some(self.iter.next());
         }
         if self.current_string_starter.is_some() {
-            return;  //we are currently reading inside a string, so a comment can't be started
+            return; //we are currently reading inside a string, so a comment can't be started
+        }
+        if self.in_regex_literal {
+            return; //we are reading inside a literal regex, and // is just text to match there, not a comment
         }
 
         if self.next == Some('/') && self.iter.peek() == Some(&'/') {
@@ -158,7 +163,6 @@ impl <'document> JsSourceIterator<'document> {
 
 const TOKENS_PROBABLY_PRECEDING_REGEX_LITERAL: &[JsToken] = &[
     JsToken::OpenParenthesis,
-    JsToken::Dot,
     JsToken::OpenBracket,
     JsToken::Assign,
     JsToken::Star,
@@ -174,7 +178,10 @@ const TOKENS_PROBABLY_PRECEDING_REGEX_LITERAL: &[JsToken] = &[
     JsToken::EqualsEquals,
     JsToken::LogicalAnd,
     JsToken::LogicalOr,
-    //TODO: when we properly tokenize multi char operator tokens (like "&&" and "=="), we need to add them to this list (some done, not all)
+    JsToken::KeyWordReturn,
+    JsToken::Comma,
+    JsToken::Colon,
+    JsToken::QuestionMark,
 ];
 
 
@@ -242,33 +249,44 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
             if last_token.is_none() || (last_token.is_some() && TOKENS_PROBABLY_PRECEDING_REGEX_LITERAL.contains(&last_token.unwrap())) {
                 //we are parsing a regex literal
 
+                js_iterator.in_regex_literal = true;
+
                 let mut buffer = String::new();
                 buffer.push(js_iterator.next());  // read the opening slash
 
-                let mut prev_was_escape_char = false;
+                let mut escaped = false;
+                let mut in_character_class = false;
+
                 'literal_regex_parse: while js_iterator.has_next() {
-                    if js_iterator.peek() == Some('\\') {
-                        prev_was_escape_char = true;
-                        js_iterator.next();
+
+                    let ch = js_iterator.next();
+                    buffer.push(ch);
+
+                    if escaped {
+                        escaped = false;
                         continue;
                     }
 
-                    if !prev_was_escape_char && js_iterator.peek() == Some('/') {
-                        buffer.push(js_iterator.next());  // read the closing slash
-
-                        //read possible flags:
-                        while js_iterator.has_next() {
-                            if js_iterator.peek().is_some() && REGEX_ALLOWED_FLAGS.contains(&js_iterator.peek().unwrap()) {
-                                buffer.push(js_iterator.next())
-                            } else {
-                                break 'literal_regex_parse;
+                    match ch {
+                        '\\' => { escaped = true; }
+                        '[' => { in_character_class = true; }
+                        ']' => { in_character_class = false; }
+                        '/' if !in_character_class => {
+                            while js_iterator.has_next() {
+                                if let Some(flag) = js_iterator.peek() {
+                                    if REGEX_ALLOWED_FLAGS.contains(&flag) {
+                                        buffer.push(js_iterator.next());
+                                    } else {
+                                        break;
+                                    }
+                                }
                             }
+                            break 'literal_regex_parse;
                         }
-                    } else {
-                        buffer.push(js_iterator.next());
+                        _ => {}
                     }
-                    prev_was_escape_char = false;
                 }
+                js_iterator.in_regex_literal = false;
 
                 //TODO: using "make" below is not correct, because it will give the end position of the literal, instead of the start
                 tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::RegexLiteral(buffer)))

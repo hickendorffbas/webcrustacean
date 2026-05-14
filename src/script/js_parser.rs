@@ -153,7 +153,8 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
         };
 
         match (&tokens[parser_state.cursor].token, needs_assignment_expression) {
-            (JsToken::Semicolon, _) | (JsToken::CloseParenthesis, _) | (JsToken::CloseBrace, _) | (JsToken::CloseBracket, _) | (JsToken::Comma, true) => {
+            (JsToken::Semicolon, _)    | (JsToken::CloseParenthesis, _) | (JsToken::CloseBrace, _) |
+            (JsToken::CloseBracket, _) | (JsToken::Comma, true)         | (JsToken::Colon, _) => {
                 //we can pop back to the previous level of parsing:
                 break;
             },
@@ -248,6 +249,31 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                     ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
                 };
                 lhs = JsAstExpression::FunctionCall(JsAstFunctionCall { function_expression: Rc::from(lhs), arguments });
+            },
+
+            JsToken::QuestionMark => {
+                parser_state.next();
+
+                let if_true_node = match pratt_parse_expression(tokens, parser_state, right_bp, true) {
+                    ParseResult::Ok(if_true_expression) => Rc::from(if_true_expression),
+                    ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+                };
+
+                match &tokens[parser_state.cursor].token {
+                    JsToken::Colon => {
+                        parser_state.next();
+                    },
+                    _ => {
+                        todo!(); //TODO: some kind of error
+                    },
+                }
+
+                let if_false_node = match pratt_parse_expression(tokens, parser_state, right_bp, true) {
+                    ParseResult::Ok(if_false_expression) => Rc::from(if_false_expression),
+                    ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+                };
+
+                lhs = JsAstExpression::Ternary(JsAstTernary { condition: Rc::from(lhs), if_true: if_true_node, if_false: if_false_node });
             },
             _ => todo!(),
         }
@@ -596,10 +622,11 @@ fn prefix_binding_power(token: &JsToken) -> u8 {
 fn infix_binding_power(token: &JsToken) -> (u8, u8) {
     match token {
         JsToken::Comma => (0, 1),
-        JsToken::Assign => (1, 2),
-        JsToken::LogicalOr => (3, 4),
-        JsToken::LogicalAnd => (4, 5),
-        JsToken::EqualsEquals => (7, 8),
+        JsToken::Assign => (2, 1),
+        JsToken::QuestionMark => (3, 2),
+        JsToken::LogicalOr => (4, 5),
+        JsToken::LogicalAnd => (6, 7),
+        JsToken::EqualsEquals => (8, 9),
         JsToken::Plus => (10, 11),
         JsToken::Minus => (10, 11),
         JsToken::Star => (14, 15),

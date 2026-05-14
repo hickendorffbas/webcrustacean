@@ -334,3 +334,45 @@ fn test_comma_operator() {
 
     assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(5)));
 }
+
+
+#[test]
+fn test_ternary_true() {
+    let code = r#"var n = 4;
+        tester.export(n == 4 ? 1 : 2);"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(1)));
+}
+
+
+#[test]
+fn test_ternary_false() {
+    let code = r#"var n = 4;
+        tester.export(n == 3 ? 1 : 2);"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(2)));
+}
+
+
+#[test]
+fn test_ternary_() {
+    let code = r#"var n = 4;
+        tester.export(n == 3 ? 1 : 2);"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(2)));
+}

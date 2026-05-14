@@ -130,6 +130,25 @@ impl JsAstConditional {
 
 
 #[derive(Debug)]
+pub struct JsAstTernary {
+    pub condition: Rc<JsAstExpression>,
+    pub if_true: Rc<JsAstExpression>,
+    pub if_false: Rc<JsAstExpression>,
+}
+impl JsAstTernary {
+    fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
+        let result = self.condition.execute(js_interpreter);
+
+        if result.is_thruty() {
+            return self.if_true.execute(js_interpreter);
+        } else {
+            return self.if_false.execute(js_interpreter);
+        }
+    }
+}
+
+
+#[derive(Debug)]
 pub struct JsAstBinOp {
     pub op: JsBinOp,
     pub left: Rc<JsAstExpression>,
@@ -515,6 +534,7 @@ impl JsAstIdentifier {
 pub enum JsAstExpression {
     BinOp(JsAstBinOp),
     UnaryOp(JsAstUnOp),
+    Ternary(JsAstTernary),
     NumericLiteral(String),
     StringLiteral(String),
     FunctionCall(JsAstFunctionCall),
@@ -525,12 +545,14 @@ pub enum JsAstExpression {
     FunctionExpression(JsAstFunctionExpression),
     RegexLiteral(JsAstRegexLiteral),
     ObjectCreation(JsAstObjectCreation),
+
 }
 impl JsAstExpression {
     fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
         match self {
             JsAstExpression::BinOp(binop) => { return binop.execute(js_interpreter); },
             JsAstExpression::UnaryOp(unop) => { return unop.execute(js_interpreter); },
+            JsAstExpression::Ternary(ternary) => { return ternary.execute(js_interpreter); }
             JsAstExpression::Identifier(variable) => { return JsValue::deref(variable.execute(js_interpreter), js_interpreter); },
             JsAstExpression::ObjectLiteral(obj) => { return obj.execute(js_interpreter); },
             JsAstExpression::ArrayLiteral(array) => { return array.execute(js_interpreter); },

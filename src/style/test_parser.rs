@@ -1,5 +1,9 @@
 use crate::style::{
-    CssCombinator, CssFunction, CssProperty, CssValue, SelectorType
+    CssCombinator,
+    CssFunction,
+    CssProperty,
+    CssValue,
+    SelectorType,
 };
 use crate::style::css_lexer;
 use crate::style::css_parser;
@@ -103,7 +107,17 @@ fn test_parse_function() {
                                                                                  CssValue::String("30".to_owned())] }));
     assert_eq!(result[0].selector.elements[0], (CssCombinator::None, SelectorType::Name, "h3".to_owned()));
 }
-
-
 //TODO: test a nested css function (for example calc())
 
+
+#[test]
+fn parse_hash_color() {
+    let css_text = "a { color:#ffffff; }";
+    let tokens = css_lexer::lex_css(&css_text, 1, 1);
+    let result = css_parser::parse_css(&tokens);
+
+    assert_eq!(result.len(), 1);
+    assert_eq!(result[0].property, CssProperty::Color);
+    assert_eq!(result[0].value, CssValue::Hash("ffffff".to_owned()));
+    assert_eq!(result[0].selector.elements[0], (CssCombinator::None, SelectorType::Name, "a".to_owned()));
+}

@@ -64,6 +64,9 @@ fn process_shorthands(style_rules: Vec<StyleRule>) -> Vec<StyleRule> {
                     },
                     CssValue::Function(_) => {
                         todo!();
+                    },
+                    CssValue::Hash(_) => {
+                        todo!();
                     }
                 }
             },
@@ -296,6 +299,13 @@ fn parse_declaration(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) 
             CssToken::Whitespace => {
                 token_iterator.next();
             },
+            CssToken::Hash => {
+                if parsed_property.is_some() && parsed_value.is_none() {
+                    parsed_value = Some(parse_value(token_iterator));
+                } else {
+                    todo!(); //TODO: this should be an error
+                }
+            }
             _ => {
                 todo!(); //TODO: this should be an error
             }
@@ -319,6 +329,23 @@ fn parse_value(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) -> Css
             CssToken::Semicolon => {
                 break;
             },
+            CssToken::Hash => {
+                loop {
+                    match &token_iterator.next().unwrap().css_token {
+                        CssToken::Identifier(value) => {
+                            elements.push(CssValue::Hash(value.clone()));
+                            break;
+                        },
+                        CssToken::Whitespace => {
+                            continue;
+                        },
+                        _ => {
+                            todo!(); //TODO: this should be an error
+                        }
+                    }
+                }
+                break;
+            }
             _ => {}
         }
 

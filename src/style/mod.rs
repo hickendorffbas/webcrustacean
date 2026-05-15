@@ -67,6 +67,7 @@ pub enum CssValue {
     String(String),
     List(Vec<CssValue>),
     Function(CssFunction),
+    Hash(String),
 }
 impl CssValue {
     fn resolve(&self) -> String {
@@ -74,6 +75,7 @@ impl CssValue {
             CssValue::String(string_value) => return string_value.clone(),
             CssValue::List(_) => todo!(), //TODO: I think we should recursively resolve here?
             CssValue::Function(css_function) => return css_function.resolve(),
+            CssValue::Hash(value) => return "#".to_owned() + value,
         }
     }
 }

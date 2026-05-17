@@ -101,6 +101,13 @@ fn parse_statement(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserS
                 ParseResult::ParsingFailed(error) => Some(ParseResult::ParsingFailed(error)),
             }
         },
+        JsToken::KeyWordWhile => {
+            parser_state.next();
+            return match parse_while_loop(tokens, parser_state) {
+                ParseResult::Ok(ast) => Some(ParseResult::Ok(ast)),
+                ParseResult::ParsingFailed(error) => Some(ParseResult::ParsingFailed(error)),
+            }
+        }
         decl_keyword @ (JsToken::KeyWordVar | JsToken::KeyWordLet | JsToken::KeyWordConst) => {
             parser_state.next();
 
@@ -481,26 +488,10 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
                 },
             }
 
-            let mut script = Vec::new();
-            loop {
-                eat_newlines(tokens, parser_state);
-
-                match &tokens[parser_state.cursor].token {
-                    JsToken::CloseBrace => {
-                        parser_state.next();
-                        break;
-                    },
-                    _ => {}
-                }
-
-                let statement = parse_statement(tokens, parser_state);
-                if statement.is_some() {
-                    match statement.unwrap() {
-                        ParseResult::Ok(stat) => script.push(stat),
-                        ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
-                    }
-                }
-            }
+            let script = match parse_script(tokens, parser_state) {
+                ParseResult::Ok(script) => script,
+                ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+            };
 
             return ParseResult::Ok(JsAstExpression::FunctionExpression(JsAstFunctionExpression { name: None, arguments, script: Rc::from(script) }));
         },
@@ -705,26 +696,10 @@ fn parse_function_declaration(tokens: &Vec<JsTokenWithLocation>, parser_state: &
         },
     }
 
-    let mut script = Vec::new();
-    loop {
-        eat_newlines(tokens, parser_state);
-
-        match &tokens[parser_state.cursor].token {
-            JsToken::CloseBrace => {
-                parser_state.next();
-                break;
-            },
-            _ => {}
-        }
-
-        let statement = parse_statement(tokens, parser_state);
-        if statement.is_some() {
-            match statement.unwrap() {
-                ParseResult::Ok(stat) => script.push(stat),
-                ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
-            }
-        }
-    }
+    let script = match parse_script(tokens, parser_state) {
+        ParseResult::Ok(script) => script,
+        ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+    };
 
     return ParseResult::Ok(JsAstFunctionDeclaration { name: function_name.clone(), arguments, script: Rc::from(script) })
 }
@@ -764,6 +739,90 @@ fn parse_conditional(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Parse
         }
     }
 
+    let script = match parse_script(tokens, parser_state) {
+        ParseResult::Ok(script) => script,
+        ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+    };
+
+    eat_newlines(tokens, parser_state);
+
+    let else_present = match tokens[parser_state.cursor].token {
+        JsToken::KeyWordElse => {
+            parser_state.next();
+            true
+        }
+        _ => { false }
+    };
+
+    let else_script;
+    if else_present {
+
+        match tokens[parser_state.cursor].token {
+            JsToken::OpenBrace => {
+                parser_state.next();
+            },
+            _ => {
+                todo!(); //TODO: this should be an error (not in all cases, if we have a single statement after the if....)
+            }
+        }
+
+        else_script = match parse_script(tokens, parser_state) {
+            ParseResult::Ok(script) => Some(Rc::from(script)),
+            ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+        };
+
+    } else {
+        else_script = None;
+    }
+
+    return ParseResult::Ok(JsAstStatement::Conditional(JsAstConditional { condition: Rc::from(condition), script: Rc::from(script), else_script }));
+}
+
+
+fn parse_while_loop(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) -> ParseResult<JsAstStatement> {
+    match tokens[parser_state.cursor].token {
+        JsToken::OpenParenthesis => {
+            parser_state.next();
+        },
+        _ => {
+            todo!(); //TODO: this should be an error
+        }
+    }
+
+    let condition = match pratt_parse_expression(tokens, parser_state, 0, false) {
+        ParseResult::Ok(expression) => expression,
+        ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+    };
+
+    match tokens[parser_state.cursor].token {
+        JsToken::CloseParenthesis => {
+            parser_state.next();
+        },
+        _ => {
+            todo!(); //TODO: this should be an error
+        }
+    }
+    match tokens[parser_state.cursor].token {
+        JsToken::OpenBrace => {
+            parser_state.next();
+        },
+        _ => {
+            todo!(); //TODO: this should be an error
+        }
+    }
+
+    let script = match parse_script(tokens, parser_state) {
+        ParseResult::Ok(script) => script,
+        ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+    };
+
+    eat_newlines(tokens, parser_state);
+
+    return ParseResult::Ok(JsAstStatement::While(JsAstWhile { condition: Rc::from(condition), script: Rc::from(script) }));
+}
+
+
+fn parse_script(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) -> ParseResult<Script> {
     let mut script = Vec::new();
     loop {
 
@@ -780,64 +839,12 @@ fn parse_conditional(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Parse
         match tokens[parser_state.cursor].token {
             JsToken::CloseBrace => {
                 parser_state.next();
-                break;
+                return ParseResult::Ok(script);
             },
             _ => {},
         }
     }
-
-    eat_newlines(tokens, parser_state);
-
-    let else_present = match tokens[parser_state.cursor].token {
-        JsToken::KeyWordElse => {
-            parser_state.next();
-            true
-        }
-        _ => { false }
-    };
-
-    let else_script;
-    if else_present {
-        let mut else_script_buffer = Vec::new();
-
-        match tokens[parser_state.cursor].token {
-            JsToken::OpenBrace => {
-                parser_state.next();
-            },
-            _ => {
-                todo!(); //TODO: this should be an error (not in all cases, if we have a single statement after the if....)
-            }
-        }
-
-        loop {
-            let statement = parse_statement(tokens, parser_state);
-            if statement.is_some() {
-                match statement.unwrap() {
-                    ParseResult::Ok(statement) => else_script_buffer.push(statement),
-                    ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
-                }
-            }
-
-            eat_newlines(tokens, parser_state);
-
-            match tokens[parser_state.cursor].token {
-                JsToken::CloseBrace => {
-                    parser_state.next();
-                    break;
-                },
-                _ => {},
-            }
-        }
-
-        else_script = Some(Rc::from(else_script_buffer));
-
-    } else {
-        else_script = None;
-    }
-
-    return ParseResult::Ok(JsAstStatement::Conditional(JsAstConditional { condition: Rc::from(condition), script: Rc::from(script), else_script }));
 }
-
 
 fn eat_newlines(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) {
     while !parser_state.has_ended() {

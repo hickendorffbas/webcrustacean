@@ -365,7 +365,7 @@ fn test_ternary_false() {
 
 
 #[test]
-fn test_ternary_() {
+fn test_ternary() {
     let code = r#"var n = 4;
         tester.export(n == 3 ? 1 : 2);"#;
 
@@ -375,4 +375,26 @@ fn test_ternary_() {
     interpreter.run_script(&script);
 
     assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(2)));
+}
+
+
+#[test]
+fn test_while() {
+    let code = r#"
+a = 1;
+b = 1;
+while (a == 1) {
+    tester.export(b);
+    if (b == 5) {
+        a = 2;
+    };
+    b = b + 1;
+}"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(5)));
 }

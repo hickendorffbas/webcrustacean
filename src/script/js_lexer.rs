@@ -66,6 +66,7 @@ pub enum JsToken {
     KeyWordIf,
     KeyWordElse,
     KeyWordNew,
+    KeyWordWhile,
 }
 
 
@@ -321,6 +322,8 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                 tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordElse));
             } else if identifier == "new" {
                 tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordNew));
+            } else if identifier == "while" {
+                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordWhile));
             } else {
                 tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Identifier(identifier)));
             }

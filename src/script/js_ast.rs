@@ -28,9 +28,9 @@ pub enum JsAstStatement {
     Return(JsAstExpression),                        //TODO: it might make more sense to have return seperately on the function declaration ast node,
                                                     //      but of type JsAstStatement::Expression, instead of type JsAstStatement::Return
     Conditional(JsAstConditional),
+    While(JsAstWhile),
 }
 impl JsAstStatement {
-
     pub fn execute(&self, js_interpreter: &mut JsInterpreter) -> bool {
         //returns a boolean saying whether to run the next statement
 
@@ -53,7 +53,10 @@ impl JsAstStatement {
             },
             JsAstStatement::Conditional(condition_expression) => {
                 condition_expression.execute(js_interpreter);
-            }
+            },
+            JsAstStatement::While(while_statement) => {
+                while_statement.execute(js_interpreter);
+            },
         }
         return true;
     }
@@ -124,6 +127,31 @@ impl JsAstConditional {
                 };
             }
 
+        }
+    }
+}
+
+
+#[derive(Debug)]
+pub struct JsAstWhile {
+    pub condition: Rc<JsAstExpression>,
+    pub script: Rc<Script>,
+}
+impl JsAstWhile {
+    fn execute(&self, js_interpreter: &mut JsInterpreter) {
+
+        loop {
+            let condition_result = self.condition.execute(js_interpreter);
+            if !condition_result.is_thruty() {
+                break;
+            }
+
+            for statement in self.script.iter() {
+                let keep_going = statement.execute(js_interpreter);
+                if !keep_going {
+                    return;
+                }
+            };
         }
     }
 }

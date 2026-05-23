@@ -328,6 +328,10 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
             parser_state.next();
             return ParseResult::Ok(JsAstExpression::StringLiteral(literal_string.clone()));
         },
+        JsToken::LiteralBoolean(boolean_value) => {
+            parser_state.next();
+            return ParseResult::Ok(JsAstExpression::BooleanLiteral(*boolean_value));
+        },
         JsToken::Identifier(ident) => {
             parser_state.next();
             return ParseResult::Ok(JsAstExpression::Identifier(JsAstIdentifier { name: ident.clone() }));

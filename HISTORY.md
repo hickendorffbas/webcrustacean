@@ -1,8 +1,8 @@
 0.8.0 [UNRELEASED]
 ===================
 - Introduce a resumable html parser, and use a new taks model for the main render loop
-- Linked javascript is now executed as well, and at the correct time
-- Javascript while loops are now supported
+- Linked javascript is now executed, and at the correct time
+- Javascript while loop, not operator and literal bools are now supported
 
 
 0.7.0

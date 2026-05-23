@@ -417,3 +417,21 @@ fn test_not_operator() {
 
     assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Boolean(true)));
 }
+
+
+#[test]
+fn test_literal_bool() {
+    let code = r#"var n = false;
+        if (!n) {
+            tester.export("A");
+        } else {
+            tester.export("B");
+        }"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::String("A".to_owned())));
+}

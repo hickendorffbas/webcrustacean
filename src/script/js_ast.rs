@@ -573,6 +573,7 @@ pub enum JsAstExpression {
     Ternary(JsAstTernary),
     NumericLiteral(String),
     StringLiteral(String),
+    BooleanLiteral(bool),
     FunctionCall(JsAstFunctionCall),
     Identifier(JsAstIdentifier),
     ObjectLiteral(JsAstObjectLiteral),
@@ -595,6 +596,7 @@ impl JsAstExpression {
             JsAstExpression::FunctionExpression(js_ast_function_expression) => { return js_ast_function_expression.execute(); },
             JsAstExpression::RegexLiteral(regex_literal) => { return regex_literal.execute(); },
             JsAstExpression::ObjectCreation(object_construction) => { return object_construction.execute(); }
+            JsAstExpression::BooleanLiteral(boolean_value) => { return JsValue::Boolean(*boolean_value) },
             JsAstExpression::NumericLiteral(numeric_literal) => {
                 //TODO: we might want to cache the JsValue somehow, and we need to support more numeric types...
 

@@ -2,6 +2,7 @@
 ===================
 - Introduce a resumable html parser, and use a new taks model for the main render loop
 - Linked javascript is now executed as well, and at the correct time
+- Javascript while loops are now supported
 
 
 0.7.0

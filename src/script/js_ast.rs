@@ -510,6 +510,7 @@ pub enum JsBinOp {
 pub enum JsUnOp {
     Plus,
     Minus,
+    Not,
 }
 
 
@@ -535,6 +536,13 @@ impl JsAstUnOp {
                     _ => { todo!() }, //TODO: most of the others are not valid, implement errors
                 }
             },
+            JsUnOp::Not => {
+                match right_val {
+                    JsValue::Boolean(bool) => return JsValue::Boolean(!bool),
+                    _ => { todo!() }, //TODO: most of the others are not valid, implement errors
+
+                }
+            }
         }
     }
 }

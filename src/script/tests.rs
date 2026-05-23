@@ -25,7 +25,12 @@ fn js_values_are_equal(one: &JsValue, two: &JsValue) -> bool {
                 _ => { return false; }
             }
         },
-        JsValue::Boolean(_) => todo!(),
+        JsValue::Boolean(value_one) => {
+            match two {
+                JsValue::Boolean(value_two) => { return value_one == value_two },
+                _ => { return false; }
+            }
+        },
         JsValue::Object(obj_one) => {
             match two {
                 JsValue::Object(obj_two) => { return obj_one.members == obj_two.members; }
@@ -397,4 +402,18 @@ while (a == 1) {
     interpreter.run_script(&script);
 
     assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(5)));
+}
+
+
+#[test]
+fn test_not_operator() {
+    let code = r#"var n = 4;
+        tester.export(!(n == 3));"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Boolean(true)));
 }

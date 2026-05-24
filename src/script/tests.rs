@@ -94,6 +94,22 @@ fn test_literal_object_notation() {
 
 
 #[test]
+fn test_literal_object_notation_trailing_comma() {
+    let code = r#"x = {"a": 4, "b": 2, };
+                  x.a = x.a + 1;
+                  x.c = 5;
+                  tester.export(x.a + x.b + x.c);"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(12)));
+}
+
+
+#[test]
 fn test_basic_function_call() {
     let code = r#"function mult(p1, p2) {
             return p1 * p2;

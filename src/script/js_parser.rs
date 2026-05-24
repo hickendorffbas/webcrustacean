@@ -360,7 +360,7 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
                             todo!(); //TODO: this should be an error, because we expect a comma
                         }
                         //the first time we don't expect a comma, so we just don't do anything here
-                    }
+                    },
                 }
 
                 eat_newlines(tokens, parser_state);
@@ -373,10 +373,14 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
                     JsToken::LiteralString(property_name) => {
                         parser_state.next();
                         current_property_name = property_name;
-                    }
+                    },
+                    JsToken::CloseBrace => { //This is possible due to allowing trailing comma's
+                        parser_state.next();
+                        break;
+                    },
                     _ => {
                         todo!(); //TODO: are there any valid cases for this?
-                    }
+                    },
                 }
 
                 match &tokens[parser_state.cursor].token {
@@ -385,7 +389,7 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
                     },
                     _ => {
                         todo!(); //TODO: handle the case where a shorthand is used (i.e. {a} to mean { a : a })
-                    }
+                    },
                 }
 
                 match pratt_parse_expression(tokens, parser_state, 0, true) {

@@ -752,12 +752,13 @@ fn parse_conditional(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Parse
 
     eat_newlines(tokens, parser_state);
 
-    let else_present = match tokens[parser_state.cursor].token {
-        JsToken::KeyWordElse => {
-            parser_state.next();
-            true
-        }
-        _ => { false }
+    let else_present = !parser_state.has_ended() &&
+        match tokens[parser_state.cursor].token {
+            JsToken::KeyWordElse => {
+                parser_state.next();
+                true
+            }
+            _ => { false }
     };
 
     let else_script;

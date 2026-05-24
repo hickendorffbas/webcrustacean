@@ -837,6 +837,14 @@ fn parse_script(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserStat
     let mut script = Vec::new();
     loop {
 
+        match tokens[parser_state.cursor].token {
+            JsToken::CloseBrace => {
+                parser_state.next();
+                return ParseResult::Ok(script);
+            },
+            _ => {},
+        }
+
         let statement = parse_statement(tokens, parser_state);
         if statement.is_some() {
             match statement.unwrap() {
@@ -846,14 +854,6 @@ fn parse_script(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserStat
         }
 
         eat_newlines(tokens, parser_state);
-
-        match tokens[parser_state.cursor].token {
-            JsToken::CloseBrace => {
-                parser_state.next();
-                return ParseResult::Ok(script);
-            },
-            _ => {},
-        }
     }
 }
 

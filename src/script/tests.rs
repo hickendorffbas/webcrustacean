@@ -451,3 +451,17 @@ fn test_literal_bool() {
 
     assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::String("A".to_owned())));
 }
+
+
+#[test]
+fn test_empty_anonymous_function_expression() {
+    let code = r#"var log = function() {};"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    //Note: no assert, this just checks for not crashing
+    //TODO: when we have enough of js implemented, this could assert some property of the created anonimous function
+}

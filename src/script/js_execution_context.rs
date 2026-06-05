@@ -26,17 +26,17 @@ impl JsExecutionContext {
         let mut variables = HashMap::new();
         let mut values = HashMap::new();
 
-        let console_log_function = JsValue::Function(JsFunction {
+        let console_log_function = JsValue::Object(JsObject::make_function(JsFunction {
             argument_names: Vec::new(), //Note that this function _does_ take an argument, but it does not have a name
             script: None,
             builtin: Some(JsBuiltinFunction::ConsoleLog),
-        });
+        }));
 
         let console_log_address = get_next_js_value_address();
         values.insert(console_log_address, console_log_function);
 
         let console_builtin = JsValue::Object(JsObject {
-            members: HashMap::from([(String::from("log"), console_log_address)])
+            members: HashMap::from([(String::from("log"), console_log_address)]), callable: None,
         });
         let console_object_address = get_next_js_value_address();
         values.insert(console_object_address, console_builtin);
@@ -45,17 +45,17 @@ impl JsExecutionContext {
 
 
         #[cfg(test)] {
-            let tester_export_function = JsValue::Function(JsFunction {
+            let tester_export_function = JsValue::Object(JsObject::make_function(JsFunction {
                 argument_names: Vec::new(), //Note that this function _does_ take an argument, but it does not have a name
                 script: None,
                 builtin: Some(JsBuiltinFunction::TesterExport),
-            });
+            }));
 
             let tester_export_address = get_next_js_value_address();
             values.insert(tester_export_address, tester_export_function);
 
             let tester_builtin = JsValue::Object(JsObject {
-                members: HashMap::from([(String::from("export"), tester_export_address)])
+                members: HashMap::from([(String::from("export"), tester_export_address)]), callable: None,
             });
             let tester_object_address = get_next_js_value_address();
             values.insert(tester_object_address, tester_builtin);
@@ -97,8 +97,7 @@ pub enum JsValue {
     String(String),
     #[allow(dead_code)] Boolean(bool), //TODO: use
     Object(JsObject),
-    Array(JsArray),
-    Function(JsFunction),
+    Array(JsArray), //TODO: this should become an optional member on object
     Address(JsAddress),
     Undefined,
 }
@@ -124,7 +123,6 @@ impl JsValue {
             JsValue::Boolean(bool) => { return bool; },
             JsValue::Object(_) => todo!(),  //TODO: implement
             JsValue::Array(_) => todo!(),  //TODO: implement
-            JsValue::Function(_) => todo!(),  //TODO: implement
             JsValue::Address(_) => todo!(),  //TODO: implement
             JsValue::Undefined => { return false; },
         }
@@ -136,6 +134,12 @@ impl JsValue {
 #[derive(Clone)]
 pub struct JsObject {
     pub members: HashMap<String, JsAddress>,
+    pub callable: Option<JsFunction>,
+}
+impl JsObject {
+    pub fn make_function(func: JsFunction) -> JsObject {
+        return JsObject { members: HashMap::new(), callable: Some(func) };
+    }
 }
 
 

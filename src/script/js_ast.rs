@@ -74,9 +74,9 @@ impl JsAstFunctionDeclaration {
         let global_context = js_interpreter.context_stack.iter_mut().next().unwrap();
 
         let argument_names = self.arguments.iter().map(|arg| arg.name.clone()).collect();
-        let value = JsFunction { script: Some(self.script.clone()), argument_names: argument_names, builtin: None };
+        let function = JsFunction { script: Some(self.script.clone()), argument_names: argument_names, builtin: None };
 
-        let target_address = global_context.add_new_value(JsValue::Function(value));
+        let target_address = global_context.add_new_value(JsValue::Object(JsObject::make_function(function)));
         global_context.update_variable(self.name.clone(), target_address);
     }
 }
@@ -91,8 +91,8 @@ pub struct JsAstFunctionExpression {
 impl JsAstFunctionExpression {
     fn execute(&self) -> JsValue {
         let argument_names = self.arguments.iter().map(|arg| arg.name.clone()).collect();
-        let value = JsFunction { script: Some(self.script.clone()), argument_names: argument_names, builtin: None };
-        return JsValue::Function(value);
+        let function = JsFunction { script: Some(self.script.clone()), argument_names: argument_names, builtin: None };
+        return JsValue::Object(JsObject::make_function(function));
     }
 }
 
@@ -620,62 +620,67 @@ impl JsAstExpression {
                 function = function.deref(js_interpreter);
 
                 match function {
-                    JsValue::Function(function) => {
-                        if function.builtin.is_some() {
-                            match function.builtin.as_ref().unwrap() {
-                                JsBuiltinFunction::ConsoleLog => {
-                                    let to_log = function_call.arguments.get(0); //TODO: handle there being to little or to many arguments
+                    JsValue::Object(object) => {
+                        if object.callable.is_some() {
+                            let callable = object.callable.unwrap();
+                            if callable.builtin.is_some() {
+                                match callable.builtin.as_ref().unwrap() {
+                                    JsBuiltinFunction::ConsoleLog => {
+                                        let to_log = function_call.arguments.get(0); //TODO: handle there being to little or to many arguments
 
-                                    let to_log = to_log.unwrap().execute(js_interpreter);
-                                    let to_log = to_log.deref(js_interpreter);
+                                        let to_log = to_log.unwrap().execute(js_interpreter);
+                                        let to_log = to_log.deref(js_interpreter);
 
-                                    let to_log = match to_log {
-                                        JsValue::String(string) =>  { string }
-                                        JsValue::Number(number) => { number.to_string() },
-                                        JsValue::Boolean(_) => todo!(), //TODO: implement
-                                        JsValue::Object(_) => todo!(), //TODO: implement
-                                        JsValue::Array(_) => todo!(), //TODO: implement
-                                        JsValue::Function(_) => todo!(), //TODO: implement
-                                        JsValue::Undefined => { "undefined".to_owned() },
-                                        JsValue::Address(_) => todo!(), //TODO: implement
-                                    };
+                                        let to_log = match to_log {
+                                            JsValue::String(string) =>  { string }
+                                            JsValue::Number(number) => { number.to_string() },
+                                            JsValue::Boolean(_) => todo!(), //TODO: implement
+                                            JsValue::Object(_) => todo!(), //TODO: implement
+                                            JsValue::Array(_) => todo!(), //TODO: implement
+                                            JsValue::Undefined => { "undefined".to_owned() },
+                                            JsValue::Address(_) => todo!(), //TODO: implement
+                                        };
 
-                                    js_console::print(to_log.as_str());
-                                    return JsValue::Undefined;
-                                },
-                                #[cfg(test)] JsBuiltinFunction::TesterExport => {
-                                    let data_ast = function_call.arguments.get(0);
-                                    let data = data_ast.unwrap().execute(js_interpreter); //TODO: even for tests, we probably want to handle the unwrap here
-                                    let data = data.deref(js_interpreter);
-                                    js_interpreter.export_test_data(data);
-                                    return JsValue::Undefined;
+                                        js_console::print(to_log.as_str());
+                                        return JsValue::Undefined;
+                                    },
+                                    #[cfg(test)] JsBuiltinFunction::TesterExport => {
+                                        let data_ast = function_call.arguments.get(0);
+                                        let data = data_ast.unwrap().execute(js_interpreter); //TODO: even for tests, we probably want to handle the unwrap here
+                                        let data = data.deref(js_interpreter);
+                                        js_interpreter.export_test_data(data);
+                                        return JsValue::Undefined;
+                                    }
                                 }
+                            } else {
+
+                                let mut args = Vec::new();
+                                for (idx, argument_name) in callable.argument_names.into_iter().enumerate() {
+                                    let arg_ast = function_call.arguments.get(idx);
+                                    let arg_value = arg_ast.unwrap().execute(js_interpreter); //TODO: we need to properly handle the unwrap here
+                                    args.push( (argument_name, arg_value));
+                                }
+
+                                let mut new_context = JsExecutionContext::new();
+                                for (arg_name, arg_value) in args {
+                                    let address = new_context.add_new_value(arg_value);
+                                    new_context.update_variable(arg_name, address);
+                                }
+                                js_interpreter.context_stack.push(new_context);
+
+                                js_interpreter.run_script_with_context_stack(&callable.script.unwrap());
+
+                                js_interpreter.context_stack.pop();
+                                let return_value = js_interpreter.return_value.clone();
+                                js_interpreter.return_value = None;
+
+                                if return_value.is_some() {
+                                    return return_value.unwrap();
+                                }
+                                return JsValue::Undefined;
                             }
                         } else {
-
-                            let mut args = Vec::new();
-                            for (idx, argument_name) in function.argument_names.into_iter().enumerate() {
-                                let arg_ast = function_call.arguments.get(idx);
-                                let arg_value = arg_ast.unwrap().execute(js_interpreter); //TODO: we need to properly handle the unwrap here
-                                args.push( (argument_name, arg_value));
-                            }
-
-                            let mut new_context = JsExecutionContext::new();
-                            for (arg_name, arg_value) in args {
-                                let address = new_context.add_new_value(arg_value);
-                                new_context.update_variable(arg_name, address);
-                            }
-                            js_interpreter.context_stack.push(new_context);
-
-                            js_interpreter.run_script_with_context_stack(&function.script.unwrap());
-
-                            js_interpreter.context_stack.pop();
-                            let return_value = js_interpreter.return_value.clone();
-                            js_interpreter.return_value = None;
-
-                            if return_value.is_some() {
-                                return return_value.unwrap();
-                            }
+                            //TODO: report an error (non-callable object)
                             return JsValue::Undefined;
                         }
                     },
@@ -740,7 +745,7 @@ impl JsAstObjectLiteral {
             }
 
         }
-        return JsValue::Object(JsObject { members });
+        return JsValue::Object(JsObject { members, callable: None });
     }
 }
 

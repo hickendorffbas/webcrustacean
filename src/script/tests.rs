@@ -33,12 +33,16 @@ fn js_values_are_equal(one: &JsValue, two: &JsValue) -> bool {
         },
         JsValue::Object(obj_one) => {
             match two {
-                JsValue::Object(obj_two) => { return obj_one.members == obj_two.members; }
+                JsValue::Object(obj_two) => {
+                    if obj_one.callable.is_some() || obj_two.callable.is_some() {
+                        todo!(); //TODO: implement callable comparison
+                    }
+                    return obj_one.members == obj_two.members;
+                }
                 _ => { return false; }
             }
         },
         JsValue::Array(_) => todo!(),
-        JsValue::Function(_) => todo!(),
         JsValue::Undefined => {
             match two {
                 JsValue::Undefined => { return true },
@@ -216,7 +220,7 @@ fn test_create_empty_object() {
     let mut interpreter = JsInterpreter::new();
     interpreter.run_script(&script);
 
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Object(JsObject {members: HashMap::new()})));
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Object(JsObject {members: HashMap::new(), callable: None})));
 }
 
 
@@ -464,4 +468,20 @@ fn test_empty_anonymous_function_expression() {
 
     //Note: no assert, this just checks for not crashing
     //TODO: when we have enough of js implemented, this could assert some property of the created anonimous function
+}
+
+
+#[test]
+fn test_functions_are_also_just_objects() {
+    let code = r#"
+var func = function() {};
+func.x = 3;
+tester.export(func.x);"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(3)));
 }

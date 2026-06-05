@@ -54,6 +54,8 @@ pub enum JsToken {
     EqualsEquals,
     LogicalAnd,
     LogicalOr,
+    RightShift,
+    LeftShift,
 
     //whitespace:
     Newline,
@@ -184,6 +186,8 @@ const TOKENS_PROBABLY_PRECEDING_REGEX_LITERAL: &[JsToken] = &[
     JsToken::Comma,
     JsToken::Colon,
     JsToken::QuestionMark,
+    JsToken::RightShift,
+    JsToken::LeftShift,
 ];
 
 
@@ -350,8 +354,26 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                         '.' => { JsToken::Dot }
                         ':' => { JsToken::Colon }
                         ';' => { JsToken::Semicolon }
-                        '>' => { JsToken::Bigger }
-                        '<' => { JsToken::Smaller }
+                        '>' => {
+                            if js_iterator.has_next() {
+                                match js_iterator.peek().unwrap() {
+                                    '>' => { js_iterator.next(); JsToken::RightShift }
+                                    _ => { JsToken::Bigger }
+                                }
+                            } else {
+                                JsToken::Bigger
+                            }
+                        },
+                        '<' => {
+                            if js_iterator.has_next() {
+                                match js_iterator.peek().unwrap() {
+                                    '<' => { js_iterator.next(); JsToken::LeftShift }
+                                    _ => { JsToken::Smaller }
+                                }
+                            } else {
+                                JsToken::Smaller
+                            }
+                        },
                         '!' => { JsToken::ExclamationMark }
                         '?' => { JsToken::QuestionMark }
                         '^' => { JsToken::BitWiseOr }

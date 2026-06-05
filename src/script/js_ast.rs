@@ -189,7 +189,6 @@ impl JsAstBinOp {
         match self.op {
             JsBinOp::Plus => {
                 let mut right_val = self.right.execute(js_interpreter);
-
                 left_val = left_val.deref(js_interpreter);
                 right_val = right_val.deref(js_interpreter);
 
@@ -207,7 +206,6 @@ impl JsAstBinOp {
             },
             JsBinOp::Minus => {
                 let mut right_val = self.right.execute(js_interpreter);
-
                 left_val = left_val.deref(js_interpreter);
                 right_val = right_val.deref(js_interpreter);
 
@@ -225,7 +223,6 @@ impl JsAstBinOp {
             },
             JsBinOp::Times => {
                 let mut right_val = self.right.execute(js_interpreter);
-
                 left_val = left_val.deref(js_interpreter);
                 right_val = right_val.deref(js_interpreter);
 
@@ -243,7 +240,6 @@ impl JsAstBinOp {
             },
             JsBinOp::Divide => {
                 let mut right_val = self.right.execute(js_interpreter);
-
                 left_val = left_val.deref(js_interpreter);
                 right_val = right_val.deref(js_interpreter);
 
@@ -318,7 +314,6 @@ impl JsAstBinOp {
             },
             JsBinOp::EqualsEquals => {
                 let mut right_val = self.right.execute(js_interpreter);
-
                 left_val = left_val.deref(js_interpreter);
                 right_val = right_val.deref(js_interpreter);
 
@@ -347,7 +342,6 @@ impl JsAstBinOp {
             },
             JsBinOp::LogicalOr => {
                 let mut right_val = self.right.execute(js_interpreter);
-
                 left_val = left_val.deref(js_interpreter);
                 right_val = right_val.deref(js_interpreter);
 
@@ -359,11 +353,42 @@ impl JsAstBinOp {
                 }
             },
             JsBinOp::Comma => {
-                let right_val = self.right.execute(js_interpreter);
-                let _left_val = self.left.execute(js_interpreter);
+                return self.right.execute(js_interpreter);
+            },
+            JsBinOp::LeftShift => {
+                let mut right_val = self.right.execute(js_interpreter);
+                left_val = left_val.deref(js_interpreter);
+                right_val = right_val.deref(js_interpreter);
 
-                return right_val;
-            }
+                match left_val {
+                    JsValue::Number(left_number) => {
+                        match right_val {
+                            JsValue::Number(right_number) => {
+                                return JsValue::Number(left_number << right_number);
+                            }
+                            _ => todo!(), //TODO: probably needs to be an error
+                        }
+                    },
+                    _ => todo!(), //TODO: probably needs to be an error
+                }
+            },
+            JsBinOp::RightShift => {
+                let mut right_val = self.right.execute(js_interpreter);
+                left_val = left_val.deref(js_interpreter);
+                right_val = right_val.deref(js_interpreter);
+
+                match left_val {
+                    JsValue::Number(left_number) => {
+                        match right_val {
+                            JsValue::Number(right_number) => {
+                                return JsValue::Number(left_number >> right_number);
+                            }
+                            _ => todo!(), //TODO: probably needs to be an error
+                        }
+                    },
+                    _ => todo!(), //TODO: probably needs to be an error
+                }
+            },
         }
     }
 
@@ -503,6 +528,8 @@ pub enum JsBinOp {
     LogicalAnd,
     LogicalOr,
     Comma,
+    LeftShift,
+    RightShift,
 }
 
 

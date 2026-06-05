@@ -226,7 +226,7 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                 lhs = JsAstExpression::Assignment(JsAstAssign { left: Rc::from(lhs), right: Rc::from(rhs) });
             },
 
-            binop @ (JsToken::Plus | JsToken::Minus | JsToken::Star | JsToken::ForwardSlash |
+            binop @ (JsToken::Plus | JsToken::Minus | JsToken::Star | JsToken::ForwardSlash | JsToken::LeftShift | JsToken::RightShift |
                      JsToken::EqualsEquals | JsToken::LogicalAnd | JsToken::LogicalOr | JsToken::Comma) => {
                 parser_state.next();
                 let rhs = match pratt_parse_expression(tokens, parser_state, right_bp, true) {
@@ -234,18 +234,21 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                     ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
                 };
 
-                match binop {
-                    JsToken::Plus => { lhs = JsAstExpression::BinOp(JsAstBinOp { op: JsBinOp::Plus, left: Rc::from(lhs), right: Rc::from(rhs) }); },
-                    JsToken::Minus => { lhs = JsAstExpression::BinOp(JsAstBinOp { op: JsBinOp::Minus, left: Rc::from(lhs), right: Rc::from(rhs) }); },
-                    JsToken::Star => { lhs = JsAstExpression::BinOp(JsAstBinOp { op: JsBinOp::Times, left: Rc::from(lhs), right: Rc::from(rhs) }); }
-                    JsToken::ForwardSlash => { lhs = JsAstExpression::BinOp(JsAstBinOp { op: JsBinOp::Divide, left: Rc::from(lhs), right: Rc::from(rhs) }); }
-                    JsToken::EqualsEquals => { lhs = JsAstExpression::BinOp(JsAstBinOp { op: JsBinOp::EqualsEquals, left: Rc::from(lhs), right: Rc::from(rhs) }); }
-                    JsToken::LogicalAnd => { lhs = JsAstExpression::BinOp(JsAstBinOp { op: JsBinOp::LogicalAnd, left: Rc::from(lhs), right: Rc::from(rhs) }); }
-                    JsToken::LogicalOr => { lhs = JsAstExpression::BinOp(JsAstBinOp { op: JsBinOp::LogicalOr, left: Rc::from(lhs), right: Rc::from(rhs) }); }
-                    JsToken::Comma => { lhs = JsAstExpression::BinOp(JsAstBinOp { op: JsBinOp::Comma, left: Rc::from(lhs), right: Rc::from(rhs) }); }
-
+                let js_binop = match binop {
+                    JsToken::Plus           => JsBinOp::Plus,
+                    JsToken::Minus          => JsBinOp::Minus,
+                    JsToken::Star           => JsBinOp::Times,
+                    JsToken::ForwardSlash   => JsBinOp::Divide,
+                    JsToken::EqualsEquals   => JsBinOp::EqualsEquals,
+                    JsToken::LogicalAnd     => JsBinOp::LogicalAnd,
+                    JsToken::LogicalOr      => JsBinOp::LogicalOr,
+                    JsToken::Comma          => JsBinOp::Comma,
+                    JsToken::LeftShift      => JsBinOp::LeftShift,
+                    JsToken::RightShift     => JsBinOp::RightShift,
                     _ => panic!("This should never happen"),
-                }
+                };
+
+                lhs = JsAstExpression::BinOp(JsAstBinOp { op: js_binop, left: Rc::from(lhs), right: Rc::from(rhs) });
             },
 
             JsToken::OpenParenthesis => {
@@ -628,8 +631,10 @@ fn infix_binding_power(token: &JsToken) -> (u8, u8) {
         JsToken::LogicalOr => (4, 5),
         JsToken::LogicalAnd => (6, 7),
         JsToken::EqualsEquals => (8, 9),
-        JsToken::Plus => (10, 11),
-        JsToken::Minus => (10, 11),
+        JsToken::LeftShift => (10, 11),
+        JsToken::RightShift => (10, 11),
+        JsToken::Plus => (12, 13),
+        JsToken::Minus => (12, 13),
         JsToken::Star => (14, 15),
         JsToken::ForwardSlash => (14, 15),
         JsToken::Dot => (100, 101),

@@ -501,3 +501,18 @@ tester.export(a << b);"#;
 
     assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(20)));
 }
+
+
+#[test]
+fn test_hexadecimal() {
+    let code = r#"
+let hexNumber = 0x1A - 3;
+tester.export(hexNumber);"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(23)));
+}

@@ -92,10 +92,10 @@ impl JsExecutionContext {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone)]
 pub enum JsValue {
-    Number(i32), //TODO: number type is wrong here, we need different rust types depending on what kind of number it is? (floats?)
+    Number(i64), //TODO: number type is wrong here, we need different rust types depending on what kind of number it is? (floats?)
                  //      or a more complex type maybe?
     String(String),
-    #[allow(dead_code)] Boolean(bool), //TODO: use
+    Boolean(bool),
     Object(JsObject),
     Array(JsArray), //TODO: this should become an optional member on object
     Address(JsAddress),

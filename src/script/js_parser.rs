@@ -227,7 +227,7 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
             },
 
             binop @ (JsToken::Plus | JsToken::Minus | JsToken::Star | JsToken::ForwardSlash | JsToken::LeftShift | JsToken::RightShift |
-                     JsToken::EqualsEquals | JsToken::LogicalAnd | JsToken::LogicalOr | JsToken::Comma) => {
+                     JsToken::EqualsEquals | JsToken::LogicalAnd | JsToken::LogicalOr | JsToken::BitWiseOr | JsToken::BitWiseAnd | JsToken::Comma) => {
                 parser_state.next();
                 let rhs = match pratt_parse_expression(tokens, parser_state, right_bp, true) {
                     ParseResult::Ok(rhs) => rhs,
@@ -242,6 +242,8 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                     JsToken::EqualsEquals   => JsBinOp::EqualsEquals,
                     JsToken::LogicalAnd     => JsBinOp::LogicalAnd,
                     JsToken::LogicalOr      => JsBinOp::LogicalOr,
+                    JsToken::BitWiseOr      => JsBinOp::BitWiseOr,
+                    JsToken::BitWiseAnd     => JsBinOp::BitWiseAnd,
                     JsToken::Comma          => JsBinOp::Comma,
                     JsToken::LeftShift      => JsBinOp::LeftShift,
                     JsToken::RightShift     => JsBinOp::RightShift,
@@ -630,13 +632,15 @@ fn infix_binding_power(token: &JsToken) -> (u8, u8) {
         JsToken::QuestionMark => (3, 2),
         JsToken::LogicalOr => (4, 5),
         JsToken::LogicalAnd => (6, 7),
-        JsToken::EqualsEquals => (8, 9),
-        JsToken::LeftShift => (10, 11),
-        JsToken::RightShift => (10, 11),
-        JsToken::Plus => (12, 13),
-        JsToken::Minus => (12, 13),
-        JsToken::Star => (14, 15),
-        JsToken::ForwardSlash => (14, 15),
+        JsToken::BitWiseOr => (8, 9),
+        JsToken::BitWiseAnd => (12, 13),
+        JsToken::EqualsEquals => (14, 15),
+        JsToken::LeftShift => (16, 17),
+        JsToken::RightShift => (16, 17),
+        JsToken::Plus => (18, 19),
+        JsToken::Minus => (18, 19),
+        JsToken::Star => (20, 21),
+        JsToken::ForwardSlash => (20, 21),
         JsToken::Dot => (100, 101),
         JsToken::OpenParenthesis => (110, 111),
         _ => todo!(),

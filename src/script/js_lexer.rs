@@ -44,12 +44,12 @@ pub enum JsToken {
     Comma,
     Bigger,
     Smaller,
-    And,
     Pipe,
     ExclamationMark,
     Colon,
     QuestionMark,
     BitWiseOr,
+    BitWiseAnd,
     Hash,
     EqualsEquals,
     LogicalAnd,
@@ -175,7 +175,8 @@ const TOKENS_PROBABLY_PRECEDING_REGEX_LITERAL: &[JsToken] = &[
     JsToken::Semicolon,
     JsToken::Bigger,
     JsToken::Smaller,
-    JsToken::And,
+    JsToken::BitWiseOr,
+    JsToken::BitWiseAnd,
     JsToken::Pipe,
     JsToken::ExclamationMark,
     JsToken::BitWiseOr,
@@ -411,10 +412,10 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                             if js_iterator.has_next() {
                                 match js_iterator.peek().unwrap() {
                                     '&' => { js_iterator.next(); JsToken::LogicalAnd }
-                                    _ => { JsToken::And }
+                                    _ => { JsToken::BitWiseAnd }
                                 }
                             } else {
-                                JsToken::And
+                                JsToken::BitWiseAnd
                             }
                         },
                         '=' => {

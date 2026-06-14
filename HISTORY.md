@@ -2,7 +2,8 @@
 ===================
 - Introduce a resumable html parser, and use a new taks model for the main render loop
 - Linked javascript is now executed, and at the correct time
-- Javascript while loop, not operator and literal bools are now supported
+- Javascript while loop, not operator, literal bools and hexadecimals are now supported
+- Basics of javascript bitwise operators are now supported
 
 
 0.7.0

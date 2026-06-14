@@ -352,6 +352,40 @@ impl JsAstBinOp {
                     _ => { todo!() }
                 }
             },
+            JsBinOp::BitWiseOr => {
+                let mut right_val = self.right.execute(js_interpreter);
+                left_val = left_val.deref(js_interpreter);
+                right_val = right_val.deref(js_interpreter);
+
+                match left_val {
+                    JsValue::Number(num) => {
+                        match right_val {
+                            JsValue::Number(other_num) => {
+                                return JsValue::Number(num | other_num);
+                            },
+                            _ => { todo!() }
+                        }
+                    },
+                    _ => { todo!() }
+                }
+            },
+            JsBinOp::BitWiseAnd => {
+                let mut right_val = self.right.execute(js_interpreter);
+                left_val = left_val.deref(js_interpreter);
+                right_val = right_val.deref(js_interpreter);
+
+                match left_val {
+                    JsValue::Number(num) => {
+                        match right_val {
+                            JsValue::Number(other_num) => {
+                                return JsValue::Number(num & other_num);
+                            },
+                            _ => { todo!() }
+                        }
+                    },
+                    _ => { todo!() }
+                }
+            }
             JsBinOp::Comma => {
                 return self.right.execute(js_interpreter);
             },
@@ -527,6 +561,8 @@ pub enum JsBinOp {
     EqualsEquals,
     LogicalAnd,
     LogicalOr,
+    BitWiseOr,
+    BitWiseAnd,
     Comma,
     LeftShift,
     RightShift,

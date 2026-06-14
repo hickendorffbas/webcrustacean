@@ -44,11 +44,11 @@ pub enum JsToken {
     Comma,
     Bigger,
     Smaller,
-    Pipe,
     ExclamationMark,
     Colon,
     QuestionMark,
     BitWiseOr,
+    BitWiseXor,
     BitWiseAnd,
     Hash,
     EqualsEquals,
@@ -56,6 +56,17 @@ pub enum JsToken {
     LogicalOr,
     RightShift,
     LeftShift,
+
+    //compound assignment operators:
+    //TODO: implement these
+    //CompoundAssignAdd,
+    //CompoundAssignMinus,
+    //CompoundAssignTimes,
+    //CompoundAssignDiv,
+    //CompoundAssignMod,
+    //CompoundAssignBitWiseOr,
+    //CompoundAssignBitWiseXor,
+    //CompoundAssignBitWiseAnd,
 
     //whitespace:
     Newline,
@@ -168,7 +179,7 @@ impl <'document> JsSourceIterator<'document> {
 const TOKENS_PROBABLY_PRECEDING_REGEX_LITERAL: &[JsToken] = &[
     JsToken::OpenParenthesis,
     JsToken::OpenBracket,
-    JsToken::Assign,
+    JsToken::Assign, //TODO: also add all compound assigns
     JsToken::Star,
     JsToken::Plus,
     JsToken::Minus,
@@ -176,8 +187,8 @@ const TOKENS_PROBABLY_PRECEDING_REGEX_LITERAL: &[JsToken] = &[
     JsToken::Bigger,
     JsToken::Smaller,
     JsToken::BitWiseOr,
+    JsToken::BitWiseXor,
     JsToken::BitWiseAnd,
-    JsToken::Pipe,
     JsToken::ExclamationMark,
     JsToken::BitWiseOr,
     JsToken::EqualsEquals,
@@ -393,7 +404,7 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                         },
                         '!' => { JsToken::ExclamationMark }
                         '?' => { JsToken::QuestionMark }
-                        '^' => { JsToken::BitWiseOr }
+                        '^' => { JsToken::BitWiseXor }
                         '#' => { JsToken::Hash }
                         '+' => { JsToken::Plus }
                         '-' => { JsToken::Minus }
@@ -402,10 +413,10 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                             if js_iterator.has_next() {
                                 match js_iterator.peek().unwrap() {
                                     '|' => { js_iterator.next(); JsToken::LogicalOr }
-                                    _ => { JsToken::Pipe }
+                                    _ => { JsToken::BitWiseOr }
                                 }
                             } else {
-                                JsToken::Pipe
+                                JsToken::BitWiseOr
                             }
                         },
                         '&' => {

@@ -226,7 +226,7 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                 lhs = JsAstExpression::Assignment(JsAstAssign { left: Rc::from(lhs), right: Rc::from(rhs) });
             },
 
-            binop @ (JsToken::Plus | JsToken::Minus | JsToken::Star | JsToken::ForwardSlash | JsToken::LeftShift | JsToken::RightShift |
+            binop @ (JsToken::Plus | JsToken::Minus | JsToken::Star | JsToken::ForwardSlash | JsToken::LeftShift | JsToken::RightShift | JsToken::BitWiseXor |
                      JsToken::EqualsEquals | JsToken::LogicalAnd | JsToken::LogicalOr | JsToken::BitWiseOr | JsToken::BitWiseAnd | JsToken::Comma) => {
                 parser_state.next();
                 let rhs = match pratt_parse_expression(tokens, parser_state, right_bp, true) {
@@ -243,6 +243,7 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                     JsToken::LogicalAnd     => JsBinOp::LogicalAnd,
                     JsToken::LogicalOr      => JsBinOp::LogicalOr,
                     JsToken::BitWiseOr      => JsBinOp::BitWiseOr,
+                    JsToken::BitWiseXor     => JsBinOp::BitWiseXor,
                     JsToken::BitWiseAnd     => JsBinOp::BitWiseAnd,
                     JsToken::Comma          => JsBinOp::Comma,
                     JsToken::LeftShift      => JsBinOp::LeftShift,
@@ -633,6 +634,7 @@ fn infix_binding_power(token: &JsToken) -> (u8, u8) {
         JsToken::LogicalOr => (4, 5),
         JsToken::LogicalAnd => (6, 7),
         JsToken::BitWiseOr => (8, 9),
+        JsToken::BitWiseXor => (10, 11),
         JsToken::BitWiseAnd => (12, 13),
         JsToken::EqualsEquals => (14, 15),
         JsToken::LeftShift => (16, 17),

@@ -226,6 +226,31 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                 lhs = JsAstExpression::Assignment(JsAstAssign { left: Rc::from(lhs), right: Rc::from(rhs) });
             },
 
+            compound @ (JsToken::CompoundAssignAdd | JsToken::CompoundAssignMinus | JsToken::CompoundAssignTimes | JsToken::CompoundAssignDiv |
+                        JsToken::CompoundAssignBitWiseOr | JsToken::CompoundAssignBitWiseXor | JsToken::CompoundAssignBitWiseAnd) => {
+                parser_state.next();
+
+                let rhs = match pratt_parse_expression(tokens, parser_state, right_bp, true) {
+                    ParseResult::Ok(rhs) => rhs,
+                    ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+                };
+
+                let op = match compound {
+                    JsToken::CompoundAssignAdd        => JsBinOp::Plus,
+                    JsToken::CompoundAssignMinus      => JsBinOp::Minus,
+                    JsToken::CompoundAssignTimes      => JsBinOp::Times,
+                    JsToken::CompoundAssignDiv        => JsBinOp::Divide,
+                    JsToken::CompoundAssignBitWiseOr  => JsBinOp::BitWiseOr,
+                    JsToken::CompoundAssignBitWiseXor => JsBinOp::BitWiseXor,
+                    JsToken::CompoundAssignBitWiseAnd => JsBinOp::BitWiseAnd,
+                    _ => panic!("This should never happen"),
+                };
+
+                let lhs_rc = Rc::from(lhs);
+                let rhs = JsAstExpression::BinOp(JsAstBinOp { op, left: lhs_rc.clone(), right: Rc::from(rhs) });
+                lhs = JsAstExpression::Assignment(JsAstAssign { left: lhs_rc, right: Rc::from(rhs) });
+            },
+
             binop @ (JsToken::Plus | JsToken::Minus | JsToken::Star | JsToken::ForwardSlash | JsToken::LeftShift | JsToken::RightShift | JsToken::BitWiseXor |
                      JsToken::EqualsEquals | JsToken::LogicalAnd | JsToken::LogicalOr | JsToken::BitWiseOr | JsToken::BitWiseAnd | JsToken::Comma) => {
                 parser_state.next();
@@ -630,6 +655,13 @@ fn infix_binding_power(token: &JsToken) -> (u8, u8) {
     match token {
         JsToken::Comma => (0, 1),
         JsToken::Assign => (2, 1),
+        JsToken::CompoundAssignAdd => (2, 1),
+        JsToken::CompoundAssignMinus => (2, 1),
+        JsToken::CompoundAssignTimes => (2, 1),
+        JsToken::CompoundAssignDiv => (2, 1),
+        JsToken::CompoundAssignBitWiseOr => (2, 1),
+        JsToken::CompoundAssignBitWiseXor => (2, 1),
+        JsToken::CompoundAssignBitWiseAnd => (2, 1),
         JsToken::QuestionMark => (3, 2),
         JsToken::LogicalOr => (4, 5),
         JsToken::LogicalAnd => (6, 7),

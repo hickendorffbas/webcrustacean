@@ -516,3 +516,19 @@ tester.export(hexNumber);"#;
 
     assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(23)));
 }
+
+
+#[test]
+fn test_compound_assign_add() {
+    let code = r#"
+let x = 6;
+x += 4;
+tester.export(x);"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(10)));
+}

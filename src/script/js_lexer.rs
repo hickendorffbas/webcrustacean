@@ -58,15 +58,13 @@ pub enum JsToken {
     LeftShift,
 
     //compound assignment operators:
-    //TODO: implement these
-    //CompoundAssignAdd,
-    //CompoundAssignMinus,
-    //CompoundAssignTimes,
-    //CompoundAssignDiv,
-    //CompoundAssignMod,
-    //CompoundAssignBitWiseOr,
-    //CompoundAssignBitWiseXor,
-    //CompoundAssignBitWiseAnd,
+    CompoundAssignAdd,
+    CompoundAssignMinus,
+    CompoundAssignTimes,
+    CompoundAssignDiv,
+    CompoundAssignBitWiseOr,
+    CompoundAssignBitWiseXor,
+    CompoundAssignBitWiseAnd,
 
     //whitespace:
     Newline,
@@ -179,7 +177,14 @@ impl <'document> JsSourceIterator<'document> {
 const TOKENS_PROBABLY_PRECEDING_REGEX_LITERAL: &[JsToken] = &[
     JsToken::OpenParenthesis,
     JsToken::OpenBracket,
-    JsToken::Assign, //TODO: also add all compound assigns
+    JsToken::Assign,
+    JsToken::CompoundAssignAdd,
+    JsToken::CompoundAssignMinus,
+    JsToken::CompoundAssignTimes,
+    JsToken::CompoundAssignDiv,
+    JsToken::CompoundAssignBitWiseOr,
+    JsToken::CompoundAssignBitWiseXor,
+    JsToken::CompoundAssignBitWiseAnd,
     JsToken::Star,
     JsToken::Plus,
     JsToken::Minus,
@@ -326,8 +331,16 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                 tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::RegexLiteral(buffer)))
 
             } else {
-                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::ForwardSlash));
                 js_iterator.next();
+
+                if js_iterator.has_next() {
+                    match js_iterator.peek().unwrap() {
+                        '=' => { js_iterator.next(); tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::CompoundAssignDiv)); }
+                        _ => { tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::ForwardSlash)); }
+                    }
+                } else {
+                     tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::ForwardSlash));
+                }
             }
 
         }
@@ -366,7 +379,7 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
             }
         }
         else {
-            //from here we parse single chars as tokens, so any more complex tokens should have been handled before this point
+            //from here we parse hardcoded sets of chars as tokens, so any more complex tokens should have been handled before this point
 
             if js_iterator.peek().is_some() {
                     let next_char = js_iterator.next();
@@ -388,9 +401,7 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                                     '>' => { js_iterator.next(); JsToken::RightShift }
                                     _ => { JsToken::Bigger }
                                 }
-                            } else {
-                                JsToken::Bigger
-                            }
+                            } else { JsToken::Bigger }
                         },
                         '<' => {
                             if js_iterator.has_next() {
@@ -398,36 +409,60 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                                     '<' => { js_iterator.next(); JsToken::LeftShift }
                                     _ => { JsToken::Smaller }
                                 }
-                            } else {
-                                JsToken::Smaller
-                            }
+                            } else { JsToken::Smaller }
                         },
                         '!' => { JsToken::ExclamationMark }
                         '?' => { JsToken::QuestionMark }
-                        '^' => { JsToken::BitWiseXor }
+                        '^' => {
+                            if js_iterator.has_next() {
+                                match js_iterator.peek().unwrap() {
+                                    '=' => { js_iterator.next(); JsToken::CompoundAssignBitWiseXor }
+                                    _ => { JsToken::BitWiseXor }
+                                }
+                            } else { JsToken::BitWiseXor }
+                         }
                         '#' => { JsToken::Hash }
-                        '+' => { JsToken::Plus }
-                        '-' => { JsToken::Minus }
-                        '*' => { JsToken::Star }
+                        '+' => {
+                            if js_iterator.has_next() {
+                                match js_iterator.peek().unwrap() {
+                                    '=' => { js_iterator.next(); JsToken::CompoundAssignAdd }
+                                    _ => { JsToken::Plus }
+                                }
+                            } else { JsToken::Plus }
+                        },
+                        '-' => {
+                            if js_iterator.has_next() {
+                                match js_iterator.peek().unwrap() {
+                                    '=' => { js_iterator.next(); JsToken::CompoundAssignMinus }
+                                    _ => { JsToken::Minus }
+                                }
+                            } else { JsToken::Minus }
+                        },
+                        '*' => {
+                            if js_iterator.has_next() {
+                                match js_iterator.peek().unwrap() {
+                                    '=' => { js_iterator.next(); JsToken::CompoundAssignTimes }
+                                    _ => { JsToken::Star }
+                                }
+                            } else { JsToken::Star }
+                        },
                         '|' => {
                             if js_iterator.has_next() {
                                 match js_iterator.peek().unwrap() {
                                     '|' => { js_iterator.next(); JsToken::LogicalOr }
+                                    '=' => { js_iterator.next(); JsToken::CompoundAssignBitWiseOr }
                                     _ => { JsToken::BitWiseOr }
                                 }
-                            } else {
-                                JsToken::BitWiseOr
-                            }
+                            } else { JsToken::BitWiseOr }
                         },
                         '&' => {
                             if js_iterator.has_next() {
                                 match js_iterator.peek().unwrap() {
                                     '&' => { js_iterator.next(); JsToken::LogicalAnd }
+                                    '=' => { js_iterator.next(); JsToken::CompoundAssignBitWiseAnd }
                                     _ => { JsToken::BitWiseAnd }
                                 }
-                            } else {
-                                JsToken::BitWiseAnd
-                            }
+                            } else { JsToken::BitWiseAnd }
                         },
                         '=' => {
                             if js_iterator.has_next() {
@@ -435,9 +470,7 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                                     '=' => { js_iterator.next(); JsToken::EqualsEquals }
                                     _ => { JsToken::Assign }
                                 }
-                            } else {
-                                JsToken::Assign
-                            }
+                            } else { JsToken::Assign }
                         }
 
                         '\n' => { JsToken::Newline }

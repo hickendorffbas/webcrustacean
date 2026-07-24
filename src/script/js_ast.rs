@@ -440,6 +440,40 @@ impl JsAstBinOp {
                     _ => todo!(), //TODO: probably needs to be an error
                 }
             },
+            JsBinOp::Bigger => {
+                let mut right_val = self.right.execute(js_interpreter);
+                left_val = left_val.deref(js_interpreter);
+                right_val = right_val.deref(js_interpreter);
+
+                match left_val {
+                    JsValue::Number(left_number) => {
+                        match right_val {
+                            JsValue::Number(right_number) => {
+                                return JsValue::Boolean(left_number > right_number);
+                            },
+                            _ => { todo!() }
+                        }
+                    },
+                    _ => { todo!() }
+                }
+            },
+            JsBinOp::Smaller => {
+                let mut right_val = self.right.execute(js_interpreter);
+                left_val = left_val.deref(js_interpreter);
+                right_val = right_val.deref(js_interpreter);
+
+                match left_val {
+                    JsValue::Number(left_number) => {
+                        match right_val {
+                            JsValue::Number(right_number) => {
+                                return JsValue::Boolean(left_number < right_number);
+                            },
+                            _ => { todo!() }
+                        }
+                    },
+                    _ => { todo!() }
+                }
+            },
         }
     }
 
@@ -584,6 +618,8 @@ pub enum JsBinOp {
     Comma,
     LeftShift,
     RightShift,
+    Bigger,
+    Smaller,
 }
 
 

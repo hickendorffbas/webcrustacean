@@ -252,7 +252,8 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
             },
 
             binop @ (JsToken::Plus | JsToken::Minus | JsToken::Star | JsToken::ForwardSlash | JsToken::LeftShift | JsToken::RightShift | JsToken::BitWiseXor |
-                     JsToken::EqualsEquals | JsToken::LogicalAnd | JsToken::LogicalOr | JsToken::BitWiseOr | JsToken::BitWiseAnd | JsToken::Comma) => {
+                     JsToken::EqualsEquals | JsToken::LogicalAnd | JsToken::LogicalOr | JsToken::BitWiseOr | JsToken::BitWiseAnd | JsToken::Comma |
+                     JsToken::Bigger | JsToken::Smaller) => {
                 parser_state.next();
                 let rhs = match pratt_parse_expression(tokens, parser_state, right_bp, true) {
                     ParseResult::Ok(rhs) => rhs,
@@ -273,6 +274,8 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                     JsToken::Comma          => JsBinOp::Comma,
                     JsToken::LeftShift      => JsBinOp::LeftShift,
                     JsToken::RightShift     => JsBinOp::RightShift,
+                    JsToken::Bigger         => JsBinOp::Bigger,
+                    JsToken::Smaller        => JsBinOp::Smaller,
                     _ => panic!("This should never happen"),
                 };
 
@@ -669,12 +672,14 @@ fn infix_binding_power(token: &JsToken) -> (u8, u8) {
         JsToken::BitWiseXor => (10, 11),
         JsToken::BitWiseAnd => (12, 13),
         JsToken::EqualsEquals => (14, 15),
-        JsToken::LeftShift => (16, 17),
-        JsToken::RightShift => (16, 17),
-        JsToken::Plus => (18, 19),
-        JsToken::Minus => (18, 19),
-        JsToken::Star => (20, 21),
-        JsToken::ForwardSlash => (20, 21),
+        JsToken::Bigger => (16, 17),
+        JsToken::Smaller => (16, 17),
+        JsToken::LeftShift => (18, 19),
+        JsToken::RightShift => (18, 19),
+        JsToken::Plus => (20, 21),
+        JsToken::Minus => (20, 21),
+        JsToken::Star => (22, 23),
+        JsToken::ForwardSlash => (22, 23),
         JsToken::Dot => (100, 101),
         JsToken::OpenParenthesis => (110, 111),
         _ => todo!(),

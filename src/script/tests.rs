@@ -532,3 +532,22 @@ tester.export(x);"#;
 
     assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(10)));
 }
+
+
+#[test]
+fn test_automatically_new_statement_after_if_content_block() {
+    let code = r#"
+var x = 3;
+if (x > 4) {
+    x += 1;
+} (function() {
+    tester.export(x);
+}());"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(3)));
+}

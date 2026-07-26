@@ -189,8 +189,8 @@ impl JsAstBinOp {
         match self.op {
             JsBinOp::Plus => {
                 let mut right_val = self.right.execute(js_interpreter);
-                left_val = left_val.deref(js_interpreter);
-                right_val = right_val.deref(js_interpreter);
+                left_val = js_interpreter.deref(&left_val);
+                right_val = js_interpreter.deref(&right_val);
 
                 match left_val {
                     JsValue::Number(left_number) => {
@@ -206,8 +206,8 @@ impl JsAstBinOp {
             },
             JsBinOp::Minus => {
                 let mut right_val = self.right.execute(js_interpreter);
-                left_val = left_val.deref(js_interpreter);
-                right_val = right_val.deref(js_interpreter);
+                left_val = js_interpreter.deref(&left_val);
+                right_val = js_interpreter.deref(&right_val);
 
                 match left_val {
                     JsValue::Number(left_number) => {
@@ -223,8 +223,8 @@ impl JsAstBinOp {
             },
             JsBinOp::Times => {
                 let mut right_val = self.right.execute(js_interpreter);
-                left_val = left_val.deref(js_interpreter);
-                right_val = right_val.deref(js_interpreter);
+                left_val = js_interpreter.deref(&left_val);
+                right_val = js_interpreter.deref(&right_val);
 
                 match left_val {
                     JsValue::Number(left_number) => {
@@ -240,8 +240,8 @@ impl JsAstBinOp {
             },
             JsBinOp::Divide => {
                 let mut right_val = self.right.execute(js_interpreter);
-                left_val = left_val.deref(js_interpreter);
-                right_val = right_val.deref(js_interpreter);
+                left_val = js_interpreter.deref(&left_val);
+                right_val = js_interpreter.deref(&right_val);
 
                 match left_val {
                     JsValue::Number(left_number) => {
@@ -263,7 +263,7 @@ impl JsAstBinOp {
                     _ => { self.right.execute(js_interpreter) }
                 };
 
-                let object = JsValue::deref(left_val, js_interpreter);
+                let object = js_interpreter.deref(&left_val);
 
                 match object {
                     JsValue::Object(object) => {
@@ -314,8 +314,8 @@ impl JsAstBinOp {
             },
             JsBinOp::EqualsEquals => {
                 let mut right_val = self.right.execute(js_interpreter);
-                left_val = left_val.deref(js_interpreter);
-                right_val = right_val.deref(js_interpreter);
+                left_val = js_interpreter.deref(&left_val);
+                right_val = js_interpreter.deref(&right_val);
 
                 match left_val {
                     JsValue::Number(left_number) => {
@@ -332,7 +332,7 @@ impl JsAstBinOp {
             JsBinOp::LogicalAnd => {
                 //let mut right_val = self.right.execute(js_interpreter);  //TODO: we will need this eventually
 
-                left_val = left_val.deref(js_interpreter);
+                left_val = js_interpreter.deref(&left_val);
                 //right_val = right_val.deref(js_interpreter); //TODO: enble if right val is going to be used!
 
                 match left_val {
@@ -342,8 +342,8 @@ impl JsAstBinOp {
             },
             JsBinOp::LogicalOr => {
                 let mut right_val = self.right.execute(js_interpreter);
-                left_val = left_val.deref(js_interpreter);
-                right_val = right_val.deref(js_interpreter);
+                left_val = js_interpreter.deref(&left_val);
+                right_val = js_interpreter.deref(&right_val);
 
                 match left_val {
                     JsValue::Undefined => {
@@ -354,8 +354,8 @@ impl JsAstBinOp {
             },
             JsBinOp::BitWiseOr => {
                 let mut right_val = self.right.execute(js_interpreter);
-                left_val = left_val.deref(js_interpreter);
-                right_val = right_val.deref(js_interpreter);
+                left_val = js_interpreter.deref(&left_val);
+                right_val = js_interpreter.deref(&right_val);
 
                 match left_val {
                     JsValue::Number(num) => {
@@ -371,8 +371,8 @@ impl JsAstBinOp {
             },
             JsBinOp::BitWiseXor => {
                 let mut right_val = self.right.execute(js_interpreter);
-                left_val = left_val.deref(js_interpreter);
-                right_val = right_val.deref(js_interpreter);
+                left_val = js_interpreter.deref(&left_val);
+                right_val = js_interpreter.deref(&right_val);
 
                 match left_val {
                     JsValue::Number(num) => {
@@ -388,8 +388,8 @@ impl JsAstBinOp {
             },
             JsBinOp::BitWiseAnd => {
                 let mut right_val = self.right.execute(js_interpreter);
-                left_val = left_val.deref(js_interpreter);
-                right_val = right_val.deref(js_interpreter);
+                left_val = js_interpreter.deref(&left_val);
+                right_val = js_interpreter.deref(&right_val);
 
                 match left_val {
                     JsValue::Number(num) => {
@@ -408,8 +408,8 @@ impl JsAstBinOp {
             },
             JsBinOp::LeftShift => {
                 let mut right_val = self.right.execute(js_interpreter);
-                left_val = left_val.deref(js_interpreter);
-                right_val = right_val.deref(js_interpreter);
+                left_val = js_interpreter.deref(&left_val);
+                right_val = js_interpreter.deref(&right_val);
 
                 match left_val {
                     JsValue::Number(left_number) => {
@@ -425,8 +425,8 @@ impl JsAstBinOp {
             },
             JsBinOp::RightShift => {
                 let mut right_val = self.right.execute(js_interpreter);
-                left_val = left_val.deref(js_interpreter);
-                right_val = right_val.deref(js_interpreter);
+                left_val = js_interpreter.deref(&left_val);
+                right_val = js_interpreter.deref(&right_val);
 
                 match left_val {
                     JsValue::Number(left_number) => {
@@ -442,8 +442,8 @@ impl JsAstBinOp {
             },
             JsBinOp::Bigger => {
                 let mut right_val = self.right.execute(js_interpreter);
-                left_val = left_val.deref(js_interpreter);
-                right_val = right_val.deref(js_interpreter);
+                left_val = js_interpreter.deref(&left_val);
+                right_val = js_interpreter.deref(&right_val);
 
                 match left_val {
                     JsValue::Number(left_number) => {
@@ -459,8 +459,8 @@ impl JsAstBinOp {
             },
             JsBinOp::Smaller => {
                 let mut right_val = self.right.execute(js_interpreter);
-                left_val = left_val.deref(js_interpreter);
-                right_val = right_val.deref(js_interpreter);
+                left_val = js_interpreter.deref(&left_val);
+                right_val = js_interpreter.deref(&right_val);
 
                 match left_val {
                     JsValue::Number(left_number) => {
@@ -501,11 +501,10 @@ impl JsAstAssign {
     fn execute(&self, js_interpreter: &mut JsInterpreter) {
         let value = self.right.execute(js_interpreter);
 
-        //TODO: not all actions might need to be in the current stack frame. Some might be globals, or from outer scopes
-        let current_context = js_interpreter.context_stack.iter_mut().last().unwrap();
-
-
-        let target_address = current_context.add_new_value(value);
+        let target_address = {
+            let current_context = js_interpreter.context_stack.iter_mut().last().unwrap();
+            current_context.add_new_value(value)
+        };
 
         let mut variable_path = Vec::new();
         self.left.build_var_path(&mut variable_path);
@@ -518,11 +517,12 @@ impl JsAstAssign {
 
             if first {
                 if last {
+                    let current_context = js_interpreter.context_stack.iter_mut().last().unwrap(); //TODO: is this always the right context?
                     current_context.update_variable(variable_path[idx].clone(), target_address);
                 } else {
-                    match current_context.get_var_address(&variable_path[idx]) {
+                    match js_interpreter.get_var_address(&variable_path[idx]) {
                         Some(address) => {
-                            current_object_address = Some(*address);
+                            current_object_address = Some(address);
                         },
                         None => {
                             js_console::log_js_error(format!("Variable not found: {}", variable_path[idx]).as_str());
@@ -535,6 +535,7 @@ impl JsAstAssign {
 
             } else {  //not the first element in the path, so we need to keep looking up members in objects
 
+                let current_context = js_interpreter.context_stack.iter_mut().last().unwrap(); //TODO: is this always the right context?
                 let object = current_context.get_value(&current_object_address.unwrap());
 
                 if last {
@@ -673,7 +674,7 @@ impl JsAstIdentifier {
     fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
         let opt_address = js_interpreter.get_var_address(&self.name);
         if opt_address.is_some() {
-            return JsValue::Address(*opt_address.unwrap());
+            return JsValue::Address(opt_address.unwrap());
         }
         js_interpreter.set_error(JsError::ReferenceError);
         js_console::log_js_error(format!("variable not found: {}", self.name).as_str()); //TODO: eventually we want to trigger the logging of the error
@@ -707,7 +708,7 @@ impl JsAstExpression {
             JsAstExpression::BinOp(binop) => { return binop.execute(js_interpreter); },
             JsAstExpression::UnaryOp(unop) => { return unop.execute(js_interpreter); },
             JsAstExpression::Ternary(ternary) => { return ternary.execute(js_interpreter); }
-            JsAstExpression::Identifier(variable) => { return JsValue::deref(variable.execute(js_interpreter), js_interpreter); },
+            JsAstExpression::Identifier(variable) => { let value = &variable.execute(js_interpreter); return js_interpreter.deref(value); },
             JsAstExpression::ObjectLiteral(obj) => { return obj.execute(js_interpreter); },
             JsAstExpression::ArrayLiteral(array) => { return array.execute(js_interpreter); },
             JsAstExpression::FunctionExpression(js_ast_function_expression) => { return js_ast_function_expression.execute(); },
@@ -734,7 +735,7 @@ impl JsAstExpression {
                 //TODO: all this code should be moved to the JsAstFunctionCall object
 
                 let mut function = function_call.function_expression.execute(js_interpreter);
-                function = function.deref(js_interpreter);
+                function = js_interpreter.deref(&function);
 
                 match function {
                     JsValue::Object(object) => {
@@ -746,7 +747,7 @@ impl JsAstExpression {
                                         let to_log = function_call.arguments.get(0); //TODO: handle there being to little or to many arguments
 
                                         let to_log = to_log.unwrap().execute(js_interpreter);
-                                        let to_log = to_log.deref(js_interpreter);
+                                        let to_log = js_interpreter.deref(&to_log);
 
                                         let to_log = match to_log {
                                             JsValue::String(string) =>  { string }
@@ -764,7 +765,7 @@ impl JsAstExpression {
                                     #[cfg(test)] JsBuiltinFunction::TesterExport => {
                                         let data_ast = function_call.arguments.get(0);
                                         let data = data_ast.unwrap().execute(js_interpreter); //TODO: even for tests, we probably want to handle the unwrap here
-                                        let data = data.deref(js_interpreter);
+                                        let data = js_interpreter.deref(&data);
                                         js_interpreter.export_test_data(data);
                                         return JsValue::Undefined;
                                     }

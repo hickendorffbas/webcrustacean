@@ -3,7 +3,6 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use super::js_ast::Script;
-use super::js_interpreter::JsInterpreter;
 
 
 pub type JsAddress = usize;
@@ -102,20 +101,6 @@ pub enum JsValue {
     Undefined,
 }
 impl JsValue {
-    pub fn deref(self, js_interpreter: &JsInterpreter) -> JsValue {
-        match self {
-            JsValue::Address(variable) => {
-
-                //TODO: we might also need to look into higher stack items (for globals), not sure if this is always the case
-                let current_context = js_interpreter.context_stack.iter().last().unwrap();
-
-                //TODO: unwrap() here is wrong, we need to report an error that a variable or property does not exist
-                //      or maybe we should return an option or result here, and handle it on the recieving side...
-                return current_context.values.get(&variable).unwrap().clone();
-            },
-            _ => { return self }
-        }
-    }
     pub fn is_thruty(self) -> bool {
         match self {
             JsValue::Number(number) => { return number != 0 },

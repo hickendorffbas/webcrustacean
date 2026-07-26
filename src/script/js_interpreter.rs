@@ -7,7 +7,6 @@ use super::js_execution_context::{
 };
 
 
-
 pub struct JsInterpreter {
     pub context_stack: Vec<JsExecutionContext>,
     current_error: Option<JsError>,
@@ -59,11 +58,32 @@ impl JsInterpreter {
         }
     }
 
-    pub fn get_var_address(&self, name: &String) -> Option<&JsAddress> {
-        //TODO: for now we check just the last stack frame, but we need to walk them up until we find it...
+    pub fn get_var_address(&self, name: &String) -> Option<JsAddress> {
+        for context in self.context_stack.iter().rev() {
+            match context.get_var_address(name) {
+                Some(address) => return Some(*address),
+                None => continue,
+            }
+        }
+        return None;
+    }
 
-        let current_context = self.context_stack.iter().last().unwrap();
-        return current_context.get_var_address(name);
+    pub fn deref(&mut self, value: &JsValue) -> JsValue {
+        match value {
+            JsValue::Address(address) => {
+
+                for context in self.context_stack.iter_mut().rev() {
+                    let adress_in_current_context = context.get_value(&address);
+                    match adress_in_current_context {
+                        Some(value) => return value.clone(),
+                        None => continue,
+                    }
+                }
+
+                todo!(); //TODO: check if this is allowed to fail
+            },
+            _ => { return value.clone() }
+        }
     }
 
     #[cfg(test)] pub fn export_test_data(&mut self, data: JsValue) {

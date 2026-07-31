@@ -924,6 +924,10 @@ fn parse_declaration(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Parse
         if parser_state.has_ended() { return ParseResult::ParsingFailed(ParseError::error_for_token(ParseErrorType::EOF, tokens, parser_state)) };
 
         let ident = match &tokens[parser_state.cursor].token {
+            JsToken::Newline => {
+                parser_state.next();
+                continue;
+            }
             JsToken::Identifier(ident) => {
                 parser_state.next();
                 JsAstIdentifier { name: ident.clone() }
@@ -965,11 +969,19 @@ fn parse_declaration(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Parse
                         parser_state.next();
                         continue;
                     },
+                    JsToken::Newline => {
+                        parser_state.next();
+                        continue;
+                    }
                     _ => {
                         todo!(); //TODO: this should be an error
                     }
                 }
             },
+            JsToken::Newline => {
+                parser_state.next();
+                continue;
+            }
             _ => {
                 todo!(); //TODO: this should be an error
             }

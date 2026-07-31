@@ -4,6 +4,7 @@
 - Linked javascript is now executed, and at the correct time
 - Javascript while loop, not operator, literal bools and hexadecimals are now supported
 - Basics of javascript bitwise operators are now supported
+- Implemented scoping for javascript variables
 
 
 0.7.0

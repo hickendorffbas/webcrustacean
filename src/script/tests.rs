@@ -551,3 +551,20 @@ if (x > 4) {
 
     assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(3)));
 }
+
+
+#[test]
+fn multiple_var_decl_with_newline() {
+    let code = r#"
+var x = 1,
+    y = 2;
+
+tester.export(x + y);"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(3)));
+}

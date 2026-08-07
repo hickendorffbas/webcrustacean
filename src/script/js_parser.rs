@@ -107,6 +107,13 @@ fn parse_statement(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserS
                 ParseResult::Ok(ast) => Some(ParseResult::Ok(ast)),
                 ParseResult::ParsingFailed(error) => Some(ParseResult::ParsingFailed(error)),
             }
+        },
+        JsToken::KeyWordFor => {
+            parser_state.next();
+            return match parse_for_loop(tokens, parser_state) {
+                ParseResult::Ok(ast) => Some(ParseResult::Ok(ast)),
+                ParseResult::ParsingFailed(error) => Some(ParseResult::ParsingFailed(error)),
+            }
         }
         decl_keyword @ (JsToken::KeyWordVar | JsToken::KeyWordLet | JsToken::KeyWordConst) => {
             parser_state.next();
@@ -878,6 +885,105 @@ fn parse_while_loop(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Parser
     eat_newlines(tokens, parser_state);
 
     return ParseResult::Ok(JsAstStatement::While(JsAstWhile { condition: Rc::from(condition), script: Rc::from(script) }));
+}
+
+
+fn parse_for_loop(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) -> ParseResult<JsAstStatement> {
+    //TODO: we have a testcase for the numeric for loop now, but there is also the foreach (for .... in .....) variant?
+    //      both parse them here I think
+
+    match tokens[parser_state.cursor].token {
+        JsToken::OpenParenthesis => {
+            parser_state.next();
+        },
+        _ => {
+            todo!(); //TODO: this should be an error
+        }
+    }
+
+    let (initial_declarations, initial_expression) = match &tokens[parser_state.cursor].token {
+        decl_keyword @ (JsToken::KeyWordVar | JsToken::KeyWordLet | JsToken::KeyWordConst) => {
+            parser_state.next();
+
+            let decl_type = match decl_keyword {
+                JsToken::KeyWordVar => { DeclType::Var },
+                JsToken::KeyWordLet => { DeclType::Let },
+                JsToken::KeyWordConst => { DeclType::Const },
+                _ => { panic!("unreachable"); }
+            };
+
+            let initial_declarations = match parse_declaration(tokens, parser_state, decl_type) {
+                ParseResult::Ok(ast) => Rc::from(ast),
+                ParseResult::ParsingFailed(error) => return ParseResult::ParsingFailed(error),
+            };
+
+            (Some(initial_declarations), None)
+        },
+
+        _ => {
+            let initial_expression = Rc::from(match pratt_parse_expression(tokens, parser_state, 0, false) {
+                ParseResult::Ok(expression) => expression,
+                ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+            });
+
+            match tokens[parser_state.cursor].token {
+                JsToken::Semicolon => {
+                    parser_state.next();
+                },
+                _ => {
+                    todo!(); //TODO: this should be an error
+                }
+            }
+
+            (None, Some(initial_expression))
+        }
+    };
+
+    let loop_condition = Rc::from(match pratt_parse_expression(tokens, parser_state, 0, false) {
+        ParseResult::Ok(expression) => expression,
+        ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+    });
+
+    match tokens[parser_state.cursor].token {
+        JsToken::Semicolon => {
+            parser_state.next();
+        },
+        _ => {
+            todo!(); //TODO: this should be an error
+        }
+    }
+
+    let next_step_expression = Rc::from(match pratt_parse_expression(tokens, parser_state, 0, false) {
+        ParseResult::Ok(expression) => expression,
+        ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+    });
+
+    match tokens[parser_state.cursor].token {
+        JsToken::CloseParenthesis => {
+            parser_state.next();
+        },
+        _ => {
+            todo!(); //TODO: this should be an error
+        }
+    }
+
+    match tokens[parser_state.cursor].token {
+        JsToken::OpenBrace => {
+            parser_state.next();
+        },
+        _ => {
+            todo!(); //TODO: this should be an error
+        }
+    }
+
+    let script = Rc::from(match parse_script(tokens, parser_state) {
+        ParseResult::Ok(script) => script,
+        ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+    });
+
+    eat_newlines(tokens, parser_state);
+
+    return ParseResult::Ok(JsAstStatement::For(JsAstFor { initial_declarations, initial_expression, loop_condition, next_step_expression, script }));
 }
 
 

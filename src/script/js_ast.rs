@@ -29,6 +29,7 @@ pub enum JsAstStatement {
                                                     //      but of type JsAstStatement::Expression, instead of type JsAstStatement::Return
     Conditional(JsAstConditional),
     While(JsAstWhile),
+    For(JsAstFor),
 }
 impl JsAstStatement {
     pub fn execute(&self, js_interpreter: &mut JsInterpreter) -> bool {
@@ -56,6 +57,9 @@ impl JsAstStatement {
             },
             JsAstStatement::While(while_statement) => {
                 while_statement.execute(js_interpreter);
+            },
+            JsAstStatement::For(for_statement) => {
+                for_statement.execute(js_interpreter);
             },
         }
         return true;
@@ -152,6 +156,44 @@ impl JsAstWhile {
                     return;
                 }
             };
+        }
+    }
+}
+
+
+#[derive(Debug)]
+pub struct JsAstFor {
+    //NOTE: we expect either initial expression, or intial declarations because both are allowed in the first expression of the for()
+    pub initial_expression: Option<Rc<JsAstExpression>>,
+    pub initial_declarations: Option<Rc<Vec<JsAstDeclaration>>>,
+
+    pub loop_condition: Rc<JsAstExpression>,
+    pub next_step_expression: Rc<JsAstExpression>,
+    pub script: Rc<Script>,
+}
+impl JsAstFor {
+    fn execute(&self, js_interpreter: &mut JsInterpreter) {
+        if self.initial_declarations.is_some() {
+            for node in self.initial_declarations.as_ref().unwrap().iter() {
+                node.execute(js_interpreter);
+            }
+        }
+
+        if self.initial_expression.is_some() {
+            self.initial_expression.as_ref().unwrap().execute(js_interpreter);
+        }
+
+        loop {
+            let condition_value = self.loop_condition.execute(js_interpreter);
+            if !condition_value.is_thruty() {
+                break;
+            }
+
+            for statement in self.script.iter() {
+                statement.execute(js_interpreter);
+            }
+
+            self.next_step_expression.execute(js_interpreter);
         }
     }
 }

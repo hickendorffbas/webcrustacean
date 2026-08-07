@@ -568,3 +568,21 @@ tester.export(x + y);"#;
 
     assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(3)));
 }
+
+
+#[test]
+fn for_loop_adding_variable() {
+    let code = r#"
+var nn = 1;
+for (var i = 0; i < 4; i += 1) {
+    nn = nn + i;
+}
+tester.export(nn);"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(7)));
+}

@@ -259,7 +259,7 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
             },
 
             binop @ (JsToken::Plus | JsToken::Minus | JsToken::Star | JsToken::ForwardSlash | JsToken::LeftShift | JsToken::RightShift | JsToken::BitWiseXor |
-                     JsToken::EqualsEquals | JsToken::LogicalAnd | JsToken::LogicalOr | JsToken::BitWiseOr | JsToken::BitWiseAnd | JsToken::Comma |
+                     JsToken::Equals | JsToken::EqualsStrict | JsToken::LogicalAnd | JsToken::LogicalOr | JsToken::BitWiseOr | JsToken::BitWiseAnd | JsToken::Comma |
                      JsToken::Bigger | JsToken::Smaller) => {
                 parser_state.next();
                 let rhs = match pratt_parse_expression(tokens, parser_state, right_bp, true) {
@@ -272,7 +272,8 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                     JsToken::Minus          => JsBinOp::Minus,
                     JsToken::Star           => JsBinOp::Times,
                     JsToken::ForwardSlash   => JsBinOp::Divide,
-                    JsToken::EqualsEquals   => JsBinOp::EqualsEquals,
+                    JsToken::Equals         => JsBinOp::Equals,
+                    JsToken::EqualsStrict   => JsBinOp::EqualsStrict,
                     JsToken::LogicalAnd     => JsBinOp::LogicalAnd,
                     JsToken::LogicalOr      => JsBinOp::LogicalOr,
                     JsToken::BitWiseOr      => JsBinOp::BitWiseOr,
@@ -687,7 +688,8 @@ fn infix_binding_power(token: &JsToken) -> (u8, u8) {
         JsToken::BitWiseOr => (8, 9),
         JsToken::BitWiseXor => (10, 11),
         JsToken::BitWiseAnd => (12, 13),
-        JsToken::EqualsEquals => (14, 15),
+        JsToken::Equals => (14, 15),
+        JsToken::EqualsStrict => (14, 15),
         JsToken::Bigger => (16, 17),
         JsToken::Smaller => (16, 17),
         JsToken::LeftShift => (18, 19),

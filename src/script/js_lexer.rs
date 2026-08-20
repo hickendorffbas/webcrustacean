@@ -51,7 +51,8 @@ pub enum JsToken {
     BitWiseXor,
     BitWiseAnd,
     Hash,
-    EqualsEquals,
+    Equals,
+    EqualsStrict,
     LogicalAnd,
     LogicalOr,
     RightShift,
@@ -199,7 +200,8 @@ const TOKENS_PROBABLY_PRECEDING_REGEX_LITERAL: &[JsToken] = &[
     JsToken::BitWiseAnd,
     JsToken::ExclamationMark,
     JsToken::BitWiseOr,
-    JsToken::EqualsEquals,
+    JsToken::Equals,
+    JsToken::EqualsStrict,
     JsToken::LogicalAnd,
     JsToken::LogicalOr,
     JsToken::KeyWordReturn,
@@ -474,7 +476,17 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                         '=' => {
                             if js_iterator.has_next() {
                                 match js_iterator.peek().unwrap() {
-                                    '=' => { js_iterator.next(); JsToken::EqualsEquals }
+                                    '=' => {
+                                        js_iterator.next();
+                                        if js_iterator.has_next() {
+                                            match js_iterator.peek().unwrap() {
+                                                '=' => { js_iterator.next(); JsToken::EqualsStrict },
+                                                _ => { JsToken::Equals },
+                                            }
+                                        } else {
+                                            JsToken::Equals
+                                        }
+                                    }
                                     _ => { JsToken::Assign }
                                 }
                             } else { JsToken::Assign }

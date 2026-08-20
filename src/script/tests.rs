@@ -619,3 +619,23 @@ if (x) {
 
     assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(1)));
 }
+
+
+#[test]
+fn strict_equals() {
+    let code = r#"const num = 0;
+const str = "0";
+var x = 0;
+
+if (num === num) { x += 1; }
+if (str === str) { x += 2; }
+if (num === str) { x += 4; }
+tester.export(x);"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(3)));
+}

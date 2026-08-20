@@ -355,7 +355,7 @@ impl JsAstBinOp {
                     }
                 }
             },
-            JsBinOp::EqualsEquals => {
+            JsBinOp::Equals => {
                 let mut right_val = self.right.execute(js_interpreter);
                 left_val = js_interpreter.deref(&left_val);
                 right_val = js_interpreter.deref(&right_val);
@@ -369,9 +369,42 @@ impl JsAstBinOp {
                             _ => { todo!() }
                         }
                     },
+                    JsValue::String(left_string) => {
+                        match right_val {
+                            JsValue::String(right_string) => {
+                                return JsValue::Boolean(left_string == right_string);
+                            },
+                            _ => { todo!() }
+                        }
+                    },
                     _ => { todo!() }
                 }
             },
+            JsBinOp::EqualsStrict => {
+                let mut right_val = self.right.execute(js_interpreter);
+                left_val = js_interpreter.deref(&left_val);
+                right_val = js_interpreter.deref(&right_val);
+
+                match left_val {
+                    JsValue::Number(left_number) => {
+                        match right_val {
+                            JsValue::Number(right_number) => {
+                                return JsValue::Boolean(left_number == right_number);
+                            },
+                            _ => { return JsValue::Boolean(false); }
+                        }
+                    },
+                    JsValue::String(left_string) => {
+                        match right_val {
+                            JsValue::String(right_string) => {
+                                return JsValue::Boolean(left_string == right_string);
+                            },
+                            _ => { return JsValue::Boolean(false); }
+                        }
+                    },
+                    _ => { todo!() }
+                }
+            }
             JsBinOp::LogicalAnd => {
                 //let mut right_val = self.right.execute(js_interpreter);  //TODO: we will need this eventually
 
@@ -587,7 +620,8 @@ pub enum JsBinOp {
     Times,
     Divide,
     PropertyAccess,
-    EqualsEquals,
+    Equals,
+    EqualsStrict,
     LogicalAnd,
     LogicalOr,
     BitWiseOr,

@@ -760,7 +760,7 @@ pub enum JsAstExpression {
     FunctionExpression(JsAstFunctionExpression),
     RegexLiteral(JsAstRegexLiteral),
     ObjectCreation(JsAstObjectCreation),
-
+    TypeOf(JsAstTypeOf),
 }
 impl JsAstExpression {
     fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
@@ -775,6 +775,7 @@ impl JsAstExpression {
             JsAstExpression::RegexLiteral(regex_literal) => { return regex_literal.execute(); },
             JsAstExpression::ObjectCreation(object_construction) => { return object_construction.execute(); }
             JsAstExpression::BooleanLiteral(boolean_value) => { return JsValue::Boolean(*boolean_value) },
+            JsAstExpression::TypeOf(type_of) => { return type_of.execute(js_interpreter) },
             JsAstExpression::NumericLiteral(numeric_literal) => {
                 //TODO: we might want to cache the JsValue somehow, and we need to support more numeric types...
 
@@ -1004,5 +1005,26 @@ impl JsAstObjectCreation {
 
         debug_log_warn("Object creation is not yet supported in javascript");
         return JsValue::Undefined;
+    }
+}
+
+
+#[derive(Debug)]
+pub struct JsAstTypeOf {
+    pub expression: Rc<JsAstExpression>,
+}
+impl JsAstTypeOf {
+    fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
+        let value = self.expression.execute(js_interpreter);
+
+        return match js_interpreter.deref(&value) {
+            JsValue::Number(_) => JsValue::String(String::from("number")),
+            JsValue::String(_) => JsValue::String(String::from("string")),
+            JsValue::Boolean(_) => JsValue::String(String::from("boolean")),
+            JsValue::Object(_) => todo!(), //TODO: implement (note: function object need a different output from normal objects)
+            JsValue::Array(_) => JsValue::String(String::from("object")),
+            JsValue::Address(_) => panic!("unreachable"), //we should never get an address after the dereferencing
+            JsValue::Undefined => JsValue::String(String::from("undefined")),
+        }
     }
 }

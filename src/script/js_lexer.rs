@@ -83,6 +83,7 @@ pub enum JsToken {
     KeyWordNew,
     KeyWordWhile,
     KeyWordFor,
+    KeyWordTypeOf,
 }
 
 
@@ -210,6 +211,7 @@ const TOKENS_PROBABLY_PRECEDING_REGEX_LITERAL: &[JsToken] = &[
     JsToken::QuestionMark,
     JsToken::RightShift,
     JsToken::LeftShift,
+    JsToken::KeyWordTypeOf,
 ];
 
 
@@ -356,7 +358,7 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                 identifier.push(js_iterator.next());
             }
 
-            //TODO: using "make" below is not correct, because it will give the end position of the literal, instead of the start
+            //TODO: using "make" below is not correct, because it will give the end position of the keyword, instead of the start
             if identifier == "var" {
                 tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordVar));
             } else if identifier == "let" {
@@ -381,6 +383,8 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                 tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::LiteralBoolean(true)));
             } else if identifier == "false" {
                 tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::LiteralBoolean(false)));
+            } else if identifier == "typeof" {
+                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordTypeOf));
             } else {
                 tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Identifier(identifier)));
             }

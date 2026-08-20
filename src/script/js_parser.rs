@@ -617,6 +617,14 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
             parser_state.next();
             return ParseResult::Ok(JsAstExpression::RegexLiteral(JsAstRegexLiteral { regex: regex_literal.clone() }));
         },
+        JsToken::KeyWordTypeOf => {
+            parser_state.next();
+
+            match pratt_parse_expression(tokens, parser_state, 0, true) {
+                ParseResult::Ok(expression) => return ParseResult::Ok(JsAstExpression::TypeOf(JsAstTypeOf { expression: Rc::from(expression) })),
+                ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+            }
+        }
         _ => todo!(),
     }
 }

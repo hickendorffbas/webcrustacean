@@ -84,6 +84,7 @@ pub enum JsToken {
     KeyWordWhile,
     KeyWordFor,
     KeyWordTypeOf,
+    KeyWordIn,
 }
 
 
@@ -385,6 +386,8 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                 tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::LiteralBoolean(false)));
             } else if identifier == "typeof" {
                 tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordTypeOf));
+            } else if identifier == "in" {
+                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordIn));
             } else {
                 tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Identifier(identifier)));
             }

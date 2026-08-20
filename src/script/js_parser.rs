@@ -260,7 +260,7 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
 
             binop @ (JsToken::Plus | JsToken::Minus | JsToken::Star | JsToken::ForwardSlash | JsToken::LeftShift | JsToken::RightShift | JsToken::BitWiseXor |
                      JsToken::Equals | JsToken::EqualsStrict | JsToken::LogicalAnd | JsToken::LogicalOr | JsToken::BitWiseOr | JsToken::BitWiseAnd | JsToken::Comma |
-                     JsToken::Bigger | JsToken::Smaller) => {
+                     JsToken::Bigger | JsToken::Smaller | JsToken::KeyWordIn) => {
                 parser_state.next();
                 let rhs = match pratt_parse_expression(tokens, parser_state, right_bp, true) {
                     ParseResult::Ok(rhs) => rhs,
@@ -284,6 +284,7 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                     JsToken::RightShift     => JsBinOp::RightShift,
                     JsToken::Bigger         => JsBinOp::Bigger,
                     JsToken::Smaller        => JsBinOp::Smaller,
+                    JsToken::KeyWordIn      => JsBinOp::In,
                     _ => panic!("This should never happen"),
                 };
 
@@ -700,6 +701,7 @@ fn infix_binding_power(token: &JsToken) -> (u8, u8) {
         JsToken::EqualsStrict => (14, 15),
         JsToken::Bigger => (16, 17),
         JsToken::Smaller => (16, 17),
+        JsToken::KeyWordIn => (16, 17),
         JsToken::LeftShift => (18, 19),
         JsToken::RightShift => (18, 19),
         JsToken::Plus => (20, 21),

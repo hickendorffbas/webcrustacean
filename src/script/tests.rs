@@ -639,3 +639,18 @@ tester.export(x);"#;
 
     assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(3)));
 }
+
+
+#[test]
+fn basic_in_operator() {
+    let code = r#"
+var obj = {"a": 3, "b": 2};
+tester.export("a" in obj);"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Boolean(true)));
+}

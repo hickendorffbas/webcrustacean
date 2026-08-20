@@ -550,6 +550,27 @@ impl JsAstBinOp {
                     _ => { todo!() }
                 }
             },
+            JsBinOp::In => {
+                let mut right_val = self.right.execute(js_interpreter);
+                left_val = js_interpreter.deref(&left_val);
+                right_val = js_interpreter.deref(&right_val);
+
+                match right_val {
+                    JsValue::Object(js_object) => {
+                        match left_val {
+                            JsValue::String(member_to_check) => {
+                                return JsValue::Boolean(js_object.members.contains_key(&member_to_check));
+                            },
+                            _ => {
+                                todo!(); //TODO: number indexes like "3 in x" , seems to be coerced to a string, other types seem not allowed
+                            }
+                        }
+                    },
+                    _ => {
+                        todo!(); //TODO: this should be an error, even for arrays I think?
+                    }
+                }
+            }
         }
     }
 }
@@ -632,6 +653,7 @@ pub enum JsBinOp {
     RightShift,
     Bigger,
     Smaller,
+    In,
 }
 
 

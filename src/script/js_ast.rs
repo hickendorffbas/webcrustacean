@@ -112,7 +112,7 @@ impl JsAstConditional {
     fn execute(&self, js_interpreter: &mut JsInterpreter) {
         let result = self.condition.execute(js_interpreter);
 
-        if result.is_thruty() {
+        if result.is_thruty(js_interpreter) {
 
             for statement in self.script.iter() {
                 let keep_going = statement.execute(js_interpreter);
@@ -147,7 +147,7 @@ impl JsAstWhile {
 
         loop {
             let condition_result = self.condition.execute(js_interpreter);
-            if !condition_result.is_thruty() {
+            if !condition_result.is_thruty(js_interpreter) {
                 break;
             }
 
@@ -186,7 +186,7 @@ impl JsAstFor {
 
         loop {
             let condition_value = self.loop_condition.execute(js_interpreter);
-            if !condition_value.is_thruty() {
+            if !condition_value.is_thruty(js_interpreter) {
                 break;
             }
 
@@ -210,7 +210,7 @@ impl JsAstTernary {
     fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
         let result = self.condition.execute(js_interpreter);
 
-        if result.is_thruty() {
+        if result.is_thruty(js_interpreter) {
             return self.if_true.execute(js_interpreter);
         } else {
             return self.if_false.execute(js_interpreter);

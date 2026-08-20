@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use crate::script::js_interpreter::JsInterpreter;
+
 use super::js_ast::Script;
 
 
@@ -136,14 +138,14 @@ pub enum JsValue {
     Undefined,
 }
 impl JsValue {
-    pub fn is_thruty(self) -> bool {
-        match self {
+    pub fn is_thruty(self, js_interpreter: &mut JsInterpreter) -> bool {
+        match js_interpreter.deref(&self) {
             JsValue::Number(number) => { return number != 0 },
             JsValue::String(string) => { return !string.is_empty() } ,
             JsValue::Boolean(bool) => { return bool; },
             JsValue::Object(_) => todo!(),  //TODO: implement
             JsValue::Array(_) => todo!(),  //TODO: implement
-            JsValue::Address(_) => todo!(),  //TODO: implement
+            JsValue::Address(_) => { panic!("unreachable"); },  //we should not be able to have an address after dereferencing
             JsValue::Undefined => { return false; },
         }
     }

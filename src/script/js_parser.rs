@@ -1001,6 +1001,7 @@ fn parse_for_loop(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserSt
 fn parse_script(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) -> ParseResult<Script> {
     let mut script = Vec::new();
     loop {
+        eat_newlines(tokens, parser_state);
 
         match tokens[parser_state.cursor].token {
             JsToken::CloseBrace => {

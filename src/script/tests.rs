@@ -601,3 +601,21 @@ tester.export(x[2]);"#;
 
     assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(4)));
 }
+
+
+#[test]
+fn allow_empty_else_block_with_newlines_in_it() {
+    let code = r#"var x = true;
+if (x) {
+    tester.export(1);
+} else {
+
+}"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(1)));
+}

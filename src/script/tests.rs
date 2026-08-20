@@ -54,193 +54,117 @@ fn js_values_are_equal(one: &JsValue, two: &JsValue) -> bool {
 }
 
 
-#[test]
-fn test_basic_assignment_and_export() {
-    let code = "x = 3; tester.export(x + 4);";
-
+fn assert_js(code: &str, expected: JsValue) {
     let tokens = js_lexer::lex_js(code, 1, 1);
     let script = js_parser::parse_js(&tokens, &Url::empty());
 
     let mut interpreter = JsInterpreter::new();
     interpreter.run_script(&script);
 
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(7)));
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &expected));
 }
 
+#[test]
+fn test_basic_assignment_and_export() {
+    assert_js("x = 3; tester.export(x + 4);", JsValue::Number(7));
+}
 
 #[test]
 fn test_binop_associativity() {
-    let code = "x = 12 / 3 * 2; tester.export(x);";
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(8)));
+    assert_js("x = 12 / 3 * 2; tester.export(x);", JsValue::Number(8));
 }
-
 
 #[test]
 fn test_literal_object_notation() {
-    let code = r#"x = {"a": 4, "b": 2};
-                  x.a = x.a + 1;
-                  x.c = 5;
-                  tester.export(x.a + x.b + x.c);"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(12)));
+    assert_js(r#"
+x = {"a": 4, "b": 2};
+x.a = x.a + 1;
+x.c = 5;
+tester.export(x.a + x.b + x.c);"#,
+    JsValue::Number(12));
 }
-
 
 #[test]
 fn test_literal_object_notation_trailing_comma() {
-    let code = r#"x = {"a": 4, "b": 2, };
-                  x.a = x.a + 1;
-                  x.c = 5;
-                  tester.export(x.a + x.b + x.c);"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(12)));
+    assert_js(r#"
+x = {"a": 4, "b": 2, };
+x.a = x.a + 1;
+x.c = 5;
+tester.export(x.a + x.b + x.c);"#,
+    JsValue::Number(12));
 }
-
 
 #[test]
 fn test_basic_function_call() {
-    let code = r#"function mult(p1, p2) {
-            return p1 * p2;
-        };
+    assert_js(r#"
+function mult(p1, p2) {
+    return p1 * p2;
+};
 
-        x = mult(2, 3);
-        tester.export(x);"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(6)));
+x = mult(2, 3);
+tester.export(x);"#,
+    JsValue::Number(6));
 }
-
 
 #[test]
 fn test_basic_function_call_no_args() {
-    let code = r#"function get() {
-            return 150;
-        };
-        x = get();
-        tester.export(x);"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(150)));
+    assert_js(r#"
+function get() {
+    return 150;
+};
+x = get();
+tester.export(x);"#,
+    JsValue::Number(150));
 }
-
 
 #[test]
 fn test_string_with_escape() {
-    let code = r#"
-        x = "test \" test";
-        tester.export(x);"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::String(String::from("test \" test"))));
+    assert_js(r#"
+x = "test \" test";
+tester.export(x);"#,
+    JsValue::String(String::from("test \" test")));
 }
-
 
 #[test]
 fn test_not_parsing_comments() {
-    let code = r#"
-        x = 1;
-        // x = 2;
-        /* x = 3;
-            this is extra text */
-        tester.export(x);"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(1)));
+    assert_js(r#"
+x = 1;
+// x = 2;
+/* x = 3;
+    this is extra text */
+tester.export(x);"#,
+    JsValue::Number(1));
 }
-
 
 #[test]
 fn test_double_slash_in_string_is_not_a_comment() {
-    let code = r#"x = "https://www.reddit.com"; tester.export(x);"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::String("https://www.reddit.com".to_owned())));
+    assert_js(r#"x = "https://www.reddit.com"; tester.export(x);"#, JsValue::String("https://www.reddit.com".to_owned()));
 }
-
 
 #[test]
 fn test_escaping_the_escape_char() {
-    let code = r#"
+    assert_js(r#"
         x = "\\";
         y = "\\";
-        tester.export(y); "#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::String(String::from("\\"))));
+        tester.export(y); "#,
+    JsValue::String(String::from("\\")));
 }
-
 
 #[test]
 fn test_create_empty_object() {
-    let code = r#" x1 = {};
-        tester.export(x1); "#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Object(JsObject {members: HashMap::new(), callable: None})));
+    assert_js(r#" x1 = {}; tester.export(x1); "#, JsValue::Object(JsObject {members: HashMap::new(), callable: None}));
 }
-
 
 #[test]
 fn test_empty_statement_in_front() {
-    let code = r#"; var x=1;
-        tester.export(x);"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(1)));
+    assert_js(r#"; var x=1;
+        tester.export(x);"#,
+    JsValue::Number(1));
 }
-
 
 #[test]
 fn test_basic_if_statement() {
-    let code = r#" f = 1; b = 0;
+    assert_js(r#" f = 1; b = 0;
         if (f == 1) {
             b = b + 1;
         }
@@ -249,213 +173,97 @@ fn test_basic_if_statement() {
         } else {
             b = b + 7;
         }
-        tester.export(b); "#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(8)));
+        tester.export(b); "#,
+    JsValue::Number(8));
 }
-
 
 #[test]
 fn test_negative_number() {
-    let code = r#"var x = -3;
+    assert_js(r#"var x = -3;
         x = x + 5;
-        tester.export(x);"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(2)));
+        tester.export(x);"#,
+    JsValue::Number(2));
 }
-
 
 #[test]
 fn test_index_operator_for_object_properties() {
-    let code = r#"var x = { "item": "value", "other": 3};
-        tester.export(x["item"]);"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::String(String::from("value"))));
+    assert_js(r#"var x = { "item": "value", "other": 3}; tester.export(x["item"]);"#,
+    JsValue::String(String::from("value")));
 }
-
 
 #[test]
 fn test_array() {
-    let code = r#"var x = [1, 2];
-        tester.export(x[1]);"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(2)));
+    assert_js(r#"var x = [1, 2]; tester.export(x[1]);"#, JsValue::Number(2));
 }
-
 
 #[test]
 fn test_muti_dimensional_array() {
-    let code = r#"var x = [[1, 5], [2, 3]];
-        tester.export(x[1][1]);"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(3)));
+    assert_js(r#"var x = [[1, 5], [2, 3]]; tester.export(x[1][1]);"#, JsValue::Number(3));
 }
-
 
 #[test]
 fn test_new_object_with_newlines() {
-    let code = r#"var data = {
-        a: 1,
-        b: 2
-    }; tester.export(data.b);"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(2)));
+    assert_js(r#"var data = {
+            a: 1,
+            b: 2
+        }; tester.export(data.b);"#,
+    JsValue::Number(2));
 }
-
 
 #[test]
 fn test_anonymous_function() {
-    let code = r#"(function (w) { tester.export(w); })(13);"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(13)));
+    assert_js(r#"(function (w) { tester.export(w); })(13);"#, JsValue::Number(13));
 }
-
 
 #[test]
 fn test_comma_operator() {
-    let code = r#"var x = (1, 2, 5);
-        tester.export(x);"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(5)));
+     assert_js(r#"var x = (1, 2, 5); tester.export(x);"#, JsValue::Number(5));
 }
-
 
 #[test]
 fn test_ternary_true() {
-    let code = r#"var n = 4;
-        tester.export(n == 4 ? 1 : 2);"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(1)));
+    assert_js(r#"var n = 4; tester.export(n == 4 ? 1 : 2);"#, JsValue::Number(1));
 }
-
 
 #[test]
 fn test_ternary_false() {
-    let code = r#"var n = 4;
-        tester.export(n == 3 ? 1 : 2);"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(2)));
+    assert_js(r#"var n = 4; tester.export(n == 3 ? 1 : 2);"#, JsValue::Number(2));
 }
-
 
 #[test]
 fn test_ternary() {
-    let code = r#"var n = 4;
-        tester.export(n == 3 ? 1 : 2);"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(2)));
+    assert_js(r#"var n = 4; tester.export(n == 3 ? 1 : 2);"#, JsValue::Number(2));
 }
-
 
 #[test]
 fn test_while() {
-    let code = r#"
-a = 1;
-b = 1;
+    assert_js(r#"
+a = 1; b = 1;
 while (a == 1) {
     tester.export(b);
     if (b == 5) {
         a = 2;
     };
     b = b + 1;
-}"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(5)));
+}"#,
+    JsValue::Number(5));
 }
-
 
 #[test]
 fn test_not_operator() {
-    let code = r#"var n = 4;
-        tester.export(!(n == 3));"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Boolean(true)));
+    assert_js(r#"var n = 4; tester.export(!(n == 3));"#, JsValue::Boolean(true));
 }
-
 
 #[test]
 fn test_literal_bool() {
-    let code = r#"var n = false;
+    assert_js(r#"var n = false;
         if (!n) {
             tester.export("A");
         } else {
             tester.export("B");
-        }"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::String("A".to_owned())));
+        }"#,
+    JsValue::String("A".to_owned()));
 }
-
 
 #[test]
 fn test_empty_anonymous_function_expression() {
@@ -467,190 +275,110 @@ fn test_empty_anonymous_function_expression() {
     interpreter.run_script(&script);
 
     //Note: no assert, this just checks for not crashing
-    //TODO: when we have enough of js implemented, this could assert some property of the created anonimous function
+    //TODO: when we have enough of js implemented, this could assert some property of the created anonymous function
 }
-
 
 #[test]
 fn test_functions_are_also_just_objects() {
-    let code = r#"
+    assert_js(r#"
 var func = function() {};
 func.x = 3;
-tester.export(func.x);"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(3)));
+tester.export(func.x);"#,
+    JsValue::Number(3));
 }
-
 
 #[test]
 fn test_bitshift() {
-    let code = r#"
-a = 5; // 00000000000000000000000000000101
-b = 2; // 00000000000000000000000000000010
-tester.export(a << b);"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(20)));
+    assert_js(r#"
+a = 5; // 000000000000000101
+b = 2;
+tester.export(a << b);"#,
+    JsValue::Number(20));
 }
-
 
 #[test]
 fn test_hexadecimal() {
-    let code = r#"
+    assert_js(r#"
 let hexNumber = 0x1A - 3;
-tester.export(hexNumber);"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(23)));
+tester.export(hexNumber);"#,
+    JsValue::Number(23));
 }
-
 
 #[test]
 fn test_compound_assign_add() {
-    let code = r#"
+    assert_js(r#"
 let x = 6;
 x += 4;
-tester.export(x);"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(10)));
+tester.export(x);"#,
+    JsValue::Number(10));
 }
-
 
 #[test]
 fn test_automatically_new_statement_after_if_content_block() {
-    let code = r#"
+    assert_js(r#"
 var x = 3;
 if (x > 4) {
     x += 1;
 } (function() {
     tester.export(x);
-}());"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(3)));
+}());"#,
+    JsValue::Number(3));
 }
-
 
 #[test]
 fn multiple_var_decl_with_newline() {
-    let code = r#"
+    assert_js(r#"
 var x = 1,
     y = 2;
-
-tester.export(x + y);"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(3)));
+tester.export(x + y);"#,
+    JsValue::Number(3));
 }
-
 
 #[test]
 fn for_loop_adding_variable() {
-    let code = r#"
+    assert_js(r#"
 var nn = 1;
 for (var i = 0; i < 4; i++) {
     nn = nn + i;
 }
-tester.export(nn);"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(7)));
+tester.export(nn);"#,
+    JsValue::Number(7));
 }
-
 
 #[test]
 fn arrays_with_computed_index_as_lvalue() {
-    let code = r#"var x = [1,2,3];
+    assert_js(r#"var x = [1,2,3];
 x[1 + 1] = 4;
-tester.export(x[2]);"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(4)));
+tester.export(x[2]);"#,
+    JsValue::Number(4));
 }
-
 
 #[test]
 fn allow_empty_else_block_with_newlines_in_it() {
-    let code = r#"var x = true;
+    assert_js(r#"var x = true;
 if (x) {
     tester.export(1);
 } else {
 
-}"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(1)));
+}"#,
+    JsValue::Number(1));
 }
-
 
 #[test]
 fn strict_equals() {
-    let code = r#"const num = 0;
+    assert_js(r#"
+const num = 0;
 const str = "0";
 var x = 0;
 
 if (num === num) { x += 1; }
 if (str === str) { x += 2; }
 if (num === str) { x += 4; }
-tester.export(x);"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(3)));
+tester.export(x);"#,
+    JsValue::Number(3));
 }
-
 
 #[test]
 fn basic_in_operator() {
-    let code = r#"
-var obj = {"a": 3, "b": 2};
-tester.export("a" in obj);"#;
-
-    let tokens = js_lexer::lex_js(code, 1, 1);
-    let script = js_parser::parse_js(&tokens, &Url::empty());
-    let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
-
-    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Boolean(true)));
+    assert_js(r#"var obj = {"a": 3, "b": 2}; tester.export("a" in obj);"#, JsValue::Boolean(true));
 }

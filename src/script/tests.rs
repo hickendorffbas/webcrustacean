@@ -574,7 +574,7 @@ tester.export(x + y);"#;
 fn for_loop_adding_variable() {
     let code = r#"
 var nn = 1;
-for (var i = 0; i < 4; i += 1) {
+for (var i = 0; i < 4; i++) {
     nn = nn + i;
 }
 tester.export(nn);"#;
@@ -585,4 +585,19 @@ tester.export(nn);"#;
     interpreter.run_script(&script);
 
     assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(7)));
+}
+
+
+#[test]
+fn arrays_with_computed_index_as_lvalue() {
+    let code = r#"var x = [1,2,3];
+x[1 + 1] = 4;
+tester.export(x[2]);"#;
+
+    let tokens = js_lexer::lex_js(code, 1, 1);
+    let script = js_parser::parse_js(&tokens, &Url::empty());
+    let mut interpreter = JsInterpreter::new();
+    interpreter.run_script(&script);
+
+    assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &JsValue::Number(4)));
 }

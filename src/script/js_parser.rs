@@ -323,9 +323,18 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
 
                 lhs = JsAstExpression::Ternary(JsAstTernary { condition: Rc::from(lhs), if_true: if_true_node, if_false: if_false_node });
             },
+
+            JsToken::Increment => {
+                parser_state.next();
+                lhs = JsAstExpression::UnaryOp(JsAstUnOp { op: JsUnOp::PostfixIncrement, operand: Rc::from(lhs) });
+            },
+            JsToken::Decrement => {
+                parser_state.next();
+                lhs = JsAstExpression::UnaryOp(JsAstUnOp { op: JsUnOp::PostfixDecrement, operand: Rc::from(lhs) });
+            },
+
             _ => todo!(),
         }
-
     }
 
     return ParseResult::Ok(lhs);
@@ -355,7 +364,7 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
                         JsToken::ExclamationMark => JsUnOp::Not,
                         _ => panic!("unreachable"),
                     };
-                    return ParseResult::Ok(JsAstExpression::UnaryOp(JsAstUnOp { op: un_op, right: Rc::from(rhs) }))
+                    return ParseResult::Ok(JsAstExpression::UnaryOp(JsAstUnOp { op: un_op, operand: Rc::from(rhs) }))
                 }
                 ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
             };
@@ -688,7 +697,9 @@ fn infix_binding_power(token: &JsToken) -> (u8, u8) {
         JsToken::Star => (22, 23),
         JsToken::ForwardSlash => (22, 23),
         JsToken::Dot => (100, 101),
-        JsToken::OpenParenthesis => (110, 111),
+        JsToken::OpenParenthesis => (100, 101),
+        JsToken::Increment => (110, 111),
+        JsToken::Decrement => (110, 111),
         _ => todo!(),
     }
 }

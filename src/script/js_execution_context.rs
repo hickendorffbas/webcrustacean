@@ -14,7 +14,7 @@ pub fn get_next_js_value_address() -> JsAddress { NEXT_JS_VALUE_ADDRESS.fetch_ad
 
 pub struct JsExecutionContext {
     variables: HashMap<String, JsAddress>,
-    values: HashMap<JsAddress, JsValue>,
+    values: HashMap<JsAddress, JsValue>,  //TODO: I think this should be global on the interpreter, not per context, then we need context in less places
 }
 impl JsExecutionContext {
     pub fn new() -> JsExecutionContext {
@@ -76,8 +76,34 @@ impl JsExecutionContext {
         return self.values.get_mut(address);
     }
 
-    pub fn update_variable(&mut self, name: String, address: usize) {
-        self.variables.insert(name, address);
+    pub fn set_reference(&mut self, reference: JsReference, address: JsAddress) {
+        match reference {
+            JsReference::Variable(variable_name) => {
+                self.variables.insert(variable_name, address);
+            },
+            JsReference::Property { object_address, member } => {
+                let object = self.values.get_mut(&object_address).unwrap();
+                match object {
+                    JsValue::Object(ref mut js_object) => {
+                        js_object.members.insert(member, address);
+                    },
+                    _ => {
+                        todo!(); //TODO: some kind of error?
+                    }
+                }
+            },
+            JsReference::Index { object_address, index } => {
+                let object = self.values.get_mut(&object_address).unwrap();
+                match object {
+                    JsValue::Array(ref mut js_object) => {
+                        js_object.elements[index] = address;
+                    },
+                    _ => {
+                        todo!(); //TODO: some kind of error?
+                    }
+                }
+            },
+        }
     }
 
     pub fn add_new_value(&mut self, value: JsValue) -> JsAddress {
@@ -85,6 +111,15 @@ impl JsExecutionContext {
         self.values.insert(new_address, value);
         return new_address;
     }
+}
+
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone)]
+pub enum JsReference {
+    Variable(String),
+    Property { object_address: JsAddress, member: String },
+    Index { object_address: JsAddress, index: usize },
 }
 
 

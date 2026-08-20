@@ -56,6 +56,8 @@ pub enum JsToken {
     LogicalOr,
     RightShift,
     LeftShift,
+    Increment,
+    Decrement,
 
     //compound assignment operators:
     CompoundAssignAdd,
@@ -429,6 +431,7 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                             if js_iterator.has_next() {
                                 match js_iterator.peek().unwrap() {
                                     '=' => { js_iterator.next(); JsToken::CompoundAssignAdd }
+                                    '+' => { js_iterator.next(); JsToken::Increment }
                                     _ => { JsToken::Plus }
                                 }
                             } else { JsToken::Plus }
@@ -437,6 +440,7 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                             if js_iterator.has_next() {
                                 match js_iterator.peek().unwrap() {
                                     '=' => { js_iterator.next(); JsToken::CompoundAssignMinus }
+                                    '-' => { js_iterator.next(); JsToken::Decrement }
                                     _ => { JsToken::Minus }
                                 }
                             } else { JsToken::Minus }

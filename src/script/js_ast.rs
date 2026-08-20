@@ -10,6 +10,7 @@ use super::js_execution_context::{
     JsError,
     JsExecutionContext,
     JsFunction,
+    JsReference,
     JsObject,
     JsValue,
 };
@@ -81,7 +82,7 @@ impl JsAstFunctionDeclaration {
         let function = JsFunction { script: Some(self.script.clone()), argument_names: argument_names, builtin: None };
 
         let target_address = global_context.add_new_value(JsValue::Object(JsObject::make_function(function)));
-        global_context.update_variable(self.name.clone(), target_address);
+        global_context.set_reference(JsReference::Variable(self.name.clone()), target_address);
     }
 }
 
@@ -518,19 +519,6 @@ impl JsAstBinOp {
             },
         }
     }
-
-    fn build_var_path(&self, path: &mut Vec<String>) {
-        match self.op {
-            JsBinOp::PropertyAccess => {
-                self.left.build_var_path(path);
-                self.right.build_var_path(path);
-            },
-            _ => {
-                //TODO: not sure yet if there is a valid case for this
-                todo!();
-            }
-        }
-    }
 }
 
 
@@ -542,75 +530,23 @@ pub struct JsAstAssign {
 impl JsAstAssign {
     fn execute(&self, js_interpreter: &mut JsInterpreter) {
         let value = self.right.execute(js_interpreter);
+        let opt_assignment_reference = self.left.execute_for_reference(js_interpreter);
 
-        let target_address = {
-            let current_context = js_interpreter.context_stack.iter_mut().last().unwrap();
-            current_context.add_new_value(value)
-        };
+        match opt_assignment_reference {
+            Some(assignment_reference) => {
+                //TODO: not sure if this is the correct context, I think addresses should actually be unique over contexts so we don't need to know
+                let current_context = js_interpreter.context_stack.iter_mut().last().unwrap();
 
-        let mut variable_path = Vec::new();
-        self.left.build_var_path(&mut variable_path);
+                let address_to_store = match value {
+                    JsValue::Address(address) => { address },
+                    _ => { current_context.add_new_value(value) },
+                };
 
-        let mut first = true;
-        let mut current_object_address = None;
-
-        for idx in 0..variable_path.len() {
-            let last = idx == variable_path.len() - 1;
-
-            if first {
-                if last {
-                    let current_context = js_interpreter.context_stack.iter_mut().last().unwrap(); //TODO: is this always the right context?
-                    current_context.update_variable(variable_path[idx].clone(), target_address);
-                } else {
-                    match js_interpreter.get_var_address(&variable_path[idx]) {
-                        Some(address) => {
-                            current_object_address = Some(address);
-                        },
-                        None => {
-                            js_console::log_js_error(format!("Variable not found: {}", variable_path[idx]).as_str());
-                            return;
-                        }
-                    }
-                }
-
-                first = false;
-
-            } else {  //not the first element in the path, so we need to keep looking up members in objects
-
-                let current_context = js_interpreter.context_stack.iter_mut().last().unwrap(); //TODO: is this always the right context?
-                let object = current_context.get_value(&current_object_address.unwrap());
-
-                if last {
-                    match object.unwrap() {
-                        JsValue::Object(ref mut obj) => {
-                            obj.members.insert(variable_path[idx].clone(), target_address);
-                        },
-                        _ => {
-                            todo!();  //TODO: are there valid cases here? Don't think so....
-                        }
-                    }
-                } else {
-
-                    match object.unwrap() {
-                        JsValue::Object(obj) => {
-                            let next_address = obj.members.get(&variable_path[idx]);
-
-                            match next_address {
-                                Some(address) => {
-                                    current_object_address = Some(*address);
-                                },
-                                None => {
-                                    todo!(); //TODO: report error that the member is not found
-                                }
-                            }
-
-                        },
-                        _ => {
-                            todo!();  //TODO: are there valid cases here? Don't think so....
-                        }
-                    }
-                }
-            }
+                current_context.set_reference(assignment_reference, address_to_store);
+            },
+            None => {
+                todo!(); //TODO: this should be an error, you are assigning to something that does not resolve to an address
+            },
         }
     }
 }
@@ -639,8 +575,7 @@ impl JsAstDeclaration {
         };
         let current_context = js_interpreter.context_stack.iter_mut().last().unwrap();
         let new_address = current_context.add_new_value(initial_value);
-
-        current_context.update_variable(self.variable.name.clone(), new_address);
+        current_context.set_reference(JsReference::Variable(self.variable.name.clone()), new_address);
     }
 }
 
@@ -671,38 +606,87 @@ pub enum JsUnOp {
     Plus,
     Minus,
     Not,
+    PostfixIncrement,
+    PostfixDecrement,
+    #[allow(dead_code)] PrefixIncrement, //TODO: implement
+    #[allow(dead_code)] PrefixDecrement, //TODO: implement
 }
 
 
 #[derive(Debug)]
 pub struct JsAstUnOp {
     pub op: JsUnOp,
-    pub right: Rc<JsAstExpression>,
+    pub operand: Rc<JsAstExpression>,
 }
 impl JsAstUnOp {
     fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
-        let right_val = self.right.execute(js_interpreter);
-
         match self.op {
             JsUnOp::Plus => {
-                match right_val {
+                let operand = self.operand.execute(js_interpreter);
+                match js_interpreter.deref(&operand) {
                     JsValue::Number(number) => return JsValue::Number(number),
                     _ => { todo!() }, //TODO: most of the others are not valid, implement errors
                 }
             },
             JsUnOp::Minus => {
-                match right_val {
+                let operand = self.operand.execute(js_interpreter);
+                match js_interpreter.deref(&operand) {
                     JsValue::Number(number) => return JsValue::Number(-number),
                     _ => { todo!() }, //TODO: most of the others are not valid, implement errors
                 }
             },
             JsUnOp::Not => {
-                match right_val {
+                let operand = self.operand.execute(js_interpreter);
+                match js_interpreter.deref(&operand) {
                     JsValue::Boolean(bool) => return JsValue::Boolean(!bool),
                     _ => { todo!() }, //TODO: most of the others are not valid, implement errors
-
                 }
             }
+            JsUnOp::PostfixIncrement => {
+                let operand_reference = self.operand.execute_for_reference(js_interpreter);
+                match operand_reference {
+                    Some(reference) => {
+                        //TODO: not sure if I'm picking the right context here
+                        let context = js_interpreter.context_stack.last_mut().unwrap();
+
+                        let address = *match reference {
+                            JsReference::Variable(name) => {
+                                context.get_var_address(&name).unwrap()
+                            },
+                            JsReference::Property { object_address, member } => {
+                                match context.get_value(&object_address).unwrap() {
+                                    JsValue::Object(js_object) => {
+                                        js_object.members.get(&member).unwrap()
+                                    },
+                                    _ => {
+                                        todo!(); //TODO: some kind of error
+                                    }
+                                }
+                            },
+                            JsReference::Index { object_address: _, index: _ } => {
+                                todo!(); //TODO: implement
+                            },
+                        };
+
+                        match context.get_value(&address).unwrap() {
+                            JsValue::Number(num) => {
+                                let original = *num;
+                                *num += 1;
+                                return JsValue::Number(original)
+                            },
+                            _ => {
+                                todo!(); //TODO: probably always an error
+                            }
+                        }
+                    },
+                    None => {
+                        todo!(); //TODO: this should become an error, you are trying to increment something that does not resolve to an address
+                    },
+                }
+            },
+            JsUnOp::PostfixDecrement => todo!(), //TODO: implement
+            JsUnOp::PrefixIncrement => todo!(), //TODO: implement
+            JsUnOp::PrefixDecrement => todo!(), //TODO: implement
         }
     }
 }
@@ -750,7 +734,7 @@ impl JsAstExpression {
             JsAstExpression::BinOp(binop) => { return binop.execute(js_interpreter); },
             JsAstExpression::UnaryOp(unop) => { return unop.execute(js_interpreter); },
             JsAstExpression::Ternary(ternary) => { return ternary.execute(js_interpreter); }
-            JsAstExpression::Identifier(variable) => { let value = &variable.execute(js_interpreter); return js_interpreter.deref(value); },
+            JsAstExpression::Identifier(variable) => { return variable.execute(js_interpreter); },
             JsAstExpression::ObjectLiteral(obj) => { return obj.execute(js_interpreter); },
             JsAstExpression::ArrayLiteral(array) => { return array.execute(js_interpreter); },
             JsAstExpression::FunctionExpression(js_ast_function_expression) => { return js_ast_function_expression.execute(); },
@@ -794,7 +778,7 @@ impl JsAstExpression {
                                         let to_log = match to_log {
                                             JsValue::String(string) =>  { string }
                                             JsValue::Number(number) => { number.to_string() },
-                                            JsValue::Boolean(_) => todo!(), //TODO: implement
+                                            JsValue::Boolean(bool) => { if bool { "true".to_owned() } else { "false".to_owned() } },
                                             JsValue::Object(_) => todo!(), //TODO: implement
                                             JsValue::Array(_) => todo!(), //TODO: implement
                                             JsValue::Undefined => { "undefined".to_owned() },
@@ -824,7 +808,7 @@ impl JsAstExpression {
                                 let mut new_context = JsExecutionContext::new();
                                 for (arg_name, arg_value) in args {
                                     let address = new_context.add_new_value(arg_value);
-                                    new_context.update_variable(arg_name, address);
+                                    new_context.set_reference(JsReference::Variable(arg_name), address);
                                 }
                                 js_interpreter.context_stack.push(new_context);
 
@@ -857,14 +841,46 @@ impl JsAstExpression {
         }
     }
 
-    fn build_var_path(&self, path: &mut Vec<String>) {
+    fn execute_for_reference(&self, js_interpreter: &mut JsInterpreter) -> Option<JsReference> {
         match self {
-            JsAstExpression::BinOp(binop) => { binop.build_var_path(path) },
-            JsAstExpression::Identifier(ident) => { path.push(ident.name.clone()) },
-            _ => {
-                //TODO: I think this should always be an error
-                todo!();
-            }
+            JsAstExpression::Identifier(ident) => {
+                return Some(JsReference::Variable(ident.name.clone()));
+            },
+            JsAstExpression::BinOp(binop) => {
+                match binop.op {
+                    JsBinOp::PropertyAccess => {
+                        let property = match binop.right.as_ref() {
+                            // when the right hand side of our accessor is an identifier, we don't execute, but just take its name as a string
+                            // this is because a.b is equivalent to a["b"]
+                            JsAstExpression::Identifier(ident) => { JsValue::String(ident.name.clone()) }
+                            _ => { binop.right.execute(js_interpreter) }
+                        };
+
+                        let left_value = binop.left.execute(js_interpreter);
+
+                        match left_value {
+                            JsValue::Address(left_address) => {
+                                match property {
+                                    JsValue::Number(index) => {
+                                        return Some(JsReference::Index { object_address: left_address, index: index as usize })
+                                    },
+                                    JsValue::String(member) => {
+                                        return Some(JsReference::Property { object_address: left_address, member });
+                                    },
+                                    _ => {
+                                        todo!(); //TODO: most of these should be an error or None, but maybe some are valid?
+                                    }
+                                }
+                            },
+                            _ => {
+                                todo!();
+                            }
+                        }
+                    },
+                    _ => { return None; }
+                }
+            },
+            _ => { return None; }
         }
     }
 }

@@ -382,3 +382,13 @@ tester.export(x);"#,
 fn basic_in_operator() {
     assert_js(r#"var obj = {"a": 3, "b": 2}; tester.export("a" in obj);"#, JsValue::Boolean(true));
 }
+
+#[test]
+fn for_in() {
+    assert_js(r#"var x = {"a": 1, "b": 2, "c": 3}; var y = 12;
+for (var n in x) {
+    y += x[n];
+}
+tester.export(y);"#,
+    JsValue::Number(18));
+}

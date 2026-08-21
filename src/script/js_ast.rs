@@ -31,6 +31,7 @@ pub enum JsAstStatement {
     Conditional(JsAstConditional),
     While(JsAstWhile),
     For(JsAstFor),
+    ForEach(JsAstForEach),
 }
 impl JsAstStatement {
     pub fn execute(&self, js_interpreter: &mut JsInterpreter) -> bool {
@@ -45,23 +46,16 @@ impl JsAstStatement {
                     decl.execute(js_interpreter);
                 }
             },
-            JsAstStatement::FunctionDeclaration(function_declaration) => {
-                function_declaration.execute(js_interpreter);
-            },
             JsAstStatement::Return(return_expression) => {
                 let value = return_expression.execute(js_interpreter);
                 js_interpreter.register_return_value(value);
                 return false;
             },
-            JsAstStatement::Conditional(condition_expression) => {
-                condition_expression.execute(js_interpreter);
-            },
-            JsAstStatement::While(while_statement) => {
-                while_statement.execute(js_interpreter);
-            },
-            JsAstStatement::For(for_statement) => {
-                for_statement.execute(js_interpreter);
-            },
+            JsAstStatement::FunctionDeclaration(function_declaration) => { function_declaration.execute(js_interpreter); },
+            JsAstStatement::Conditional(condition_expression) => { condition_expression.execute(js_interpreter); },
+            JsAstStatement::While(while_statement) => { while_statement.execute(js_interpreter); },
+            JsAstStatement::For(for_statement) => { for_statement.execute(js_interpreter); },
+            JsAstStatement::ForEach(for_statement) => { for_statement.execute(js_interpreter); },
         }
         return true;
     }
@@ -201,6 +195,44 @@ impl JsAstFor {
 
 
 #[derive(Debug)]
+pub struct JsAstForEach {
+    pub initial_expression: Option<Rc<JsAstExpression>>,
+    pub initial_declarations: Option<Rc<Vec<JsAstDeclaration>>>,
+
+    pub iteration_target: Rc<JsAstExpression>,
+    pub script: Rc<Script>,
+}
+impl JsAstForEach {
+    fn execute(&self, js_interpreter: &mut JsInterpreter) {
+        let iteration_reference = if self.initial_expression.is_some() {
+            self.initial_expression.as_ref().unwrap().execute_for_reference(js_interpreter).unwrap()
+        } else {
+            // In a for ... in ....  we can only have a single declaration:
+            let declaration = self.initial_declarations.as_ref().unwrap().first().unwrap();
+            declaration.execute_for_reference(js_interpreter)
+        };
+
+        let object = self.iteration_target.execute(js_interpreter);
+        match js_interpreter.deref(&object) {
+            JsValue::Object(js_object) => {
+                for key in js_object.members.keys() {
+                    let context = js_interpreter.context_stack.first_mut().unwrap();
+                    let address = context.add_new_value(JsValue::String(key.clone()));
+                    context.set_reference(iteration_reference.clone(), address);
+                    for statement in self.script.iter() {
+                        statement.execute(js_interpreter);
+                    }
+                }
+            },
+            _ => {
+                todo!(); //TODO: should be an error
+            }
+        }
+    }
+}
+
+
+#[derive(Debug)]
 pub struct JsAstTernary {
     pub condition: Rc<JsAstExpression>,
     pub if_true: Rc<JsAstExpression>,
@@ -224,6 +256,7 @@ pub struct JsAstBinOp {
     pub op: JsBinOp,
     pub left: Rc<JsAstExpression>,
     pub right: Rc<JsAstExpression>,
+    pub is_dot_property_access: bool, //TODO: this is only needed for propertyAccess, we might want to make a seperate AST for that
 }
 impl JsAstBinOp {
     fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
@@ -299,18 +332,22 @@ impl JsAstBinOp {
                 }
             },
             JsBinOp::PropertyAccess => {
-                let property = match self.right.as_ref() {
-                    // when the right hand side of our accessor is an identifier, we don't execute, but just take its name as a string
-                    // this is because a.b is equivalent to a["b"]
-                    JsAstExpression::Identifier(ident) => { JsValue::String(ident.name.clone()) }
-                    _ => { self.right.execute(js_interpreter) }
+                let property = if self.is_dot_property_access {
+                    match self.right.as_ref() {
+                        // when the right hand side of our accessor is an identifier, we don't execute, but just take its name as a string
+                        // this is because a.b is equivalent to a["b"]
+                        JsAstExpression::Identifier(ident) => { JsValue::String(ident.name.clone()) }
+                        _ => { self.right.execute(js_interpreter) }
+                    }
+                } else {
+                    self.right.execute(js_interpreter)
                 };
 
                 let object = js_interpreter.deref(&left_val);
 
                 match object {
                     JsValue::Object(object) => {
-                        match property {
+                        match js_interpreter.deref(&property) {
                             JsValue::String(property_value) => {
                                 match object.members.get(&property_value) {
                                     Some(address) => { JsValue::Address(*address) },
@@ -631,6 +668,11 @@ impl JsAstDeclaration {
         let new_address = current_context.add_new_value(initial_value);
         current_context.set_reference(JsReference::Variable(self.variable.name.clone()), new_address);
     }
+
+    fn execute_for_reference(&self, js_interpreter: &mut JsInterpreter) -> JsReference {
+        self.execute(js_interpreter);
+        return JsReference::Variable(self.variable.name.clone());
+    }
 }
 
 
@@ -906,11 +948,15 @@ impl JsAstExpression {
             JsAstExpression::BinOp(binop) => {
                 match binop.op {
                     JsBinOp::PropertyAccess => {
-                        let property = match binop.right.as_ref() {
-                            // when the right hand side of our accessor is an identifier, we don't execute, but just take its name as a string
-                            // this is because a.b is equivalent to a["b"]
-                            JsAstExpression::Identifier(ident) => { JsValue::String(ident.name.clone()) }
-                            _ => { binop.right.execute(js_interpreter) }
+                        let property = if binop.is_dot_property_access {
+                            match binop.right.as_ref() {
+                                // when the right hand side of our accessor is an identifier, we don't execute, but just take its name as a string
+                                // this is because a.b is equivalent to a["b"]
+                                JsAstExpression::Identifier(ident) => { JsValue::String(ident.name.clone()) }
+                                _ => { binop.right.execute(js_interpreter) }
+                            }
+                        } else {
+                            binop.right.execute(js_interpreter)
                         };
 
                         let left_value = binop.left.execute(js_interpreter);

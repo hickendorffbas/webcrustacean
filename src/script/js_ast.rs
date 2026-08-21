@@ -644,7 +644,8 @@ impl JsAstAssign {
                 current_context.set_reference(assignment_reference, address_to_store);
             },
             None => {
-                todo!(); //TODO: this should be an error, you are assigning to something that does not resolve to an address
+                js_console::log_js_error("Assignment failed, no valid target"); //TODO: this should include a line number (we need to build that generically)
+                //TODO: we should stop evaluating on these kind of errors, so we should probably return a result or something
             },
         }
     }
@@ -982,6 +983,11 @@ impl JsAstExpression {
                                         todo!(); //TODO: most of these should be an error or None, but maybe some are valid?
                                     }
                                 }
+                            },
+                            JsValue::Undefined => {
+                                js_console::log_js_error("Can't access property of undefined"); //TODO: this should include a line number (we need to build that generically)
+                                //TODO: we should stop evaluating on these kind of errors, so we should probably return a result or something
+                                return None;
                             },
                             _ => {
                                 todo!();

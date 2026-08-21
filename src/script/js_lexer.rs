@@ -59,6 +59,7 @@ pub enum JsToken {
     LeftShift,
     Increment,
     Decrement,
+    Remainder,
 
     //compound assignment operators:
     CompoundAssignAdd,
@@ -409,6 +410,7 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                         '.' => { JsToken::Dot }
                         ':' => { JsToken::Colon }
                         ';' => { JsToken::Semicolon }
+                        '%' => { JsToken::Remainder }
                         '>' => {
                             if js_iterator.has_next() {
                                 match js_iterator.peek().unwrap() {

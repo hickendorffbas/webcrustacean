@@ -615,7 +615,24 @@ impl JsAstBinOp {
                         todo!(); //TODO: this should be an error, even for arrays I think?
                     }
                 }
-            }
+            },
+            JsBinOp::Remainder => {
+                let mut right_val = self.right.execute(js_interpreter);
+                left_val = js_interpreter.deref(&left_val);
+                right_val = js_interpreter.deref(&right_val);
+
+                match left_val {
+                    JsValue::Number(left_number) => {
+                        match right_val {
+                            JsValue::Number(right_number) => {
+                                return JsValue::Number(left_number % right_number);
+                            },
+                            _ => { todo!() }
+                        }
+                    },
+                    _ => { todo!() }
+                }
+            },
         }
     }
 }
@@ -705,6 +722,7 @@ pub enum JsBinOp {
     Bigger,
     Smaller,
     In,
+    Remainder,
 }
 
 

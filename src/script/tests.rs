@@ -397,3 +397,8 @@ tester.export(y);"#,
 fn add_strings() {
     assert_js(r#"a = "Hello "; b = "world"; tester.export(a + b);"#, JsValue::String("Hello world".to_owned()));
 }
+
+#[test]
+fn test_modulus() {
+    assert_js(r#"tester.export(15 % 7);"#, JsValue::Number(1));
+}

@@ -272,7 +272,7 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
 
             binop @ (JsToken::Plus | JsToken::Minus | JsToken::Star | JsToken::ForwardSlash | JsToken::LeftShift | JsToken::RightShift | JsToken::BitWiseXor |
                      JsToken::Equals | JsToken::EqualsStrict | JsToken::LogicalAnd | JsToken::LogicalOr | JsToken::BitWiseOr | JsToken::BitWiseAnd | JsToken::Comma |
-                     JsToken::Bigger | JsToken::Smaller | JsToken::KeyWordIn) => {
+                     JsToken::Bigger | JsToken::Smaller | JsToken::KeyWordIn | JsToken::Remainder) => {
 
                 if matches!(binop, JsToken::KeyWordIn) && !in_is_allowed {
                     //There is situations where "in" is not allowed, for example on the left size of for(.... in ....)
@@ -304,6 +304,7 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                     JsToken::Bigger         => JsBinOp::Bigger,
                     JsToken::Smaller        => JsBinOp::Smaller,
                     JsToken::KeyWordIn      => JsBinOp::In,
+                    JsToken::Remainder      => JsBinOp::Remainder,
                     _ => panic!("This should never happen"),
                 };
 
@@ -727,6 +728,7 @@ fn infix_binding_power(token: &JsToken) -> (u8, u8) {
         JsToken::Minus => (20, 21),
         JsToken::Star => (22, 23),
         JsToken::ForwardSlash => (22, 23),
+        JsToken::Remainder => (22, 23),
         JsToken::Dot => (100, 101),
         JsToken::OpenParenthesis => (100, 101),
         JsToken::Increment => (110, 111),

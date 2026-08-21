@@ -392,3 +392,8 @@ for (var n in x) {
 tester.export(y);"#,
     JsValue::Number(18));
 }
+
+#[test]
+fn add_strings() {
+    assert_js(r#"a = "Hello "; b = "world"; tester.export(a + b);"#, JsValue::String("Hello world".to_owned()));
+}

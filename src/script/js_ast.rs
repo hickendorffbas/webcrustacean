@@ -274,9 +274,17 @@ impl JsAstBinOp {
                             JsValue::Number(right_number) => {
                                 return JsValue::Number(left_number + right_number);
                             },
-                            _ => { todo!() }
+                            _ => { todo!(); }
                         }
                     },
+                    JsValue::String(left_string) => {
+                        match right_val {
+                            JsValue::String(right_string) => {
+                                return JsValue::String(left_string + &right_string);
+                            },
+                            _ => { todo!(); }
+                        }
+                    }
                     _ => { todo!() }
                 }
             },

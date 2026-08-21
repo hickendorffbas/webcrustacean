@@ -451,13 +451,18 @@ impl JsAstBinOp {
                 }
             }
             JsBinOp::LogicalAnd => {
-                //let mut right_val = self.right.execute(js_interpreter);  //TODO: we will need this eventually
-
+                let mut right_val = self.right.execute(js_interpreter);
                 left_val = js_interpreter.deref(&left_val);
-                //right_val = right_val.deref(js_interpreter); //TODO: enble if right val is going to be used!
+                right_val = js_interpreter.deref(&right_val);
 
                 match left_val {
                     JsValue::Undefined => { return left_val; },
+                    JsValue::Boolean(left_bool) => {
+                        match right_val {
+                            JsValue::Boolean(right_bool) => { return JsValue::Boolean(left_bool && right_bool); },
+                            _ => { todo!(); }
+                        }
+                    }
                     _ => { todo!() }
                 }
             },
@@ -467,9 +472,13 @@ impl JsAstBinOp {
                 right_val = js_interpreter.deref(&right_val);
 
                 match left_val {
-                    JsValue::Undefined => {
-                        return right_val;
-                    },
+                    JsValue::Undefined => { return right_val; },
+                    JsValue::Boolean(left_bool) => {
+                        match right_val {
+                            JsValue::Boolean(right_bool) => { return JsValue::Boolean(left_bool || right_bool); },
+                            _ => { todo!(); }
+                        }
+                    }
                     _ => { todo!() }
                 }
             },

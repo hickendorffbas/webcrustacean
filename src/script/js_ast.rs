@@ -354,7 +354,10 @@ impl JsAstBinOp {
                         js_interpreter.get_from_heap(address)
                     },
                     _ => {
-                        todo!(); //TODO: this should always be an error
+                        js_interpreter.set_error(JsError::ReferenceError);
+                        js_console::log_js_error(format!("not a valid object to access").as_str()); //TODO: eventually we want to trigger the logging of the error
+                                                                                                    //      from setting it (so we can also show stack etc.)
+                        return JsValue::Undefined;
                     }
                 };
 

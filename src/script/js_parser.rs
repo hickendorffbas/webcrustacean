@@ -272,7 +272,7 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
 
             binop @ (JsToken::Plus | JsToken::Minus | JsToken::Star | JsToken::ForwardSlash | JsToken::LeftShift | JsToken::RightShift | JsToken::BitWiseXor |
                      JsToken::Equals | JsToken::EqualsStrict | JsToken::LogicalAnd | JsToken::LogicalOr | JsToken::BitWiseOr | JsToken::BitWiseAnd | JsToken::Comma |
-                     JsToken::Bigger | JsToken::Smaller | JsToken::KeyWordIn | JsToken::Remainder) => {
+                     JsToken::Bigger | JsToken::Smaller | JsToken::KeyWordIn | JsToken::Remainder | JsToken::BiggerOrEqual | JsToken::SmallerOrEqual) => {
 
                 if matches!(binop, JsToken::KeyWordIn) && !in_is_allowed {
                     //There is situations where "in" is not allowed, for example on the left size of for(.... in ....)
@@ -303,6 +303,8 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                     JsToken::RightShift     => JsBinOp::RightShift,
                     JsToken::Bigger         => JsBinOp::Bigger,
                     JsToken::Smaller        => JsBinOp::Smaller,
+                    JsToken::BiggerOrEqual  => JsBinOp::BiggerOrEqual,
+                    JsToken::SmallerOrEqual => JsBinOp::SmallerOrEqual,
                     JsToken::KeyWordIn      => JsBinOp::In,
                     JsToken::Remainder      => JsBinOp::Remainder,
                     _ => panic!("This should never happen"),
@@ -723,8 +725,10 @@ fn infix_binding_power(token: &JsToken) -> (u8, u8) {
         JsToken::BitWiseAnd => (12, 13),
         JsToken::Equals => (14, 15),
         JsToken::EqualsStrict => (14, 15),
-        JsToken::Bigger => (16, 17),
         JsToken::Smaller => (16, 17),
+        JsToken::Bigger => (16, 17),
+        JsToken::SmallerOrEqual => (16, 17),
+        JsToken::BiggerOrEqual => (16, 17),
         JsToken::KeyWordIn => (16, 17),
         JsToken::LeftShift => (18, 19),
         JsToken::RightShift => (18, 19),

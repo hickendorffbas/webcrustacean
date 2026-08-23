@@ -399,3 +399,8 @@ tester.export(x.a);
 "#,
     JsValue::Number(5));
 }
+
+#[test]
+fn greater_or_equal() {
+    assert_js(r#"a = 0; x = 4; if (x >= 3) { a++; } if (x >= 7) { a = a + 5; } tester.export(a); "#, JsValue::Number(1));
+}

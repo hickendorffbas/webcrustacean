@@ -548,9 +548,20 @@ impl JsAstBinOp {
                 match left_val {
                     JsValue::Number(left_number) => {
                         match right_val {
-                            JsValue::Number(right_number) => {
-                                return JsValue::Boolean(left_number > right_number);
-                            },
+                            JsValue::Number(right_number) => { return JsValue::Boolean(left_number > right_number); },
+                            _ => { todo!() }
+                        }
+                    },
+                    _ => { todo!() }
+                }
+            },
+            JsBinOp::BiggerOrEqual => {
+                let right_val = self.right.execute(js_interpreter);
+
+                match left_val {
+                    JsValue::Number(left_number) => {
+                        match right_val {
+                            JsValue::Number(right_number) => { return JsValue::Boolean(left_number >= right_number); },
                             _ => { todo!() }
                         }
                     },
@@ -563,9 +574,20 @@ impl JsAstBinOp {
                 match left_val {
                     JsValue::Number(left_number) => {
                         match right_val {
-                            JsValue::Number(right_number) => {
-                                return JsValue::Boolean(left_number < right_number);
-                            },
+                            JsValue::Number(right_number) => { return JsValue::Boolean(left_number < right_number); },
+                            _ => { todo!() }
+                        }
+                    },
+                    _ => { todo!() }
+                }
+            },
+            JsBinOp::SmallerOrEqual => {
+                let right_val = self.right.execute(js_interpreter);
+
+                match left_val {
+                    JsValue::Number(left_number) => {
+                        match right_val {
+                            JsValue::Number(right_number) => { return JsValue::Boolean(left_number <= right_number); },
                             _ => { todo!() }
                         }
                     },
@@ -693,6 +715,8 @@ pub enum JsBinOp {
     Smaller,
     In,
     Remainder,
+    BiggerOrEqual,
+    SmallerOrEqual,
 }
 
 

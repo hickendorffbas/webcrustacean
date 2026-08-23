@@ -43,8 +43,6 @@ pub enum JsToken {
     Star,
     ForwardSlash,
     Comma,
-    Bigger,
-    Smaller,
     ExclamationMark,
     Colon,
     QuestionMark,
@@ -52,8 +50,6 @@ pub enum JsToken {
     BitWiseXor,
     BitWiseAnd,
     Hash,
-    Equals,
-    EqualsStrict,
     LogicalAnd,
     LogicalOr,
     RightShift,
@@ -61,6 +57,13 @@ pub enum JsToken {
     Increment,
     Decrement,
     Remainder,
+
+    Bigger,
+    Smaller,
+    Equals,
+    EqualsStrict,
+    BiggerOrEqual,
+    SmallerOrEqual,
 
     //compound assignment operators:
     CompoundAssignAdd,
@@ -206,6 +209,8 @@ const TOKENS_PROBABLY_PRECEDING_REGEX_LITERAL: &[JsToken] = &[
     JsToken::BitWiseOr,
     JsToken::Equals,
     JsToken::EqualsStrict,
+    JsToken::BiggerOrEqual,
+    JsToken::SmallerOrEqual,
     JsToken::LogicalAnd,
     JsToken::LogicalOr,
     JsToken::KeyWordReturn,
@@ -418,6 +423,7 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                             if js_iterator.has_next() {
                                 match js_iterator.peek().unwrap() {
                                     '>' => { js_iterator.next(); JsToken::RightShift }
+                                    '=' => { js_iterator.next(); JsToken::BiggerOrEqual }
                                     _ => { JsToken::Bigger }
                                 }
                             } else { JsToken::Bigger }
@@ -426,6 +432,7 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                             if js_iterator.has_next() {
                                 match js_iterator.peek().unwrap() {
                                     '<' => { js_iterator.next(); JsToken::LeftShift }
+                                    '=' => { js_iterator.next(); JsToken::SmallerOrEqual }
                                     _ => { JsToken::Smaller }
                                 }
                             } else { JsToken::Smaller }

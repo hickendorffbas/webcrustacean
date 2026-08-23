@@ -4,19 +4,17 @@ use std::rc::Rc;
 use crate::debug::debug_log_warn;
 
 use super::js_console;
-use super::js_execution_context::{
+use super::js_interpreter::JsInterpreter;
+use super::js_values::{
     JsArray,
     JsBuiltinFunction,
     JsError,
-    JsExecutionContext,
     JsHeapObject,
     JsFunction,
     JsReference,
     JsObject,
     JsValue,
 };
-use super::js_interpreter::JsInterpreter;
-
 
 pub type Script = Vec<JsAstStatement>;
 
@@ -71,13 +69,11 @@ pub struct JsAstFunctionDeclaration {
 }
 impl JsAstFunctionDeclaration {
     fn execute(&self, js_interpreter: &mut JsInterpreter) {
-        let global_context = js_interpreter.context_stack.iter_mut().next().unwrap();
-
         let argument_names = self.arguments.iter().map(|arg| arg.name.clone()).collect();
         let function = JsFunction { script: Some(self.script.clone()), argument_names: argument_names, builtin: None };
 
-        let address = global_context.add_new_heap_item(JsHeapObject::Object(JsObject::make_function(function)));
-        global_context.set_reference(JsReference::Variable(self.name.clone()), JsValue::Address(address));
+        let address = js_interpreter.add_new_heap_item(JsHeapObject::Object(JsObject::make_function(function)));
+        js_interpreter.set_reference(JsReference::Variable(self.name.clone()), JsValue::Address(address));
     }
 }
 
@@ -92,10 +88,7 @@ impl JsAstFunctionExpression {
     fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
         let argument_names = self.arguments.iter().map(|arg| arg.name.clone()).collect();
         let function = JsFunction { script: Some(self.script.clone()), argument_names: argument_names, builtin: None };
-
-        let context = js_interpreter.context_stack.first_mut().unwrap(); //TODO: is this the right context?
-        let address = context.add_new_heap_item(JsHeapObject::Object(JsObject::make_function(function)));
-
+        let address = js_interpreter.add_new_heap_item(JsHeapObject::Object(JsObject::make_function(function)));
         return JsValue::Address(address);
     }
 }
@@ -221,13 +214,12 @@ impl JsAstForEach {
 
         match &object {
             JsValue::Address(address) => {
-                let context = js_interpreter.context_stack.first_mut().unwrap();
-                match context.get_from_heap(*address) {
+                match js_interpreter.get_from_heap(*address) {
                     JsHeapObject::Object(js_object) => {
                         let keys = js_object.members.keys().cloned().collect::<Vec<_>>();
 
                         for key in keys {
-                            js_interpreter.context_stack.first_mut().unwrap().set_reference(iteration_reference.clone(), JsValue::String(key.clone()));
+                            js_interpreter.set_reference(iteration_reference.clone(), JsValue::String(key.clone()));
                             for statement in self.script.iter() {
                                 statement.execute(js_interpreter);
                             }
@@ -359,7 +351,7 @@ impl JsAstBinOp {
 
                 let object = match left_val {
                     JsValue::Address(address) => {
-                        js_interpreter.context_stack.last_mut().unwrap().get_from_heap(address)
+                        js_interpreter.get_from_heap(address)
                     },
                     _ => {
                         todo!(); //TODO: this should always be an error
@@ -585,8 +577,7 @@ impl JsAstBinOp {
 
                 match right_val {
                     JsValue::Address(address) => {
-                        let object = js_interpreter.context_stack.last_mut().unwrap().get_from_heap(address);
-                        match object {
+                        match js_interpreter.get_from_heap(address) {
                             JsHeapObject::Object(js_object) => {
                                 match left_val {
                                     JsValue::String(member_to_check) => {
@@ -639,9 +630,7 @@ impl JsAstAssign {
 
         match opt_assignment_reference {
             Some(assignment_reference) => {
-                //TODO: not sure if this is the correct context, I think addresses should actually be unique over contexts so we don't need to know
-                let current_context = js_interpreter.context_stack.iter_mut().last().unwrap();
-                current_context.set_reference(assignment_reference, value);
+                js_interpreter.set_reference(assignment_reference, value);
             },
             None => {
                 js_console::log_js_error("Assignment failed, no valid target"); //TODO: this should include a line number (we need to build that generically)
@@ -673,8 +662,7 @@ impl JsAstDeclaration {
         } else {
             JsValue::Undefined
         };
-        let current_context = js_interpreter.context_stack.iter_mut().last().unwrap();
-        current_context.set_reference(JsReference::Variable(self.variable.name.clone()), initial_value);
+        js_interpreter.set_reference(JsReference::Variable(self.variable.name.clone()), initial_value);
     }
 
     fn execute_for_reference(&self, js_interpreter: &mut JsInterpreter) -> JsReference {
@@ -858,8 +846,7 @@ impl JsAstExpression {
 
                 match function {
                     JsValue::Address(address) => {
-                        let object = js_interpreter.context_stack.last().unwrap().get_from_heap(address);
-                        match object {
+                        match js_interpreter.get_from_heap(address) {
                             JsHeapObject::Object(js_object) => {
                                 if js_object.callable.is_none() {
                                     //TODO: report an error (non-callable object)
@@ -872,9 +859,9 @@ impl JsAstExpression {
                             },
                         };
 
-                        let is_builtin = js_interpreter.context_stack.last().unwrap().get_callable_from_heap(address).builtin.is_some();
+                        let is_builtin = js_interpreter.get_callable_from_heap(address).builtin.is_some();
                         if is_builtin {
-                            match js_interpreter.context_stack.last().unwrap().get_callable_from_heap(address).builtin.as_ref().unwrap() {
+                            match js_interpreter.get_callable_from_heap(address).builtin.as_ref().unwrap() {
                                 JsBuiltinFunction::ConsoleLog => {
                                     let to_log = function_call.arguments.get(0); //TODO: handle there being to little or to many arguments
 
@@ -898,27 +885,19 @@ impl JsAstExpression {
                                     return JsValue::Undefined;
                                 }
                             }
-                        } else {
 
+                        } else {
                             let mut args = Vec::new();
-                            let argument_names = js_interpreter.context_stack.last().unwrap().get_callable_from_heap(address).argument_names.clone();
+                            let argument_names = js_interpreter.get_callable_from_heap(address).argument_names.clone();
                             for (idx, argument_name) in argument_names.into_iter().enumerate() {
                                 let arg_ast = function_call.arguments.get(idx);
                                 let arg_value = arg_ast.unwrap().execute(js_interpreter); //TODO: we need to properly handle the unwrap here
                                 args.push( (argument_name, arg_value));
                             }
 
-                            let mut new_context = JsExecutionContext::new();
-                            for (arg_name, arg_value) in args {
-                                new_context.set_reference(JsReference::Variable(arg_name), arg_value);
-                            }
-                            js_interpreter.context_stack.push(new_context);
+                            let script = &js_interpreter.get_callable_from_heap(address).script;
+                            js_interpreter.run_script(&script.as_ref().unwrap().clone(), args);
 
-                            //we need to get the script from one context up, since we just made a new context for the function script
-                            let script = &js_interpreter.context_stack.iter().rev().skip(1).next().unwrap().get_callable_from_heap(address).script;
-                            js_interpreter.run_script_with_context_stack(&script.as_ref().unwrap().clone());
-
-                            js_interpreter.context_stack.pop();
                             let return_value = js_interpreter.return_value.clone();
                             js_interpreter.return_value = None;
 
@@ -1024,8 +1003,7 @@ impl JsAstObjectLiteral {
             }
         }
 
-        let current_context = js_interpreter.context_stack.iter_mut().last().unwrap();
-        let address = current_context.add_new_heap_item(JsHeapObject::Object(JsObject { members, callable: None }));
+        let address = js_interpreter.add_new_heap_item(JsHeapObject::Object(JsObject { members, callable: None }));
         return JsValue::Address(address);
     }
 }
@@ -1044,8 +1022,7 @@ impl JsAstArrayLiteral {
             elements.push(value);
         }
 
-        let current_context = js_interpreter.context_stack.iter_mut().last().unwrap();
-        let address = current_context.add_new_heap_item(JsHeapObject::Array(JsArray { elements: elements }));
+        let address = js_interpreter.add_new_heap_item(JsHeapObject::Array(JsArray { elements: elements }));
         return JsValue::Address(address);
     }
 }
@@ -1091,9 +1068,7 @@ impl JsAstTypeOf {
             JsValue::String(_) => JsValue::String(String::from("string")),
             JsValue::Boolean(_) => JsValue::String(String::from("boolean")),
             JsValue::Address(address) => {
-                let object = js_interpreter.context_stack.last_mut().unwrap().get_from_heap(*address);
-
-                match object {
+                match js_interpreter.get_from_heap(*address) {
                     JsHeapObject::Object(js_object) => {
                         if js_object.callable.is_some() {
                             JsValue::String(String::from("function"))

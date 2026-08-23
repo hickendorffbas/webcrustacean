@@ -1,9 +1,9 @@
 use crate::network::url::Url;
 
-use super::js_execution_context::JsValue;
 use super::js_interpreter::JsInterpreter;
 use super::js_lexer;
 use super::js_parser;
+use super::js_values::JsValue;
 
 
 fn js_values_are_equal(one: &JsValue, two: &JsValue) -> bool {
@@ -45,7 +45,7 @@ fn assert_js(code: &str, expected: JsValue) {
     let script = js_parser::parse_js(&tokens, &Url::empty());
 
     let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
+    interpreter.run_script(&script, Vec::new());
 
     assert!(js_values_are_equal(&interpreter.get_last_exported_test_data(), &expected));
 }
@@ -259,7 +259,7 @@ fn test_empty_anonymous_function_expression() {
     let tokens = js_lexer::lex_js(code, 1, 1);
     let script = js_parser::parse_js(&tokens, &Url::empty());
     let mut interpreter = JsInterpreter::new();
-    interpreter.run_script(&script);
+    interpreter.run_script(&script, Vec::new());
 
     //Note: no assert, this just checks for not crashing
     //TODO: when we have enough of js implemented, this could assert some property of the created anonymous function

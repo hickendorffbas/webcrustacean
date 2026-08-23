@@ -799,6 +799,7 @@ pub enum JsAstExpression {
     NumericLiteral(String),
     StringLiteral(String),
     BooleanLiteral(bool),
+    UndefinedLiteral(),
     FunctionCall(JsAstFunctionCall),
     Identifier(JsAstIdentifier),
     ObjectLiteral(JsAstObjectLiteral),
@@ -820,9 +821,11 @@ impl JsAstExpression {
             JsAstExpression::ArrayLiteral(array) => { return array.execute(js_interpreter); },
             JsAstExpression::FunctionExpression(js_ast_function_expression) => { return js_ast_function_expression.execute(js_interpreter); },
             JsAstExpression::RegexLiteral(regex_literal) => { return regex_literal.execute(); },
-            JsAstExpression::ObjectCreation(object_construction) => { return object_construction.execute(); }
-            JsAstExpression::BooleanLiteral(boolean_value) => { return JsValue::Boolean(*boolean_value) },
-            JsAstExpression::TypeOf(type_of) => { return type_of.execute(js_interpreter) },
+            JsAstExpression::ObjectCreation(object_construction) => { return object_construction.execute(); },
+            JsAstExpression::BooleanLiteral(boolean_value) => { return JsValue::Boolean(*boolean_value); },
+            JsAstExpression::StringLiteral(string_literal) => { return JsValue::String(string_literal.clone()); },
+            JsAstExpression::UndefinedLiteral() => { return JsValue::Undefined; },
+            JsAstExpression::TypeOf(type_of) => { return type_of.execute(js_interpreter); },
             JsAstExpression::NumericLiteral(numeric_literal) => {
                 //TODO: we might want to cache the JsValue somehow, and we need to support more numeric types...
 
@@ -835,9 +838,6 @@ impl JsAstExpression {
                         panic!("could not convert number in string to JsValue::Number");
                     }
                 }
-            },
-            JsAstExpression::StringLiteral(string_literal) => {
-                return JsValue::String(string_literal.clone());
             },
             JsAstExpression::FunctionCall(function_call) => {
                 //TODO: all this code should be moved to the JsAstFunctionCall object

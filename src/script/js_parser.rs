@@ -404,6 +404,10 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
             parser_state.next();
             return ParseResult::Ok(JsAstExpression::BooleanLiteral(*boolean_value));
         },
+        JsToken::LiteralUndefined => {
+            parser_state.next();
+            return ParseResult::Ok(JsAstExpression::UndefinedLiteral());
+        }
         JsToken::Identifier(ident) => {
             parser_state.next();
             return ParseResult::Ok(JsAstExpression::Identifier(JsAstIdentifier { name: ident.clone() }));

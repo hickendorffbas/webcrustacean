@@ -875,19 +875,29 @@ fn parse_conditional(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Parse
     let else_script;
     if else_present {
 
-        match tokens[parser_state.cursor].token {
+        else_script = match tokens[parser_state.cursor].token {
             JsToken::OpenBrace => {
                 parser_state.next();
+
+                match parse_script(tokens, parser_state) {
+                    ParseResult::Ok(script) => Some(Rc::from(script)),
+                    ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+                }
             },
             _ => {
-                todo!(); //TODO: this should be an error (not in all cases, if we have a single statement after the if....)
+                match parse_statement(tokens, parser_state) {
+                    Some(statement) => {
+                        match statement {
+                            ParseResult::Ok(statement) => Some(Rc::from(vec![statement])),
+                            ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+                        }
+                    },
+                    None => {
+                        todo!(); //TODO: this should be an error
+                    },
+                }
             }
         }
-
-        else_script = match parse_script(tokens, parser_state) {
-            ParseResult::Ok(script) => Some(Rc::from(script)),
-            ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
-        };
 
     } else {
         else_script = None;

@@ -404,3 +404,8 @@ tester.export(x.a);
 fn greater_or_equal() {
     assert_js(r#"a = 0; x = 4; if (x >= 3) { a++; } if (x >= 7) { a = a + 5; } tester.export(a); "#, JsValue::Number(1));
 }
+
+#[test]
+fn else_if() {
+    assert_js(r#"a = 5; if (a == 2) { tester.export(1); } else if (a == 5) { tester.export(2); } else { tester.export(3) }"#, JsValue::Number(2));
+}

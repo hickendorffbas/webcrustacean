@@ -9,6 +9,7 @@ use super::js_execution_context::{
     JsBuiltinFunction,
     JsError,
     JsExecutionContext,
+    JsHeapObject,
     JsFunction,
     JsReference,
     JsObject,
@@ -75,8 +76,8 @@ impl JsAstFunctionDeclaration {
         let argument_names = self.arguments.iter().map(|arg| arg.name.clone()).collect();
         let function = JsFunction { script: Some(self.script.clone()), argument_names: argument_names, builtin: None };
 
-        let target_address = global_context.add_new_value(JsValue::Object(JsObject::make_function(function)));
-        global_context.set_reference(JsReference::Variable(self.name.clone()), target_address);
+        let address = global_context.add_new_heap_item(JsHeapObject::Object(JsObject::make_function(function)));
+        global_context.set_reference(JsReference::Variable(self.name.clone()), JsValue::Address(address));
     }
 }
 
@@ -88,10 +89,14 @@ pub struct JsAstFunctionExpression {
     pub script: Rc<Script>,
 }
 impl JsAstFunctionExpression {
-    fn execute(&self) -> JsValue {
+    fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
         let argument_names = self.arguments.iter().map(|arg| arg.name.clone()).collect();
         let function = JsFunction { script: Some(self.script.clone()), argument_names: argument_names, builtin: None };
-        return JsValue::Object(JsObject::make_function(function));
+
+        let context = js_interpreter.context_stack.first_mut().unwrap(); //TODO: is this the right context?
+        let address = context.add_new_heap_item(JsHeapObject::Object(JsObject::make_function(function)));
+
+        return JsValue::Address(address);
     }
 }
 
@@ -106,7 +111,7 @@ impl JsAstConditional {
     fn execute(&self, js_interpreter: &mut JsInterpreter) {
         let result = self.condition.execute(js_interpreter);
 
-        if result.is_thruty(js_interpreter) {
+        if result.is_thruty() {
 
             for statement in self.script.iter() {
                 let keep_going = statement.execute(js_interpreter);
@@ -141,7 +146,7 @@ impl JsAstWhile {
 
         loop {
             let condition_result = self.condition.execute(js_interpreter);
-            if !condition_result.is_thruty(js_interpreter) {
+            if !condition_result.is_thruty() {
                 break;
             }
 
@@ -180,7 +185,7 @@ impl JsAstFor {
 
         loop {
             let condition_value = self.loop_condition.execute(js_interpreter);
-            if !condition_value.is_thruty(js_interpreter) {
+            if !condition_value.is_thruty() {
                 break;
             }
 
@@ -213,21 +218,30 @@ impl JsAstForEach {
         };
 
         let object = self.iteration_target.execute(js_interpreter);
-        match js_interpreter.deref(&object) {
-            JsValue::Object(js_object) => {
-                for key in js_object.members.keys() {
-                    let context = js_interpreter.context_stack.first_mut().unwrap();
-                    let address = context.add_new_value(JsValue::String(key.clone()));
-                    context.set_reference(iteration_reference.clone(), address);
-                    for statement in self.script.iter() {
-                        statement.execute(js_interpreter);
-                    }
-                }
+
+        match &object {
+            JsValue::Address(address) => {
+                let context = js_interpreter.context_stack.first_mut().unwrap();
+                match context.get_from_heap(*address) {
+                    JsHeapObject::Object(js_object) => {
+                        let keys = js_object.members.keys().cloned().collect::<Vec<_>>();
+
+                        for key in keys {
+                            js_interpreter.context_stack.first_mut().unwrap().set_reference(iteration_reference.clone(), JsValue::String(key.clone()));
+                            for statement in self.script.iter() {
+                                statement.execute(js_interpreter);
+                            }
+                        }
+                    },
+                    JsHeapObject::Array(_) => {
+                        todo!(); //TODO: this should be an error (foreach is not supported on arrays)
+                    },
+                };
             },
             _ => {
-                todo!(); //TODO: should be an error
+                todo!(); //TODO: this should always be an error
             }
-        }
+        };
     }
 }
 
@@ -242,7 +256,7 @@ impl JsAstTernary {
     fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
         let result = self.condition.execute(js_interpreter);
 
-        if result.is_thruty(js_interpreter) {
+        if result.is_thruty() {
             return self.if_true.execute(js_interpreter);
         } else {
             return self.if_false.execute(js_interpreter);
@@ -260,13 +274,11 @@ pub struct JsAstBinOp {
 }
 impl JsAstBinOp {
     fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
-        let mut left_val = self.left.execute(js_interpreter);
+        let left_val = self.left.execute(js_interpreter);
 
         match self.op {
             JsBinOp::Plus => {
-                let mut right_val = self.right.execute(js_interpreter);
-                left_val = js_interpreter.deref(&left_val);
-                right_val = js_interpreter.deref(&right_val);
+                let right_val = self.right.execute(js_interpreter);
 
                 match left_val {
                     JsValue::Number(left_number) => {
@@ -289,9 +301,7 @@ impl JsAstBinOp {
                 }
             },
             JsBinOp::Minus => {
-                let mut right_val = self.right.execute(js_interpreter);
-                left_val = js_interpreter.deref(&left_val);
-                right_val = js_interpreter.deref(&right_val);
+                let right_val = self.right.execute(js_interpreter);
 
                 match left_val {
                     JsValue::Number(left_number) => {
@@ -306,9 +316,7 @@ impl JsAstBinOp {
                 }
             },
             JsBinOp::Times => {
-                let mut right_val = self.right.execute(js_interpreter);
-                left_val = js_interpreter.deref(&left_val);
-                right_val = js_interpreter.deref(&right_val);
+                let right_val = self.right.execute(js_interpreter);
 
                 match left_val {
                     JsValue::Number(left_number) => {
@@ -323,9 +331,7 @@ impl JsAstBinOp {
                 }
             },
             JsBinOp::Divide => {
-                let mut right_val = self.right.execute(js_interpreter);
-                left_val = js_interpreter.deref(&left_val);
-                right_val = js_interpreter.deref(&right_val);
+                let right_val = self.right.execute(js_interpreter);
 
                 match left_val {
                     JsValue::Number(left_number) => {
@@ -351,18 +357,22 @@ impl JsAstBinOp {
                     self.right.execute(js_interpreter)
                 };
 
-                let object = js_interpreter.deref(&left_val);
+                let object = match left_val {
+                    JsValue::Address(address) => {
+                        js_interpreter.context_stack.last_mut().unwrap().get_from_heap(address)
+                    },
+                    _ => {
+                        todo!(); //TODO: this should always be an error
+                    }
+                };
 
                 match object {
-                    JsValue::Object(object) => {
-                        match js_interpreter.deref(&property) {
+                    JsHeapObject::Object(object) => {
+                        match &property {
                             JsValue::String(property_value) => {
-                                match object.members.get(&property_value) {
-                                    Some(address) => { JsValue::Address(*address) },
-                                    None => {
-                                        //TODO: handle error
-                                        todo!()
-                                    }
+                                match object.members.get(property_value) {
+                                    Some(value) => { return value.clone() },
+                                    None => todo!(),  //TODO: this should be an error
                                 }
                             },
                             _ => {
@@ -371,11 +381,11 @@ impl JsAstBinOp {
                             }
                         }
                     },
-                    JsValue::Array(array) => {
+                    JsHeapObject::Array(array) => {
                         match property {
                             JsValue::Number(number) => {
                                 match array.elements.get(number as usize) {
-                                    Some(address) => { JsValue::Address(*address) },
+                                    Some(value) => { return value.clone() },
                                     None => todo!(),  //TODO: this should be an error
                                 }
                             },
@@ -385,25 +395,11 @@ impl JsAstBinOp {
                                 return JsValue::Undefined;
                             }
                         }
-                    }
-                    JsValue::Undefined => {
-                        js_console::log_js_error("Can't access property of undefined"); //TODO: this should include a line number (we need to build that generically)
-                        //TODO: we should stop evaluating on these kind of errors, so we should probably return a result or something
-                        return JsValue::Undefined;
                     },
-                    JsValue::String(_) => {
-                        //TODO: we get here for implementing functions on a string, such as "test".len()
-                        return JsValue::Undefined;
-                    }
-                    _ => {
-                        todo!();  //TODO: should this be an error? Or is this not reachable?
-                    }
                 }
             },
             JsBinOp::Equals => {
-                let mut right_val = self.right.execute(js_interpreter);
-                left_val = js_interpreter.deref(&left_val);
-                right_val = js_interpreter.deref(&right_val);
+                let right_val = self.right.execute(js_interpreter);
 
                 match left_val {
                     JsValue::Number(left_number) => {
@@ -426,9 +422,7 @@ impl JsAstBinOp {
                 }
             },
             JsBinOp::EqualsStrict => {
-                let mut right_val = self.right.execute(js_interpreter);
-                left_val = js_interpreter.deref(&left_val);
-                right_val = js_interpreter.deref(&right_val);
+                let right_val = self.right.execute(js_interpreter);
 
                 match left_val {
                     JsValue::Number(left_number) => {
@@ -451,9 +445,7 @@ impl JsAstBinOp {
                 }
             }
             JsBinOp::LogicalAnd => {
-                let mut right_val = self.right.execute(js_interpreter);
-                left_val = js_interpreter.deref(&left_val);
-                right_val = js_interpreter.deref(&right_val);
+                let right_val = self.right.execute(js_interpreter);
 
                 match left_val {
                     JsValue::Undefined => { return left_val; },
@@ -467,9 +459,7 @@ impl JsAstBinOp {
                 }
             },
             JsBinOp::LogicalOr => {
-                let mut right_val = self.right.execute(js_interpreter);
-                left_val = js_interpreter.deref(&left_val);
-                right_val = js_interpreter.deref(&right_val);
+                let right_val = self.right.execute(js_interpreter);
 
                 match left_val {
                     JsValue::Undefined => { return right_val; },
@@ -483,9 +473,7 @@ impl JsAstBinOp {
                 }
             },
             JsBinOp::BitWiseOr => {
-                let mut right_val = self.right.execute(js_interpreter);
-                left_val = js_interpreter.deref(&left_val);
-                right_val = js_interpreter.deref(&right_val);
+                let right_val = self.right.execute(js_interpreter);
 
                 match left_val {
                     JsValue::Number(num) => {
@@ -500,9 +488,7 @@ impl JsAstBinOp {
                 }
             },
             JsBinOp::BitWiseXor => {
-                let mut right_val = self.right.execute(js_interpreter);
-                left_val = js_interpreter.deref(&left_val);
-                right_val = js_interpreter.deref(&right_val);
+                let right_val = self.right.execute(js_interpreter);
 
                 match left_val {
                     JsValue::Number(num) => {
@@ -517,9 +503,7 @@ impl JsAstBinOp {
                 }
             },
             JsBinOp::BitWiseAnd => {
-                let mut right_val = self.right.execute(js_interpreter);
-                left_val = js_interpreter.deref(&left_val);
-                right_val = js_interpreter.deref(&right_val);
+                let right_val = self.right.execute(js_interpreter);
 
                 match left_val {
                     JsValue::Number(num) => {
@@ -537,9 +521,7 @@ impl JsAstBinOp {
                 return self.right.execute(js_interpreter);
             },
             JsBinOp::LeftShift => {
-                let mut right_val = self.right.execute(js_interpreter);
-                left_val = js_interpreter.deref(&left_val);
-                right_val = js_interpreter.deref(&right_val);
+                let right_val = self.right.execute(js_interpreter);
 
                 match left_val {
                     JsValue::Number(left_number) => {
@@ -554,9 +536,7 @@ impl JsAstBinOp {
                 }
             },
             JsBinOp::RightShift => {
-                let mut right_val = self.right.execute(js_interpreter);
-                left_val = js_interpreter.deref(&left_val);
-                right_val = js_interpreter.deref(&right_val);
+                let right_val = self.right.execute(js_interpreter);
 
                 match left_val {
                     JsValue::Number(left_number) => {
@@ -571,9 +551,7 @@ impl JsAstBinOp {
                 }
             },
             JsBinOp::Bigger => {
-                let mut right_val = self.right.execute(js_interpreter);
-                left_val = js_interpreter.deref(&left_val);
-                right_val = js_interpreter.deref(&right_val);
+                let right_val = self.right.execute(js_interpreter);
 
                 match left_val {
                     JsValue::Number(left_number) => {
@@ -588,9 +566,7 @@ impl JsAstBinOp {
                 }
             },
             JsBinOp::Smaller => {
-                let mut right_val = self.right.execute(js_interpreter);
-                left_val = js_interpreter.deref(&left_val);
-                right_val = js_interpreter.deref(&right_val);
+                let right_val = self.right.execute(js_interpreter);
 
                 match left_val {
                     JsValue::Number(left_number) => {
@@ -605,30 +581,34 @@ impl JsAstBinOp {
                 }
             },
             JsBinOp::In => {
-                let mut right_val = self.right.execute(js_interpreter);
-                left_val = js_interpreter.deref(&left_val);
-                right_val = js_interpreter.deref(&right_val);
+                let right_val = self.right.execute(js_interpreter);
 
                 match right_val {
-                    JsValue::Object(js_object) => {
-                        match left_val {
-                            JsValue::String(member_to_check) => {
-                                return JsValue::Boolean(js_object.members.contains_key(&member_to_check));
+                    JsValue::Address(address) => {
+                        let object = js_interpreter.context_stack.last_mut().unwrap().get_from_heap(address);
+                        match object {
+                            JsHeapObject::Object(js_object) => {
+                                match left_val {
+                                    JsValue::String(member_to_check) => {
+                                        return JsValue::Boolean(js_object.members.contains_key(&member_to_check));
+                                    },
+                                    _ => {
+                                        todo!(); //TODO: number indexes like "3 in x" , seems to be coerced to a string, other types seem not allowed
+                                    }
+                                }
                             },
-                            _ => {
-                                todo!(); //TODO: number indexes like "3 in x" , seems to be coerced to a string, other types seem not allowed
-                            }
+                            JsHeapObject::Array(_) => {
+                                todo!(); //TODO: I think this is always an error
+                            },
                         }
                     },
                     _ => {
-                        todo!(); //TODO: this should be an error, even for arrays I think?
+                        todo!(); //TODO: this should be an error
                     }
                 }
             },
             JsBinOp::Remainder => {
-                let mut right_val = self.right.execute(js_interpreter);
-                left_val = js_interpreter.deref(&left_val);
-                right_val = js_interpreter.deref(&right_val);
+                let right_val = self.right.execute(js_interpreter);
 
                 match left_val {
                     JsValue::Number(left_number) => {
@@ -654,20 +634,14 @@ pub struct JsAstAssign {
 }
 impl JsAstAssign {
     fn execute(&self, js_interpreter: &mut JsInterpreter) {
-        let value = self.right.execute(js_interpreter);
         let opt_assignment_reference = self.left.execute_for_reference(js_interpreter);
+        let value = self.right.execute(js_interpreter);
 
         match opt_assignment_reference {
             Some(assignment_reference) => {
                 //TODO: not sure if this is the correct context, I think addresses should actually be unique over contexts so we don't need to know
                 let current_context = js_interpreter.context_stack.iter_mut().last().unwrap();
-
-                let address_to_store = match value {
-                    JsValue::Address(address) => { address },
-                    _ => { current_context.add_new_value(value) },
-                };
-
-                current_context.set_reference(assignment_reference, address_to_store);
+                current_context.set_reference(assignment_reference, value);
             },
             None => {
                 js_console::log_js_error("Assignment failed, no valid target"); //TODO: this should include a line number (we need to build that generically)
@@ -700,8 +674,7 @@ impl JsAstDeclaration {
             JsValue::Undefined
         };
         let current_context = js_interpreter.context_stack.iter_mut().last().unwrap();
-        let new_address = current_context.add_new_value(initial_value);
-        current_context.set_reference(JsReference::Variable(self.variable.name.clone()), new_address);
+        current_context.set_reference(JsReference::Variable(self.variable.name.clone()), initial_value);
     }
 
     fn execute_for_reference(&self, js_interpreter: &mut JsInterpreter) -> JsReference {
@@ -757,21 +730,21 @@ impl JsAstUnOp {
         match self.op {
             JsUnOp::Plus => {
                 let operand = self.operand.execute(js_interpreter);
-                match js_interpreter.deref(&operand) {
+                match operand {
                     JsValue::Number(number) => return JsValue::Number(number),
                     _ => { todo!() }, //TODO: most of the others are not valid, implement errors
                 }
             },
             JsUnOp::Minus => {
                 let operand = self.operand.execute(js_interpreter);
-                match js_interpreter.deref(&operand) {
+                match operand {
                     JsValue::Number(number) => return JsValue::Number(-number),
                     _ => { todo!() }, //TODO: most of the others are not valid, implement errors
                 }
             },
             JsUnOp::Not => {
                 let operand = self.operand.execute(js_interpreter);
-                match js_interpreter.deref(&operand) {
+                match operand {
                     JsValue::Boolean(bool) => return JsValue::Boolean(!bool),
                     _ => { todo!() }, //TODO: most of the others are not valid, implement errors
                 }
@@ -780,37 +753,21 @@ impl JsAstUnOp {
                 let operand_reference = self.operand.execute_for_reference(js_interpreter);
                 match operand_reference {
                     Some(reference) => {
-                        //TODO: not sure if I'm picking the right context here
-                        let context = js_interpreter.context_stack.last_mut().unwrap();
-
-                        let address = *match reference {
-                            JsReference::Variable(name) => {
-                                context.get_var_address(&name).unwrap()
-                            },
-                            JsReference::Property { object_address, member } => {
-                                match context.get_value(&object_address).unwrap() {
-                                    JsValue::Object(js_object) => {
-                                        js_object.members.get(&member).unwrap()
+                        let target = js_interpreter.get_by_reference(reference);
+                        match target {
+                            Some(value) => {
+                                match value {
+                                    JsValue::Number(num) => {
+                                        let original = *num;
+                                        *num += 1;
+                                        return JsValue::Number(original);
                                     },
                                     _ => {
                                         todo!(); //TODO: some kind of error
                                     }
                                 }
-                            },
-                            JsReference::Index { object_address: _, index: _ } => {
-                                todo!(); //TODO: implement
-                            },
-                        };
-
-                        match context.get_value(&address).unwrap() {
-                            JsValue::Number(num) => {
-                                let original = *num;
-                                *num += 1;
-                                return JsValue::Number(original)
-                            },
-                            _ => {
-                                todo!(); //TODO: probably always an error
                             }
+                            None => todo!(), //TODO: some kind of error
                         }
                     },
                     None => {
@@ -832,14 +789,16 @@ pub struct JsAstIdentifier {
 }
 impl JsAstIdentifier {
     fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
-        let opt_address = js_interpreter.get_var_address(&self.name);
-        if opt_address.is_some() {
-            return JsValue::Address(opt_address.unwrap());
+
+        match js_interpreter.get_by_reference(JsReference::Variable(self.name.clone())) {
+            Some(value) => return value.clone(),
+            None => {
+                js_interpreter.set_error(JsError::ReferenceError);
+                js_console::log_js_error(format!("variable not found: {}", self.name).as_str()); //TODO: eventually we want to trigger the logging of the error
+                                                                                                 //      from setting it (so we can also show stack etc.)
+                return JsValue::Undefined;
+            },
         }
-        js_interpreter.set_error(JsError::ReferenceError);
-        js_console::log_js_error(format!("variable not found: {}", self.name).as_str()); //TODO: eventually we want to trigger the logging of the error
-                                                                                         //      from setting it (so we can also show stack etc.)
-        return JsValue::Undefined;
     }
 }
 
@@ -871,7 +830,7 @@ impl JsAstExpression {
             JsAstExpression::Identifier(variable) => { return variable.execute(js_interpreter); },
             JsAstExpression::ObjectLiteral(obj) => { return obj.execute(js_interpreter); },
             JsAstExpression::ArrayLiteral(array) => { return array.execute(js_interpreter); },
-            JsAstExpression::FunctionExpression(js_ast_function_expression) => { return js_ast_function_expression.execute(); },
+            JsAstExpression::FunctionExpression(js_ast_function_expression) => { return js_ast_function_expression.execute(js_interpreter); },
             JsAstExpression::RegexLiteral(regex_literal) => { return regex_literal.execute(); },
             JsAstExpression::ObjectCreation(object_construction) => { return object_construction.execute(); }
             JsAstExpression::BooleanLiteral(boolean_value) => { return JsValue::Boolean(*boolean_value) },
@@ -890,76 +849,82 @@ impl JsAstExpression {
                 }
             },
             JsAstExpression::StringLiteral(string_literal) => {
-                return JsValue::String(string_literal.clone()); //TODO: do we want to make a new string ever time this expression is run?
+                return JsValue::String(string_literal.clone());
             },
             JsAstExpression::FunctionCall(function_call) => {
                 //TODO: all this code should be moved to the JsAstFunctionCall object
 
-                let mut function = function_call.function_expression.execute(js_interpreter);
-                function = js_interpreter.deref(&function);
+                let function = function_call.function_expression.execute(js_interpreter);
 
                 match function {
-                    JsValue::Object(object) => {
-                        if object.callable.is_some() {
-                            let callable = object.callable.unwrap();
-                            if callable.builtin.is_some() {
-                                match callable.builtin.as_ref().unwrap() {
-                                    JsBuiltinFunction::ConsoleLog => {
-                                        let to_log = function_call.arguments.get(0); //TODO: handle there being to little or to many arguments
-
-                                        let to_log = to_log.unwrap().execute(js_interpreter);
-                                        let to_log = js_interpreter.deref(&to_log);
-
-                                        let to_log = match to_log {
-                                            JsValue::String(string) =>  { string }
-                                            JsValue::Number(number) => { number.to_string() },
-                                            JsValue::Boolean(bool) => { if bool { "true".to_owned() } else { "false".to_owned() } },
-                                            JsValue::Object(_) => todo!(), //TODO: implement
-                                            JsValue::Array(_) => todo!(), //TODO: implement
-                                            JsValue::Undefined => { "undefined".to_owned() },
-                                            JsValue::Address(_) => todo!(), //TODO: implement
-                                        };
-
-                                        js_console::print(to_log.as_str());
-                                        return JsValue::Undefined;
-                                    },
-                                    #[cfg(test)] JsBuiltinFunction::TesterExport => {
-                                        let data_ast = function_call.arguments.get(0);
-                                        let data = data_ast.unwrap().execute(js_interpreter); //TODO: even for tests, we probably want to handle the unwrap here
-                                        let data = js_interpreter.deref(&data);
-                                        js_interpreter.export_test_data(data);
-                                        return JsValue::Undefined;
-                                    }
+                    JsValue::Address(address) => {
+                        let object = js_interpreter.context_stack.last().unwrap().get_from_heap(address);
+                        match object {
+                            JsHeapObject::Object(js_object) => {
+                                if js_object.callable.is_none() {
+                                    //TODO: report an error (non-callable object)
+                                    return JsValue::Undefined;
                                 }
-                            } else {
-
-                                let mut args = Vec::new();
-                                for (idx, argument_name) in callable.argument_names.into_iter().enumerate() {
-                                    let arg_ast = function_call.arguments.get(idx);
-                                    let arg_value = arg_ast.unwrap().execute(js_interpreter); //TODO: we need to properly handle the unwrap here
-                                    args.push( (argument_name, arg_value));
-                                }
-
-                                let mut new_context = JsExecutionContext::new();
-                                for (arg_name, arg_value) in args {
-                                    let address = new_context.add_new_value(arg_value);
-                                    new_context.set_reference(JsReference::Variable(arg_name), address);
-                                }
-                                js_interpreter.context_stack.push(new_context);
-
-                                js_interpreter.run_script_with_context_stack(&callable.script.unwrap());
-
-                                js_interpreter.context_stack.pop();
-                                let return_value = js_interpreter.return_value.clone();
-                                js_interpreter.return_value = None;
-
-                                if return_value.is_some() {
-                                    return return_value.unwrap();
-                                }
+                            },
+                            JsHeapObject::Array(_) => {
+                                //TODO: report an error (non-callable object)
                                 return JsValue::Undefined;
+                            },
+                        };
+
+                        let is_builtin = js_interpreter.context_stack.last().unwrap().get_callable_from_heap(address).builtin.is_some();
+                        if is_builtin {
+                            match js_interpreter.context_stack.last().unwrap().get_callable_from_heap(address).builtin.as_ref().unwrap() {
+                                JsBuiltinFunction::ConsoleLog => {
+                                    let to_log = function_call.arguments.get(0); //TODO: handle there being to little or to many arguments
+
+                                    let to_log = to_log.unwrap().execute(js_interpreter);
+
+                                    let to_log = match to_log {
+                                        JsValue::String(string) =>  { string }
+                                        JsValue::Number(number) => { number.to_string() },
+                                        JsValue::Boolean(bool) => { if bool { "true".to_owned() } else { "false".to_owned() } },
+                                        JsValue::Undefined => { "undefined".to_owned() },
+                                        JsValue::Address(_) => todo!(), //TODO: implement
+                                    };
+
+                                    js_console::print(to_log.as_str());
+                                    return JsValue::Undefined;
+                                },
+                                #[cfg(test)] JsBuiltinFunction::TesterExport => {
+                                    let data_ast = function_call.arguments.get(0);
+                                    let data = data_ast.unwrap().execute(js_interpreter); //TODO: even for tests, we probably want to handle the unwrap here
+                                    js_interpreter.export_test_data(data);
+                                    return JsValue::Undefined;
+                                }
                             }
                         } else {
-                            //TODO: report an error (non-callable object)
+
+                            let mut args = Vec::new();
+                            let argument_names = js_interpreter.context_stack.last().unwrap().get_callable_from_heap(address).argument_names.clone();
+                            for (idx, argument_name) in argument_names.into_iter().enumerate() {
+                                let arg_ast = function_call.arguments.get(idx);
+                                let arg_value = arg_ast.unwrap().execute(js_interpreter); //TODO: we need to properly handle the unwrap here
+                                args.push( (argument_name, arg_value));
+                            }
+
+                            let mut new_context = JsExecutionContext::new();
+                            for (arg_name, arg_value) in args {
+                                new_context.set_reference(JsReference::Variable(arg_name), arg_value);
+                            }
+                            js_interpreter.context_stack.push(new_context);
+
+                            //we need to get the script from one context up, since we just made a new context for the function script
+                            let script = &js_interpreter.context_stack.iter().rev().skip(1).next().unwrap().get_callable_from_heap(address).script;
+                            js_interpreter.run_script_with_context_stack(&script.as_ref().unwrap().clone());
+
+                            js_interpreter.context_stack.pop();
+                            let return_value = js_interpreter.return_value.clone();
+                            js_interpreter.return_value = None;
+
+                            if return_value.is_some() {
+                                return return_value.unwrap();
+                            }
                             return JsValue::Undefined;
                         }
                     },
@@ -984,6 +949,8 @@ impl JsAstExpression {
             JsAstExpression::BinOp(binop) => {
                 match binop.op {
                     JsBinOp::PropertyAccess => {
+                        let left_value = binop.left.execute(js_interpreter);
+
                         let property = if binop.is_dot_property_access {
                             match binop.right.as_ref() {
                                 // when the right hand side of our accessor is an identifier, we don't execute, but just take its name as a string
@@ -994,8 +961,6 @@ impl JsAstExpression {
                         } else {
                             binop.right.execute(js_interpreter)
                         };
-
-                        let left_value = binop.left.execute(js_interpreter);
 
                         match left_value {
                             JsValue::Address(left_address) => {
@@ -1051,21 +1016,17 @@ impl JsAstObjectLiteral {
 
             match key_ast.execute(js_interpreter) {
                 JsValue::String(property_name) => {
-
-                    let value = value_ast.execute(js_interpreter);
-                    let current_context = js_interpreter.context_stack.iter_mut().last().unwrap();
-                    let address = current_context.add_new_value(value);
-
-
-                    members.insert(property_name, address);
+                    members.insert(property_name, value_ast.execute(js_interpreter));
                 },
                 _ => {
                     todo!(); //TODO: this should be an error
                 }
             }
-
         }
-        return JsValue::Object(JsObject { members, callable: None });
+
+        let current_context = js_interpreter.context_stack.iter_mut().last().unwrap();
+        let address = current_context.add_new_heap_item(JsHeapObject::Object(JsObject { members, callable: None }));
+        return JsValue::Address(address);
     }
 }
 
@@ -1080,13 +1041,12 @@ impl JsAstArrayLiteral {
 
         for value_ast in self.elements.iter() {
             let value = value_ast.execute(js_interpreter);
-            let current_context = js_interpreter.context_stack.iter_mut().last().unwrap();
-            let address = current_context.add_new_value(value);
-
-            elements.push(address);
+            elements.push(value);
         }
 
-        return JsValue::Array(JsArray { elements: elements })
+        let current_context = js_interpreter.context_stack.iter_mut().last().unwrap();
+        let address = current_context.add_new_heap_item(JsHeapObject::Array(JsArray { elements: elements }));
+        return JsValue::Address(address);
     }
 }
 
@@ -1126,13 +1086,25 @@ impl JsAstTypeOf {
     fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
         let value = self.expression.execute(js_interpreter);
 
-        return match js_interpreter.deref(&value) {
+        return match &value {
             JsValue::Number(_) => JsValue::String(String::from("number")),
             JsValue::String(_) => JsValue::String(String::from("string")),
             JsValue::Boolean(_) => JsValue::String(String::from("boolean")),
-            JsValue::Object(_) => todo!(), //TODO: implement (note: function object need a different output from normal objects)
-            JsValue::Array(_) => JsValue::String(String::from("object")),
-            JsValue::Address(_) => panic!("unreachable"), //we should never get an address after the dereferencing
+            JsValue::Address(address) => {
+                let object = js_interpreter.context_stack.last_mut().unwrap().get_from_heap(*address);
+
+                match object {
+                    JsHeapObject::Object(js_object) => {
+                        if js_object.callable.is_some() {
+                            JsValue::String(String::from("function"))
+                        } else {
+                            JsValue::String(String::from("object"))
+                        }
+                    },
+                    JsHeapObject::Array(_) => JsValue::String(String::from("object")),
+                }
+
+            }
             JsValue::Undefined => JsValue::String(String::from("undefined")),
         }
     }

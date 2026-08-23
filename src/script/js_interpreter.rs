@@ -1,6 +1,7 @@
+use crate::script::js_execution_context::JsReference;
+
 use super::js_ast::Script;
 use super::js_execution_context::{
-    JsAddress,
     JsError,
     JsExecutionContext,
     JsValue,
@@ -58,31 +59,23 @@ impl JsInterpreter {
         }
     }
 
-    pub fn get_var_address(&self, name: &String) -> Option<JsAddress> {
-        for context in self.context_stack.iter().rev() {
-            match context.get_var_address(name) {
-                Some(address) => return Some(*address),
-                None => continue,
-            }
-        }
-        return None;
-    }
-
-    pub fn deref(&mut self, value: &JsValue) -> JsValue {
-        match value {
-            JsValue::Address(address) => {
-
+    pub fn get_by_reference(&mut self, reference: JsReference) -> Option<&mut JsValue> {
+        match reference {
+            JsReference::Variable(variable_name) => {
                 for context in self.context_stack.iter_mut().rev() {
-                    let adress_in_current_context = context.get_value(&address);
-                    match adress_in_current_context {
-                        Some(value) => return value.clone(),
-                        None => continue,
+                    let value = context.get_variable(&variable_name);
+                    if value.is_some() {
+                        return value;
                     }
                 }
-
-                todo!(); //TODO: check if this is allowed to fail
+                return None;
             },
-            _ => { return value.clone() }
+            JsReference::Property { object_address: _, member: _ } => {
+                todo!(); //TODO: implement
+            },
+            JsReference::Index { object_address: _, index: _ } => {
+                todo!(); //TODO: implement
+            },
         }
     }
 

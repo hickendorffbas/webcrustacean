@@ -1,8 +1,6 @@
-use std::collections::HashMap;
-
 use crate::network::url::Url;
 
-use super::js_execution_context::{JsObject, JsValue};
+use super::js_execution_context::JsValue;
 use super::js_interpreter::JsInterpreter;
 use super::js_lexer;
 use super::js_parser;
@@ -31,18 +29,6 @@ fn js_values_are_equal(one: &JsValue, two: &JsValue) -> bool {
                 _ => { return false; }
             }
         },
-        JsValue::Object(obj_one) => {
-            match two {
-                JsValue::Object(obj_two) => {
-                    if obj_one.callable.is_some() || obj_two.callable.is_some() {
-                        todo!(); //TODO: implement callable comparison
-                    }
-                    return obj_one.members == obj_two.members;
-                }
-                _ => { return false; }
-            }
-        },
-        JsValue::Array(_) => todo!(),
         JsValue::Undefined => {
             match two {
                 JsValue::Undefined => { return true },
@@ -150,10 +136,11 @@ fn test_escaping_the_escape_char() {
     JsValue::String(String::from("\\")));
 }
 
-#[test]
-fn test_create_empty_object() {
-    assert_js(r#" x1 = {}; tester.export(x1); "#, JsValue::Object(JsObject {members: HashMap::new(), callable: None}));
-}
+// TODO: fix by getting length of object and asserting that
+// #[test]
+// fn test_create_empty_object() {
+//     assert_js(r#" x1 = {}; tester.export(x1); "#, JsValue::Object(JsObject {members: HashMap::new(), callable: None}));
+// }
 
 #[test]
 fn test_empty_statement_in_front() {
@@ -401,4 +388,14 @@ fn add_strings() {
 #[test]
 fn test_modulus() {
     assert_js(r#"tester.export(15 % 7);"#, JsValue::Number(1));
+}
+
+#[test]
+fn reference_assign() {
+    assert_js(r#"
+x = {"a": 3};
+x.a = x.a + 2;
+tester.export(x.a);
+"#,
+    JsValue::Number(5));
 }

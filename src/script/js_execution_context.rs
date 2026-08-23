@@ -2,8 +2,6 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use crate::script::js_interpreter::JsInterpreter;
-
 use super::js_ast::Script;
 
 
@@ -11,12 +9,12 @@ pub type JsAddress = usize;
 
 
 static NEXT_JS_VALUE_ADDRESS: AtomicUsize = AtomicUsize::new(1);
-pub fn get_next_js_value_address() -> JsAddress { NEXT_JS_VALUE_ADDRESS.fetch_add(1, Ordering::Relaxed) }
+pub fn get_next_js_heap_address() -> JsAddress { NEXT_JS_VALUE_ADDRESS.fetch_add(1, Ordering::Relaxed) }
 
 
 pub struct JsExecutionContext {
-    variables: HashMap<String, JsAddress>,
-    values: HashMap<JsAddress, JsValue>,  //TODO: I think this should be global on the interpreter, not per context, then we need context in less places
+    variables: HashMap<String, JsValue>,
+    heap: HashMap<JsAddress, JsHeapObject>,  //TODO: I think this should be global on the interpreter, not per context, then we need context in less places
 }
 impl JsExecutionContext {
     pub fn new() -> JsExecutionContext {
@@ -25,69 +23,84 @@ impl JsExecutionContext {
         //      require us to look into higher stack frames when a var is not found anyway...)
 
         let mut variables = HashMap::new();
-        let mut values = HashMap::new();
+        let mut heap = HashMap::new();
 
-        let console_log_function = JsValue::Object(JsObject::make_function(JsFunction {
+        let console_log_function = JsHeapObject::Object(JsObject::make_function(JsFunction {
             argument_names: Vec::new(), //Note that this function _does_ take an argument, but it does not have a name
             script: None,
             builtin: Some(JsBuiltinFunction::ConsoleLog),
         }));
 
-        let console_log_address = get_next_js_value_address();
-        values.insert(console_log_address, console_log_function);
+        let console_log_address = get_next_js_heap_address();
+        heap.insert(console_log_address, console_log_function);
 
-        let console_builtin = JsValue::Object(JsObject {
-            members: HashMap::from([(String::from("log"), console_log_address)]), callable: None,
+        let console_builtin = JsHeapObject::Object(JsObject {
+            members: HashMap::from([(String::from("log"), JsValue::Address(console_log_address))]), callable: None,
         });
-        let console_object_address = get_next_js_value_address();
-        values.insert(console_object_address, console_builtin);
+        let console_object_address = get_next_js_heap_address();
+        heap.insert(console_object_address, console_builtin);
 
-        variables.insert(String::from("console"), console_object_address);
+        variables.insert(String::from("console"), JsValue::Address(console_object_address));
 
 
         #[cfg(test)] {
-            let tester_export_function = JsValue::Object(JsObject::make_function(JsFunction {
+            let tester_export_function = JsHeapObject::Object(JsObject::make_function(JsFunction {
                 argument_names: Vec::new(), //Note that this function _does_ take an argument, but it does not have a name
                 script: None,
                 builtin: Some(JsBuiltinFunction::TesterExport),
             }));
 
-            let tester_export_address = get_next_js_value_address();
-            values.insert(tester_export_address, tester_export_function);
+            let tester_export_address = get_next_js_heap_address();
+            heap.insert(tester_export_address, tester_export_function);
 
-            let tester_builtin = JsValue::Object(JsObject {
-                members: HashMap::from([(String::from("export"), tester_export_address)]), callable: None,
+            let tester_builtin = JsHeapObject::Object(JsObject {
+                members: HashMap::from([(String::from("export"), JsValue::Address(tester_export_address))]), callable: None,
             });
-            let tester_object_address = get_next_js_value_address();
-            values.insert(tester_object_address, tester_builtin);
+            let tester_object_address = get_next_js_heap_address();
+            heap.insert(tester_object_address, tester_builtin);
 
-            variables.insert(String::from("tester"), tester_object_address);
+            variables.insert(String::from("tester"), JsValue::Address(tester_object_address));
         }
 
         return JsExecutionContext {
             variables,
-            values,
+            heap,
         };
     }
 
-    pub fn get_var_address(&self, name: &String) -> Option<&JsAddress> {
-        return self.variables.get(name);
+    pub fn get_from_heap(&self, address: JsAddress) -> &JsHeapObject {
+        return self.heap.get(&address).unwrap();
     }
 
-    pub fn get_value(&mut self, address: &JsAddress) -> Option<&mut JsValue> {
-        return self.values.get_mut(address);
+    pub fn get_callable_from_heap(&self, address: JsAddress) -> &JsFunction {
+        //This function assumes we already know its a callable
+        match self.get_from_heap(address) {
+            JsHeapObject::Object(js_object) => {
+                if js_object.callable.is_some() {
+                    return js_object.callable.as_ref().unwrap();
+                }
+                panic!("Object is not a callable");
+            },
+            JsHeapObject::Array(_) => {
+                panic!("Object is not a callable");
+            },
+        };
     }
 
-    pub fn set_reference(&mut self, reference: JsReference, address: JsAddress) {
+    pub fn get_variable(&mut self, name: &String) -> Option<&mut JsValue> {
+        return self.variables.get_mut(name);
+    }
+
+    pub fn set_reference(&mut self, reference: JsReference, value: JsValue) {
         match reference {
             JsReference::Variable(variable_name) => {
-                self.variables.insert(variable_name, address);
+                self.variables.insert(variable_name, value);
             },
             JsReference::Property { object_address, member } => {
-                let object = self.values.get_mut(&object_address).unwrap();
+                let object = self.heap.get_mut(&object_address).unwrap();
                 match object {
-                    JsValue::Object(ref mut js_object) => {
-                        js_object.members.insert(member, address);
+                    JsHeapObject::Object(ref mut js_object) => {
+                        js_object.members.insert(member, value);
                     },
                     _ => {
                         todo!(); //TODO: some kind of error?
@@ -95,10 +108,10 @@ impl JsExecutionContext {
                 }
             },
             JsReference::Index { object_address, index } => {
-                let object = self.values.get_mut(&object_address).unwrap();
+                let object = self.heap.get_mut(&object_address).unwrap();
                 match object {
-                    JsValue::Array(ref mut js_object) => {
-                        js_object.elements[index] = address;
+                    JsHeapObject::Array(ref mut js_object) => {
+                        js_object.elements[index] = value;
                     },
                     _ => {
                         todo!(); //TODO: some kind of error?
@@ -108,9 +121,9 @@ impl JsExecutionContext {
         }
     }
 
-    pub fn add_new_value(&mut self, value: JsValue) -> JsAddress {
-        let new_address = get_next_js_value_address();
-        self.values.insert(new_address, value);
+    pub fn add_new_heap_item(&mut self, object: JsHeapObject) -> JsAddress {
+        let new_address = get_next_js_heap_address();
+        self.heap.insert(new_address, object);
         return new_address;
     }
 }
@@ -132,20 +145,16 @@ pub enum JsValue {
                  //      or a more complex type maybe?
     String(String),
     Boolean(bool),
-    Object(JsObject),
-    Array(JsArray), //TODO: this should become an optional member on object
     Address(JsAddress),
     Undefined,
 }
 impl JsValue {
-    pub fn is_thruty(self, js_interpreter: &mut JsInterpreter) -> bool {
-        match js_interpreter.deref(&self) {
+    pub fn is_thruty(self) -> bool {
+        match self {
             JsValue::Number(number) => { return number != 0 },
             JsValue::String(string) => { return !string.is_empty() } ,
             JsValue::Boolean(bool) => { return bool; },
-            JsValue::Object(_) => todo!(),  //TODO: implement
-            JsValue::Array(_) => todo!(),  //TODO: implement
-            JsValue::Address(_) => { panic!("unreachable"); },  //we should not be able to have an address after dereferencing
+            JsValue::Address(_) => { todo!(); }, //TODO: implement (check the heap)
             JsValue::Undefined => { return false; },
         }
     }
@@ -154,8 +163,16 @@ impl JsValue {
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone)]
+pub enum JsHeapObject {
+    Object(JsObject),
+    Array(JsArray),
+}
+
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone)]
 pub struct JsObject {
-    pub members: HashMap<String, JsAddress>,
+    pub members: HashMap<String, JsValue>,
     pub callable: Option<JsFunction>,
 }
 impl JsObject {
@@ -168,7 +185,7 @@ impl JsObject {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone)]
 pub struct JsArray {
-    pub elements: Vec<JsAddress>,
+    pub elements: Vec<JsValue>,
 }
 
 

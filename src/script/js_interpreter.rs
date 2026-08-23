@@ -109,6 +109,10 @@ impl JsInterpreter {
         return self.heap.get(&address).unwrap();
     }
 
+    pub fn get_from_heap_mut(&mut self, address: JsAddress) -> &mut JsHeapObject {
+        return self.heap.get_mut(&address).unwrap();
+    }
+
     pub fn set_reference(&mut self, reference: JsReference, value: JsValue) {
         match reference {
             JsReference::Variable(variable_name) => {
@@ -172,11 +176,25 @@ impl JsInterpreter {
                 }
                 return None;
             },
-            JsReference::Property { object_address: _, member: _ } => {
-                todo!(); //TODO: implement
+            JsReference::Property { object_address, member } => {
+                match self.get_from_heap_mut(object_address) {
+                    JsHeapObject::Object(js_object) => {
+                        return js_object.members.get_mut(&member);
+                    },
+                    JsHeapObject::Array(_) => {
+                        panic!("Not allowed"); //TODO: this might be allowed actually
+                    },
+                }
             },
-            JsReference::Index { object_address: _, index: _ } => {
-                todo!(); //TODO: implement
+            JsReference::Index { object_address, index } => {
+                match self.get_from_heap_mut(object_address) {
+                    JsHeapObject::Object(_) => {
+                        panic!("Not allowed"); //TODO: this might be allowed actually
+                    },
+                    JsHeapObject::Array(js_array) => {
+                        return js_array.elements.get_mut(index);
+                    },
+                }
             },
         }
     }

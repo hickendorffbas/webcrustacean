@@ -90,6 +90,9 @@ pub enum JsToken {
     KeyWordFor,
     KeyWordTypeOf,
     KeyWordIn,
+    KeyWordTry,
+    KeyWordCatch,
+    KeyWordFinally,
 }
 
 
@@ -397,6 +400,12 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                 tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordIn));
             } else if identifier == "undefined" {
                 tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::LiteralUndefined));
+            } else if identifier == "try" {
+                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordTry));
+            } else if identifier == "catch" {
+                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordCatch));
+            } else if identifier == "finally" {
+                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordFinally));
             } else {
                 tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Identifier(identifier)));
             }

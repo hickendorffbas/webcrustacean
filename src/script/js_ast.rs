@@ -31,6 +31,7 @@ pub enum JsAstStatement {
     While(JsAstWhile),
     For(JsAstFor),
     ForEach(JsAstForEach),
+    TryCatch(JsAstTryCatch),
 }
 impl JsAstStatement {
     pub fn execute(&self, js_interpreter: &mut JsInterpreter) -> bool {
@@ -55,6 +56,7 @@ impl JsAstStatement {
             JsAstStatement::While(while_statement) => { while_statement.execute(js_interpreter); },
             JsAstStatement::For(for_statement) => { for_statement.execute(js_interpreter); },
             JsAstStatement::ForEach(for_statement) => { for_statement.execute(js_interpreter); },
+            JsAstStatement::TryCatch(try_catch) => { try_catch.execute(js_interpreter); },
         }
         return true;
     }
@@ -90,6 +92,24 @@ impl JsAstFunctionExpression {
         let function = JsFunction { script: Some(self.script.clone()), argument_names: argument_names, builtin: None };
         let address = js_interpreter.add_new_heap_item(JsHeapObject::Object(JsObject::make_function(function)));
         return JsValue::Address(address);
+    }
+}
+
+
+#[derive(Debug)]
+pub struct JsAstTryCatch {
+    pub script: Rc<Script>,
+    #[allow(unused)] pub target: Option<String>,
+    #[allow(unused)] pub catch_script: Option<Rc<Script>>,
+    pub finally_script: Option<Rc<Script>>,
+}
+impl JsAstTryCatch {
+    fn execute(&self, js_interpreter: &mut JsInterpreter) {
+        //TODO: since we don't have exceptions, we just run the script and the finally script for now
+        js_interpreter.run_script(&self.script, Vec::new());
+        if self.finally_script.is_some() {
+            js_interpreter.run_script(self.finally_script.as_ref().unwrap(), Vec::new());
+        }
     }
 }
 

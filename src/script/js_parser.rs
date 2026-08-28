@@ -246,11 +246,58 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
             JsToken::Assign => {
                 parser_state.next();
 
+                let assign_left = match lhs {
+                    JsAstExpression::ArrayLiteral(literal) => {
+                        let mut assign_targets = Vec::new();
+
+                        for (index, item) in literal.elements.iter().enumerate() {
+                            match item {
+                                JsAstExpression::Identifier(assignment_target) => {
+                                    let new_target_ast = JsAstExpression::Identifier(JsAstIdentifier { name: assignment_target.name.clone() });
+                                    assign_targets.push((Some(JsAstExpression::NumericLiteral(index.to_string())), Rc::from(new_target_ast)));
+                                },
+                                _ => {
+                                    todo!(); //TODO: some kind of error
+                                }
+                            }
+                        }
+                        assign_targets
+                    }
+                    JsAstExpression::ObjectLiteral(literal) => {
+                        let mut assign_targets = Vec::new();
+
+                        for (source, target) in literal.members.iter() {
+                            match source {
+                                JsAstExpression::StringLiteral(identifier) => {
+                                    let new_source_ast = JsAstExpression::StringLiteral(identifier.clone());
+                                    let new_target_ast = match target {
+                                        JsAstExpression::Identifier(assignment_target) => {
+                                            JsAstExpression::Identifier(JsAstIdentifier { name: assignment_target.name.clone() })
+                                        },
+                                        _ => {
+                                            todo!(); //TODO: some kind of error
+                                        }
+                                    };
+                                    assign_targets.push((Some(new_source_ast), Rc::from(new_target_ast)));
+                                },
+                                _ => {
+                                    todo!(); //TODO: some kind of error
+                                }
+                            }
+                        }
+                        assign_targets
+                    },
+                    _ => {
+                        //We just have a single thing to assign to
+                        vec![(None, Rc::from(lhs))]
+                    },
+                };
+
                 let rhs = match pratt_parse_expression(tokens, parser_state, right_bp, true, in_is_allowed) {
                     ParseResult::Ok(rhs) => rhs,
                     ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
                 };
-                lhs = JsAstExpression::Assignment(JsAstAssign { left: Rc::from(lhs), right: Rc::from(rhs) });
+                lhs = JsAstExpression::Assignment(JsAstAssign { left: Rc::from(assign_left), right: Rc::from(rhs) });
             },
 
             compound @ (JsToken::CompoundAssignAdd | JsToken::CompoundAssignMinus | JsToken::CompoundAssignTimes | JsToken::CompoundAssignDiv |
@@ -275,7 +322,7 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
 
                 let lhs_rc = Rc::from(lhs);
                 let rhs = JsAstExpression::BinOp(JsAstBinOp { op, left: lhs_rc.clone(), right: Rc::from(rhs), is_dot_property_access: false });
-                lhs = JsAstExpression::Assignment(JsAstAssign { left: lhs_rc, right: Rc::from(rhs) });
+                lhs = JsAstExpression::Assignment(JsAstAssign { left: Rc::from(vec![(None, lhs_rc)]), right: Rc::from(rhs) });
             },
 
             binop @ (JsToken::Plus | JsToken::Minus | JsToken::Star | JsToken::ForwardSlash | JsToken::LeftShift | JsToken::RightShift | JsToken::BitWiseXor |
@@ -1097,6 +1144,7 @@ fn parse_declaration(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Parse
                 parser_state.next();
                 match pratt_parse_expression(tokens, parser_state, 0, true, in_is_allowed) {
                     ParseResult::Ok(expression) => {
+                        //TODO: declaration can also have all the destructuring complexity, we need to reuse that code, or in fact, it might _only_ be allowed here
                         declarations.push(JsAstDeclaration { variable: ident, initial_value: Some(expression), decl_type });
                     },
                     ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),

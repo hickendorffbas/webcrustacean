@@ -409,3 +409,21 @@ fn greater_or_equal() {
 fn else_if() {
     assert_js(r#"a = 5; if (a == 2) { tester.export(1); } else if (a == 5) { tester.export(2); } else { tester.export(3) }"#, JsValue::Number(2));
 }
+
+#[test]
+fn basic_object_destructuring() {
+    //TODO: it seems this is technically invalid js, since the destructuring needs to happen in in a decl
+    //      in fact, it seems this is true for all destructurings, so I might need to move all that logic to declaration parsing
+    assert_js(r#"x = {a: 1, b: 2}; {a: d, b: f} = x; tester.export(d + f);"#, JsValue::Number(3));
+}
+
+//TODO: this is not destructuring, but still does not work currently
+// #[test]
+// fn declaration_with_one_assignment() {
+//     assert_js(r#"var aa, bb = 7; aa = 5; tester.export(2*aa + bb);"#, JsValue::Number(17));
+// }
+
+#[test]
+fn array_destructuring() {
+    assert_js(r#"var aa = [5,7]; [b, c] = aa; tester.export(2*b + c);"#, JsValue::Number(17));
+}

@@ -227,7 +227,7 @@ impl JsAstForEach {
         } else {
             // In a for ... in ....  we can only have a single declaration:
             let declaration = self.initial_declarations.as_ref().unwrap().first().unwrap();
-            declaration.execute_for_reference(js_interpreter)
+            declaration.execute_for_reference()
         };
 
         let object = self.iteration_target.execute(js_interpreter);
@@ -764,22 +764,28 @@ pub enum DeclType {
 #[derive(Debug)]
 pub struct JsAstDeclaration {
     #[allow(dead_code)] pub decl_type: DeclType, //TODO: use, and remove dead code attribute
-    pub variable: JsAstIdentifier,
-    pub initial_value: Option<JsAstExpression>, //TODO: can we just have an optional assignment AST node here?
+    pub variable: Option<JsAstIdentifier>,
+    pub assignment: Option<JsAstAssign>,
 }
 impl JsAstDeclaration {
     fn execute(&self, js_interpreter: &mut JsInterpreter) {
-        let initial_value = if self.initial_value.is_some() {
-            self.initial_value.as_ref().unwrap().execute(js_interpreter)
+        if self.variable.is_some() {
+            js_interpreter.set_reference(JsReference::Variable(self.variable.as_ref().unwrap().name.clone()), JsValue::Undefined);
+        } else if self.assignment.is_some() {
+            self.assignment.as_ref().unwrap().execute(js_interpreter);
         } else {
-            JsValue::Undefined
-        };
-        js_interpreter.set_reference(JsReference::Variable(self.variable.name.clone()), initial_value);
+            panic!("invalid state");
+        }
     }
 
-    fn execute_for_reference(&self, js_interpreter: &mut JsInterpreter) -> JsReference {
-        self.execute(js_interpreter);
-        return JsReference::Variable(self.variable.name.clone());
+    fn execute_for_reference(&self) -> JsReference {
+        return if self.variable.is_some() {
+            JsReference::Variable(self.variable.as_ref().unwrap().name.clone())
+        } else if self.assignment.is_some() {
+            todo!(); //TODO: I think is this not valid, return an error
+        } else {
+            panic!("invalid state");
+        }
     }
 }
 

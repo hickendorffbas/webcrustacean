@@ -1144,8 +1144,12 @@ fn parse_declaration(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Parse
                 parser_state.next();
                 match pratt_parse_expression(tokens, parser_state, 0, true, in_is_allowed) {
                     ParseResult::Ok(expression) => {
+
                         //TODO: declaration can also have all the destructuring complexity, we need to reuse that code, or in fact, it might _only_ be allowed here
-                        declarations.push(JsAstDeclaration { variable: ident, initial_value: Some(expression), decl_type });
+                        let assignment_targets = vec![(None, Rc::from(JsAstExpression::Identifier(ident)))];
+
+                        let assignment = Some(JsAstAssign { left: Rc::from(assignment_targets), right: Rc::from(expression) });
+                        declarations.push(JsAstDeclaration { variable: None, assignment, decl_type });
                     },
                     ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
                 };
@@ -1174,7 +1178,7 @@ fn parse_declaration(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Parse
                 if decl_type == DeclType::Const {
                     todo!(); //TODO: its an error to not assign a const a value
                 }
-                declarations.push(JsAstDeclaration { variable: ident, initial_value: None, decl_type });
+                declarations.push(JsAstDeclaration { variable: Some(ident), assignment: None, decl_type });
                 break;
             }
         };

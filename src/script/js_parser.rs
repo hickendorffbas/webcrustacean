@@ -284,7 +284,8 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
 
             binop @ (JsToken::Plus | JsToken::Minus | JsToken::Star | JsToken::ForwardSlash | JsToken::LeftShift | JsToken::RightShift | JsToken::BitWiseXor |
                      JsToken::Equals | JsToken::EqualsStrict | JsToken::LogicalAnd | JsToken::LogicalOr | JsToken::BitWiseOr | JsToken::BitWiseAnd | JsToken::Comma |
-                     JsToken::Bigger | JsToken::Smaller | JsToken::KeyWordIn | JsToken::Remainder | JsToken::BiggerOrEqual | JsToken::SmallerOrEqual) => {
+                     JsToken::Bigger | JsToken::Smaller | JsToken::KeyWordIn | JsToken::Remainder | JsToken::BiggerOrEqual | JsToken::SmallerOrEqual |
+                     JsToken::UnsignedRightShift) => {
 
                 if matches!(binop, JsToken::KeyWordIn) && !parser_state.in_is_allowed {
                     //There is situations where "in" is not allowed, for example on the left size of for(.... in ....)
@@ -299,26 +300,27 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                 };
 
                 let js_binop = match binop {
-                    JsToken::Plus           => JsBinOp::Plus,
-                    JsToken::Minus          => JsBinOp::Minus,
-                    JsToken::Star           => JsBinOp::Times,
-                    JsToken::ForwardSlash   => JsBinOp::Divide,
-                    JsToken::Equals         => JsBinOp::Equals,
-                    JsToken::EqualsStrict   => JsBinOp::EqualsStrict,
-                    JsToken::LogicalAnd     => JsBinOp::LogicalAnd,
-                    JsToken::LogicalOr      => JsBinOp::LogicalOr,
-                    JsToken::BitWiseOr      => JsBinOp::BitWiseOr,
-                    JsToken::BitWiseXor     => JsBinOp::BitWiseXor,
-                    JsToken::BitWiseAnd     => JsBinOp::BitWiseAnd,
-                    JsToken::Comma          => JsBinOp::Comma,
-                    JsToken::LeftShift      => JsBinOp::LeftShift,
-                    JsToken::RightShift     => JsBinOp::RightShift,
-                    JsToken::Bigger         => JsBinOp::Bigger,
-                    JsToken::Smaller        => JsBinOp::Smaller,
-                    JsToken::BiggerOrEqual  => JsBinOp::BiggerOrEqual,
-                    JsToken::SmallerOrEqual => JsBinOp::SmallerOrEqual,
-                    JsToken::KeyWordIn      => JsBinOp::In,
-                    JsToken::Remainder      => JsBinOp::Remainder,
+                    JsToken::Plus               => JsBinOp::Plus,
+                    JsToken::Minus              => JsBinOp::Minus,
+                    JsToken::Star               => JsBinOp::Times,
+                    JsToken::ForwardSlash       => JsBinOp::Divide,
+                    JsToken::Equals             => JsBinOp::Equals,
+                    JsToken::EqualsStrict       => JsBinOp::EqualsStrict,
+                    JsToken::LogicalAnd         => JsBinOp::LogicalAnd,
+                    JsToken::LogicalOr          => JsBinOp::LogicalOr,
+                    JsToken::BitWiseOr          => JsBinOp::BitWiseOr,
+                    JsToken::BitWiseXor         => JsBinOp::BitWiseXor,
+                    JsToken::BitWiseAnd         => JsBinOp::BitWiseAnd,
+                    JsToken::Comma              => JsBinOp::Comma,
+                    JsToken::LeftShift          => JsBinOp::LeftShift,
+                    JsToken::RightShift         => JsBinOp::RightShift,
+                    JsToken::Bigger             => JsBinOp::Bigger,
+                    JsToken::Smaller            => JsBinOp::Smaller,
+                    JsToken::BiggerOrEqual      => JsBinOp::BiggerOrEqual,
+                    JsToken::SmallerOrEqual     => JsBinOp::SmallerOrEqual,
+                    JsToken::KeyWordIn          => JsBinOp::In,
+                    JsToken::Remainder          => JsBinOp::Remainder,
+                    JsToken::UnsignedRightShift => JsBinOp::UnsignedRightShift,
                     _ => panic!("This should never happen"),
                 };
 
@@ -782,6 +784,7 @@ fn infix_binding_power(token: &JsToken) -> (u8, u8) {
         JsToken::KeyWordIn => (16, 17),
         JsToken::LeftShift => (18, 19),
         JsToken::RightShift => (18, 19),
+        JsToken::UnsignedRightShift => (18, 19),
         JsToken::Plus => (20, 21),
         JsToken::Minus => (20, 21),
         JsToken::Star => (22, 23),

@@ -54,6 +54,7 @@ pub enum JsToken {
     LogicalOr,
     RightShift,
     LeftShift,
+    UnsignedRightShift,
     Increment,
     Decrement,
     Remainder,
@@ -222,6 +223,7 @@ const TOKENS_PROBABLY_PRECEDING_REGEX_LITERAL: &[JsToken] = &[
     JsToken::QuestionMark,
     JsToken::RightShift,
     JsToken::LeftShift,
+    JsToken::UnsignedRightShift,
     JsToken::KeyWordTypeOf,
 ];
 
@@ -431,7 +433,17 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                         '>' => {
                             if js_iterator.has_next() {
                                 match js_iterator.peek().unwrap() {
-                                    '>' => { js_iterator.next(); JsToken::RightShift }
+                                    '>' => {
+                                        js_iterator.next();
+                                        if js_iterator.has_next() {
+                                            match js_iterator.peek().unwrap() {
+                                                '>' => { js_iterator.next(); JsToken::UnsignedRightShift }
+                                                _ => { JsToken::RightShift }
+                                            }
+                                        } else {
+                                            JsToken::RightShift
+                                        }
+                                    },
                                     '=' => { js_iterator.next(); JsToken::BiggerOrEqual }
                                     _ => { JsToken::Bigger }
                                 }

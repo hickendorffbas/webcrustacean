@@ -246,52 +246,8 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
             JsToken::Assign => {
                 parser_state.next();
 
-                let assign_left = match lhs {
-                    JsAstExpression::ArrayLiteral(literal) => {
-                        let mut assign_targets = Vec::new();
-
-                        for (index, item) in literal.elements.iter().enumerate() {
-                            match item {
-                                JsAstExpression::Identifier(assignment_target) => {
-                                    let new_target_ast = JsAstExpression::Identifier(JsAstIdentifier { name: assignment_target.name.clone() });
-                                    assign_targets.push((Some(JsAstExpression::NumericLiteral(index.to_string())), Rc::from(new_target_ast)));
-                                },
-                                _ => {
-                                    todo!(); //TODO: some kind of error
-                                }
-                            }
-                        }
-                        assign_targets
-                    }
-                    JsAstExpression::ObjectLiteral(literal) => {
-                        let mut assign_targets = Vec::new();
-
-                        for (source, target) in literal.members.iter() {
-                            match source {
-                                JsAstExpression::StringLiteral(identifier) => {
-                                    let new_source_ast = JsAstExpression::StringLiteral(identifier.clone());
-                                    let new_target_ast = match target {
-                                        JsAstExpression::Identifier(assignment_target) => {
-                                            JsAstExpression::Identifier(JsAstIdentifier { name: assignment_target.name.clone() })
-                                        },
-                                        _ => {
-                                            todo!(); //TODO: some kind of error
-                                        }
-                                    };
-                                    assign_targets.push((Some(new_source_ast), Rc::from(new_target_ast)));
-                                },
-                                _ => {
-                                    todo!(); //TODO: some kind of error
-                                }
-                            }
-                        }
-                        assign_targets
-                    },
-                    _ => {
-                        //We just have a single thing to assign to
-                        vec![(None, Rc::from(lhs))]
-                    },
-                };
+                let assign_left = convert_left_side_of_assign(lhs); //TODO: this will convert destructuring patterns, but that might not be allowed here
+                                                                    //      but instead only in declaration (where we now already support it)
 
                 let rhs = match pratt_parse_expression(tokens, parser_state, right_bp, true, in_is_allowed) {
                     ParseResult::Ok(rhs) => rhs,
@@ -462,105 +418,11 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
             parser_state.next();
             return ParseResult::Ok(JsAstExpression::Identifier(JsAstIdentifier { name: ident.clone() }));
         },
-        JsToken::OpenBrace => { //This is an object literal
-            parser_state.next();
-
-            let mut members = Vec::new();
-            let mut first = true;
-            let mut current_property_name;
-            loop {
-
-                match &tokens[parser_state.cursor].token {
-                    JsToken::CloseBrace => {
-                        parser_state.next();
-                        break;
-                    },
-                    JsToken::Comma => {
-                        if first {
-                            todo!(); //TODO: this should be an error
-                        }
-                        parser_state.next();
-                    },
-                    _ => {
-                        if !first {
-                            todo!(); //TODO: this should be an error, because we expect a comma
-                        }
-                        //the first time we don't expect a comma, so we just don't do anything here
-                    },
-                }
-
-                eat_newlines(tokens, parser_state);
-
-                match &tokens[parser_state.cursor].token {
-                    JsToken::Identifier(property_name) => {
-                        parser_state.next();
-                        current_property_name = property_name;
-                    },
-                    JsToken::LiteralString(property_name) => {
-                        parser_state.next();
-                        current_property_name = property_name;
-                    },
-                    JsToken::CloseBrace => { //This is possible due to allowing trailing comma's
-                        parser_state.next();
-                        break;
-                    },
-                    _ => {
-                        todo!(); //TODO: are there any valid cases for this?
-                    },
-                }
-
-                match &tokens[parser_state.cursor].token {
-                    JsToken::Colon => {
-                        parser_state.next();
-                    },
-                    _ => {
-                        todo!(); //TODO: handle the case where a shorthand is used (i.e. {a} to mean { a : a })
-                    },
-                }
-
-                match pratt_parse_expression(tokens, parser_state, 0, true, in_is_allowed) {
-                    ParseResult::Ok(expression) => members.push((JsAstExpression::StringLiteral(current_property_name.clone()), expression)),
-                    ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
-                }
-
-                first = false;
-            }
-            return ParseResult::Ok(JsAstExpression::ObjectLiteral(JsAstObjectLiteral { members: members }));
+        JsToken::OpenBrace => {
+            return parse_object_literal(tokens, parser_state, in_is_allowed);
         },
-        JsToken::OpenBracket => { // This is an array Literal
-            parser_state.next();
-
-            let mut elements = Vec::new();
-            let mut first = true;
-            loop {
-
-                match &tokens[parser_state.cursor].token {
-                    JsToken::CloseBracket => {
-                        parser_state.next();
-                        break;
-                    },
-                    JsToken::Comma => {
-                        if first {
-                            todo!(); //TODO: this should be an error
-                        }
-                        parser_state.next();
-                    },
-                    _ => {
-                        if !first {
-                            todo!(); //TODO: this should be an error, because we expect a comma
-                        }
-                        //the first time we don't expect a comma, so we just don't do anything here
-                    }
-                }
-
-                match pratt_parse_expression(tokens, parser_state, 0, true, in_is_allowed) {
-                    ParseResult::Ok(expression) => elements.push(expression),
-                    ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
-                }
-
-                first = false;
-            }
-            return ParseResult::Ok(JsAstExpression::ArrayLiteral(JsAstArrayLiteral { elements: elements }));
+        JsToken::OpenBracket => {
+            return parse_array_literal(tokens, parser_state, in_is_allowed);
         },
         JsToken::KeyWordFunction => {  //(anonymous) functions can also be an expression in JS
             parser_state.next();
@@ -688,6 +550,159 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
         },
         _ => todo!(),
     }
+}
+
+
+fn convert_left_side_of_assign(current_left_size: JsAstExpression) -> Vec<(Option<JsAstExpression>, Rc<JsAstExpression>)> {
+    return match current_left_size {
+        JsAstExpression::ArrayLiteral(literal) => {
+            let mut assign_targets = Vec::new();
+
+            for (index, item) in literal.elements.iter().enumerate() {
+                match item {
+                    JsAstExpression::Identifier(assignment_target) => {
+                        let new_target_ast = JsAstExpression::Identifier(JsAstIdentifier { name: assignment_target.name.clone() });
+                        assign_targets.push((Some(JsAstExpression::NumericLiteral(index.to_string())), Rc::from(new_target_ast)));
+                    },
+                    _ => {
+                        todo!(); //TODO: some kind of error
+                    }
+                }
+            }
+            assign_targets
+        }
+        JsAstExpression::ObjectLiteral(literal) => {
+            let mut assign_targets = Vec::new();
+
+            for (source, target) in literal.members.iter() {
+                match source {
+                    JsAstExpression::StringLiteral(identifier) => {
+                        let new_source_ast = JsAstExpression::StringLiteral(identifier.clone());
+                        let new_target_ast = match target {
+                            JsAstExpression::Identifier(assignment_target) => {
+                                JsAstExpression::Identifier(JsAstIdentifier { name: assignment_target.name.clone() })
+                            },
+                            _ => {
+                                todo!(); //TODO: some kind of error
+                            }
+                        };
+                        assign_targets.push((Some(new_source_ast), Rc::from(new_target_ast)));
+                    },
+                    _ => {
+                        todo!(); //TODO: some kind of error
+                    }
+                }
+            }
+            assign_targets
+        },
+        _ => {
+            vec![(None, Rc::from(current_left_size))]  //We just have a single thing to assign to
+        },
+    };
+}
+
+
+fn parse_object_literal(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState, in_is_allowed: bool) -> ParseResult<JsAstExpression> {
+    expect(tokens, parser_state, JsToken::OpenBrace);
+
+    let mut members = Vec::new();
+    let mut first = true;
+    let mut current_property_name;
+    loop {
+
+        match &tokens[parser_state.cursor].token {
+            JsToken::CloseBrace => {
+                parser_state.next();
+                break;
+            },
+            JsToken::Comma => {
+                if first {
+                    todo!(); //TODO: this should be an error
+                }
+                parser_state.next();
+            },
+            _ => {
+                if !first {
+                    todo!(); //TODO: this should be an error, because we expect a comma
+                }
+                //the first time we don't expect a comma, so we just don't do anything here
+            },
+        }
+
+        eat_newlines(tokens, parser_state);
+
+        match &tokens[parser_state.cursor].token {
+            JsToken::Identifier(property_name) => {
+                parser_state.next();
+                current_property_name = property_name;
+            },
+            JsToken::LiteralString(property_name) => {
+                parser_state.next();
+                current_property_name = property_name;
+            },
+            JsToken::CloseBrace => { //This is possible due to allowing trailing comma's
+                parser_state.next();
+                break;
+            },
+            _ => {
+                todo!(); //TODO: are there any valid cases for this?
+            },
+        }
+
+        match &tokens[parser_state.cursor].token {
+            JsToken::Colon => {
+                parser_state.next();
+            },
+            _ => {
+                todo!(); //TODO: handle the case where a shorthand is used (i.e. {a} to mean { a : a })
+            },
+        }
+
+        match pratt_parse_expression(tokens, parser_state, 0, true, in_is_allowed) {
+            ParseResult::Ok(expression) => members.push((JsAstExpression::StringLiteral(current_property_name.clone()), expression)),
+            ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+        }
+
+        first = false;
+    }
+    return ParseResult::Ok(JsAstExpression::ObjectLiteral(JsAstObjectLiteral { members: members }));
+}
+
+
+fn parse_array_literal(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState, in_is_allowed: bool) -> ParseResult<JsAstExpression> {
+    expect(tokens, parser_state, JsToken::OpenBracket);
+
+    let mut elements = Vec::new();
+    let mut first = true;
+    loop {
+
+        match &tokens[parser_state.cursor].token {
+            JsToken::CloseBracket => {
+                parser_state.next();
+                break;
+            },
+            JsToken::Comma => {
+                if first {
+                    todo!(); //TODO: this should be an error
+                }
+                parser_state.next();
+            },
+            _ => {
+                if !first {
+                    todo!(); //TODO: this should be an error, because we expect a comma
+                }
+                //the first time we don't expect a comma, so we just don't do anything here
+            }
+        }
+
+        match pratt_parse_expression(tokens, parser_state, 0, true, in_is_allowed) {
+            ParseResult::Ok(expression) => elements.push(expression),
+            ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
+        }
+
+        first = false;
+    }
+    return ParseResult::Ok(JsAstExpression::ArrayLiteral(JsAstArrayLiteral { elements: elements }));
 }
 
 
@@ -1127,16 +1142,34 @@ fn parse_declaration(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Parse
     loop {
         if parser_state.has_ended() { return ParseResult::ParsingFailed(ParseError::error_for_token(ParseErrorType::EOF, tokens, parser_state)) };
 
-        let ident = match &tokens[parser_state.cursor].token {
+        let declared_item = match &tokens[parser_state.cursor].token {
             JsToken::Newline => {
                 parser_state.next();
                 continue;
             }
             JsToken::Identifier(ident) => {
                 parser_state.next();
-                JsAstIdentifier { name: ident.clone() }
+                JsAstExpression::Identifier(JsAstIdentifier { name: ident.clone() })
             },
-            _ => todo!(), //TODO: this should be an error
+            JsToken::OpenBrace => {
+                let result = match parse_object_literal(tokens, parser_state, in_is_allowed) {
+                    ParseResult::Ok(result) => result,
+                    ParseResult::ParsingFailed(_) => {
+                        todo!(); //TODO: some kind of error
+                    },
+                };
+                result
+            },
+            JsToken::OpenBracket => {
+                let result = match parse_array_literal(tokens, parser_state, in_is_allowed) {
+                    ParseResult::Ok(result) => result,
+                    ParseResult::ParsingFailed(_) => {
+                        todo!(); //TODO: some kind of error
+                    },
+                };
+                result
+            },
+             _ => todo!(),
         };
 
         match tokens[parser_state.cursor].token {
@@ -1144,11 +1177,8 @@ fn parse_declaration(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Parse
                 parser_state.next();
                 match pratt_parse_expression(tokens, parser_state, 0, true, in_is_allowed) {
                     ParseResult::Ok(expression) => {
-
-                        //TODO: declaration can also have all the destructuring complexity, we need to reuse that code, or in fact, it might _only_ be allowed here
-                        let assignment_targets = vec![(None, Rc::from(JsAstExpression::Identifier(ident)))];
-
-                        let assignment = Some(JsAstAssign { left: Rc::from(assignment_targets), right: Rc::from(expression) });
+                        let left_side = convert_left_side_of_assign(declared_item);
+                        let assignment = Some(JsAstAssign { left: Rc::from(left_side), right: Rc::from(expression) });
                         declarations.push(JsAstDeclaration { variable: None, assignment, decl_type });
                     },
                     ParseResult::ParsingFailed(parse_error) => return ParseResult::ParsingFailed(parse_error),
@@ -1174,11 +1204,31 @@ fn parse_declaration(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Parse
                 parser_state.next();
                 continue;
             },
+            JsToken::Comma => {
+                parser_state.next();
+                if decl_type == DeclType::Const {
+                    todo!(); //TODO: its an error to not assign a const a value
+                }
+                let js_ast_identifier = match declared_item {
+                    JsAstExpression::Identifier(js_ast_identifier) => js_ast_identifier,
+                    _ => {
+                        todo!(); //TODO: this should be an error (we have something like a destructuring pattern but no assignment)
+                    }
+                };
+                declarations.push(JsAstDeclaration { variable: Some(js_ast_identifier), assignment: None, decl_type });
+                continue;
+            }
             _ => {
                 if decl_type == DeclType::Const {
                     todo!(); //TODO: its an error to not assign a const a value
                 }
-                declarations.push(JsAstDeclaration { variable: Some(ident), assignment: None, decl_type });
+                let js_ast_identifier = match declared_item {
+                    JsAstExpression::Identifier(js_ast_identifier) => js_ast_identifier,
+                    _ => {
+                        todo!(); //TODO: this should be an error (we have something like a destructuring pattern but no assignment)
+                    }
+                };
+                declarations.push(JsAstDeclaration { variable: Some(js_ast_identifier), assignment: None, decl_type });
                 break;
             }
         };

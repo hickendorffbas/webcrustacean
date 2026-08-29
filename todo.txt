@@ -1,4 +1,5 @@
 goals for 0.8.0
+       - Js parser: "in_is_allowed" should live in the parser state
        - load javascript and css files linked from a page
               - move to a better jobsystem
                      - We have the job system now, but we need a way to yield back to rendering frames while downloading

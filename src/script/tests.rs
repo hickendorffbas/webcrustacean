@@ -412,16 +412,13 @@ fn else_if() {
 
 #[test]
 fn basic_object_destructuring() {
-    //TODO: it seems this is technically invalid js, since the destructuring needs to happen in in a decl
-    //      in fact, it seems this is true for all destructurings, so I might need to move all that logic to declaration parsing
-    assert_js(r#"x = {a: 1, b: 2}; {a: d, b: f} = x; tester.export(d + f);"#, JsValue::Number(3));
+    assert_js(r#"x = {a: 1, b: 2}; var {a: d, b: f} = x; tester.export(d + f);"#, JsValue::Number(3));
 }
 
-//TODO: this is not destructuring, but still does not work currently
-// #[test]
-// fn declaration_with_one_assignment() {
-//     assert_js(r#"var aa, bb = 7; aa = 5; tester.export(2*aa + bb);"#, JsValue::Number(17));
-// }
+#[test]
+fn declaration_with_one_assignment() {
+    assert_js(r#"var aa, bb = 7; aa = 5; tester.export(2*aa + bb);"#, JsValue::Number(17));
+}
 
 #[test]
 fn array_destructuring() {

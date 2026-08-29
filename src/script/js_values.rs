@@ -87,4 +87,5 @@ pub enum JsBuiltinFunction {
 pub enum JsError {
     //NOTE: these are runtime errors, not parse-time errors (i.e. these are errors you can catch in a script)
     ReferenceError, //TODO: give the specific errors extra information (like here, what reference, and on what position in the script etc)
+    TypeError,
 }

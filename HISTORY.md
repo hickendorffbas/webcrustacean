@@ -5,6 +5,7 @@
 - Javascript while loop, for loop, not operator, literal bools and hexadecimals are now supported
 - Basics of javascript bitwise operators are now supported
 - Implemented scoping for javascript variables
+- Implemented lvalues and references in javascript
 
 
 0.7.0

@@ -18,9 +18,16 @@ goals for 0.8.0
        - scrolling
               - we cull to soon now (check with long page of text paragraphs)
        - handle redirects better. Its seems reqwest follows them, but our url bar does not update etc. we want to follow them ourselves
+       - make the timeings feature work again / better (i.e. averages etc.)
+
+
+goals for 0.9.0:
+       - exceptions in javascript (generating them, and catching them)
        - implement more box layout css options
        - add ASI to the js parser
-       - make the timeings feature work again / better (i.e. averages etc.)
+
+
+
 
 
 other things (later versions):

@@ -442,18 +442,20 @@ impl JsAstBinOp {
                 match left_val {
                     JsValue::Number(left_number) => {
                         match right_val {
-                            JsValue::Number(right_number) => {
-                                return JsValue::Boolean(left_number == right_number);
-                            },
+                            JsValue::Number(right_number) => { return JsValue::Boolean(left_number == right_number); },
                             _ => { return JsValue::Boolean(false); }
                         }
                     },
                     JsValue::String(left_string) => {
                         match right_val {
-                            JsValue::String(right_string) => {
-                                return JsValue::Boolean(left_string == right_string);
-                            },
+                            JsValue::String(right_string) => { return JsValue::Boolean(left_string == right_string); },
                             _ => { return JsValue::Boolean(false); }
+                        }
+                    },
+                    JsValue::Undefined => {
+                        match right_val {
+                            JsValue::Undefined => return JsValue::Boolean(true),
+                            _ => return JsValue::Boolean(false),
                         }
                     },
                     _ => { todo!() }
@@ -649,12 +651,18 @@ impl JsAstBinOp {
                                 }
                             },
                             JsHeapObject::Array(_) => {
-                                todo!(); //TODO: I think this is always an error
+                                js_interpreter.set_error(JsError::TypeError); //TODO: eventually we should actually throw this error
+                                js_console::log_js_error(format!("target of 'in' should be an object").as_str()); //TODO: eventually we want to trigger the logging of the error
+                                                                                                                  //      from setting it (so we can also show stack etc.)
+                                return JsValue::Undefined;
                             },
                         }
                     },
                     _ => {
-                        todo!(); //TODO: this should be an error
+                        js_interpreter.set_error(JsError::TypeError); //TODO: eventually we should actually throw this error
+                        js_console::log_js_error(format!("target of 'in' should be an object").as_str()); //TODO: eventually we want to trigger the logging of the error
+                                                                                                          //      from setting it (so we can also show stack etc.)
+                        return JsValue::Undefined;
                     }
                 }
             },

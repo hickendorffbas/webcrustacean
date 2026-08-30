@@ -1025,6 +1025,8 @@ fn parse_try_catch(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserS
 fn parse_for_loop(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) -> ParseResult<JsAstStatement> {
     expect(tokens, parser_state, JsToken::OpenParenthesis);
 
+    parser_state.in_is_allowed = false;
+
     let (initial_declarations, initial_expression) = match &tokens[parser_state.cursor].token {
         decl_keyword @ (JsToken::KeyWordVar | JsToken::KeyWordLet | JsToken::KeyWordConst) => {
             parser_state.next();
@@ -1035,8 +1037,6 @@ fn parse_for_loop(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserSt
                 JsToken::KeyWordConst => { DeclType::Const },
                 _ => { panic!("unreachable"); }
             };
-
-            parser_state.in_is_allowed = false;
 
             let initial_declarations = match parse_declaration(tokens, parser_state, decl_type) {
                 ParseResult::Ok(ast) => Rc::from(ast),

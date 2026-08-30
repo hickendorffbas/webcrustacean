@@ -429,3 +429,8 @@ fn array_destructuring() {
 fn not_equal() {
     assert_js(r#"var a = 3; tester.export(10); if (a != 4) { tester.export(2); }"#, JsValue::Number(2));
 }
+
+#[test]
+fn object_loop_sum() {
+    assert_js(r#"var x = {bla: 3, piep: 7}; var sum = 0; for (y in x) { sum += x[y]; } tester.export(sum);"#, JsValue::Number(10));
+}

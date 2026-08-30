@@ -63,6 +63,8 @@ pub enum JsToken {
     Smaller,
     Equals,
     EqualsStrict,
+    NotEquals,
+    NotEqualsStrict,
     BiggerOrEqual,
     SmallerOrEqual,
 
@@ -213,6 +215,8 @@ const TOKENS_PROBABLY_PRECEDING_REGEX_LITERAL: &[JsToken] = &[
     JsToken::BitWiseOr,
     JsToken::Equals,
     JsToken::EqualsStrict,
+    JsToken::NotEquals,
+    JsToken::NotEqualsStrict,
     JsToken::BiggerOrEqual,
     JsToken::SmallerOrEqual,
     JsToken::LogicalAnd,
@@ -458,7 +462,24 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                                 }
                             } else { JsToken::Smaller }
                         },
-                        '!' => { JsToken::ExclamationMark }
+                        '!' => {
+                            if js_iterator.has_next() {
+                                match js_iterator.peek().unwrap() {
+                                    '=' => {
+                                        js_iterator.next();
+                                        if js_iterator.has_next() {
+                                            match js_iterator.peek().unwrap() {
+                                                '=' => { js_iterator.next(); JsToken::NotEqualsStrict },
+                                                _ => { JsToken::NotEquals },
+                                            }
+                                        } else {
+                                            JsToken::NotEquals
+                                        }
+                                    }
+                                    _ => { JsToken::ExclamationMark }
+                                }
+                            } else { JsToken::ExclamationMark }
+                        },
                         '?' => { JsToken::QuestionMark }
                         '^' => {
                             if js_iterator.has_next() {

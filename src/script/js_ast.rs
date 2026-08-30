@@ -460,7 +460,55 @@ impl JsAstBinOp {
                     },
                     _ => { todo!() }
                 }
-            }
+            },
+            JsBinOp::NotEquals => {
+                let right_val = self.right.execute(js_interpreter);
+
+                match left_val {
+                    JsValue::Number(left_number) => {
+                        match right_val {
+                            JsValue::Number(right_number) => {
+                                return JsValue::Boolean(left_number != right_number);
+                            },
+                            _ => { todo!() }
+                        }
+                    },
+                    JsValue::String(left_string) => {
+                        match right_val {
+                            JsValue::String(right_string) => {
+                                return JsValue::Boolean(left_string != right_string);
+                            },
+                            _ => { todo!() }
+                        }
+                    },
+                    _ => { todo!() }
+                }
+            },
+            JsBinOp::NotEqualsStrict => {
+                let right_val = self.right.execute(js_interpreter);
+
+                match left_val {
+                    JsValue::Number(left_number) => {
+                        match right_val {
+                            JsValue::Number(right_number) => { return JsValue::Boolean(left_number != right_number); },
+                            _ => { return JsValue::Boolean(true); }
+                        }
+                    },
+                    JsValue::String(left_string) => {
+                        match right_val {
+                            JsValue::String(right_string) => { return JsValue::Boolean(left_string != right_string); },
+                            _ => { return JsValue::Boolean(true); }
+                        }
+                    },
+                    JsValue::Undefined => {
+                        match right_val {
+                            JsValue::Undefined => return JsValue::Boolean(false),
+                            _ => return JsValue::Boolean(true),
+                        }
+                    },
+                    _ => { todo!() }
+                }
+            },
             JsBinOp::LogicalAnd => {
                 let right_val = self.right.execute(js_interpreter);
 
@@ -822,6 +870,8 @@ pub enum JsBinOp {
     PropertyAccess,
     Equals,
     EqualsStrict,
+    NotEquals,
+    NotEqualsStrict,
     LogicalAnd,
     LogicalOr,
     BitWiseOr,

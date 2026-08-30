@@ -424,3 +424,8 @@ fn declaration_with_one_assignment() {
 fn array_destructuring() {
     assert_js(r#"var aa = [5,7]; [b, c] = aa; tester.export(2*b + c);"#, JsValue::Number(17));
 }
+
+#[test]
+fn not_equal() {
+    assert_js(r#"var a = 3; tester.export(10); if (a != 4) { tester.export(2); }"#, JsValue::Number(2));
+}

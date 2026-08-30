@@ -285,7 +285,7 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
             binop @ (JsToken::Plus | JsToken::Minus | JsToken::Star | JsToken::ForwardSlash | JsToken::LeftShift | JsToken::RightShift | JsToken::BitWiseXor |
                      JsToken::Equals | JsToken::EqualsStrict | JsToken::LogicalAnd | JsToken::LogicalOr | JsToken::BitWiseOr | JsToken::BitWiseAnd | JsToken::Comma |
                      JsToken::Bigger | JsToken::Smaller | JsToken::KeyWordIn | JsToken::Remainder | JsToken::BiggerOrEqual | JsToken::SmallerOrEqual |
-                     JsToken::UnsignedRightShift) => {
+                     JsToken::UnsignedRightShift | JsToken::NotEquals | JsToken::NotEqualsStrict) => {
 
                 if matches!(binop, JsToken::KeyWordIn) && !parser_state.in_is_allowed {
                     //There is situations where "in" is not allowed, for example on the left size of for(.... in ....)
@@ -306,6 +306,8 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                     JsToken::ForwardSlash       => JsBinOp::Divide,
                     JsToken::Equals             => JsBinOp::Equals,
                     JsToken::EqualsStrict       => JsBinOp::EqualsStrict,
+                    JsToken::NotEquals          => JsBinOp::NotEquals,
+                    JsToken::NotEqualsStrict    => JsBinOp::NotEqualsStrict,
                     JsToken::LogicalAnd         => JsBinOp::LogicalAnd,
                     JsToken::LogicalOr          => JsBinOp::LogicalOr,
                     JsToken::BitWiseOr          => JsBinOp::BitWiseOr,
@@ -777,6 +779,8 @@ fn infix_binding_power(token: &JsToken) -> (u8, u8) {
         JsToken::BitWiseAnd => (12, 13),
         JsToken::Equals => (14, 15),
         JsToken::EqualsStrict => (14, 15),
+        JsToken::NotEquals => (14, 15),
+        JsToken::NotEqualsStrict => (14, 15),
         JsToken::Smaller => (16, 17),
         JsToken::Bigger => (16, 17),
         JsToken::SmallerOrEqual => (16, 17),

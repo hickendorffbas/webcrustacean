@@ -102,8 +102,16 @@ fn parse_statement(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserS
         },
         JsToken::KeyWordReturn => {
             parser_state.next();
+
+            match &tokens[parser_state.cursor].token {
+                JsToken::Semicolon | JsToken::CloseBrace => {
+                    return Some(ParseResult::Ok(JsAstStatement::Return(None)));
+                },
+                _ => {},
+            }
+
             return match pratt_parse_expression(tokens, parser_state, 0, false) {
-                ParseResult::Ok(expr) => Some(ParseResult::Ok(JsAstStatement::Return(expr))),
+                ParseResult::Ok(expr) => Some(ParseResult::Ok(JsAstStatement::Return(Some(expr)))),
                 ParseResult::ParsingFailed(parse_error) => Some(ParseResult::ParsingFailed(parse_error)),
             }
         },

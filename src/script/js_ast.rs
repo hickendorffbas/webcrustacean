@@ -25,7 +25,7 @@ pub enum JsAstStatement {
     Declaration(Vec<JsAstDeclaration>),
     FunctionDeclaration(JsAstFunctionDeclaration),  //TODO: a function declaration is not a statement, technically, but we pretend it is for now
                                                     //      (it actually is a "source element", a statement is also a source element)
-    Return(JsAstExpression),                        //TODO: it might make more sense to have return seperately on the function declaration ast node,
+    Return(Option<JsAstExpression>),                //TODO: it might make more sense to have return seperately on the function declaration ast node,
                                                     //      but of type JsAstStatement::Expression, instead of type JsAstStatement::Return
     Conditional(JsAstConditional),
     While(JsAstWhile),
@@ -47,16 +47,20 @@ impl JsAstStatement {
                 }
             },
             JsAstStatement::Return(return_expression) => {
-                let value = return_expression.execute(js_interpreter);
-                js_interpreter.register_return_value(value);
+                if return_expression.is_some() {
+                    let value = return_expression.as_ref().unwrap().execute(js_interpreter);
+                    js_interpreter.register_return_value(value);
+                } else {
+                    js_interpreter.register_return_value(JsValue::Undefined);
+                }
                 return false;
             },
             JsAstStatement::FunctionDeclaration(function_declaration) => { function_declaration.execute(js_interpreter); },
-            JsAstStatement::Conditional(condition_expression) => { condition_expression.execute(js_interpreter); },
-            JsAstStatement::While(while_statement) => { while_statement.execute(js_interpreter); },
-            JsAstStatement::For(for_statement) => { for_statement.execute(js_interpreter); },
-            JsAstStatement::ForEach(for_statement) => { for_statement.execute(js_interpreter); },
-            JsAstStatement::TryCatch(try_catch) => { try_catch.execute(js_interpreter); },
+            JsAstStatement::Conditional(condition_expression) => { return condition_expression.execute(js_interpreter); },
+            JsAstStatement::While(while_statement) => { return while_statement.execute(js_interpreter); },
+            JsAstStatement::For(for_statement) => { return for_statement.execute(js_interpreter); },
+            JsAstStatement::ForEach(for_statement) => { return for_statement.execute(js_interpreter); },
+            JsAstStatement::TryCatch(try_catch) => { return try_catch.execute(js_interpreter); },
         }
         return true;
     }
@@ -104,12 +108,16 @@ pub struct JsAstTryCatch {
     pub finally_script: Option<Rc<Script>>,
 }
 impl JsAstTryCatch {
-    fn execute(&self, js_interpreter: &mut JsInterpreter) {
+    fn execute(&self, js_interpreter: &mut JsInterpreter) -> bool {
         //TODO: since we don't have exceptions, we just run the script and the finally script for now
         js_interpreter.run_script(&self.script, Vec::new());
         if self.finally_script.is_some() {
-            js_interpreter.run_script(self.finally_script.as_ref().unwrap(), Vec::new());
+            let keep_going = js_interpreter.run_script(self.finally_script.as_ref().unwrap(), Vec::new());
+            if !keep_going {
+                return false;
+            }
         }
+        return true;
     }
 }
 
@@ -121,7 +129,7 @@ pub struct JsAstConditional {
     pub else_script: Option<Rc<Script>>,
 }
 impl JsAstConditional {
-    fn execute(&self, js_interpreter: &mut JsInterpreter) {
+    fn execute(&self, js_interpreter: &mut JsInterpreter) -> bool {
         let result = self.condition.execute(js_interpreter);
 
         if result.is_thruty() {
@@ -129,7 +137,7 @@ impl JsAstConditional {
             for statement in self.script.iter() {
                 let keep_going = statement.execute(js_interpreter);
                 if !keep_going {
-                    return;
+                    return false;
                 }
             };
 
@@ -139,12 +147,13 @@ impl JsAstConditional {
                 for statement in self.else_script.as_ref().unwrap().iter() {
                     let keep_going = statement.execute(js_interpreter);
                     if !keep_going {
-                        return;
+                        return false;
                     }
                 };
             }
-
         }
+
+        return true;
     }
 }
 
@@ -155,7 +164,7 @@ pub struct JsAstWhile {
     pub script: Rc<Script>,
 }
 impl JsAstWhile {
-    fn execute(&self, js_interpreter: &mut JsInterpreter) {
+    fn execute(&self, js_interpreter: &mut JsInterpreter) -> bool {
 
         loop {
             let condition_result = self.condition.execute(js_interpreter);
@@ -166,10 +175,12 @@ impl JsAstWhile {
             for statement in self.script.iter() {
                 let keep_going = statement.execute(js_interpreter);
                 if !keep_going {
-                    return;
+                    return false;
                 }
             };
         }
+
+        return true;
     }
 }
 
@@ -185,7 +196,7 @@ pub struct JsAstFor {
     pub script: Rc<Script>,
 }
 impl JsAstFor {
-    fn execute(&self, js_interpreter: &mut JsInterpreter) {
+    fn execute(&self, js_interpreter: &mut JsInterpreter) -> bool {
         if self.initial_declarations.is_some() {
             for node in self.initial_declarations.as_ref().unwrap().iter() {
                 node.execute(js_interpreter);
@@ -203,11 +214,16 @@ impl JsAstFor {
             }
 
             for statement in self.script.iter() {
-                statement.execute(js_interpreter);
+                let keep_going = statement.execute(js_interpreter);
+                if !keep_going {
+                    return false;
+                }
             }
 
             self.next_step_expression.execute(js_interpreter);
         }
+
+        return true;
     }
 }
 
@@ -221,7 +237,7 @@ pub struct JsAstForEach {
     pub script: Rc<Script>,
 }
 impl JsAstForEach {
-    fn execute(&self, js_interpreter: &mut JsInterpreter) {
+    fn execute(&self, js_interpreter: &mut JsInterpreter) -> bool {
         let iteration_reference = if self.initial_expression.is_some() {
             self.initial_expression.as_ref().unwrap().execute_for_reference(js_interpreter).unwrap()
         } else {
@@ -241,7 +257,10 @@ impl JsAstForEach {
                         for key in keys {
                             js_interpreter.set_reference(iteration_reference.clone(), JsValue::String(key.clone()));
                             for statement in self.script.iter() {
-                                statement.execute(js_interpreter);
+                                let keep_going = statement.execute(js_interpreter);
+                                if !keep_going {
+                                    return false;
+                                }
                             }
                         }
                     },
@@ -254,6 +273,8 @@ impl JsAstForEach {
                 todo!(); //TODO: this should always be an error
             }
         };
+
+        return true;
     }
 }
 

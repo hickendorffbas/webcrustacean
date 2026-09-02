@@ -91,7 +91,7 @@ impl JsInterpreter {
         self.current_error = Some(error);
     }
 
-    pub fn run_script(&mut self, script: &Script, arguments: Vec<(String, JsValue)>) {
+    pub fn run_script(&mut self, script: &Script, arguments: Vec<(String, JsValue)>) -> bool {
         self.start_new_context();
 
         for (arg_name, arg_value) in arguments {
@@ -99,10 +99,12 @@ impl JsInterpreter {
         }
         for statement in script {
             if !statement.execute(self) {
-                return;
+                self.context_stack.pop();
+                return false;
             }
         }
         self.context_stack.pop();
+        return true;
     }
 
     pub fn get_from_heap(&self, address: JsAddress) -> &JsHeapObject {

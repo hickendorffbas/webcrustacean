@@ -434,3 +434,8 @@ fn not_equal() {
 fn object_loop_sum() {
     assert_js(r#"var x = {bla: 3, piep: 7}; var sum = 0; for (y in x) { sum += x[y]; } tester.export(sum);"#, JsValue::Number(10));
 }
+
+#[test]
+fn return_without_value() {
+    assert_js(r#"function a(state) { tester.export(1); if (state == 1) { return; } tester.export(3); } a(1);"#, JsValue::Number(1));
+}

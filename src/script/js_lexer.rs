@@ -96,6 +96,7 @@ pub enum JsToken {
     KeyWordTry,
     KeyWordCatch,
     KeyWordFinally,
+    KeyWordThrow,
 }
 
 
@@ -412,6 +413,8 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                 tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordCatch));
             } else if identifier == "finally" {
                 tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordFinally));
+            } else if identifier == "throw" {
+                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordThrow));
             } else {
                 tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Identifier(identifier)));
             }

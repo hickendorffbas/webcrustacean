@@ -143,6 +143,14 @@ fn parse_statement(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserS
                 ParseResult::ParsingFailed(error) => Some(ParseResult::ParsingFailed(error)),
             }
         },
+        JsToken::KeyWordThrow => {
+            parser_state.next();
+
+            return match pratt_parse_expression(tokens, parser_state, 0, true) {
+                ParseResult::Ok(expression) => Some(ParseResult::Ok(JsAstStatement::Throw(JsAstThrow { expression: Rc::from(expression) }))),
+                ParseResult::ParsingFailed(parse_error) => Some(ParseResult::ParsingFailed(parse_error)),
+            }
+        },
         decl_keyword @ (JsToken::KeyWordVar | JsToken::KeyWordLet | JsToken::KeyWordConst) => {
             parser_state.next();
 

@@ -32,6 +32,7 @@ pub enum JsAstStatement {
     For(JsAstFor),
     ForEach(JsAstForEach),
     TryCatch(JsAstTryCatch),
+    Throw(JsAstThrow),
 }
 impl JsAstStatement {
     pub fn execute(&self, js_interpreter: &mut JsInterpreter) -> bool {
@@ -61,6 +62,7 @@ impl JsAstStatement {
             JsAstStatement::For(for_statement) => { return for_statement.execute(js_interpreter); },
             JsAstStatement::ForEach(for_statement) => { return for_statement.execute(js_interpreter); },
             JsAstStatement::TryCatch(try_catch) => { return try_catch.execute(js_interpreter); },
+            JsAstStatement::Throw(throw) => { return throw.execute(js_interpreter); },
         }
         return true;
     }
@@ -1302,5 +1304,19 @@ impl JsAstTypeOf {
             }
             JsValue::Undefined => JsValue::String(String::from("undefined")),
         }
+    }
+}
+
+
+#[derive(Debug)]
+pub struct JsAstThrow {
+    pub expression: Rc<JsAstExpression>,
+}
+impl JsAstThrow {
+    fn execute(&self, js_interpreter: &mut JsInterpreter) -> bool {
+        let _ = self.expression.execute(js_interpreter);
+
+        debug_log_warn("Exceptions in javascript are not yet supported");
+        return false
     }
 }

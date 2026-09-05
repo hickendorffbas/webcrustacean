@@ -409,8 +409,8 @@ impl JsAstBinOp {
                         match &property {
                             JsValue::String(property_value) => {
                                 match object.members.get(property_value) {
-                                    Some(value) => { return value.clone() },
-                                    None => todo!(),  //TODO: this should be an error
+                                    Some(value) => { return value.clone(); },
+                                    None =>  { return JsValue::Undefined; },
                                 }
                             },
                             _ => {
@@ -1024,6 +1024,7 @@ pub enum JsAstExpression {
     RegexLiteral(JsAstRegexLiteral),
     ObjectCreation(JsAstObjectCreation),
     TypeOf(JsAstTypeOf),
+    Delete(JsAstDelete),
 }
 impl JsAstExpression {
     fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
@@ -1041,6 +1042,7 @@ impl JsAstExpression {
             JsAstExpression::StringLiteral(string_literal) => { return JsValue::String(string_literal.clone()); },
             JsAstExpression::UndefinedLiteral() => { return JsValue::Undefined; },
             JsAstExpression::TypeOf(type_of) => { return type_of.execute(js_interpreter); },
+            JsAstExpression::Delete(delete) => { return delete.execute(js_interpreter); },
             JsAstExpression::FunctionCall(function_call) => { return function_call.execute(js_interpreter) },
             JsAstExpression::NumericLiteral(value) => { return JsValue::Number(*value) },
             JsAstExpression::Assignment(js_ast_assign) => {
@@ -1297,6 +1299,54 @@ impl JsAstTypeOf {
 
             }
             JsValue::Undefined => JsValue::String(String::from("undefined")),
+        }
+    }
+}
+
+
+#[derive(Debug)]
+pub struct JsAstDelete {
+    pub expression: Rc<JsAstExpression>,
+}
+impl JsAstDelete {
+    fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
+        let member_reference = self.expression.execute_for_reference(js_interpreter);
+
+        if member_reference.is_some() {
+            match member_reference.unwrap() {
+                JsReference::Variable(_) => {
+                    //This is defined to not have any effect
+                    return JsValue::Boolean(true);
+                },
+                JsReference::Property { object_address, member } => {
+                    let object = js_interpreter.get_from_heap_mut(object_address);
+
+                    match object {
+                        JsHeapObject::Object(js_object) => {
+                            js_object.members.remove(&member);
+                        },
+                        JsHeapObject::Array(_js_array) => {
+                            todo!(); //TODO: some kind of error
+                        },
+                    }
+                    return JsValue::Boolean(true);
+                },
+                JsReference::Index { object_address, index: _ } => {
+                    let object = js_interpreter.get_from_heap_mut(object_address);
+
+                    match object {
+                        JsHeapObject::Object(_js_object) => {
+                            todo!(); //TODO: some kind of error
+                        },
+                        JsHeapObject::Array(_js_array) => {
+                            todo!(); //TODO: implement, there is some complexity here, because this should remove the item, but keep the array size and
+                                     //      indexing, adding a "hole"
+                        },
+                    }
+                },
+            }
+        } else {
+            todo!(); //TODO: some kind of error (reference error or something like that)
         }
     }
 }

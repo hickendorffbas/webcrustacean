@@ -97,6 +97,7 @@ pub enum JsToken {
     KeyWordCatch,
     KeyWordFinally,
     KeyWordThrow,
+    KeyWordDelete,
 }
 
 
@@ -230,6 +231,7 @@ const TOKENS_PROBABLY_PRECEDING_REGEX_LITERAL: &[JsToken] = &[
     JsToken::LeftShift,
     JsToken::UnsignedRightShift,
     JsToken::KeyWordTypeOf,
+    JsToken::KeyWordDelete,
 ];
 
 
@@ -392,6 +394,8 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                 tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordFinally));
             } else if identifier == "throw" {
                 tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordThrow));
+            } else if identifier == "delete" {
+                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordDelete));
             } else {
                 tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Identifier(identifier)));
             }

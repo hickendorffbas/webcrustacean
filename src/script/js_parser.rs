@@ -972,6 +972,8 @@ fn parse_for_loop(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserSt
         }
     };
 
+    parser_state.in_is_allowed = true;
+
     match &tokens[parser_state.cursor].token {
         JsToken::Semicolon => {
             parser_state.next();
@@ -983,8 +985,6 @@ fn parse_for_loop(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserSt
             expect(tokens, parser_state, JsToken::CloseParenthesis)?;
             expect(tokens, parser_state, JsToken::OpenBrace)?;
             let script = Rc::from(parse_script(tokens, parser_state)?);
-
-            parser_state.in_is_allowed = true;
 
             return ParseResult::Ok(JsAstStatement::ForEach(JsAstForEach { initial_expression, initial_declarations, iteration_target, script }));
         },

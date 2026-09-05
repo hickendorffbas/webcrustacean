@@ -439,3 +439,15 @@ fn object_loop_sum() {
 fn return_without_value() {
     assert_js(r#"function a(state) { tester.export(1); if (state == 1) { return; } tester.export(3); } a(1);"#, JsValue::Number(1));
 }
+
+#[test]
+fn assign_non_anonymous_function() {
+    assert_js(r#"
+function make_add(number) {
+    return function add(a, b) { return a + b; };
+}
+const add = make_add(2);
+tester.export(add(3, 4));
+"#,
+    JsValue::Number(7));
+}

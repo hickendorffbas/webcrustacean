@@ -399,9 +399,19 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
         JsToken::KeyWordFunction => {  //(anonymous) functions can also be an expression in JS
             parser_state.next();
 
-            //TODO: epression functions are also allowed to not be anonymous....
-
-            expect(tokens, parser_state, JsToken::OpenParenthesis)?;
+            let name = match &tokens[parser_state.cursor].token {
+                JsToken::OpenParenthesis => {
+                    //This is an anonymous function
+                    parser_state.next();
+                    None
+                },
+                JsToken::Identifier(ident) => {
+                    parser_state.next();
+                    expect(tokens, parser_state, JsToken::OpenParenthesis)?;
+                    Some(ident.clone())
+                },
+                _ => todo!(), //TODO: some kind of error
+            };
 
             let mut arguments = Vec::new();
             let mut first = true;
@@ -444,7 +454,7 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
             expect(tokens, parser_state, JsToken::OpenBrace)?;
 
             let script = parse_script(tokens, parser_state)?;
-            return ParseResult::Ok(JsAstExpression::FunctionExpression(JsAstFunctionExpression { name: None, arguments, script: Rc::from(script) }));
+            return ParseResult::Ok(JsAstExpression::FunctionExpression(JsAstFunctionExpression { name, arguments, script: Rc::from(script) }));
         },
         JsToken::KeyWordNew => {
             parser_state.next();

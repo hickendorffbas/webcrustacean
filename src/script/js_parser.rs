@@ -526,7 +526,7 @@ fn convert_left_side_of_assign(current_left_size: JsAstExpression) -> Vec<(Optio
                 match item {
                     JsAstExpression::Identifier(assignment_target) => {
                         let new_target_ast = JsAstExpression::Identifier(JsAstIdentifier { name: assignment_target.name.clone() });
-                        assign_targets.push((Some(JsAstExpression::NumericLiteral(index.to_string())), Rc::from(new_target_ast)));
+                        assign_targets.push((Some(JsAstExpression::NumericLiteral(index as f64)), Rc::from(new_target_ast)));
                     },
                     _ => {
                         todo!(); //TODO: some kind of error

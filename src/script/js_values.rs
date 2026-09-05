@@ -19,8 +19,7 @@ pub enum JsReference {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone)]
 pub enum JsValue {
-    Number(i64), //TODO: number type is wrong here, we need different rust types depending on what kind of number it is? (floats?)
-                 //      or a more complex type maybe?
+    Number(f64),
     String(String),
     Boolean(bool),
     Address(JsAddress),
@@ -29,7 +28,7 @@ pub enum JsValue {
 impl JsValue {
     pub fn is_thruty(self) -> bool {
         match self {
-            JsValue::Number(number) => { return number != 0 },
+            JsValue::Number(number) => { return number != 0.0 },
             JsValue::String(string) => { return !string.is_empty() } ,
             JsValue::Boolean(bool) => { return bool; },
             JsValue::Address(_) => { todo!(); }, //TODO: implement (check the heap)

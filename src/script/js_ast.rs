@@ -567,7 +567,7 @@ impl JsAstBinOp {
                     JsValue::Number(num) => {
                         match right_val {
                             JsValue::Number(other_num) => {
-                                return JsValue::Number(num | other_num);
+                                return JsValue::Number((num as i32 | other_num as i32) as f64);
                             },
                             _ => { todo!() }
                         }
@@ -582,7 +582,7 @@ impl JsAstBinOp {
                     JsValue::Number(num) => {
                         match right_val {
                             JsValue::Number(other_num) => {
-                                return JsValue::Number(num ^ other_num);
+                                return JsValue::Number((num as i32 ^ other_num as i32) as f64);
                             },
                             _ => { todo!() }
                         }
@@ -597,7 +597,7 @@ impl JsAstBinOp {
                     JsValue::Number(num) => {
                         match right_val {
                             JsValue::Number(other_num) => {
-                                return JsValue::Number(num & other_num);
+                                return JsValue::Number((num as i32 & other_num as i32) as f64);
                             },
                             _ => { todo!() }
                         }
@@ -615,7 +615,7 @@ impl JsAstBinOp {
                     JsValue::Number(left_number) => {
                         match right_val {
                             JsValue::Number(right_number) => {
-                                return JsValue::Number(left_number << right_number);
+                                return JsValue::Number(((left_number as i32) << right_number as i32) as f64);
                             }
                             _ => todo!(), //TODO: probably needs to be an error
                         }
@@ -630,7 +630,7 @@ impl JsAstBinOp {
                     JsValue::Number(left_number) => {
                         match right_val {
                             JsValue::Number(right_number) => {
-                                return JsValue::Number(left_number >> right_number);
+                                return JsValue::Number((left_number as i32 >> right_number as i32) as f64);
                             }
                             _ => todo!(), //TODO: probably needs to be an error
                         }
@@ -645,7 +645,7 @@ impl JsAstBinOp {
                     JsValue::Number(left_number) => {
                         match right_val {
                             JsValue::Number(right_number) => {
-                                return JsValue::Number((left_number as u64 >> right_number) as i64);
+                                return JsValue::Number((left_number as u32 >> right_number as u32) as f64);
                             }
                             _ => todo!(), //TODO: probably needs to be an error
                         }
@@ -961,7 +961,7 @@ impl JsAstUnOp {
                                 match value {
                                     JsValue::Number(num) => {
                                         let original = *num;
-                                        *num += 1;
+                                        *num += 1.0;
                                         return JsValue::Number(original);
                                     },
                                     _ => {
@@ -1011,7 +1011,7 @@ pub enum JsAstExpression {
     BinOp(JsAstBinOp),
     UnaryOp(JsAstUnOp),
     Ternary(JsAstTernary),
-    NumericLiteral(String),
+    NumericLiteral(f64),
     StringLiteral(String),
     BooleanLiteral(bool),
     UndefinedLiteral(),
@@ -1042,19 +1042,7 @@ impl JsAstExpression {
             JsAstExpression::UndefinedLiteral() => { return JsValue::Undefined; },
             JsAstExpression::TypeOf(type_of) => { return type_of.execute(js_interpreter); },
             JsAstExpression::FunctionCall(function_call) => { return function_call.execute(js_interpreter) },
-            JsAstExpression::NumericLiteral(numeric_literal) => {
-                //TODO: we might want to cache the JsValue somehow, and we need to support more numeric types...
-
-                let parsed_value = numeric_literal.parse();
-                match parsed_value {
-                    Ok(value) => {
-                        return JsValue::Number(value);
-                    },
-                    Err(_e) => {
-                        panic!("could not convert number in string to JsValue::Number");
-                    }
-                }
-            },
+            JsAstExpression::NumericLiteral(value) => { return JsValue::Number(*value) },
             JsAstExpression::Assignment(js_ast_assign) => {
                 js_ast_assign.execute(js_interpreter);
                 return JsValue::Undefined; //TODO: I think an assignment expression should return its value, we need to fix that if so
@@ -1154,7 +1142,13 @@ impl JsAstFunctionCall {
 
                             let to_log = match to_log {
                                 JsValue::String(string) =>  { string }
-                                JsValue::Number(number) => { number.to_string() },
+                                JsValue::Number(number) => {
+                                    if number.fract() == 0.0 {
+                                        number.trunc().to_string()
+                                    } else {
+                                        number.to_string()
+                                    }
+                                },
                                 JsValue::Boolean(bool) => { if bool { "true".to_owned() } else { "false".to_owned() } },
                                 JsValue::Undefined => { "undefined".to_owned() },
                                 JsValue::Address(_) => todo!(), //TODO: implement

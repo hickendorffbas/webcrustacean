@@ -52,12 +52,12 @@ fn assert_js(code: &str, expected: JsValue) {
 
 #[test]
 fn test_basic_assignment_and_export() {
-    assert_js("x = 3; tester.export(x + 4);", JsValue::Number(7));
+    assert_js("x = 3; tester.export(x + 4);", JsValue::Number(7.0));
 }
 
 #[test]
 fn test_binop_associativity() {
-    assert_js("x = 12 / 3 * 2; tester.export(x);", JsValue::Number(8));
+    assert_js("x = 12 / 3 * 2; tester.export(x);", JsValue::Number(8.0));
 }
 
 #[test]
@@ -67,7 +67,7 @@ x = {"a": 4, "b": 2};
 x.a = x.a + 1;
 x.c = 5;
 tester.export(x.a + x.b + x.c);"#,
-    JsValue::Number(12));
+    JsValue::Number(12.0));
 }
 
 #[test]
@@ -77,7 +77,7 @@ x = {"a": 4, "b": 2, };
 x.a = x.a + 1;
 x.c = 5;
 tester.export(x.a + x.b + x.c);"#,
-    JsValue::Number(12));
+    JsValue::Number(12.0));
 }
 
 #[test]
@@ -89,7 +89,7 @@ function mult(p1, p2) {
 
 x = mult(2, 3);
 tester.export(x);"#,
-    JsValue::Number(6));
+    JsValue::Number(6.0));
 }
 
 #[test]
@@ -100,7 +100,7 @@ function get() {
 };
 x = get();
 tester.export(x);"#,
-    JsValue::Number(150));
+    JsValue::Number(150.0));
 }
 
 #[test]
@@ -119,7 +119,7 @@ x = 1;
 /* x = 3;
     this is extra text */
 tester.export(x);"#,
-    JsValue::Number(1));
+    JsValue::Number(1.0));
 }
 
 #[test]
@@ -146,7 +146,7 @@ fn test_escaping_the_escape_char() {
 fn test_empty_statement_in_front() {
     assert_js(r#"; var x=1;
         tester.export(x);"#,
-    JsValue::Number(1));
+    JsValue::Number(1.0));
 }
 
 #[test]
@@ -161,7 +161,7 @@ fn test_basic_if_statement() {
             b = b + 7;
         }
         tester.export(b); "#,
-    JsValue::Number(8));
+    JsValue::Number(8.0));
 }
 
 #[test]
@@ -169,7 +169,7 @@ fn test_negative_number() {
     assert_js(r#"var x = -3;
         x = x + 5;
         tester.export(x);"#,
-    JsValue::Number(2));
+    JsValue::Number(2.0));
 }
 
 #[test]
@@ -180,12 +180,12 @@ fn test_index_operator_for_object_properties() {
 
 #[test]
 fn test_array() {
-    assert_js(r#"var x = [1, 2]; tester.export(x[1]);"#, JsValue::Number(2));
+    assert_js(r#"var x = [1, 2]; tester.export(x[1]);"#, JsValue::Number(2.0));
 }
 
 #[test]
 fn test_muti_dimensional_array() {
-    assert_js(r#"var x = [[1, 5], [2, 3]]; tester.export(x[1][1]);"#, JsValue::Number(3));
+    assert_js(r#"var x = [[1, 5], [2, 3]]; tester.export(x[1][1]);"#, JsValue::Number(3.0));
 }
 
 #[test]
@@ -194,32 +194,32 @@ fn test_new_object_with_newlines() {
             a: 1,
             b: 2
         }; tester.export(data.b);"#,
-    JsValue::Number(2));
+    JsValue::Number(2.0));
 }
 
 #[test]
 fn test_anonymous_function() {
-    assert_js(r#"(function (w) { tester.export(w); })(13);"#, JsValue::Number(13));
+    assert_js(r#"(function (w) { tester.export(w); })(13);"#, JsValue::Number(13.0));
 }
 
 #[test]
 fn test_comma_operator() {
-     assert_js(r#"var x = (1, 2, 5); tester.export(x);"#, JsValue::Number(5));
+     assert_js(r#"var x = (1, 2, 5); tester.export(x);"#, JsValue::Number(5.0));
 }
 
 #[test]
 fn test_ternary_true() {
-    assert_js(r#"var n = 4; tester.export(n == 4 ? 1 : 2);"#, JsValue::Number(1));
+    assert_js(r#"var n = 4; tester.export(n == 4 ? 1 : 2);"#, JsValue::Number(1.0));
 }
 
 #[test]
 fn test_ternary_false() {
-    assert_js(r#"var n = 4; tester.export(n == 3 ? 1 : 2);"#, JsValue::Number(2));
+    assert_js(r#"var n = 4; tester.export(n == 3 ? 1 : 2);"#, JsValue::Number(2.0));
 }
 
 #[test]
 fn test_ternary() {
-    assert_js(r#"var n = 4; tester.export(n == 3 ? 1 : 2);"#, JsValue::Number(2));
+    assert_js(r#"var n = 4; tester.export(n == 3 ? 1 : 2);"#, JsValue::Number(2.0));
 }
 
 #[test]
@@ -233,7 +233,7 @@ while (a == 1) {
     };
     b = b + 1;
 }"#,
-    JsValue::Number(5));
+    JsValue::Number(5.0));
 }
 
 #[test]
@@ -271,7 +271,7 @@ fn test_functions_are_also_just_objects() {
 var func = function() {};
 func.x = 3;
 tester.export(func.x);"#,
-    JsValue::Number(3));
+    JsValue::Number(3.0));
 }
 
 #[test]
@@ -280,7 +280,7 @@ fn test_bitshift() {
 a = 5; // 000000000000000101
 b = 2;
 tester.export(a << b);"#,
-    JsValue::Number(20));
+    JsValue::Number(20.0));
 }
 
 #[test]
@@ -288,7 +288,7 @@ fn test_hexadecimal() {
     assert_js(r#"
 let hexNumber = 0x1A - 3;
 tester.export(hexNumber);"#,
-    JsValue::Number(23));
+    JsValue::Number(23.0));
 }
 
 #[test]
@@ -297,7 +297,7 @@ fn test_compound_assign_add() {
 let x = 6;
 x += 4;
 tester.export(x);"#,
-    JsValue::Number(10));
+    JsValue::Number(10.0));
 }
 
 #[test]
@@ -309,7 +309,7 @@ if (x > 4) {
 } (function() {
     tester.export(x);
 }());"#,
-    JsValue::Number(3));
+    JsValue::Number(3.0));
 }
 
 #[test]
@@ -318,7 +318,7 @@ fn multiple_var_decl_with_newline() {
 var x = 1,
     y = 2;
 tester.export(x + y);"#,
-    JsValue::Number(3));
+    JsValue::Number(3.0));
 }
 
 #[test]
@@ -329,7 +329,7 @@ for (var i = 0; i < 4; i++) {
     nn = nn + i;
 }
 tester.export(nn);"#,
-    JsValue::Number(7));
+    JsValue::Number(7.0));
 }
 
 #[test]
@@ -337,7 +337,7 @@ fn arrays_with_computed_index_as_lvalue() {
     assert_js(r#"var x = [1,2,3];
 x[1 + 1] = 4;
 tester.export(x[2]);"#,
-    JsValue::Number(4));
+    JsValue::Number(4.0));
 }
 
 #[test]
@@ -348,7 +348,7 @@ if (x) {
 } else {
 
 }"#,
-    JsValue::Number(1));
+    JsValue::Number(1.0));
 }
 
 #[test]
@@ -362,7 +362,7 @@ if (num === num) { x += 1; }
 if (str === str) { x += 2; }
 if (num === str) { x += 4; }
 tester.export(x);"#,
-    JsValue::Number(3));
+    JsValue::Number(3.0));
 }
 
 #[test]
@@ -377,7 +377,7 @@ for (var n in x) {
     y += x[n];
 }
 tester.export(y);"#,
-    JsValue::Number(18));
+    JsValue::Number(18.0));
 }
 
 #[test]
@@ -387,7 +387,7 @@ fn add_strings() {
 
 #[test]
 fn test_modulus() {
-    assert_js(r#"tester.export(15 % 7);"#, JsValue::Number(1));
+    assert_js(r#"tester.export(15 % 7);"#, JsValue::Number(1.0));
 }
 
 #[test]
@@ -397,47 +397,47 @@ x = {"a": 3};
 x.a = x.a + 2;
 tester.export(x.a);
 "#,
-    JsValue::Number(5));
+    JsValue::Number(5.0));
 }
 
 #[test]
 fn greater_or_equal() {
-    assert_js(r#"a = 0; x = 4; if (x >= 3) { a++; } if (x >= 7) { a = a + 5; } tester.export(a); "#, JsValue::Number(1));
+    assert_js(r#"a = 0; x = 4; if (x >= 3) { a++; } if (x >= 7) { a = a + 5; } tester.export(a); "#, JsValue::Number(1.0));
 }
 
 #[test]
 fn else_if() {
-    assert_js(r#"a = 5; if (a == 2) { tester.export(1); } else if (a == 5) { tester.export(2); } else { tester.export(3) }"#, JsValue::Number(2));
+    assert_js(r#"a = 5; if (a == 2) { tester.export(1); } else if (a == 5) { tester.export(2); } else { tester.export(3) }"#, JsValue::Number(2.0));
 }
 
 #[test]
 fn basic_object_destructuring() {
-    assert_js(r#"x = {a: 1, b: 2}; var {a: d, b: f} = x; tester.export(d + f);"#, JsValue::Number(3));
+    assert_js(r#"x = {a: 1, b: 2}; var {a: d, b: f} = x; tester.export(d + f);"#, JsValue::Number(3.0));
 }
 
 #[test]
 fn declaration_with_one_assignment() {
-    assert_js(r#"var aa, bb = 7; aa = 5; tester.export(2*aa + bb);"#, JsValue::Number(17));
+    assert_js(r#"var aa, bb = 7; aa = 5; tester.export(2*aa + bb);"#, JsValue::Number(17.0));
 }
 
 #[test]
 fn array_destructuring() {
-    assert_js(r#"var aa = [5,7]; [b, c] = aa; tester.export(2*b + c);"#, JsValue::Number(17));
+    assert_js(r#"var aa = [5,7]; [b, c] = aa; tester.export(2*b + c);"#, JsValue::Number(17.0));
 }
 
 #[test]
 fn not_equal() {
-    assert_js(r#"var a = 3; tester.export(10); if (a != 4) { tester.export(2); }"#, JsValue::Number(2));
+    assert_js(r#"var a = 3; tester.export(10); if (a != 4) { tester.export(2); }"#, JsValue::Number(2.0));
 }
 
 #[test]
 fn object_loop_sum() {
-    assert_js(r#"var x = {bla: 3, piep: 7}; var sum = 0; for (y in x) { sum += x[y]; } tester.export(sum);"#, JsValue::Number(10));
+    assert_js(r#"var x = {bla: 3, piep: 7}; var sum = 0; for (y in x) { sum += x[y]; } tester.export(sum);"#, JsValue::Number(10.0));
 }
 
 #[test]
 fn return_without_value() {
-    assert_js(r#"function a(state) { tester.export(1); if (state == 1) { return; } tester.export(3); } a(1);"#, JsValue::Number(1));
+    assert_js(r#"function a(state) { tester.export(1); if (state == 1) { return; } tester.export(3); } a(1);"#, JsValue::Number(1.0));
 }
 
 #[test]
@@ -449,5 +449,15 @@ function make_add(number) {
 const add = make_add(2);
 tester.export(add(3, 4));
 "#,
-    JsValue::Number(7));
+    JsValue::Number(7.0));
+}
+
+#[test]
+fn number_with_expontent() {
+    assert_js(r#"tester.export(1e8 / 1e7);"#, JsValue::Number(10.0));
+}
+
+#[test]
+fn float_value() {
+    assert_js(r#"tester.export(1.3 + 1.8);"#, JsValue::Number(3.1));
 }

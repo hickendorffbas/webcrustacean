@@ -23,7 +23,7 @@ impl JsTokenWithLocation {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone, PartialEq)]
 pub enum JsToken {
-    Number(String),
+    Number(f64),
     LiteralString(String),
     LiteralBoolean(bool),
     LiteralUndefined,
@@ -244,30 +244,7 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
     while js_iterator.has_next() {
 
         if js_iterator.has_next() && js_iterator.peek().unwrap().is_numeric() {
-            let mut number_text = String::new();
-
-            number_text.push(js_iterator.next());
-
-            if number_text == "0" && js_iterator.has_next() && js_iterator.peek().unwrap() == 'x' {
-                //Hexadecimal number
-                number_text.clear();
-                js_iterator.next();
-
-                while js_iterator.has_next() && js_iterator.peek().unwrap().is_ascii_hexdigit() {
-                    number_text.push(js_iterator.next());
-                }
-
-                number_text = i64::from_str_radix(number_text.as_str(), 16).unwrap().to_string();
-
-            } else {
-                while js_iterator.has_next() && js_iterator.peek().unwrap().is_numeric() {
-                    number_text.push(js_iterator.next());
-                }
-            }
-
-            //TODO: using "make" below is not correct, because it will give the end position of the literal, instead of the start
-            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Number(number_text)));
-
+            tokens.push(lex_number(&mut js_iterator));
         }
         else if js_iterator.peek() == Some(' ') || js_iterator.peek() == Some('\t') || js_iterator.peek() == Some('\r') {
             eat_whitespace(&mut js_iterator);
@@ -571,6 +548,42 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
     }
 
     return tokens;
+}
+
+
+fn lex_number(js_iterator: &mut JsSourceIterator) -> JsTokenWithLocation {
+    let mut number_text = String::new();
+
+    number_text.push(js_iterator.next());
+
+    let number_value = if number_text == "0" && js_iterator.has_next() && js_iterator.peek().unwrap() == 'x' {
+        //Hexadecimal number
+        number_text.clear();
+        js_iterator.next();
+
+        while js_iterator.has_next() && js_iterator.peek().unwrap().is_ascii_hexdigit() {
+            number_text.push(js_iterator.next());
+        }
+
+        i64::from_str_radix(number_text.as_str(), 16).unwrap() as f64
+
+    } else {
+        while js_iterator.has_next() {
+            if js_iterator.peek().unwrap().is_numeric() ||
+                    js_iterator.peek().unwrap() == '.' ||
+                    js_iterator.peek().unwrap() == 'e' { //the exponential notation will just be converted when converting the string to an int
+                number_text.push(js_iterator.next());
+            } else {
+                break;
+            }
+        }
+
+        number_text.parse().unwrap()
+    };
+
+    //TODO: using "make" below is not correct, because it will give the end position of the literal, instead of the start
+    return JsTokenWithLocation::make(&js_iterator, JsToken::Number(number_value));
+
 }
 
 

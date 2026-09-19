@@ -6,6 +6,7 @@
 - Basics of javascript bitwise operators are now supported
 - Implemented scoping for javascript variables
 - Implemented lvalues and references in javascript
+- Now parsing at-rules in CSS.
 
 
 0.7.0

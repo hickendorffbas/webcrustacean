@@ -94,16 +94,26 @@ impl CssFunction {
 }
 
 
+#[derive(PartialEq, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub enum AtRule {
+    Media(String),
+    Supports(String),
+    Container(String),
+}
+
+
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct StyleRule {
     pub selector: Selector,
     pub property: CssProperty,
     pub value: CssValue,
+    pub at_rules: Option<Vec<AtRule>>,
 }
 impl StyleRule {
-    fn make_for_tag_name(tag_name: &str, property: CssProperty, value: &str) -> StyleRule {
+    fn make_for_tag_name(tag_name: &str, property: CssProperty, value: &str, at_rules: Option<Vec<AtRule>>) -> StyleRule {
         return StyleRule { selector: Selector { elements: vec![(CssCombinator::None, SelectorType::Name, tag_name.to_owned())], pseudoclasses: None },
-                           property, value: CssValue::String(value.to_owned()) }
+                           property, value: CssValue::String(value.to_owned()), at_rules }
     }
 }
 
@@ -256,22 +266,22 @@ pub fn get_user_agent_style_sheet() -> Vec<StyleRule> {
     let mut rules = vec![
         //TODO: convert to an actual stylesheet (CSS string) we load in (or maybe not, but a better other format?)
 
-        StyleRule::make_for_tag_name("h1", CssProperty::FontSize, "32"),
-        StyleRule::make_for_tag_name("h2", CssProperty::FontSize, "30"),
-        StyleRule::make_for_tag_name("h3", CssProperty::FontSize, "28"),
-        StyleRule::make_for_tag_name("h4", CssProperty::FontSize, "26"),
-        StyleRule::make_for_tag_name("h5", CssProperty::FontSize, "24"),
-        StyleRule::make_for_tag_name("h6", CssProperty::FontSize, "22"),
+        StyleRule::make_for_tag_name("h1", CssProperty::FontSize, "32", None),
+        StyleRule::make_for_tag_name("h2", CssProperty::FontSize, "30", None),
+        StyleRule::make_for_tag_name("h3", CssProperty::FontSize, "28", None),
+        StyleRule::make_for_tag_name("h4", CssProperty::FontSize, "26", None),
+        StyleRule::make_for_tag_name("h5", CssProperty::FontSize, "24", None),
+        StyleRule::make_for_tag_name("h6", CssProperty::FontSize, "22", None),
 
-        StyleRule::make_for_tag_name("b", CssProperty::FontWeight, "bold"),
-        StyleRule::make_for_tag_name("i", CssProperty::FontStyle, "italic"),
+        StyleRule::make_for_tag_name("b", CssProperty::FontWeight, "bold", None),
+        StyleRule::make_for_tag_name("i", CssProperty::FontStyle, "italic", None),
 
-        StyleRule::make_for_tag_name("a", CssProperty::Color, "blue"),
-        StyleRule::make_for_tag_name("a", CssProperty::TextDecoration, "underline"),
+        StyleRule::make_for_tag_name("a", CssProperty::Color, "blue", None),
+        StyleRule::make_for_tag_name("a", CssProperty::TextDecoration, "underline", None),
     ];
 
     for element in HTML_BLOCK_ELEMENTS {
-        rules.push(StyleRule::make_for_tag_name(element, CssProperty::Display, "block"));
+        rules.push(StyleRule::make_for_tag_name(element, CssProperty::Display, "block", None));
     }
 
     return rules;

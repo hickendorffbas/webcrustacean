@@ -39,7 +39,7 @@ fn test_basic_style_resolving() {
     let mut all_dom_nodes = HashMap::new();
     all_dom_nodes.insert(dom_node_id, Rc::clone(&dom_node));
 
-    let style_rules = vec![ StyleRule::make_for_tag_name("b", CssProperty::BackgroundColor, "some value") ];
+    let style_rules = vec![ StyleRule::make_for_tag_name("b", CssProperty::BackgroundColor, "some value", None) ];
     let style_context = StyleContext { user_agent_sheet: Vec::new(), author_sheet: style_rules };
     let resolved_styles = resolve_full_styles_for_dom_node(&dom_node, &all_dom_nodes, &style_context);
 
@@ -59,7 +59,7 @@ fn test_inherit_style_from_parent() {
     all_dom_nodes.insert(main_node_id, Rc::clone(&main_node));
     all_dom_nodes.insert(parent_node_id, Rc::clone(&parent_node));
 
-    let style_rules = vec![ StyleRule::make_for_tag_name("h3", CssProperty::FontSize, "50") ];
+    let style_rules = vec![ StyleRule::make_for_tag_name("h3", CssProperty::FontSize, "50", None) ];
     let style_context = StyleContext { user_agent_sheet: Vec::new(), author_sheet: style_rules };
     let resolved_styles = resolve_full_styles_for_dom_node(&main_node, &all_dom_nodes, &style_context);
 
@@ -77,10 +77,10 @@ fn test_cascade() {
     all_dom_nodes.insert(dom_node_id, Rc::clone(&dom_node));
 
     let style_rules = vec![
-        StyleRule::make_for_tag_name("b", CssProperty::Color, "red"),
-        StyleRule::make_for_tag_name("b", CssProperty::FontSize, "25"),
+        StyleRule::make_for_tag_name("b", CssProperty::Color, "red", None),
+        StyleRule::make_for_tag_name("b", CssProperty::FontSize, "25", None),
     ];
-    let ua_styles = vec![ StyleRule::make_for_tag_name("b", CssProperty::Color, "red") ];
+    let ua_styles = vec![ StyleRule::make_for_tag_name("b", CssProperty::Color, "red", None) ];
 
     let style_context = StyleContext { user_agent_sheet: ua_styles, author_sheet: style_rules };
 

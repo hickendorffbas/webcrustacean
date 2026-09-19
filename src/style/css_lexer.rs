@@ -15,7 +15,7 @@ pub struct CssTokenWithLocation {
 pub enum CssToken {
     Identifier(String),
     #[allow(unused)] StringLiteral(String), //TODO: implement
-    #[allow(unused)] AtKeyword(String), //TODO: implement
+    AtRule(String, String),
 
     OpenBrace,
     CloseBrace,
@@ -100,7 +100,6 @@ fn lex_css_block(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenW
             continue 'main_loop
         }
 
-
         match css_iterator.next() {
 
             char @ ('{' | '}' | '(' | ')' | '.' | '+' | '>' | ',' | ':' | ';' | '~'| '#') => {
@@ -129,7 +128,7 @@ fn lex_css_block(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenW
                         panic!("invalid state");
                     }
                 }
-            }
+            },
             ' ' | '\t' | '\n' => {
                 if !buffer.is_empty() {
                     tokens.push(make_token(css_iterator, CssToken::Identifier(buffer.clone())));
@@ -140,10 +139,48 @@ fn lex_css_block(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenW
                     tokens.push(make_token(css_iterator, CssToken::Whitespace));
                     last_token_was_whitespace = true;
                 }
-            }
+            },
             '@' => {
-                //last_token_was_whitespace = false;  //TODO: enable when this case is implemented
-                todo!(); //TODO: read everything after until a non-ident char, and build token
+                last_token_was_whitespace = false;
+
+                let mut at_rule_name = String::new();
+                while css_iterator.has_next() {
+                    let next = *(css_iterator.peek().unwrap());
+                    if next == ' ' || next == '{' || next == '(' {
+                        break;
+                    }
+                    at_rule_name.push(css_iterator.next());
+                }
+
+                let mut rule_contents = String::new();
+                while css_iterator.has_next() {
+                    match css_iterator.peek().unwrap() {
+                        ' ' => {
+                            css_iterator.next();
+                        },
+                        '(' => {
+                            css_iterator.next();
+
+                            while css_iterator.has_next() {
+                                match css_iterator.peek().unwrap() {
+                                    ')' => {
+                                        css_iterator.next();
+                                        break;
+                                    },
+                                    _ => {
+                                        rule_contents.push(css_iterator.next());
+                                    }
+                                }
+                            }
+                            break;
+                        },
+                        _ => {
+                            break
+                        }
+                    }
+                };
+                tokens.push(make_token(css_iterator, CssToken::AtRule(at_rule_name, rule_contents)));
+
             },
             char @ _ => {
                 last_token_was_whitespace = false;

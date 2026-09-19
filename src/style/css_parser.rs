@@ -4,6 +4,7 @@ use std::slice::Iter;
 use crate::debug::debug_log_warn;
 use crate::style::css_lexer::{CssToken, CssTokenWithLocation};
 use crate::style::{
+    AtRule,
     CssCombinator,
     CssFunction,
     CssProperty,
@@ -18,11 +19,19 @@ pub fn parse_css(css_tokens: &Vec<CssTokenWithLocation>) -> Vec<StyleRule> {
     let mut style_rules = Vec::new();
     let mut current_selector_context = Vec::new();
     let mut token_iterator = css_tokens.iter().peekable();
+    let mut current_at_rules = Vec::new();
 
-    parse_statements(&mut style_rules, &mut current_selector_context, &mut token_iterator);
+    parse_statements(&mut style_rules, &mut current_selector_context, &mut token_iterator, &mut current_at_rules);
     return process_shorthands(style_rules);
 }
 
+
+fn clone_or_none(current_at_rules: &Vec<AtRule>) -> Option<Vec<AtRule>> {
+    if current_at_rules.len() == 0 {
+        return None;
+    }
+    return Some(current_at_rules.clone());
+}
 
 fn process_shorthands(style_rules: Vec<StyleRule>) -> Vec<StyleRule> {
     let mut resolved_style_rules = Vec::new();
@@ -56,7 +65,8 @@ fn process_shorthands(style_rules: Vec<StyleRule>) -> Vec<StyleRule> {
                                 break;
                             };
 
-                            resolved_style_rules.push(StyleRule { selector: style_rule.selector.clone(), property, value: part });
+                            resolved_style_rules.push(StyleRule { selector: style_rule.selector.clone(), property,
+                                                                  value: part, at_rules: style_rule.at_rules.clone() });
                         }
                     },
                     CssValue::String(_) => {
@@ -81,30 +91,69 @@ fn process_shorthands(style_rules: Vec<StyleRule>) -> Vec<StyleRule> {
 
 
 fn parse_statements(style_rules: &mut Vec<StyleRule>, current_selector_context: &mut Vec<(CssCombinator, SelectorType, String)>,
-                    token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) {
+                    token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>, current_at_rules: &mut Vec<AtRule>) {
     while token_iterator.peek().is_some() {
-        match token_iterator.peek().unwrap().css_token {
-            CssToken::CloseBrace => return,
-            _ => {},
+
+        while token_iterator.peek().is_some() {
+            match token_iterator.peek().unwrap().css_token {
+                CssToken::Whitespace => token_iterator.next(),
+                CssToken::CloseBrace => return,
+                _ => break,
+            };
         }
 
-        parse_statement(style_rules, current_selector_context, token_iterator);
+        parse_statement(style_rules, current_selector_context, token_iterator, current_at_rules);
     }
 }
 
 
 fn parse_statement(style_rules: &mut Vec<StyleRule>, current_context: &mut Vec<(CssCombinator, SelectorType, String)>,
-                   token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) {
-    if token_iterator.peek().is_some() {
-        match &token_iterator.peek().unwrap().css_token {
-            CssToken::AtKeyword(_) => {
-                todo!(); //TODO: how we parse this exactly unfortunately depends on the kind of keywords, some have rulesets, others have not...
-                         //      maybe don't check the keyword but just check for ; or { ... } ??
-            },
-            _ => {
-                let selectors = parse_selectors(current_context, token_iterator);
-                parse_declaration_block(selectors, style_rules, token_iterator);
-            },
+                   token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>, current_at_rules: &mut Vec<AtRule>) {
+    loop {
+        if token_iterator.peek().is_some() {
+            match &token_iterator.peek().unwrap().css_token {
+                CssToken::AtRule(keyword, rule) => {
+                    token_iterator.next();
+
+                    let rule = match keyword.as_str() {
+                        "container" => { AtRule::Container(rule.clone()) },
+                        "media" => { AtRule::Media(rule.clone()) },
+                        "supports" =>  { AtRule::Supports(rule.clone()) },
+                        _ => {
+                            todo!(); //TODO: this should be an error
+                        },
+                    };
+                    current_at_rules.push(rule);
+
+                    loop {
+                        match &token_iterator.peek().unwrap().css_token {
+                            CssToken::OpenBrace => {
+                                token_iterator.next();
+                                parse_statements(style_rules, current_context, token_iterator, current_at_rules);
+                                break;
+                            },
+                            CssToken::Whitespace => {
+                                token_iterator.next();
+                            }
+                            _ => {
+                                break;
+                            }
+                        }
+                    }
+
+                    current_at_rules.pop();
+                    break;
+                },
+                CssToken::Whitespace => {
+                    token_iterator.next();
+                    continue;
+                }
+                _ => {
+                    let selectors = parse_selectors(current_context, token_iterator);
+                    parse_declaration_block(selectors, style_rules, token_iterator, current_at_rules);
+                    break;
+                },
+            }
         }
     }
 }
@@ -207,7 +256,8 @@ fn parse_selectors(current_selector_context: &mut Vec<(CssCombinator, SelectorTy
 }
 
 
-fn parse_declaration_block(selectors: Vec<Selector>, style_rules: &mut Vec<StyleRule>, token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) {
+fn parse_declaration_block(selectors: Vec<Selector>, style_rules: &mut Vec<StyleRule>, token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>,
+                           current_at_rules: &mut Vec<AtRule>) {
     while token_iterator.peek().is_some() {
         match token_iterator.peek().unwrap().css_token {
             CssToken::OpenBrace => {
@@ -231,7 +281,7 @@ fn parse_declaration_block(selectors: Vec<Selector>, style_rules: &mut Vec<Style
                 if declaration.is_some() {
                     let (property, value) = declaration.unwrap();
                     for selector in &selectors {
-                        style_rules.push(StyleRule { selector: selector.clone(), property, value: value.clone() });
+                        style_rules.push(StyleRule { selector: selector.clone(), property, value: value.clone(), at_rules: clone_or_none(current_at_rules) });
                     }
                 }
             }

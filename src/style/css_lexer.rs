@@ -155,31 +155,18 @@ fn lex_css_block(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenW
                 let mut rule_contents = String::new();
                 while css_iterator.has_next() {
                     match css_iterator.peek().unwrap() {
-                        ' ' => {
-                            css_iterator.next();
-                        },
-                        '(' => {
-                            css_iterator.next();
-
-                            while css_iterator.has_next() {
-                                match css_iterator.peek().unwrap() {
-                                    ')' => {
-                                        css_iterator.next();
-                                        break;
-                                    },
-                                    _ => {
-                                        rule_contents.push(css_iterator.next());
-                                    }
-                                }
-                            }
-                            break;
-                        },
+                        '{' | ';' => break,
                         _ => {
-                            break
+                            rule_contents.push(css_iterator.next());
                         }
                     }
                 };
-                tokens.push(make_token(css_iterator, CssToken::AtRule(at_rule_name, rule_contents)));
+                tokens.push(make_token(css_iterator, CssToken::AtRule(at_rule_name, rule_contents.trim().to_owned())));
+
+                if css_iterator.peek().unwrap() == &';' {
+                    //we can have a ; , which we consume, but we could also have another block, which we don't consume (that should be its own token)
+                    css_iterator.next();
+                }
 
             },
             char @ _ => {

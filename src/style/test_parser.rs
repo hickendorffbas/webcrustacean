@@ -126,7 +126,7 @@ fn test_parse_hash_color() {
 
 #[test]
 fn test_parse_at_rule() {
-    let css_text = "@media(max-width:500px){ .mw-parser-output { color: blue } }";
+    let css_text = "@media(max-width:500px) { .mw-parser-output { color: blue } }";
     let tokens = css_lexer::lex_css(&css_text, 1, 1);
     let result = css_parser::parse_css(&tokens);
 
@@ -134,5 +134,5 @@ fn test_parse_at_rule() {
     assert_eq!(result[0].property, CssProperty::Color);
     assert_eq!(result[0].value, CssValue::String("blue".to_owned()));
     assert_eq!(result[0].selector.elements[0], (CssCombinator::None, SelectorType::Class, "mw-parser-output".to_owned()));
-    assert_eq!(result[0].at_rules.as_ref().unwrap()[0], AtRule::Media("max-width:500px".to_owned()));
+    assert_eq!(result[0].at_rules.as_ref().unwrap()[0], AtRule::Media("(max-width:500px)".to_owned()));
 }

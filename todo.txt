@@ -1,36 +1,25 @@
-goals for 0.8.0
-       - load javascript and css files linked from a page
-              - move to a better jobsystem
-                     - We have the job system now, but we need a way to yield back to rendering frames while downloading
-                       for pages this is currently done by just keeping track of a variable that we are loading a page, en then we check for result
-                            we need to move to a model where we have a frame loop like this:
-                                   - check for user input and process it
-                                   - check on running network requests (and put them in the right place when they are done)
-                                          - for page, set them to be parsed
-                                          - for script, set them to be runned
-                                          - for images, load them in the DOM
-                                   - if any html parsing is in progress, run it forward
-                                   - if any script running should be done, run it
-                                   - do a layout pass (if needed)
-                                   - render
-              - css is still todo here
+goals for 0.9.0:
+       - check that we now have a frame loop like this:
+              - check for user input and process it
+              - check on running network requests (and put them in the right place when they are done)
+                     - for page, set them to be parsed
+                     - for script, set them to be runned
+                     - for images, load them in the DOM
+              - if any html parsing is in progress, run it forward
+              - if any script running should be done, run it
+              - do a layout pass (if needed)
+              - render
+
+
+other things (later versions):
+       - exceptions in javascript (generating them, and catching them)
+       - implement more box layout css options
+       - add ASI to the js parser
        - fix reftest
        - scrolling
               - we cull to soon now (check with long page of text paragraphs)
        - handle redirects better. Its seems reqwest follows them, but our url bar does not update etc. we want to follow them ourselves
        - make the timeings feature work again / better (i.e. averages etc.)
-
-
-goals for 0.9.0:
-       - exceptions in javascript (generating them, and catching them)
-       - implement more box layout css options
-       - add ASI to the js parser
-
-
-
-
-
-other things (later versions):
        - switch to winit?
        - fix transparancy in png's (loading works, rendering in SDL does not)
        - figure out how do build standalone binaries

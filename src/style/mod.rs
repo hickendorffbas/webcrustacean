@@ -329,11 +329,9 @@ pub fn default_css_value(property: CssProperty) -> &'static str {
 pub fn resolve_css_numeric_type_value(value: &str) -> f32 {
     //TODO: see https://developer.mozilla.org/en-US/docs/Learn/CSS/Building_blocks/Values_and_units for many missing things here
     if value.chars().last() == Some('%') {
-        //TODO: implement this case (we probably need to bring in more context)
-        todo!("css percentages implemented");
+        return 1.0; //TODO: implement this case (we probably need to bring in more context)
     } else if value.len() > 3 && &value[value.len() - 3..] == "rem" {
-        //TODO: implement this case (we probably need to bring in more context)
-        todo!("css rem unit not implemented");
+        return 1.0; //TODO: implement this case (we probably need to bring in more context)
     } else if value.len() > 5 && &value[0..4] == "var(" && value.chars().last() == Some(')') {
         //TODO: These kind of things should be parsed in the parser already, into some structure that we can just evaluate here (the eval should happen here)
         //      for now we are just ignoring this case and returning a temp value, because it happens a lot

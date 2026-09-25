@@ -9,6 +9,7 @@ use crate::style::{
     CssFunction,
     CssProperty,
     CssValue,
+    PseudoElement,
     Selector,
     SelectorType,
     StyleRule,
@@ -109,7 +110,7 @@ fn parse_statements(style_rules: &mut Vec<StyleRule>, current_selector_context: 
 
 fn parse_statement(style_rules: &mut Vec<StyleRule>, current_context: &mut Vec<(CssCombinator, SelectorType, String)>,
                    token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>, current_at_rules: &mut Vec<AtRule>) {
-    loop {
+    while token_iterator.peek().is_some() {
         if token_iterator.peek().is_some() {
             match &token_iterator.peek().unwrap().css_token {
                 CssToken::AtRule(keyword, rule) => {
@@ -166,27 +167,31 @@ fn parse_selectors(current_selector_context: &mut Vec<(CssCombinator, SelectorTy
     let mut next_combinator = CssCombinator::None;
     let mut next_selector_type = SelectorType::Name;
     let mut parsing_pseudoclass = false;
+    let mut parsing_pseudoelement = false;
     let mut current_pseudoclasses = None;
+    let mut current_pseudoelement = None;
 
     while token_iterator.peek().is_some() {
         match &token_iterator.peek().unwrap().css_token {
             CssToken::OpenBrace => {
                 if !selector_elements.is_empty() {
                     selector_elements.reverse();
-                    selectors.push(Selector { elements: selector_elements, pseudoclasses: current_pseudoclasses });
+                    selectors.push(Selector { elements: selector_elements, pseudoclasses: current_pseudoclasses, pseudoelement: current_pseudoelement });
                 }
 
                 return selectors;
             },
             CssToken::Comma => {
                 parsing_pseudoclass = false;
+                parsing_pseudoelement = false;
                 token_iterator.next();
 
                 if !selector_elements.is_empty() {
                     selector_elements.reverse();
-                    selectors.push(Selector { elements: selector_elements, pseudoclasses: current_pseudoclasses });
+                    selectors.push(Selector { elements: selector_elements, pseudoclasses: current_pseudoclasses, pseudoelement: current_pseudoelement });
                     selector_elements = current_selector_context.clone();
                     current_pseudoclasses = None;
+                    current_pseudoelement = None;
                 }
             },
             CssToken::Identifier(ident) => {
@@ -198,6 +203,14 @@ fn parse_selectors(current_selector_context: &mut Vec<(CssCombinator, SelectorTy
                     }
 
                     current_pseudoclasses.as_mut().unwrap().push(ident.clone());
+                } else if parsing_pseudoelement {
+                    let elem = match ident.as_str() {
+                        "before" => PseudoElement::Before,
+                        "after" => PseudoElement::After,
+                        _ => todo!(), //TODO: there are a few more
+                    };
+                    current_pseudoelement = Some(elem);
+                    parsing_pseudoelement = false;
                 } else {
                     if selector_elements.len() > 0 && next_combinator == CssCombinator::None {
                         next_combinator = CssCombinator::Descendent;
@@ -209,6 +222,7 @@ fn parse_selectors(current_selector_context: &mut Vec<(CssCombinator, SelectorTy
             },
             CssToken::Whitespace => {
                 parsing_pseudoclass = false;
+                parsing_pseudoelement = false;
                 token_iterator.next();
             },
             CssToken::Greater => {
@@ -228,12 +242,14 @@ fn parse_selectors(current_selector_context: &mut Vec<(CssCombinator, SelectorTy
 
                 if token_iterator.peek().is_some() {
                     match &token_iterator.peek().unwrap().css_token {
-                        CssToken::Colon => {
-                            //This is an pseudo-element
-                            todo!();
+                        CssToken::Colon => {  //double colon should actually be a diffent token I think
+                            token_iterator.next();
+                            parsing_pseudoelement = true;
+                            parsing_pseudoclass = false;
                         },
                         _ => {
                             parsing_pseudoclass = true;
+                            parsing_pseudoelement = false;
                         }
                     }
                 }

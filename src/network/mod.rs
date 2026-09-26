@@ -7,8 +7,7 @@ use reqwest::Error;
 
 use crate::network::url::Url;
 use crate::resource_loader::{
-    CookieEntry,
-    ResourceRequestResult,
+    CookieEntry, RequestType, ResourceRequestResult,
 };
 
 pub mod url;
@@ -25,7 +24,7 @@ pub fn http_get_text(url: &Url, cookies: &HashMap<String, String>) -> ResourceRe
 
     let response = http_get(url, cookies);
     if !response.is_ok() {
-        return ResourceRequestResult::NotFound;
+        return ResourceRequestResult::NotFound { url: url.clone(), method: RequestType::Get };
     }
     let response = response.unwrap();
     let new_cookies = extract_new_cookies(&response);
@@ -35,7 +34,8 @@ pub fn http_get_text(url: &Url, cookies: &HashMap<String, String>) -> ResourceRe
     if text_result.is_ok() {
         return ResourceRequestResult::Success{ body: text_result.unwrap(), new_cookies: new_cookies , domain: url.host.clone() };
     } else {
-        return ResourceRequestResult::NotFound;
+        //TODO: I think this should be a different kind of error, since we did find the page
+        return ResourceRequestResult::NotFound { url: url.clone(), method: RequestType::Get };
     }
 }
 
@@ -44,7 +44,7 @@ pub fn http_get_image(url: &Url, cookies: &HashMap<String, String>) -> ResourceR
 
     let response = http_get(url, cookies);
     if !response.is_ok() {
-        return ResourceRequestResult::NotFound;
+        return ResourceRequestResult::NotFound { url: url.clone(), method: RequestType::Get };
     }
     let response = response.unwrap();
     let new_cookies = extract_new_cookies(&response);
@@ -54,7 +54,8 @@ pub fn http_get_image(url: &Url, cookies: &HashMap<String, String>) -> ResourceR
     if image_result.is_ok() {
         return ResourceRequestResult::Success{ body: image_result.unwrap().to_rgba8(), new_cookies: new_cookies, domain: url.host.clone() };
     } else {
-        return ResourceRequestResult::NotFound;
+        //TODO: I think this should be a different kind of error, since we did find the image
+        return ResourceRequestResult::NotFound { url: url.clone(), method: RequestType::Get };
     }
 }
 
@@ -64,7 +65,7 @@ pub fn http_post_for_text(url: &Url, body: String, cookies: &HashMap<String, Str
     let response = http_post(url, body, cookies);
 
     if !response.is_ok() {
-        return ResourceRequestResult::NotFound;
+        return ResourceRequestResult::NotFound { url: url.clone(), method: RequestType::Post };
     }
     let response = response.unwrap();
     let new_cookies = extract_new_cookies(&response);
@@ -73,7 +74,8 @@ pub fn http_post_for_text(url: &Url, body: String, cookies: &HashMap<String, Str
     if text_result.is_ok() {
         return ResourceRequestResult::Success{ body: text_result.unwrap(), new_cookies: new_cookies, domain: url.host.clone() };
     } else {
-        return ResourceRequestResult::NotFound;
+        //TODO: I think this should be a different kind of error, since we did find the page
+        return ResourceRequestResult::NotFound { url: url.clone(), method: RequestType::Post }
     }
 }
 

@@ -111,7 +111,7 @@ impl ResourceLoader {
                         future_task.ready = true;
                         task_store.push(future_task);
                     },
-                    ResourceRequestResult::NotFound => {
+                    ResourceRequestResult::NotFound { url, method } => {
 
                         if from_navigation_action.is_some() {
                             if from_navigation_action.as_ref().unwrap().from_address_bar && from_navigation_action.as_ref().unwrap().https_was_inserted {
@@ -131,7 +131,17 @@ impl ResourceLoader {
                             }
                         }
 
-                        todo!(); //TODO: decide how we are going to handle not found in general (display a standard 404 page?
+                        if from_navigation_action.is_some() {
+                            todo!(); //Implement a not found page, and display it
+                        }
+
+                        let method_name = match method {
+                            RequestType::Get => "GET",
+                            RequestType::Post => "POST",
+                        };
+
+                        //TODO: send this to some dev-tools console in its own (network) catagory
+                        println!("[NETWORK] could not load {} {}", method_name, url.to_string());
                     },
                 }
             },
@@ -149,7 +159,7 @@ impl ResourceLoader {
 
                         body
                     },
-                    ResourceRequestResult::NotFound => {
+                    ResourceRequestResult::NotFound { .. } => {
                         resource_loader::fallback_image()
                     },
                 };
@@ -171,7 +181,7 @@ impl ResourceLoader {
 }
 
 
-
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(PartialEq)]
 pub enum RequestType {
     Get,
@@ -180,7 +190,10 @@ pub enum RequestType {
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub enum ResourceRequestResult<T> {
-    NotFound,
+    NotFound {
+        url: Url,
+        method: RequestType,
+    },
     Success {
         body: T,
         new_cookies: HashMap<String, CookieEntry>,
@@ -232,7 +245,7 @@ pub fn load_text(url: &Url, request_type: RequestType, body: Option<String>, coo
             local_path.push_str(&url.path.join("/"));
             let read_result = fs::read_to_string(local_path);
             if read_result.is_err() {
-                return ResourceRequestResult::NotFound;
+                return ResourceRequestResult::NotFound { url: url.clone(), method: request_type };
             }
 
             return ResourceRequestResult::Success { body: read_result.unwrap(), new_cookies: HashMap::new(), domain: url.host.clone() };
@@ -298,7 +311,7 @@ pub fn load_image(url: &Url, cookies: &HashMap<String, String>) -> ResourceReque
         local_path.push_str(&url.path.join("/"));
         let read_result = ImageReader::open(local_path);
         if read_result.is_err() {
-            return ResourceRequestResult::NotFound;
+            return ResourceRequestResult::NotFound { url: url.clone(), method: RequestType::Get };
         }
 
         let file_data = read_result.unwrap();

@@ -119,9 +119,12 @@ fn parse_statement(style_rules: &mut Vec<StyleRule>, current_context: &mut Vec<(
                     let rule = match keyword.as_str() {
                         "container" => { AtRule::Container(rule.clone()) },
                         "media" => { AtRule::Media(rule.clone()) },
-                        "supports" =>  { AtRule::Supports(rule.clone()) },
-                        _ => {
-                            todo!(); //TODO: this should be an error
+                        "supports" => { AtRule::Supports(rule.clone()) },
+                        "keyframes" => { AtRule::Keyframes(rule.clone()) },
+                        rulename @ _ => {
+                            //TODO: this should log though some utility, so they end up in some dev console, and can be filtered and tagged as css-parsing errors etc
+                            println!("Unknow css at-rule type: {}", rulename);
+                            AtRule::None
                         },
                     };
                     current_at_rules.push(rule);

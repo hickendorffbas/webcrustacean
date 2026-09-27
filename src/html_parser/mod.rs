@@ -167,13 +167,13 @@ impl HtmlParser {
                 self.self_closing_top_stack_node = self_closing;
             },
             Token::EndTag { name } => {
+                if self.self_closing_top_stack_node {
+                    self.close_top_node();
+                }
+
                 if self.stack.len() <= 1 {
                     //This endtag would close the root, we don't allow that, because a document should only have one root
                     return;
-                }
-
-                if self.self_closing_top_stack_node {
-                    self.close_top_node();
                 }
 
                 loop {

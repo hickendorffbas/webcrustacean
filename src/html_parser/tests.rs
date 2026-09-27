@@ -355,3 +355,91 @@ fn test_comments() {
 
     assert!(jsonify::json_is_equal(&json, &expected_json));
 }
+
+
+#[test]
+fn test_page_with_html() {
+    let code = r#"<html>Location:<br /></html>"#;
+
+    let mut parser = HtmlParser::new(Url::empty());
+    parser.start(code.to_owned(), Url::empty());
+    run_parser(&mut parser);
+
+    let mut json = String::new();
+    jsonify::dom_node_to_json(&parser.document.document_node, &mut json);
+
+    let expected_json = r#"
+    {
+        "name":"",
+        "text":"",
+        "image":false,
+        "component":false,
+        "attributes:":[],
+        "children":[
+            {
+                "name":"html",
+                "text":"",
+                "image":false,
+                "component":false,
+                "attributes:":[],
+                "children":[
+                    {
+                        "name":"",
+                        "text":"Location:",
+                        "image":false,
+                        "component":false,
+                        "attributes:":[],
+                        "children":[]
+                    },
+                    {
+                        "name":"br",
+                        "text":"",
+                        "image":false,
+                        "component":false,
+                        "attributes:":[],
+                        "children": []
+                    }
+                ]
+
+            }
+        ]
+    }
+    "#.to_string();
+
+    assert!(jsonify::json_is_equal(&json, &expected_json));
+}
+
+
+#[test]
+fn test_empty_page() {
+    let code = r#"<html></html>"#;
+
+    let mut parser = HtmlParser::new(Url::empty());
+    parser.start(code.to_owned(), Url::empty());
+    run_parser(&mut parser);
+
+    let mut json = String::new();
+    jsonify::dom_node_to_json(&parser.document.document_node, &mut json);
+
+    let expected_json = r#"
+    {
+        "name":"",
+        "text":"",
+        "image":false,
+        "component":false,
+        "attributes:":[],
+        "children":[
+            {
+                "name":"html",
+                "text":"",
+                "image":false,
+                "component":false,
+                "attributes:":[],
+                "children":[]
+            }
+        ]
+    }
+    "#.to_string();
+
+    assert!(jsonify::json_is_equal(&json, &expected_json));
+}

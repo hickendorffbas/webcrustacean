@@ -132,7 +132,24 @@ impl ResourceLoader {
                         }
 
                         if from_navigation_action.is_some() {
-                            todo!(); //Implement a not found page, and display it
+
+                            let url = match from_navigation_action.unwrap().action_type {
+                                NavigationActionType::Get(url) => { url.clone() },
+                                _ => panic!("Invalid state"),
+                            };
+
+                            match &mut future_task.payload {
+                                TaskPayload::StartParseHtml { html } => {
+                                    *html = resource_loader::build_not_found_page(&url);
+                                },
+                                _ => {
+                                    panic!("Unsupported task payload for this jobresult");
+                                }
+                            }
+
+                            future_task.ready = true;
+                            task_store.push(future_task);
+                            return;
                         }
 
                         let method_name = match method {
@@ -283,6 +300,15 @@ fn build_about_page(url: &Url) -> String {
     //TODO: this error should not just be debug-logged, it should return this, and then render the 404 page, if this was the main page load...
     debug_log_warn(format!("Could not load text: {}", url.to_string()));
     return String::new();
+}
+
+
+fn build_not_found_page(url: &Url) -> String {
+    let mut html = String::from("<html><h1>Page not found</h1><br />");
+    html += format!("<b>Location:</b> {}<br />", url.to_string()).as_str();
+    html += "</html>";
+    println!("html: {}", html);
+    return html;
 }
 
 

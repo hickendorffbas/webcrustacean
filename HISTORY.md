@@ -1,5 +1,6 @@
 0.9.0 [UNRELEASED]
 ===================
+- "Not found" page added
 
 
 0.8.0

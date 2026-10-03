@@ -57,7 +57,7 @@ impl Color {
             "blue" => Some(Color::new(0, 0, 255)),
             "fuchsia" => Some(Color::new(255, 0, 255)),
             "gray" => Some(Color::GRAY),
-            "green" => Some(Color::new(0, 255, 0)),
+            "green" => Some(Color::new(0, 128, 0)),
             "lime" => Some(Color::new(0, 255, 0)),
             "maroon" => Some(Color::new(128, 0, 0)),
             "navy" => Some(Color::new(0, 0, 128)),

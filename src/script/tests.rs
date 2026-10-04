@@ -466,3 +466,8 @@ fn float_value() {
 fn in_operator_inside_for_loop_body() {
     assert_js(r#"a = {r: 1, f: 2}; b = {d: 4, e: 5, f: 6}; for (var id in a) { if (id in b) { tester.export(id); } }"#, JsValue::String("f".to_owned()));
 }
+
+#[test]
+fn return_inside_try() {
+    assert_js(r#"function a() { try { return 1; } catch {} return 2; } tester.export(a());"#, JsValue::Number(1.0));
+}

@@ -112,14 +112,13 @@ pub struct JsAstTryCatch {
 impl JsAstTryCatch {
     fn execute(&self, js_interpreter: &mut JsInterpreter) -> bool {
         //TODO: since we don't have exceptions, we just run the script and the finally script for now
-        js_interpreter.run_script(&self.script, Vec::new());
+        let keep_going = js_interpreter.run_script(&self.script, Vec::new());
         if self.finally_script.is_some() {
-            let keep_going = js_interpreter.run_script(self.finally_script.as_ref().unwrap(), Vec::new());
-            if !keep_going {
+            if !js_interpreter.run_script(self.finally_script.as_ref().unwrap(), Vec::new()) {
                 return false;
             }
         }
-        return true;
+        return keep_going;
     }
 }
 

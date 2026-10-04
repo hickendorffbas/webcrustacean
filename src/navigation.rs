@@ -77,7 +77,7 @@ pub fn start_navigate(navigation_action: &NavigationAction, platform: &Platform,
             let future_task = Task::new_task_not_yet_ready(TaskPayload::StartParseHtml { html: String::new() });
             html_parser.reset(post_data.url.clone());
             html_parser.state = ParserState::WaitingForContent { task_id: future_task.id };
-            resource_loader.request_text_http_post_text(&post_data.url, post_data.fields.clone(), cookie_store.get_for_domain(&post_data.url.host),
+            resource_loader.request_text_http_post_text(&post_data.url, post_data.body.clone(), cookie_store.get_for_domain(&post_data.url.host),
                                                         future_task, Some(navigation_action.clone()));
         }
     };

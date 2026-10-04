@@ -1,3 +1,5 @@
 target/
 .vscode/
 *.dll
+
+CLAUDE.md

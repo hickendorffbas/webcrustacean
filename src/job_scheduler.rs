@@ -69,7 +69,7 @@ pub enum Job {
     },
     HttpPostText {
         location: Url,
-        fields: HashMap<String, String>,
+        body: String,
         cookies: HashMap<String, String>,
         result_sender: Sender<JobResult>,
         from_navigation_action: Option<NavigationAction>,
@@ -124,10 +124,10 @@ impl JobScheduler {
         return rx;
     }
 
-    pub fn submit_http_post_text_job(&self, url: &Url, fields: HashMap<String, String>, cookies: HashMap<String, String>,
+    pub fn submit_http_post_text_job(&self, url: &Url, body: String, cookies: HashMap<String, String>,
                                      from_navigation_action: Option<NavigationAction>) -> Receiver<JobResult> {
         let (tx, rx) = channel();
-        let job = Job::HttpPostText { location: url.clone(), fields, cookies: cookies, result_sender: tx, from_navigation_action };
+        let job = Job::HttpPostText { location: url.clone(), body, cookies: cookies, result_sender: tx, from_navigation_action };
         let _ = self.sender.send(job);
         return rx;
     }
@@ -145,11 +145,7 @@ impl JobScheduler {
                 let result = resource_loader::load_text(&location, RequestType::Get, None, &cookies);
                 let _ = result_sender.send(JobResult::ResourceRequestResultString { value: result, from_navigation_action });
             },
-            Job::HttpPostText { location, fields, cookies, result_sender, from_navigation_action } => {
-
-                //TODO: we need to esape values here I think, what if "&" is in a post value?
-                let body = fields.iter().map(|(k, v)| format!("{}={}", k, v)).collect::<Vec<String>>().join("&");
-
+            Job::HttpPostText { location, body, cookies, result_sender, from_navigation_action } => {
                 let result = resource_loader::load_text(&location, RequestType::Post, Some(body), &cookies);
                 let _ = result_sender.send(JobResult::ResourceRequestResultString{ value: result, from_navigation_action });
             }

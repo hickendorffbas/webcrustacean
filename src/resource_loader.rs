@@ -45,9 +45,9 @@ impl ResourceLoader {
         self.active_jobs.push((job, task));
     }
 
-    pub fn request_text_http_post_text(&mut self, url: &Url, fields: HashMap<String, String>, cookies: HashMap<String, String>,
+    pub fn request_text_http_post_text(&mut self, url: &Url, body: String, cookies: HashMap<String, String>,
                                        task: Task, from_navigation_action: Option<NavigationAction>) {
-        let job = self.scheduler.submit_http_post_text_job(url, fields, cookies, from_navigation_action);
+        let job = self.scheduler.submit_http_post_text_job(url, body, cookies, from_navigation_action);
         self.active_jobs.push((job, task));
     }
 

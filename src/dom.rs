@@ -108,7 +108,7 @@ impl TagName {
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct PostData {
     pub url: Url,
-    pub fields: HashMap<String, String>,
+    pub body: String,
 }
 
 
@@ -278,13 +278,10 @@ impl ElementDomNode {
                 let mut url = Url::from_base_url(&form_url.unwrap(), Some(&document.base_url));
 
                 if method.is_some() && method.unwrap().as_str().to_lowercase() == "post" {
-                    return NavigationAction::new_post(PostData {url, fields: all_fields });
+                    return NavigationAction::new_post(PostData { url, body: urlencode_form(&all_fields) });
                 }
                 //The default method is GET
-                url.query = all_fields.iter()
-                    .map(|(key, value)| format!("{}={}", key, value)) //TODO: do we need to url encode here still?
-                    .collect::<Vec<String>>()
-                    .join("&");
+                url.query = urlencode_form(&all_fields);
                 return NavigationAction::new_get(url)
             }
         }
@@ -453,4 +450,26 @@ pub fn find_dom_node_for_component(component: &PageComponent, document: &Documen
 
     //We panic here, since if we have a component, it should be somewhere in the DOM, otherwise we have a bug
     panic!("Component not found");
+}
+
+
+fn urlencode_form(fields: &HashMap<String, String>) -> String {
+    let mut result = Vec::new();
+    for (key, value) in fields {
+        result.push(format!("{}={}", urlencode(key), urlencode(value)));
+    }
+    return result.join("&");
+}
+
+
+fn urlencode(text: &str) -> String {
+    let mut encoded = String::new();
+    for byte in text.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'*' | b'-' | b'.' | b'_' => encoded.push(byte as char),
+            b' ' => encoded.push('+'),
+            _ => encoded.push_str(&format!("%{:02X}", byte)),
+        }
+    }
+    return encoded;
 }

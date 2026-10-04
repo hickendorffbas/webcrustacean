@@ -307,7 +307,6 @@ fn build_not_found_page(url: &Url) -> String {
     let mut html = String::from("<html><h1>Page not found</h1><br />");
     html += format!("<b>Location:</b> {}<br />", url.to_string()).as_str();
     html += "</html>";
-    println!("html: {}", html);
     return html;
 }
 

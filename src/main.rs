@@ -1,3 +1,4 @@
+mod cmd;
 mod color;
 mod debug;
 mod dom;
@@ -35,6 +36,7 @@ use sdl2::{
     mouse::MouseButton,
 };
 
+use crate::cmd::parse_command_line_options;
 use crate::debug::debug_log_warn;
 use crate::dom::Document;
 use crate::html_parser::HtmlParser;
@@ -82,6 +84,7 @@ const DEFAULT_LOCATION_TO_LOAD: &str = "about:home";
 const SCROLL_SPEED: i32 = 50;
 const NR_RESOURCE_LOADING_THREADS: usize = 4;
 const USER_AGENT: &str = network::UA_WEBCRUSTACEAN_UBUNTU;
+const DEFAULT_SCREENSHOT_DELAY_SECS: f32 = 2.0;
 
 
 //Non-config constants:
@@ -120,8 +123,13 @@ pub struct MouseState {
 
 
 fn main() -> Result<(), String> {
+    let args: Vec<String> = env::args().collect();
+    let options = parse_command_line_options(&args)?;
+
+    let screenshot_requested = options.screenshot_path.is_some();
+
     let sdl_context = sdl2::init()?;
-    let mut platform = platform::init_platform(sdl_context, STARTING_SCREEN_WIDTH, STARTING_SCREEN_HEIGHT, false).unwrap();
+    let mut platform = platform::init_platform(sdl_context, STARTING_SCREEN_WIDTH, STARTING_SCREEN_HEIGHT, screenshot_requested).unwrap();
 
     let mut resource_loader = ResourceLoader::new();
 
@@ -130,11 +138,10 @@ fn main() -> Result<(), String> {
 
     let mut cookie_store = CookieStore { cookies_by_domain: HashMap::new() };
 
-    let args: Vec<String> = env::args().collect();
-    let start_url = if args.len() < 2 {
+    let start_url = if options.url.is_none() {
         Url::from(&DEFAULT_LOCATION_TO_LOAD.to_owned())
     } else {
-        Url::from(&args[1])
+        Url::from(options.url.as_ref().unwrap())
     };
 
     let full_layout_tree = RefCell::from(FullLayout::new_empty());
@@ -142,6 +149,7 @@ fn main() -> Result<(), String> {
     let mut task_store: Vec<Task> = Vec::new();
 
     start_navigate(&NavigationAction::new_get(start_url), &platform, &mut ui_state, &cookie_store, &mut resource_loader, &mut html_parser);
+    let navigation_start_instant = Instant::now();
 
 
     let mut event_pump = platform.sdl_context.event_pump()?;
@@ -426,6 +434,15 @@ fn main() -> Result<(), String> {
         #[cfg(feature="timings")] let start_render_instant = Instant::now();
         render(&mut platform, &full_layout_tree.borrow(), &mut ui_state);
         #[cfg(feature="timings")] println!("render elapsed millis: {}", start_render_instant.elapsed().as_millis());
+
+        if screenshot_requested && navigation_start_instant.elapsed() >= options.screenshot_delay {
+            let screenshot_path = options.screenshot_path.as_ref().unwrap();
+            platform.save_screenshot(screenshot_path)?;
+            println!("Screenshot saved to {}", screenshot_path);
+            break 'main_loop;
+        }
+
+        platform.present();
 
         frame_time_check(&start_loop_instant);
     }

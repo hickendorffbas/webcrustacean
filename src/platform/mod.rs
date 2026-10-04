@@ -139,12 +139,22 @@ impl Platform {
 
         self.canvas.copy(&texture, None, Some(SdlRect::new(x as i32, y as i32, image.width(), image.height()))).expect("error rendering image");
     }
+
+    pub fn save_screenshot(&self, file_path: &str) -> Result<(), String> {
+        let pixels = self.canvas.read_pixels(None, PixelFormatEnum::ABGR8888)?;
+        let (width, height) = self.canvas.output_size()?;
+        let image = RgbaImage::from_raw(width, height, pixels).unwrap();
+        return image.save(file_path).map_err(|error| error.to_string());
+    }
+
     pub fn enable_text_input(&self) {
         self.video_subsystem.text_input().start();
     }
+
     pub fn disable_text_input(&self) {
         self.video_subsystem.text_input().stop();
     }
+
     pub fn convert_key_code(&self, keycode: &SdlKeycode) -> Option<KeyCode> {
         return match keycode.name().as_str() {
             "Backspace" => Some(KeyCode::BACKSPACE),

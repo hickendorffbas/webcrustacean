@@ -1,6 +1,7 @@
 0.9.0 [UNRELEASED]
 ===================
 - "Not found" page added
+- Commandline option for taking screenshots added
 
 
 0.8.0

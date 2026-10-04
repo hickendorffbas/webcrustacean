@@ -20,8 +20,6 @@ pub fn render(platform: &mut Platform, full_layout: &FullLayout, ui_state: &mut 
     render_layout_node(platform, ui_state, &full_layout.root_node.borrow());
 
     render_ui(platform, ui_state);
-
-    platform.present();
 }
 
 

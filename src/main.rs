@@ -169,8 +169,10 @@ fn main() -> Result<(), String> {
 
                     },
                     TaskPayload::SetImageOnDomNode { dom_node_id, image } => {
-                        let node = html_parser.document.all_nodes.get(dom_node_id).unwrap();
-                        node.borrow_mut().set_image(image.as_ref().unwrap().clone(), task.id);
+                        let node = html_parser.document.all_nodes.get(dom_node_id);
+                        if node.is_some() { //This can happen when we load a new page while the image was still loading
+                            node.unwrap().borrow_mut().set_image(image.as_ref().unwrap().clone(), task.id);
+                        }
                     }
                 }
 

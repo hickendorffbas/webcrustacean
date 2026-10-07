@@ -136,3 +136,17 @@ fn test_parse_at_rule() {
     assert_eq!(result[0].selector.elements[0], (CssCombinator::None, SelectorType::Class, "mw-parser-output".to_owned()));
     assert_eq!(result[0].at_rules.as_ref().unwrap()[0], AtRule::Media("(max-width:500px)".to_owned()));
 }
+
+
+#[test]
+fn test_rules_after_at_rule() {
+    let css_text = "@media(max-width:500px) { .mw-parser-output { color: blue } } b{color: red}";
+    let tokens = css_lexer::lex_css(&css_text, 1, 1);
+    let result = css_parser::parse_css(&tokens);
+
+    assert_eq!(result.len(), 2);
+    assert_eq!(result[1].property, CssProperty::Color);
+    assert_eq!(result[1].value, CssValue::String("red".to_owned()));
+    assert_eq!(result[1].selector.elements[0], (CssCombinator::None, SelectorType::Name, "b".to_owned()));
+    assert_eq!(result[1].at_rules.is_none(), true);
+}

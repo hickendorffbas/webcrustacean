@@ -134,6 +134,7 @@ fn parse_statement(style_rules: &mut Vec<StyleRule>, current_context: &mut Vec<(
                             CssToken::OpenBrace => {
                                 token_iterator.next();
                                 parse_statements(style_rules, current_context, token_iterator, current_at_rules);
+                                token_iterator.next(); //consume the closing brace
                                 break;
                             },
                             CssToken::Whitespace => {

@@ -136,6 +136,7 @@ impl Platform {
         let mut texture = texture_creator.create_texture_streaming(PixelFormatEnum::ABGR8888, image.width(), image.height()).unwrap();
 
         texture.update(None, &raw_pixels, (image.width() * 4) as usize).unwrap();
+        texture.set_blend_mode(BlendMode::Blend);
 
         self.canvas.copy(&texture, None, Some(SdlRect::new(x as i32, y as i32, image.width(), image.height()))).expect("error rendering image");
     }

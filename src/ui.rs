@@ -98,7 +98,7 @@ impl UIState {
         };
 
         let mut ui_state = UIState {
-            addressbar: TextField::new(100.0, 10.0, screen_width - 200.0, 35.0, true),
+            addressbar: TextField::new(100.0, 10.0, screen_width - 200.0, 35.0, true, true),
             current_scroll_x: 0.0,
             current_scroll_y: 0.0,
             back_button: NavigationButton { x: 15.0, y: 15.0, forward: false, enabled: false },
@@ -209,8 +209,9 @@ pub fn handle_possible_ui_mouse_down(root_layout_node: &Rc<RefCell<LayoutNode>>,
     let mut any_text_field_has_focus = false;
 
     if ui_state.addressbar.is_inside(x, y) {
+        let had_focus = ui_state.addressbar.has_focus(&ui_state.focus_target);
         ui_state.focus_target = FocusTarget::AddressBar;
-        ui_state.addressbar.mouse_down(x, y, &ui_state.focus_target);
+        ui_state.addressbar.mouse_down(x, y, had_focus);
         any_text_field_has_focus = true;
     } else if ui_state.main_scrollbar_hori.is_on_scrollblock(x, y) {
         ui_state.focus_target = FocusTarget::ScrollBlockHori;
@@ -227,6 +228,10 @@ pub fn handle_possible_ui_mouse_down(root_layout_node: &Rc<RefCell<LayoutNode>>,
             if borr_dom_node.page_component.is_some() {
                 let rc_component_clone = borr_dom_node.page_component.as_ref().unwrap().clone();
 
+                let had_focus = match &ui_state.focus_target {
+                    FocusTarget::Component(component) => component.borrow().get_id() == rc_component_clone.borrow().get_id(),
+                    _ => false,
+                };
                 ui_state.focus_target = FocusTarget::Component(rc_component_clone);
                 component_found = true;
 
@@ -234,7 +239,7 @@ pub fn handle_possible_ui_mouse_down(root_layout_node: &Rc<RefCell<LayoutNode>>,
                     PageComponent::Button(_) => { },
                     PageComponent::TextField(text_field) => {
                         any_text_field_has_focus = true;
-                        text_field.mouse_down(x, y, &ui_state.focus_target);
+                        text_field.mouse_down(x, y, had_focus);
                     },
                 }
             }

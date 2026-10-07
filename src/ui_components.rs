@@ -61,6 +61,7 @@ pub struct TextField {
     pub text: String,
 
     pub select_on_first_click: bool,
+    pub is_addressbar: bool,
     pub selection_start_x: f32,
     pub selection_end_x: f32,
     pub selection_start_idx: usize,
@@ -70,13 +71,13 @@ pub struct TextField {
     pub char_position_mapping: Vec<f32>,
 }
 impl TextField {
-    pub fn new(x: f32, y: f32, width: f32, height: f32, select_on_first_click: bool) -> TextField {
+    pub fn new(x: f32, y: f32, width: f32, height: f32, select_on_first_click: bool, is_addressbar: bool) -> TextField {
         //we currently don't allow the text to be set in this constructor, because we then also need the platform in the constructor to compute char position mappings
         //   and that would mean that the DOM construction needs the platform (font context) too. Which is not nice.
         //TODO: it would be nicer to have the font_context (and other contexts) in some kind of global
         //      -> yes, we are going to make a lazy_static PLATFORM variable
         let font = Font::default();
-        return TextField { id: get_next_component_id(), x, y, width, height, cursor_text_position: 0, text: String::new(), select_on_first_click,
+        return TextField { id: get_next_component_id(), x, y, width, height, cursor_text_position: 0, text: String::new(), select_on_first_click, is_addressbar,
                            selection_start_x: 0.0, selection_end_x: 0.0, selection_start_idx: 0, selection_end_idx: 0, font, char_position_mapping: Vec::new() };
     }
 
@@ -115,8 +116,9 @@ impl TextField {
         }
     }
 
-    fn has_focus(&self, focus_target: &FocusTarget) -> bool {
+    pub fn has_focus(&self, focus_target: &FocusTarget) -> bool {
         match focus_target {
+            FocusTarget::AddressBar => return self.is_addressbar,
             FocusTarget::Component(component) => {
                 return component.borrow().get_id() == self.id;
             },
@@ -158,8 +160,8 @@ impl TextField {
                y > self.y && y < (self.y + self.height);
     }
 
-    pub fn mouse_down(&mut self, x: f32, _: f32, focus_target: &FocusTarget) {
-        if self.select_on_first_click && !self.has_focus(focus_target) {
+    pub fn mouse_down(&mut self, x: f32, _: f32, had_focus: bool) {
+        if self.select_on_first_click && !had_focus {
             self.selection_start_idx = 0;
             self.selection_end_idx = self.text.len() - 1;
             self.selection_start_x = self.x + TEXT_FIELD_OFFSET_FROM_BORDER;

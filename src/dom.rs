@@ -166,7 +166,7 @@ impl ElementDomNode {
             match input_type.unwrap().as_str() {
                 "text" => {
                     //We create the component at (0,0) with size (1,1), the layout pass will update that to the correct positions and sizes
-                    let mut text_field = TextField::new(0.0, 0.0, 21.0, 1.0, false);
+                    let mut text_field = TextField::new(0.0, 0.0, 21.0, 1.0, false, false);
                     text_field.set_text(platform, input_value.unwrap());
                     self.page_component = Some(Rc::from(RefCell::from(PageComponent::TextField(text_field))));
                 },

@@ -1,7 +1,5 @@
-use std::{
-    iter::Peekable,
-    str::Chars
-};
+use std::iter::Peekable;
+use std::str::Chars;
 
 use crate::tracking_iterator::TrackingIterator;
 
@@ -11,12 +9,8 @@ use crate::tracking_iterator::TrackingIterator;
 pub struct JsTokenWithLocation {
     pub token: JsToken,
     pub line: u32,
-    pub character: u32
-}
-impl JsTokenWithLocation {
-    fn make(js_iterator: &JsSourceIterator, token: JsToken) -> JsTokenWithLocation {
-        return JsTokenWithLocation { token: token, line: js_iterator.iter.current_line, character: js_iterator.iter.current_char };
-    }
+    pub character: u32,
+    pub had_newline_before: bool,
 }
 
 
@@ -77,9 +71,6 @@ pub enum JsToken {
     CompoundAssignBitWiseXor,
     CompoundAssignBitWiseAnd,
 
-    //whitespace:
-    Newline,
-
     //all keywords:
     KeyWordVar,
     KeyWordLet,
@@ -111,6 +102,7 @@ pub struct JsSourceIterator<'document> {
     prev: Option<char>,
     current_string_starter: Option<char>,
     in_regex_literal: bool,
+    new_line_pending: bool,
 }
 impl <'document> JsSourceIterator<'document> {
     pub fn new(inner_iter: Peekable<Chars<'document>>, current_line: u32, current_char: u32) -> JsSourceIterator<'document> {
@@ -125,6 +117,7 @@ impl <'document> JsSourceIterator<'document> {
             prev: None,
             current_string_starter: None,
             in_regex_literal: false,
+            new_line_pending: false,
         }
     }
     pub fn has_next(&mut self) -> bool {
@@ -245,6 +238,12 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
 
     while js_iterator.has_next() {
 
+        if js_iterator.peek().unwrap() == '\n' {
+            js_iterator.next();
+            js_iterator.new_line_pending = true;
+            continue;
+        }
+
         if js_iterator.has_next() && js_iterator.peek().unwrap().is_numeric() {
             tokens.push(lex_number(&mut js_iterator));
         }
@@ -255,6 +254,9 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
             //TODO: this would also match "bla ' " , but by matching the ', not the corresponding "
             //TODO: the backtick is for string tempates and is actually more complicated
             //      see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Template_literals#tagged_templates
+
+            let token_line_pos = js_iterator.iter.current_line;
+            let token_char_pos = js_iterator.iter.current_char;
 
             let quote_type_used = js_iterator.next();
             let mut literal = String::new();
@@ -272,8 +274,10 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                 literal.push(js_iterator.next());
             }
 
-            //TODO: using "make" below is not correct, because it will give the end position of the literal, instead of the start
-            tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::LiteralString(literal)));
+            let token = JsTokenWithLocation { token: JsToken::LiteralString(literal), line: token_line_pos,
+                                              character: token_char_pos, had_newline_before: js_iterator.new_line_pending };
+            js_iterator.new_line_pending = false;
+            tokens.push(token);
             js_iterator.next(); //eat the closing "
         }
         else if js_iterator.peek() == Some('/') {
@@ -281,24 +285,17 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
             //  parsing rather then lexing. For now we rely on heuristics as described in
             //  https://stackoverflow.com/questions/5519596/when-parsing-javascript-what-determines-the-meaning-of-a-slash
 
-            let mut last_token = None;
-            for token in tokens.iter().rev() {
-                if token.token != JsToken::Newline {
-                    last_token = Some(token.token.clone());
-                    break;
-                }
-            };
+            let last_token = Some(tokens.iter().last().unwrap().token.clone());
+            let token_line_pos = js_iterator.iter.current_line;
+            let token_char_pos = js_iterator.iter.current_char;
 
             if last_token.is_none() || (last_token.is_some() && TOKENS_PROBABLY_PRECEDING_REGEX_LITERAL.contains(&last_token.unwrap())) {
-                //we are parsing a regex literal
-
                 js_iterator.in_regex_literal = true;
-
                 let mut buffer = String::new();
-                buffer.push(js_iterator.next());  // read the opening slash
-
                 let mut escaped = false;
                 let mut in_character_class = false;
+
+                buffer.push(js_iterator.next());  // read the opening slash
 
                 'literal_regex_parse: while js_iterator.has_next() {
 
@@ -325,229 +322,246 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                                 }
                             }
                             break 'literal_regex_parse;
-                        }
+                        },
                         _ => {}
                     }
                 }
                 js_iterator.in_regex_literal = false;
 
-                //TODO: using "make" below is not correct, because it will give the end position of the literal, instead of the start
-                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::RegexLiteral(buffer)))
+                let token = JsTokenWithLocation { token: JsToken::RegexLiteral(buffer), line: token_line_pos,
+                                                  character: token_char_pos, had_newline_before: js_iterator.new_line_pending };
+                js_iterator.new_line_pending = false;
+                tokens.push(token);
 
             } else {
                 js_iterator.next();
 
                 if js_iterator.has_next() {
                     match js_iterator.peek().unwrap() {
-                        '=' => { js_iterator.next(); tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::CompoundAssignDiv)); }
-                        _ => { tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::ForwardSlash)); }
+                        '=' => {
+                            js_iterator.next();
+                            let token = JsTokenWithLocation { token: JsToken::CompoundAssignDiv, line: token_line_pos,
+                                                              character: token_char_pos, had_newline_before: js_iterator.new_line_pending };
+                            js_iterator.new_line_pending = false;
+                            tokens.push(token);
+                            continue;
+                        },
+                        _ => {}
                     }
-                } else {
-                     tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::ForwardSlash));
                 }
+
+                let token = JsTokenWithLocation { token: JsToken::ForwardSlash, line: token_line_pos,
+                                                  character: token_char_pos, had_newline_before: js_iterator.new_line_pending };
+                js_iterator.new_line_pending = false;
+                tokens.push(token);
             }
 
         }
         else if js_iterator.peek().is_some() && is_valid_first_char_of_identifier(js_iterator.peek().unwrap()) {
             let mut identifier = String::new();
 
+            let line = js_iterator.iter.current_line;
+            let character = js_iterator.iter.current_char;
+
             while js_iterator.has_next() && is_valid_identifier_char(js_iterator.peek().unwrap()) {
                 identifier.push(js_iterator.next());
             }
 
-            //TODO: using "make" below is not correct, because it will give the end position of the keyword, instead of the start
             if identifier == "var" {
-                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordVar));
+                tokens.push(JsTokenWithLocation { token: JsToken::KeyWordVar, line, character, had_newline_before: js_iterator.new_line_pending });
             } else if identifier == "let" {
-                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordLet));
+                tokens.push(JsTokenWithLocation { token: JsToken::KeyWordLet, line, character, had_newline_before: js_iterator.new_line_pending });
             } else if identifier == "const" {
-                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordConst));
+                tokens.push(JsTokenWithLocation { token: JsToken::KeyWordConst, line, character, had_newline_before: js_iterator.new_line_pending });
             } else if identifier == "function" {
-                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordFunction));
+                tokens.push(JsTokenWithLocation { token: JsToken::KeyWordFunction, line, character, had_newline_before: js_iterator.new_line_pending });
             } else if identifier == "return" {
-                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordReturn));
+                tokens.push(JsTokenWithLocation { token: JsToken::KeyWordReturn, line, character, had_newline_before: js_iterator.new_line_pending });
             } else if identifier == "if" {
-                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordIf));
+                tokens.push(JsTokenWithLocation { token: JsToken::KeyWordIf, line, character, had_newline_before: js_iterator.new_line_pending });
             } else if identifier == "else" {
-                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordElse));
+                tokens.push(JsTokenWithLocation { token: JsToken::KeyWordElse, line, character, had_newline_before: js_iterator.new_line_pending });
             } else if identifier == "new" {
-                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordNew));
+                tokens.push(JsTokenWithLocation { token: JsToken::KeyWordNew, line, character, had_newline_before: js_iterator.new_line_pending });
             } else if identifier == "while" {
-                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordWhile));
+                tokens.push(JsTokenWithLocation { token: JsToken::KeyWordWhile, line, character, had_newline_before: js_iterator.new_line_pending });
             } else if identifier == "for" {
-                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordFor));
+                tokens.push(JsTokenWithLocation { token: JsToken::KeyWordFor, line, character, had_newline_before: js_iterator.new_line_pending });
             } else if identifier == "true" {
-                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::LiteralBoolean(true)));
+                tokens.push(JsTokenWithLocation { token: JsToken::LiteralBoolean(true), line, character, had_newline_before: js_iterator.new_line_pending });
             } else if identifier == "false" {
-                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::LiteralBoolean(false)));
+                tokens.push(JsTokenWithLocation { token: JsToken::LiteralBoolean(false), line, character, had_newline_before: js_iterator.new_line_pending });
             } else if identifier == "typeof" {
-                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordTypeOf));
+                tokens.push(JsTokenWithLocation { token: JsToken::KeyWordTypeOf, line, character, had_newline_before: js_iterator.new_line_pending });
             } else if identifier == "in" {
-                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordIn));
+                tokens.push(JsTokenWithLocation { token: JsToken::KeyWordIn, line, character, had_newline_before: js_iterator.new_line_pending });
             } else if identifier == "undefined" {
-                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::LiteralUndefined));
+                tokens.push(JsTokenWithLocation { token: JsToken::LiteralUndefined, line, character, had_newline_before: js_iterator.new_line_pending });
             } else if identifier == "try" {
-                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordTry));
+                tokens.push(JsTokenWithLocation { token: JsToken::KeyWordTry, line, character, had_newline_before: js_iterator.new_line_pending });
             } else if identifier == "catch" {
-                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordCatch));
+                tokens.push(JsTokenWithLocation { token: JsToken::KeyWordCatch, line, character, had_newline_before: js_iterator.new_line_pending });
             } else if identifier == "finally" {
-                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordFinally));
+                tokens.push(JsTokenWithLocation { token: JsToken::KeyWordFinally, line, character, had_newline_before: js_iterator.new_line_pending });
             } else if identifier == "throw" {
-                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordThrow));
+                tokens.push(JsTokenWithLocation { token: JsToken::KeyWordThrow, line, character, had_newline_before: js_iterator.new_line_pending });
             } else if identifier == "delete" {
-                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::KeyWordDelete));
+                tokens.push(JsTokenWithLocation { token: JsToken::KeyWordDelete, line, character, had_newline_before: js_iterator.new_line_pending });
             } else {
-                tokens.push(JsTokenWithLocation::make(&js_iterator, JsToken::Identifier(identifier)));
+                tokens.push(JsTokenWithLocation { token: JsToken::Identifier(identifier), line, character, had_newline_before: js_iterator.new_line_pending });
             }
+            js_iterator.new_line_pending = false;
         }
         else {
             //from here we parse hardcoded sets of chars as tokens, so any more complex tokens should have been handled before this point
 
+            let line = js_iterator.iter.current_line;
+            let character = js_iterator.iter.current_char;
+
             if js_iterator.peek().is_some() {
-                    let next_char = js_iterator.next();
+                let next_char = js_iterator.next();
 
-                    let token = match next_char {
-                        '(' => { JsToken::OpenParenthesis }
-                        ')' => { JsToken::CloseParenthesis }
-                        '[' => { JsToken::OpenBracket }
-                        ']' => { JsToken::CloseBracket }
-                        '{' => { JsToken::OpenBrace }
-                        '}' => { JsToken::CloseBrace }
-                        ',' => { JsToken::Comma }
-                        '.' => { JsToken::Dot }
-                        ':' => { JsToken::Colon }
-                        ';' => { JsToken::Semicolon }
-                        '%' => { JsToken::Remainder }
-                        '>' => {
-                            if js_iterator.has_next() {
-                                match js_iterator.peek().unwrap() {
-                                    '>' => {
-                                        js_iterator.next();
-                                        if js_iterator.has_next() {
-                                            match js_iterator.peek().unwrap() {
-                                                '>' => { js_iterator.next(); JsToken::UnsignedRightShift }
-                                                _ => { JsToken::RightShift }
-                                            }
-                                        } else {
-                                            JsToken::RightShift
+                let token = match next_char {
+                    '(' => { JsToken::OpenParenthesis }
+                    ')' => { JsToken::CloseParenthesis }
+                    '[' => { JsToken::OpenBracket }
+                    ']' => { JsToken::CloseBracket }
+                    '{' => { JsToken::OpenBrace }
+                    '}' => { JsToken::CloseBrace }
+                    ',' => { JsToken::Comma }
+                    '.' => { JsToken::Dot }
+                    ':' => { JsToken::Colon }
+                    ';' => { JsToken::Semicolon }
+                    '%' => { JsToken::Remainder }
+                    '>' => {
+                        if js_iterator.has_next() {
+                            match js_iterator.peek().unwrap() {
+                                '>' => {
+                                    js_iterator.next();
+                                    if js_iterator.has_next() {
+                                        match js_iterator.peek().unwrap() {
+                                            '>' => { js_iterator.next(); JsToken::UnsignedRightShift }
+                                            _ => { JsToken::RightShift }
                                         }
-                                    },
-                                    '=' => { js_iterator.next(); JsToken::BiggerOrEqual }
-                                    _ => { JsToken::Bigger }
-                                }
-                            } else { JsToken::Bigger }
-                        },
-                        '<' => {
-                            if js_iterator.has_next() {
-                                match js_iterator.peek().unwrap() {
-                                    '<' => { js_iterator.next(); JsToken::LeftShift }
-                                    '=' => { js_iterator.next(); JsToken::SmallerOrEqual }
-                                    _ => { JsToken::Smaller }
-                                }
-                            } else { JsToken::Smaller }
-                        },
-                        '!' => {
-                            if js_iterator.has_next() {
-                                match js_iterator.peek().unwrap() {
-                                    '=' => {
-                                        js_iterator.next();
-                                        if js_iterator.has_next() {
-                                            match js_iterator.peek().unwrap() {
-                                                '=' => { js_iterator.next(); JsToken::NotEqualsStrict },
-                                                _ => { JsToken::NotEquals },
-                                            }
-                                        } else {
-                                            JsToken::NotEquals
-                                        }
+                                    } else {
+                                        JsToken::RightShift
                                     }
-                                    _ => { JsToken::ExclamationMark }
-                                }
-                            } else { JsToken::ExclamationMark }
-                        },
-                        '?' => { JsToken::QuestionMark }
-                        '^' => {
-                            if js_iterator.has_next() {
-                                match js_iterator.peek().unwrap() {
-                                    '=' => { js_iterator.next(); JsToken::CompoundAssignBitWiseXor }
-                                    _ => { JsToken::BitWiseXor }
-                                }
-                            } else { JsToken::BitWiseXor }
-                         }
-                        '#' => { JsToken::Hash }
-                        '+' => {
-                            if js_iterator.has_next() {
-                                match js_iterator.peek().unwrap() {
-                                    '=' => { js_iterator.next(); JsToken::CompoundAssignAdd }
-                                    '+' => { js_iterator.next(); JsToken::Increment }
-                                    _ => { JsToken::Plus }
-                                }
-                            } else { JsToken::Plus }
-                        },
-                        '-' => {
-                            if js_iterator.has_next() {
-                                match js_iterator.peek().unwrap() {
-                                    '=' => { js_iterator.next(); JsToken::CompoundAssignMinus }
-                                    '-' => { js_iterator.next(); JsToken::Decrement }
-                                    _ => { JsToken::Minus }
-                                }
-                            } else { JsToken::Minus }
-                        },
-                        '*' => {
-                            if js_iterator.has_next() {
-                                match js_iterator.peek().unwrap() {
-                                    '=' => { js_iterator.next(); JsToken::CompoundAssignTimes }
-                                    _ => { JsToken::Star }
-                                }
-                            } else { JsToken::Star }
-                        },
-                        '|' => {
-                            if js_iterator.has_next() {
-                                match js_iterator.peek().unwrap() {
-                                    '|' => { js_iterator.next(); JsToken::LogicalOr }
-                                    '=' => { js_iterator.next(); JsToken::CompoundAssignBitWiseOr }
-                                    _ => { JsToken::BitWiseOr }
-                                }
-                            } else { JsToken::BitWiseOr }
-                        },
-                        '&' => {
-                            if js_iterator.has_next() {
-                                match js_iterator.peek().unwrap() {
-                                    '&' => { js_iterator.next(); JsToken::LogicalAnd }
-                                    '=' => { js_iterator.next(); JsToken::CompoundAssignBitWiseAnd }
-                                    _ => { JsToken::BitWiseAnd }
-                                }
-                            } else { JsToken::BitWiseAnd }
-                        },
-                        '=' => {
-                            if js_iterator.has_next() {
-                                match js_iterator.peek().unwrap() {
-                                    '=' => {
-                                        js_iterator.next();
-                                        if js_iterator.has_next() {
-                                            match js_iterator.peek().unwrap() {
-                                                '=' => { js_iterator.next(); JsToken::EqualsStrict },
-                                                _ => { JsToken::Equals },
-                                            }
-                                        } else {
-                                            JsToken::Equals
+                                },
+                                '=' => { js_iterator.next(); JsToken::BiggerOrEqual }
+                                _ => { JsToken::Bigger }
+                            }
+                        } else { JsToken::Bigger }
+                    },
+                    '<' => {
+                        if js_iterator.has_next() {
+                            match js_iterator.peek().unwrap() {
+                                '<' => { js_iterator.next(); JsToken::LeftShift }
+                                '=' => { js_iterator.next(); JsToken::SmallerOrEqual }
+                                _ => { JsToken::Smaller }
+                            }
+                        } else { JsToken::Smaller }
+                    },
+                    '!' => {
+                        if js_iterator.has_next() {
+                            match js_iterator.peek().unwrap() {
+                                '=' => {
+                                    js_iterator.next();
+                                    if js_iterator.has_next() {
+                                        match js_iterator.peek().unwrap() {
+                                            '=' => { js_iterator.next(); JsToken::NotEqualsStrict },
+                                            _ => { JsToken::NotEquals },
                                         }
+                                    } else {
+                                        JsToken::NotEquals
                                     }
-                                    _ => { JsToken::Assign }
                                 }
-                            } else { JsToken::Assign }
+                                _ => { JsToken::ExclamationMark }
+                            }
+                        } else { JsToken::ExclamationMark }
+                    },
+                    '?' => { JsToken::QuestionMark }
+                    '^' => {
+                        if js_iterator.has_next() {
+                            match js_iterator.peek().unwrap() {
+                                '=' => { js_iterator.next(); JsToken::CompoundAssignBitWiseXor }
+                                _ => { JsToken::BitWiseXor }
+                            }
+                        } else { JsToken::BitWiseXor }
                         }
+                    '#' => { JsToken::Hash }
+                    '+' => {
+                        if js_iterator.has_next() {
+                            match js_iterator.peek().unwrap() {
+                                '=' => { js_iterator.next(); JsToken::CompoundAssignAdd }
+                                '+' => { js_iterator.next(); JsToken::Increment }
+                                _ => { JsToken::Plus }
+                            }
+                        } else { JsToken::Plus }
+                    },
+                    '-' => {
+                        if js_iterator.has_next() {
+                            match js_iterator.peek().unwrap() {
+                                '=' => { js_iterator.next(); JsToken::CompoundAssignMinus }
+                                '-' => { js_iterator.next(); JsToken::Decrement }
+                                _ => { JsToken::Minus }
+                            }
+                        } else { JsToken::Minus }
+                    },
+                    '*' => {
+                        if js_iterator.has_next() {
+                            match js_iterator.peek().unwrap() {
+                                '=' => { js_iterator.next(); JsToken::CompoundAssignTimes }
+                                _ => { JsToken::Star }
+                            }
+                        } else { JsToken::Star }
+                    },
+                    '|' => {
+                        if js_iterator.has_next() {
+                            match js_iterator.peek().unwrap() {
+                                '|' => { js_iterator.next(); JsToken::LogicalOr }
+                                '=' => { js_iterator.next(); JsToken::CompoundAssignBitWiseOr }
+                                _ => { JsToken::BitWiseOr }
+                            }
+                        } else { JsToken::BitWiseOr }
+                    },
+                    '&' => {
+                        if js_iterator.has_next() {
+                            match js_iterator.peek().unwrap() {
+                                '&' => { js_iterator.next(); JsToken::LogicalAnd }
+                                '=' => { js_iterator.next(); JsToken::CompoundAssignBitWiseAnd }
+                                _ => { JsToken::BitWiseAnd }
+                            }
+                        } else { JsToken::BitWiseAnd }
+                    },
+                    '=' => {
+                        if js_iterator.has_next() {
+                            match js_iterator.peek().unwrap() {
+                                '=' => {
+                                    js_iterator.next();
+                                    if js_iterator.has_next() {
+                                        match js_iterator.peek().unwrap() {
+                                            '=' => { js_iterator.next(); JsToken::EqualsStrict },
+                                            _ => { JsToken::Equals },
+                                        }
+                                    } else {
+                                        JsToken::Equals
+                                    }
+                                }
+                                _ => { JsToken::Assign }
+                            }
+                        } else { JsToken::Assign }
+                    },
 
-                        '\n' => { JsToken::Newline }
+                    _ => {
+                        //TODO: when we are confident we have all relevant characters, we should just ignore here (don't give an error, maybe a warning in devconsole)
+                        todo!("unrecognized character in the js tokenizer: {:?}", next_char);
+                    }
+                };
 
-                        _ => {
-                            //TODO: when we are confident we have all relevant characters, we should just ignore here (don't give an error, maybe a warning in devconsole)
-                            todo!("unrecognized character in the js tokenizer: {:?}", next_char);
-                        }
-                    };
-
-                    tokens.push(JsTokenWithLocation::make(&js_iterator, token));
+                let token = JsTokenWithLocation { token, line, character, had_newline_before: js_iterator.new_line_pending };
+                js_iterator.new_line_pending = false;
+                tokens.push(token);
             }
-
         }
     }
 
@@ -556,6 +570,9 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
 
 
 fn lex_number(js_iterator: &mut JsSourceIterator) -> JsTokenWithLocation {
+    let token_line_pos = js_iterator.iter.current_line;
+    let token_char_pos = js_iterator.iter.current_char;
+
     let mut number_text = String::new();
 
     number_text.push(js_iterator.next());
@@ -585,9 +602,10 @@ fn lex_number(js_iterator: &mut JsSourceIterator) -> JsTokenWithLocation {
         number_text.parse().unwrap()
     };
 
-    //TODO: using "make" below is not correct, because it will give the end position of the literal, instead of the start
-    return JsTokenWithLocation::make(&js_iterator, JsToken::Number(number_value));
-
+    let token = JsTokenWithLocation { token: JsToken::Number(number_value), line: token_line_pos,
+                                      character: token_char_pos, had_newline_before: js_iterator.new_line_pending };
+    js_iterator.new_line_pending = false;
+    return token;
 }
 
 

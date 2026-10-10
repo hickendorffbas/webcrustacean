@@ -89,7 +89,6 @@ fn expect(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState, exp
 
 fn parse_statement(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) -> ParseResult<Option<JsAstStatement>> {
 
-    eat_newlines(tokens, parser_state);
     if parser_state.has_ended() {
         return ParseResult::Ok(None);
     }
@@ -187,11 +186,6 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
             (JsToken::CloseBracket, _) | (JsToken::Comma, true)         | (JsToken::Colon, _) => {
                 //we can pop back to the previous level of parsing:
                 break;
-            },
-            (JsToken::Newline, _) => {
-                //TODO: here something might need to happen wrt to deciding if we should insert a semicolon (stop parsing the statement)
-                parser_state.next();
-                continue;
             },
 
             //postfix operator parsing:
@@ -347,7 +341,6 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
 
 fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) -> ParseResult<JsAstExpression> {
 
-    eat_newlines(tokens, parser_state); //TODO: not sure if this is always correct, given semicolon insertion
     if parser_state.has_ended() {
         return ParseResult::Err(ParseError::error_for_token(ParseErrorType::EOF, tokens, parser_state));
     }
@@ -458,7 +451,6 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
         },
         JsToken::KeyWordNew => {
             parser_state.next();
-            eat_newlines(tokens, parser_state);
 
             //To use something with "new" it needs to be "constructable". For now we are happy with any function. However, we do already
             //take the parsing rules into account. i.e. as opposed to function parsing, "new" has higher precedence than "." , so "new a.b()"
@@ -590,10 +582,6 @@ fn parse_object_literal(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Pa
                 }
                 parser_state.next();
             },
-            JsToken::Newline => {
-                parser_state.next();
-                continue;
-            }
             _ => {
                 if !first {
                     todo!(); //TODO: this should be an error, because we expect a comma
@@ -601,8 +589,6 @@ fn parse_object_literal(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Pa
                 //the first time we don't expect a comma, so we just don't do anything here
             },
         }
-
-        eat_newlines(tokens, parser_state);
 
         match &tokens[parser_state.cursor].token {
             JsToken::Identifier(property_name) => {
@@ -876,8 +862,6 @@ fn parse_conditional(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Parse
 
     let script = parse_script(tokens, parser_state)?;
 
-    eat_newlines(tokens, parser_state);
-
     let else_present = !parser_state.has_ended() &&
         match tokens[parser_state.cursor].token {
             JsToken::KeyWordElse => {
@@ -925,8 +909,6 @@ fn parse_while_loop(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Parser
     expect(tokens, parser_state, JsToken::OpenBrace)?;
 
     let script = parse_script(tokens, parser_state)?;
-
-    eat_newlines(tokens, parser_state);
 
     return ParseResult::Ok(JsAstStatement::While(JsAstWhile { condition: Rc::from(condition), script: Rc::from(script) }));
 }
@@ -1043,8 +1025,6 @@ fn parse_for_loop(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserSt
     expect(tokens, parser_state, JsToken::OpenBrace)?;
 
     let script = Rc::from(parse_script(tokens, parser_state)?);
-    eat_newlines(tokens, parser_state);
-
     return ParseResult::Ok(JsAstStatement::For(JsAstFor { initial_declarations, initial_expression, loop_condition, next_step_expression, script }));
 }
 
@@ -1052,8 +1032,6 @@ fn parse_for_loop(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserSt
 fn parse_script(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) -> ParseResult<Script> {
     let mut script = Vec::new();
     loop {
-        eat_newlines(tokens, parser_state);
-
         match tokens[parser_state.cursor].token {
             JsToken::CloseBrace => {
                 parser_state.next();
@@ -1066,19 +1044,6 @@ fn parse_script(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserStat
         if statement.is_some() {
             script.push(statement.unwrap());
         }
-
-        eat_newlines(tokens, parser_state);
-    }
-}
-
-fn eat_newlines(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) {
-    while !parser_state.has_ended() {
-        match tokens[parser_state.cursor].token {
-            JsToken::Newline => {
-                parser_state.next();
-            }
-            _ => { break; }
-        }
     }
 }
 
@@ -1090,10 +1055,6 @@ fn parse_declaration(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Parse
         if parser_state.has_ended() { return ParseResult::Err(ParseError::error_for_token(ParseErrorType::EOF, tokens, parser_state)) };
 
         let declared_item = match &tokens[parser_state.cursor].token {
-            JsToken::Newline => {
-                parser_state.next();
-                continue;
-            }
             JsToken::Identifier(ident) => {
                 parser_state.next();
                 JsAstExpression::Identifier(JsAstIdentifier { name: ident.clone() })
@@ -1119,23 +1080,15 @@ fn parse_declaration(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Parse
                 match tokens[parser_state.cursor].token {
                     JsToken::Semicolon => {
                         break;
-                    }
+                    },
                     JsToken::Comma => {
                         parser_state.next();
                         continue;
                     },
-                    JsToken::Newline => {
-                        parser_state.next();
-                        continue;
-                    }
                     _ => {
                         todo!(); //TODO: this should be an error
-                    }
+                    },
                 }
-            },
-            JsToken::Newline => {
-                parser_state.next();
-                continue;
             },
             JsToken::Comma => {
                 parser_state.next();
@@ -1150,7 +1103,7 @@ fn parse_declaration(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Parse
                 };
                 declarations.push(JsAstDeclaration { variable: Some(js_ast_identifier), assignment: None, decl_type });
                 continue;
-            }
+            },
             _ => {
                 if decl_type == DeclType::Const {
                     todo!(); //TODO: its an error to not assign a const a value
@@ -1163,7 +1116,7 @@ fn parse_declaration(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Parse
                 };
                 declarations.push(JsAstDeclaration { variable: Some(js_ast_identifier), assignment: None, decl_type });
                 break;
-            }
+            },
         };
     }
 

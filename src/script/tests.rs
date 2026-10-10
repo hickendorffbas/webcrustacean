@@ -471,3 +471,8 @@ fn in_operator_inside_for_loop_body() {
 fn return_inside_try() {
     assert_js(r#"function a() { try { return 1; } catch {} return 2; } tester.export(a());"#, JsValue::Number(1.0));
 }
+
+#[test]
+fn object_literal_method_shorthand() {
+    assert_js(r#"const obj = { something(num) { return num + 2; } }; tester.export(obj.something(12));"#, JsValue::Number(14.0));
+}

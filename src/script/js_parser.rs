@@ -590,6 +590,10 @@ fn parse_object_literal(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Pa
                 }
                 parser_state.next();
             },
+            JsToken::Newline => {
+                parser_state.next();
+                continue;
+            }
             _ => {
                 if !first {
                     todo!(); //TODO: this should be an error, because we expect a comma
@@ -622,6 +626,12 @@ fn parse_object_literal(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Pa
             JsToken::Colon => {
                 parser_state.next();
             },
+            JsToken::OpenParenthesis => {
+                let method_ast = parse_method_shorthand(tokens, parser_state)?;
+                members.push((JsAstExpression::StringLiteral(current_property_name.clone()), JsAstExpression::FunctionExpression(method_ast)));
+                first = false;
+                continue;
+            },
             _ => {
                 todo!(); //TODO: handle the case where a shorthand is used (i.e. {a} to mean { a : a })
             },
@@ -633,6 +643,36 @@ fn parse_object_literal(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Pa
         first = false;
     }
     return ParseResult::Ok(JsAstExpression::ObjectLiteral(JsAstObjectLiteral { members: members }));
+}
+
+
+fn parse_method_shorthand(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) -> ParseResult<JsAstFunctionExpression> {
+    expect(tokens, parser_state, JsToken::OpenParenthesis)?;
+
+    let mut arguments = Vec::new();
+    loop {
+        match &tokens[parser_state.cursor].token {
+            JsToken::Identifier(ident) => {
+                parser_state.next();
+                arguments.push(JsAstIdentifier { name: ident.clone() });
+            },
+            JsToken::Comma => {
+                parser_state.next();
+            },
+            JsToken::CloseParenthesis => {
+                parser_state.next();
+                break;
+            }
+            _ => {
+                todo!(); //TODO: some kind of error
+            }
+        }
+    }
+
+    expect(tokens, parser_state, JsToken::OpenBrace)?;
+    let script = parse_script(tokens, parser_state)?;
+
+    return ParseResult::Ok(JsAstFunctionExpression { name: None, arguments, script: Rc::from(script) })
 }
 
 

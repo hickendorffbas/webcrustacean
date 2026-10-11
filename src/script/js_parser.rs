@@ -30,6 +30,7 @@ pub struct ParseError {
     character: u32,
     url: Url,
 }
+#[derive(PartialEq)]
 pub enum ParseErrorType {
     EOF,
     IdentierExpected,
@@ -46,7 +47,12 @@ impl ParseError {
         }
     }
     fn error_for_token(error_type: ParseErrorType, tokens: &Vec<JsTokenWithLocation>, parser_state: &ParserState) -> ParseError {
-        return ParseError { error_type, line: tokens[parser_state.cursor].line, character: tokens[parser_state.cursor].character, url: parser_state.source_url.clone() }
+        let (line, character) = if error_type == ParseErrorType::EOF {
+            (tokens[parser_state.cursor - 1].line, tokens[parser_state.cursor - 1].character)
+        } else {
+            (tokens[parser_state.cursor].line, tokens[parser_state.cursor].character)
+        };
+        return ParseError { error_type, line, character, url: parser_state.source_url.clone() }
     }
 }
 
@@ -75,14 +81,17 @@ pub fn parse_js(tokens: &Vec<JsTokenWithLocation>, source_url: &Url) -> Script {
 
 
 fn expect(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState, expected_token: JsToken) -> ParseResult<()> {
+    if parser_state.has_ended() {
+        return ParseResult::Err(ParseError::error_for_token(ParseErrorType::EOF, tokens, parser_state));
+    }
+
     let next_token = &tokens[parser_state.cursor].token;
 
     if mem::discriminant(next_token) == mem::discriminant(&expected_token) {
         parser_state.next();
         return ParseResult::Ok(());
     } else {
-        let error = ParseError::error_for_token(ParseErrorType::UnexpectedToken, tokens, parser_state);
-        return ParseResult::Err(error);
+        return ParseResult::Err(ParseError::error_for_token(ParseErrorType::UnexpectedToken, tokens, parser_state));
     }
 }
 

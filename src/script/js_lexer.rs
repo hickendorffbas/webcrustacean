@@ -103,6 +103,7 @@ pub struct JsSourceIterator<'document> {
     current_string_starter: Option<char>,
     in_regex_literal: bool,
     new_line_pending: bool,
+    new_line_while_peeking: bool,
 }
 impl <'document> JsSourceIterator<'document> {
     pub fn new(inner_iter: Peekable<Chars<'document>>, current_line: u32, current_char: u32) -> JsSourceIterator<'document> {
@@ -118,6 +119,7 @@ impl <'document> JsSourceIterator<'document> {
             current_string_starter: None,
             in_regex_literal: false,
             new_line_pending: false,
+            new_line_while_peeking: false,
         }
     }
     pub fn has_next(&mut self) -> bool {
@@ -175,6 +177,9 @@ impl <'document> JsSourceIterator<'document> {
         if self.next == Some('/') && self.iter.peek() == Some(&'*') {
             loop {
                 self.next = Some(self.iter.next());
+                if self.next == Some('\n') {
+                    self.new_line_while_peeking = true;
+                }
                 if self.next == Some('*') && self.iter.peek() == Some(&'/') {
                     self.iter.next();
                     self.next = None;
@@ -238,7 +243,15 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
 
     while js_iterator.has_next() {
 
-        if js_iterator.peek().unwrap() == '\n' {
+        let next_char = js_iterator.peek().unwrap();
+
+        if js_iterator.new_line_while_peeking {
+            //This means there was a newline in the content we skipped while peeking (because of a block comment for example)
+            js_iterator.new_line_while_peeking = false;
+            js_iterator.new_line_pending = true;
+        }
+
+        if next_char == '\n' {
             js_iterator.next();
             js_iterator.new_line_pending = true;
             continue;

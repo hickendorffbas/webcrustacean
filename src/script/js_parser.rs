@@ -178,18 +178,19 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
 
     loop {
         if parser_state.has_ended() {
-            return ParseResult::Err(ParseError::error_for_token(ParseErrorType::EOF, tokens, parser_state))
+            break;
         };
 
-        match (&tokens[parser_state.cursor].token, needs_assignment_expression) {
-            (JsToken::Semicolon, _)    | (JsToken::CloseParenthesis, _) | (JsToken::CloseBrace, _) |
-            (JsToken::CloseBracket, _) | (JsToken::Comma, true)         | (JsToken::Colon, _) => {
-                //we can pop back to the previous level of parsing:
-                break;
+        match &tokens[parser_state.cursor].token {
+            JsToken::Comma => {
+                if needs_assignment_expression {
+                    //we can pop back to the previous level of parsing
+                    break;
+                }
             },
 
             //postfix operator parsing:
-            (JsToken::OpenBracket, _) => {
+            JsToken::OpenBracket => {
                 parser_state.next();
 
                 let index_expression = pratt_parse_expression(tokens, parser_state, min_binding_power, true)?;
@@ -206,7 +207,21 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
             _ => {},
         }
 
-        let (left_bp, right_bp) = infix_binding_power(&tokens[parser_state.cursor].token);
+
+        let current_token = &tokens[parser_state.cursor];
+
+        if (current_token.token == JsToken::Increment || current_token.token == JsToken::Decrement) && current_token.had_newline_before {
+            //If we had a newline before encountering these, they should be prefix, not postfix, so we break the expression here
+            break;
+        }
+
+        let powers = infix_binding_power(&current_token.token);
+        if powers.is_none() {
+            //No operator was recognized, expression is done
+            break;
+        }
+        let (left_bp, right_bp) = powers.unwrap();
+
 
         if left_bp < min_binding_power {
             break;
@@ -743,8 +758,8 @@ fn prefix_binding_power(token: &JsToken) -> u8 {
 }
 
 
-fn infix_binding_power(token: &JsToken) -> (u8, u8) {
-    match token {
+fn infix_binding_power(token: &JsToken) -> Option<(u8, u8)> {
+    let powers = match token {
         JsToken::Comma => (0, 1),
         JsToken::Assign => (2, 1),
         JsToken::CompoundAssignAdd => (2, 1),
@@ -781,8 +796,9 @@ fn infix_binding_power(token: &JsToken) -> (u8, u8) {
         JsToken::OpenParenthesis => (100, 101),
         JsToken::Increment => (110, 111),
         JsToken::Decrement => (110, 111),
-        _ => todo!(),
-    }
+        _ => return None,
+    };
+    return Some(powers);
 }
 
 

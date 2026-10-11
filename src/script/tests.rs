@@ -476,3 +476,13 @@ fn return_inside_try() {
 fn object_literal_method_shorthand() {
     assert_js(r#"const obj = { something(num) { return num + 2; } }; tester.export(obj.something(12));"#, JsValue::Number(14.0));
 }
+
+#[test]
+fn automatic_semicolon_insertion_at_newlines() {
+    assert_js(r#"
+var x = 1
+var y = 2
+x = x + y
+tester.export(x * 10 + y)"#,
+    JsValue::Number(32.0));
+}

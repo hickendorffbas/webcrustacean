@@ -96,6 +96,34 @@ fn expect(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState, exp
 }
 
 
+fn expect_statement_terminator(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) -> ParseResult<()> {
+    if parser_state.has_ended() {
+        return ParseResult::Ok(());
+    }
+
+    let next_token = &tokens[parser_state.cursor];
+
+    match next_token.token {
+        JsToken::Semicolon => {
+            parser_state.next();
+            return ParseResult::Ok(());
+        },
+        JsToken::CloseBrace => {
+            //we don't consume the '}', because the block parser needs it, but we consider the statement terminated
+            return ParseResult::Ok(());
+        },
+        _ => {},
+    }
+
+    if next_token.had_newline_before {
+        //a semicolon is inserted before this token
+        return ParseResult::Ok(());
+    }
+
+    return ParseResult::Err(ParseError::error_for_token(ParseErrorType::UnexpectedToken, tokens, parser_state));
+}
+
+
 fn parse_statement(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) -> ParseResult<Option<JsAstStatement>> {
 
     if parser_state.has_ended() {
@@ -159,7 +187,7 @@ fn parse_statement(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserS
             let ast = parse_declaration(tokens, parser_state, decl_type)?;
             let result = ParseResult::Ok(Some(JsAstStatement::Declaration(ast)));
 
-            expect(tokens, parser_state, JsToken::Semicolon)?;
+            expect_statement_terminator(tokens, parser_state)?;
             return result;
         },
         JsToken::Semicolon => {
@@ -170,12 +198,7 @@ fn parse_statement(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserS
     }
 
     let expression_result = pratt_parse_expression(tokens, parser_state, 0, false)?;
-    match &tokens[parser_state.cursor].token {
-        JsToken::Semicolon => {
-            parser_state.next();
-        },
-        _ => {},
-    }
+    expect_statement_terminator(tokens, parser_state)?;
     return ParseResult::Ok(Some(JsAstStatement::Expression(expression_result)));
 }
 
@@ -1093,8 +1116,14 @@ fn parse_declaration(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Parse
              _ => todo!(),
         };
 
-        match tokens[parser_state.cursor].token {
-            JsToken::Assign => {
+        let next_token = if parser_state.has_ended() {
+            None
+        } else {
+            Some(&tokens[parser_state.cursor].token)
+        };
+
+        match next_token {
+            Some(JsToken::Assign) => {
                 parser_state.next();
 
                 let expression = pratt_parse_expression(tokens, parser_state, 0, true)?;
@@ -1102,20 +1131,14 @@ fn parse_declaration(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Parse
                 let assignment = Some(JsAstAssign { left: Rc::from(left_side), right: Rc::from(expression) });
                 declarations.push(JsAstDeclaration { variable: None, assignment, decl_type });
 
-                match tokens[parser_state.cursor].token {
-                    JsToken::Semicolon => {
-                        break;
-                    },
-                    JsToken::Comma => {
-                        parser_state.next();
-                        continue;
-                    },
-                    _ => {
-                        todo!(); //TODO: this should be an error
-                    },
+                if !parser_state.has_ended() && tokens[parser_state.cursor].token == JsToken::Comma {
+                    //this means another declaration is following this one
+                    parser_state.next();
+                    continue;
                 }
+                break;
             },
-            JsToken::Comma => {
+            Some(JsToken::Comma) => {
                 parser_state.next();
                 if decl_type == DeclType::Const {
                     todo!(); //TODO: its an error to not assign a const a value

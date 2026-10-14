@@ -190,8 +190,10 @@ fn main() -> Result<(), String> {
         }
 
         resource_loader.handle_possible_finished_job(&mut task_store, &mut cookie_store, &mut ui_state);
-        ui_state.currently_loading_page = resource_loader.any_jobs_in_progress();
 
+        ui_state.currently_loading_page = resource_loader.any_jobs_in_progress()
+                                          || !html_parser.is_done()
+                                          || task_store.iter().any(|task| task.ready && !task.finished);
 
         let work_was_performed = progress_html_parser(&mut html_parser, &mut resource_loader, &cookie_store, &mut task_store);
 

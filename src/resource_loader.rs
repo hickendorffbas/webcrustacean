@@ -159,6 +159,11 @@ impl ResourceLoader {
 
                         //TODO: send this to some dev-tools console in its own (network) catagory
                         println!("[NETWORK] could not load {} {}", method_name, url.to_string());
+
+                        //The html parser might be waiting on this task (for scripts), so we finish it with empty content to let parsing continue
+                        //TODO: eventually we should probably send some information back about the network failure
+                        future_task.ready = true;
+                        task_store.push(future_task);
                     },
                 }
             },

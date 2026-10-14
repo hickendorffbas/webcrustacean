@@ -14,7 +14,6 @@ goals for 0.9.0:
 other things (later versions):
        - exceptions in javascript (generating them, and catching them)
        - implement more box layout css options
-       - add ASI to the js parser
        - scrolling
               - we cull to soon now (check with long page of text paragraphs)
        - handle redirects better. Its seems reqwest follows them, but our url bar does not update etc. we want to follow them ourselves

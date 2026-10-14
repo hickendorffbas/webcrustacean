@@ -2,6 +2,7 @@
 ===================
 - "Not found" page added
 - Commandline option for taking screenshots added
+- Javascript has automatic semicolon insertion now
 
 
 0.8.0

@@ -324,7 +324,7 @@ fn render_spinner(platform: &mut Platform, ui_state: &UIState) {
     let spinner_x_pos = ui_state.addressbar.x + ui_state.addressbar.width + 15.0;
     let spinner_y_pos = (ui_state.addressbar.y + ui_state.addressbar.height / 2.0) - (block_size / 2.0);
 
-    let number_of_blocks = (ui_state.animation_tick % 1000) / 250;
+    let number_of_blocks = ((ui_state.animation_tick % 750) / 250) + 1; //we always want at least 1 block, to show the spinner is active
 
     if number_of_blocks > 0 {
         platform.fill_rect(spinner_x_pos, spinner_y_pos, block_size, block_size, Color::BLACK, 255);

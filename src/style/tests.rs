@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::dom::{ElementDomNode, TagName};
 use crate::style::{
+    compute_styles,
     CssProperty,
     resolve_full_styles_for_dom_node,
     StyleContext,
@@ -54,6 +55,7 @@ fn test_inherit_style_from_parent() {
     let parent_node_id = get_next_test_id();
     let main_node = Rc::new(RefCell::from(make_element_node(main_node_id, parent_node_id, "b".to_owned())));
     let parent_node = Rc::new(RefCell::from(make_element_node(parent_node_id, document_node_id, "h3".to_owned())));
+    parent_node.borrow_mut().children.as_mut().unwrap().push(Rc::clone(&main_node));
 
     let mut all_dom_nodes = HashMap::new();
     all_dom_nodes.insert(main_node_id, Rc::clone(&main_node));
@@ -61,9 +63,10 @@ fn test_inherit_style_from_parent() {
 
     let style_rules = vec![ StyleRule::make_for_tag_name("h3", CssProperty::FontSize, "50", None) ];
     let style_context = StyleContext { user_agent_sheet: Vec::new(), author_sheet: style_rules };
-    let resolved_styles = resolve_full_styles_for_dom_node(&main_node, &all_dom_nodes, &style_context);
 
-    check_style(&resolved_styles, &CssProperty::FontSize, "50");
+    compute_styles(&parent_node, &all_dom_nodes, &style_context);
+
+    check_style(&main_node.borrow().styles, &CssProperty::FontSize, "50");
 }
 
 

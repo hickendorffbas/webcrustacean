@@ -234,7 +234,7 @@ pub fn resolve_full_styles_for_dom_node(dom_node: &Rc<RefCell<ElementDomNode>>, 
 
     if dom_node.borrow().parent_id != 0 {
         let parent_node = all_dom_nodes.get(&dom_node.borrow().parent_id).expect(format!("id {} not present in all nodes", dom_node.borrow().parent_id).as_str());
-        let parent_styles = resolve_full_styles_for_dom_node(&parent_node, all_dom_nodes, style_context);
+        let parent_styles = parent_node.borrow().styles.clone();
 
         for (parent_style_property, parent_style_value) in parent_styles {
 

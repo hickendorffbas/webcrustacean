@@ -123,6 +123,7 @@ impl <'document> JsSourceIterator<'document> {
         }
     }
     pub fn has_next(&mut self) -> bool {
+        self.skip_possible_comment();
         return self.next.is_some() || self.iter.has_next();
     }
     pub fn peek(&mut self) -> Option<char> {
@@ -168,7 +169,7 @@ impl <'document> JsSourceIterator<'document> {
         }
 
         if self.next == Some('/') && self.iter.peek() == Some(&'/') {
-            while self.iter.peek() != Some(&'\n') {
+            while self.iter.has_next() && self.iter.peek() != Some(&'\n') {
                 self.iter.next();
             }
             self.next = None;
@@ -176,6 +177,10 @@ impl <'document> JsSourceIterator<'document> {
 
         if self.next == Some('/') && self.iter.peek() == Some(&'*') {
             loop {
+                if !self.iter.has_next() {
+                    self.next = None;
+                    break;
+                }
                 self.next = Some(self.iter.next());
                 if self.next == Some('\n') {
                     self.new_line_while_peeking = true;

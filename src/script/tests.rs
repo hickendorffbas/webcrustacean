@@ -491,3 +491,13 @@ tester.export(x * 10 + y)"#,
 fn logical_and_short_circuits() {
     assert_js(r#"function f() { tester.export(1); return 5; } tester.export(0); var r = false && f();"#, JsValue::Number(0.0));
 }
+
+#[test]
+fn line_comment_at_end_of_input_without_newline() {
+    assert_js("tester.export(1);\n// comment", JsValue::Number(1.0));
+}
+
+#[test]
+fn unterminated_block_comment_at_end_of_input() {
+    assert_js("tester.export(1);/* comment", JsValue::Number(1.0));
+}

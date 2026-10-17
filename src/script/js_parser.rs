@@ -556,6 +556,11 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
             let expression = pratt_parse_expression(tokens, parser_state, 0, true)?;
             return ParseResult::Ok(JsAstExpression::Delete(JsAstDelete { expression: Rc::from(expression) }));
         },
+        JsToken::KeyWordVoid => {
+            parser_state.next();
+            let expression = pratt_parse_expression(tokens, parser_state, 0, true)?;
+            return ParseResult::Ok(JsAstExpression::Void(JsAstVoid { expression: Rc::from(expression) }));
+        },
         _ => todo!(),
     }
 }

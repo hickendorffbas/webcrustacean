@@ -1008,6 +1008,7 @@ pub enum JsAstExpression {
     ObjectCreation(JsAstObjectCreation),
     TypeOf(JsAstTypeOf),
     Delete(JsAstDelete),
+    Void(JsAstVoid),
 }
 impl JsAstExpression {
     fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
@@ -1025,6 +1026,7 @@ impl JsAstExpression {
             JsAstExpression::StringLiteral(string_literal) => { return JsValue::String(string_literal.clone()); },
             JsAstExpression::UndefinedLiteral() => { return JsValue::Undefined; },
             JsAstExpression::TypeOf(type_of) => { return type_of.execute(js_interpreter); },
+            JsAstExpression::Void(void) => { return void.execute(js_interpreter); },
             JsAstExpression::Delete(delete) => { return delete.execute(js_interpreter); },
             JsAstExpression::FunctionCall(function_call) => { return function_call.execute(js_interpreter) },
             JsAstExpression::NumericLiteral(value) => { return JsValue::Number(*value) },
@@ -1283,6 +1285,18 @@ impl JsAstTypeOf {
             }
             JsValue::Undefined => JsValue::String(String::from("undefined")),
         }
+    }
+}
+
+
+#[derive(Debug)]
+pub struct JsAstVoid {
+    pub expression: Rc<JsAstExpression>,
+}
+impl JsAstVoid {
+    fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
+        let _ = self.expression.execute(js_interpreter);
+        return JsValue::Undefined;
     }
 }
 

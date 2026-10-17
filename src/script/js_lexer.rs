@@ -197,47 +197,15 @@ impl <'document> JsSourceIterator<'document> {
 }
 
 
-const TOKENS_PROBABLY_PRECEDING_REGEX_LITERAL: &[JsToken] = &[
-    JsToken::OpenParenthesis,
-    JsToken::OpenBracket,
-    JsToken::Assign,
-    JsToken::CompoundAssignAdd,
-    JsToken::CompoundAssignMinus,
-    JsToken::CompoundAssignTimes,
-    JsToken::CompoundAssignDiv,
-    JsToken::CompoundAssignBitWiseOr,
-    JsToken::CompoundAssignBitWiseXor,
-    JsToken::CompoundAssignBitWiseAnd,
-    JsToken::Star,
-    JsToken::Plus,
-    JsToken::Minus,
-    JsToken::Semicolon,
-    JsToken::Bigger,
-    JsToken::Smaller,
-    JsToken::BitWiseOr,
-    JsToken::BitWiseXor,
-    JsToken::BitWiseAnd,
-    JsToken::ExclamationMark,
-    JsToken::BitWiseOr,
-    JsToken::Equals,
-    JsToken::EqualsStrict,
-    JsToken::NotEquals,
-    JsToken::NotEqualsStrict,
-    JsToken::BiggerOrEqual,
-    JsToken::SmallerOrEqual,
-    JsToken::LogicalAnd,
-    JsToken::LogicalOr,
-    JsToken::KeyWordReturn,
-    JsToken::Comma,
-    JsToken::Colon,
-    JsToken::QuestionMark,
-    JsToken::RightShift,
-    JsToken::LeftShift,
-    JsToken::UnsignedRightShift,
-    JsToken::KeyWordTypeOf,
-    JsToken::KeyWordDelete,
-    JsToken::KeyWordVoid,
-];
+//TODO: this is a heuristic, it is wrong for the ")" of if/while/for and the "}" of a block, which should allow a regex after them
+fn token_can_end_expression(token: &JsToken) -> bool {
+    return matches!(token,
+        JsToken::Number(_) | JsToken::LiteralString(_) | JsToken::LiteralBoolean(_) | JsToken::LiteralUndefined |
+        JsToken::Identifier(_) | JsToken::RegexLiteral(_) |
+        JsToken::CloseParenthesis | JsToken::CloseBracket | JsToken::CloseBrace |
+        JsToken::Increment | JsToken::Decrement
+    );
+}
 
 
 const REGEX_ALLOWED_FLAGS: &[char] = &['d', 'g', 'i', 'm', 's', 'u', 'v', 'y'];
@@ -309,7 +277,7 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
             let token_line_pos = js_iterator.iter.current_line;
             let token_char_pos = js_iterator.iter.current_char;
 
-            if last_token.is_none() || (last_token.is_some() && TOKENS_PROBABLY_PRECEDING_REGEX_LITERAL.contains(&last_token.unwrap())) {
+            if last_token.is_none() || (last_token.is_some() && !token_can_end_expression(&last_token.unwrap())) {
                 js_iterator.in_regex_literal = true;
                 let mut buffer = String::new();
                 let mut escaped = false;

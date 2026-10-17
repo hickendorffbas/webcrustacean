@@ -546,19 +546,19 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
             parser_state.next();
             return ParseResult::Ok(JsAstExpression::RegexLiteral(JsAstRegexLiteral { regex: regex_literal.clone() }));
         },
-        JsToken::KeyWordTypeOf => {
+        token @ JsToken::KeyWordTypeOf => {
             parser_state.next();
-            let expression = pratt_parse_expression(tokens, parser_state, 0, true)?;
+            let expression = pratt_parse_expression(tokens, parser_state, prefix_binding_power(token), true)?;
             return ParseResult::Ok(JsAstExpression::TypeOf(JsAstTypeOf { expression: Rc::from(expression) }));
         },
-        JsToken::KeyWordDelete => {
+        token @ JsToken::KeyWordDelete => {
             parser_state.next();
-            let expression = pratt_parse_expression(tokens, parser_state, 0, true)?;
+            let expression = pratt_parse_expression(tokens, parser_state, prefix_binding_power(token), true)?;
             return ParseResult::Ok(JsAstExpression::Delete(JsAstDelete { expression: Rc::from(expression) }));
         },
-        JsToken::KeyWordVoid => {
+        token @ JsToken::KeyWordVoid => {
             parser_state.next();
-            let expression = pratt_parse_expression(tokens, parser_state, 0, true)?;
+            let expression = pratt_parse_expression(tokens, parser_state, prefix_binding_power(token), true)?;
             return ParseResult::Ok(JsAstExpression::Void(JsAstVoid { expression: Rc::from(expression) }));
         },
         _ => todo!(),
@@ -790,6 +790,9 @@ fn prefix_binding_power(token: &JsToken) -> u8 {
         JsToken::Plus => 99,
         JsToken::Minus => 99,
         JsToken::ExclamationMark => 99,
+        JsToken::KeyWordVoid => 99,
+        JsToken::KeyWordDelete => 99,
+        JsToken::KeyWordTypeOf => 99,
         _ => todo!(),
     }
 }

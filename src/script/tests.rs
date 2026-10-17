@@ -501,3 +501,8 @@ fn line_comment_at_end_of_input_without_newline() {
 fn unterminated_block_comment_at_end_of_input() {
     assert_js("tester.export(1);/* comment", JsValue::Number(1.0));
 }
+
+#[test]
+fn void_binds_tighter_than_ternary() {
+    assert_js("tester.export(void 0 ? 1 : 2);", JsValue::Number(2.0));
+}

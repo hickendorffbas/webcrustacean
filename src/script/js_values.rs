@@ -26,12 +26,12 @@ pub enum JsValue {
     Undefined,
 }
 impl JsValue {
-    pub fn is_thruty(self) -> bool {
+    pub fn is_thruty(&self) -> bool {
         match self {
-            JsValue::Number(number) => { return number != 0.0 },
+            JsValue::Number(number) => { return *number != 0.0 },
             JsValue::String(string) => { return !string.is_empty() } ,
-            JsValue::Boolean(bool) => { return bool; },
-            JsValue::Address(_) => { todo!(); }, //TODO: implement (check the heap)
+            JsValue::Boolean(bool) => { return *bool; },
+            JsValue::Address(_) => { return true; },
             JsValue::Undefined => { return false; },
         }
     }

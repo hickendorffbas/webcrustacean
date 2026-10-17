@@ -486,3 +486,8 @@ x = x + y
 tester.export(x * 10 + y)"#,
     JsValue::Number(32.0));
 }
+
+#[test]
+fn logical_and_short_circuits() {
+    assert_js(r#"function f() { tester.export(1); return 5; } tester.export(0); var r = false && f();"#, JsValue::Number(0.0));
+}

@@ -532,32 +532,16 @@ impl JsAstBinOp {
                 }
             },
             JsBinOp::LogicalAnd => {
-                let right_val = self.right.execute(js_interpreter);
-
-                match left_val {
-                    JsValue::Undefined => { return left_val; },
-                    JsValue::Boolean(left_bool) => {
-                        match right_val {
-                            JsValue::Boolean(right_bool) => { return JsValue::Boolean(left_bool && right_bool); },
-                            _ => { todo!(); }
-                        }
-                    }
-                    _ => { todo!() }
+                if !left_val.is_thruty() {
+                    return left_val;
                 }
+                return self.right.execute(js_interpreter);
             },
             JsBinOp::LogicalOr => {
-                let right_val = self.right.execute(js_interpreter);
-
-                match left_val {
-                    JsValue::Undefined => { return right_val; },
-                    JsValue::Boolean(left_bool) => {
-                        match right_val {
-                            JsValue::Boolean(right_bool) => { return JsValue::Boolean(left_bool || right_bool); },
-                            _ => { todo!(); }
-                        }
-                    }
-                    _ => { todo!() }
+                if left_val.is_thruty() {
+                    return left_val;
                 }
+                return self.right.execute(js_interpreter);
             },
             JsBinOp::BitWiseOr => {
                 let right_val = self.right.execute(js_interpreter);

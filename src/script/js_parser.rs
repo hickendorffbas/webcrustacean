@@ -378,6 +378,25 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                 lhs = JsAstExpression::UnaryOp(JsAstUnOp { op: JsUnOp::PostfixDecrement, operand: Rc::from(lhs) });
             },
 
+            JsToken::Arrow => {
+                parser_state.next();
+
+                let arguments = convert_left_side_of_arrow(tokens, parser_state, &lhs)?;
+
+                match &tokens[parser_state.cursor].token {
+                    JsToken::OpenBrace => {
+                        parser_state.next();
+                        let script = Rc::from(parse_script(tokens, parser_state)?);
+                        lhs = JsAstExpression::FunctionExpression(JsAstFunctionExpression { name: None, arguments, script });
+                    },
+                    _ => {
+                        let rhs = pratt_parse_expression(tokens, parser_state, right_bp, true)?;
+                        let script = Rc::from(vec![JsAstStatement::Return(Some(rhs))]);
+                        lhs = JsAstExpression::FunctionExpression(JsAstFunctionExpression { name: None, arguments, script });
+                    }
+                }
+            }
+
             _ => todo!(),
         }
     }
@@ -615,6 +634,23 @@ fn convert_left_side_of_assign(current_left_size: JsAstExpression) -> Vec<(Optio
 }
 
 
+fn convert_left_side_of_arrow(tokens: &Vec<JsTokenWithLocation>, parser_state: &ParserState, left_side: &JsAstExpression) -> ParseResult<Vec<JsAstIdentifier>> {
+    return match left_side {
+        JsAstExpression::Identifier(identifier) => {
+            ParseResult::Ok(vec![JsAstIdentifier { name: identifier.name.clone() }])
+        },
+        JsAstExpression::BinOp(binop) if matches!(binop.op, JsBinOp::Comma) => {
+            let mut arguments = convert_left_side_of_arrow(tokens, parser_state, &binop.left)?;
+            arguments.extend(convert_left_side_of_arrow(tokens, parser_state, &binop.right)?);
+            ParseResult::Ok(arguments)
+        },
+        _ => {
+            ParseResult::Err(ParseError::error_for_token(ParseErrorType::IdentierExpected, tokens, parser_state))
+        },
+    };
+}
+
+
 fn parse_object_literal(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) -> ParseResult<JsAstExpression> {
     expect(tokens, parser_state, JsToken::OpenBrace)?;
 
@@ -802,6 +838,7 @@ fn infix_binding_power(token: &JsToken) -> Option<(u8, u8)> {
     let powers = match token {
         JsToken::Comma => (0, 1),
         JsToken::Assign => (2, 1),
+        JsToken::Arrow => (2, 1),
         JsToken::CompoundAssignAdd => (2, 1),
         JsToken::CompoundAssignMinus => (2, 1),
         JsToken::CompoundAssignTimes => (2, 1),

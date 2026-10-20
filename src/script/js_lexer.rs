@@ -52,6 +52,7 @@ pub enum JsToken {
     Increment,
     Decrement,
     Remainder,
+    Arrow,
 
     Bigger,
     Smaller,
@@ -526,6 +527,7 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                     '=' => {
                         if js_iterator.has_next() {
                             match js_iterator.peek().unwrap() {
+                                '>' => { js_iterator.next(); JsToken::Arrow }
                                 '=' => {
                                     js_iterator.next();
                                     if js_iterator.has_next() {

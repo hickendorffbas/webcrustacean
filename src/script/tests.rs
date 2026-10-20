@@ -506,3 +506,13 @@ fn unterminated_block_comment_at_end_of_input() {
 fn void_binds_tighter_than_ternary() {
     assert_js("tester.export(void 0 ? 1 : 2);", JsValue::Number(2.0));
 }
+
+#[test]
+fn arrow_function_single_parameter_with_block_body() {
+    assert_js("var double = x => { return x * 2; }; tester.export(double(3));", JsValue::Number(6.0));
+}
+
+#[test]
+fn arrow_function_single_parameter_with_expression_body() {
+    assert_js("var double = x => x * 2; tester.export(double(3));", JsValue::Number(6.0));
+}

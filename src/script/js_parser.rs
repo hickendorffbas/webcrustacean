@@ -382,19 +382,7 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                 parser_state.next();
 
                 let arguments = convert_left_side_of_arrow(tokens, parser_state, &lhs)?;
-
-                match &tokens[parser_state.cursor].token {
-                    JsToken::OpenBrace => {
-                        parser_state.next();
-                        let script = Rc::from(parse_script(tokens, parser_state)?);
-                        lhs = JsAstExpression::FunctionExpression(JsAstFunctionExpression { name: None, arguments, script });
-                    },
-                    _ => {
-                        let rhs = pratt_parse_expression(tokens, parser_state, right_bp, true)?;
-                        let script = Rc::from(vec![JsAstStatement::Return(Some(rhs))]);
-                        lhs = JsAstExpression::FunctionExpression(JsAstFunctionExpression { name: None, arguments, script });
-                    }
-                }
+                lhs = parse_arrow_function_body(tokens, parser_state, arguments, right_bp)?;
             }
 
             _ => todo!(),
@@ -552,6 +540,14 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
         JsToken::OpenParenthesis => {
             parser_state.next();
 
+            if tokens[parser_state.cursor].token == JsToken::CloseParenthesis {
+                //An empty pair of parentheses is not a valid expression, but it can be the parameter list of an arrow function
+                parser_state.next();
+                expect(tokens, parser_state, JsToken::Arrow)?;
+                let (_, right_bp) = infix_binding_power(&JsToken::Arrow).unwrap();
+                return parse_arrow_function_body(tokens, parser_state, Vec::new(), right_bp);
+            }
+
             let expression = pratt_parse_expression(tokens, parser_state, 0, false)?;
             match &tokens[parser_state.cursor].token {
                 JsToken::CloseParenthesis => {
@@ -631,6 +627,22 @@ fn convert_left_side_of_assign(current_left_size: JsAstExpression) -> Vec<(Optio
             vec![(None, Rc::from(current_left_size))]  //We just have a single thing to assign to
         },
     };
+}
+
+
+fn parse_arrow_function_body(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState,
+                             arguments: Vec<JsAstIdentifier>, right_bp: u8) -> ParseResult<JsAstExpression> {
+    let script = match &tokens[parser_state.cursor].token {
+        JsToken::OpenBrace => {
+            parser_state.next();
+            parse_script(tokens, parser_state)?
+        },
+        _ => {
+            let rhs = pratt_parse_expression(tokens, parser_state, right_bp, true)?;
+            vec![JsAstStatement::Return(Some(rhs))]
+        }
+    };
+    return ParseResult::Ok(JsAstExpression::FunctionExpression(JsAstFunctionExpression { name: None, arguments, script: Rc::from(script) }));
 }
 
 

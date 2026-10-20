@@ -3,6 +3,7 @@
 - "Not found" page added
 - Commandline option for taking screenshots added
 - Javascript has automatic semicolon insertion now
+- Javascript arrow function support
 
 
 0.8.0

@@ -516,3 +516,8 @@ fn arrow_function_single_parameter_with_block_body() {
 fn arrow_function_single_parameter_with_expression_body() {
     assert_js("var double = x => x * 2; tester.export(double(3));", JsValue::Number(6.0));
 }
+
+#[test]
+fn arrow_function_no_parameters() {
+    assert_js("var five = () => { return 5; }; tester.export(five());", JsValue::Number(5.0));
+}

@@ -169,7 +169,7 @@ fn main() -> Result<(), String> {
 
                         //TODO: for now we just execute the script, but we need to juse the correct execution context, so the right stuff is shared on the page
                         let mut interpreter = js_interpreter::JsInterpreter::new();
-                        interpreter.run_script(&script, Vec::new());
+                        interpreter.run_script(&script);
                     },
                     TaskPayload::StartParseHtml { html } => {
                         //TODO: we probably want to get the url from some browsing context, not directly from the UI

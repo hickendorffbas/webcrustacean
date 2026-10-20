@@ -381,8 +381,8 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
             JsToken::Arrow => {
                 parser_state.next();
 
-                let arguments = convert_left_side_of_arrow(tokens, parser_state, &lhs)?;
-                lhs = parse_arrow_function_body(tokens, parser_state, arguments, right_bp)?;
+                let parameters = convert_left_side_of_arrow(tokens, parser_state, &lhs)?;
+                lhs = parse_arrow_function_body(tokens, parser_state, parameters, right_bp)?;
             }
 
             _ => todo!(),
@@ -460,14 +460,14 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
                 _ => todo!(), //TODO: some kind of error
             };
 
-            let mut arguments = Vec::new();
+            let mut parameters = Vec::new();
             let mut first = true;
             loop {
 
                 match &tokens[parser_state.cursor].token {
                     JsToken::Identifier(ident) => {
                         parser_state.next();
-                        arguments.push(JsAstIdentifier { name: ident.clone() });
+                        parameters.push(JsAstFunctionParameter { name: ident.clone(), default: None }); //TODO: parse default values
                     },
                     JsToken::CloseParenthesis => {
                         if first {
@@ -491,7 +491,7 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
                         break;
                     }
                     _ => {
-                        todo!(); //TODO: this should be an error (function arguments expected)
+                        todo!(); //TODO: this should be an error (function parameters expected)
                     },
                 }
 
@@ -501,7 +501,7 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
             expect(tokens, parser_state, JsToken::OpenBrace)?;
 
             let script = parse_script(tokens, parser_state)?;
-            return ParseResult::Ok(JsAstExpression::FunctionExpression(JsAstFunctionExpression { name, arguments, script: Rc::from(script) }));
+            return ParseResult::Ok(JsAstExpression::FunctionExpression(JsAstFunctionExpression { name, parameters, script: Rc::from(script) }));
         },
         JsToken::KeyWordNew => {
             parser_state.next();
@@ -631,7 +631,7 @@ fn convert_left_side_of_assign(current_left_size: JsAstExpression) -> Vec<(Optio
 
 
 fn parse_arrow_function_body(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState,
-                             arguments: Vec<JsAstIdentifier>, right_bp: u8) -> ParseResult<JsAstExpression> {
+                             parameters: Vec<JsAstFunctionParameter>, right_bp: u8) -> ParseResult<JsAstExpression> {
     let script = match &tokens[parser_state.cursor].token {
         JsToken::OpenBrace => {
             parser_state.next();
@@ -642,20 +642,21 @@ fn parse_arrow_function_body(tokens: &Vec<JsTokenWithLocation>, parser_state: &m
             vec![JsAstStatement::Return(Some(rhs))]
         }
     };
-    return ParseResult::Ok(JsAstExpression::FunctionExpression(JsAstFunctionExpression { name: None, arguments, script: Rc::from(script) }));
+    return ParseResult::Ok(JsAstExpression::FunctionExpression(JsAstFunctionExpression { name: None, parameters, script: Rc::from(script) }));
 }
 
 
-fn convert_left_side_of_arrow(tokens: &Vec<JsTokenWithLocation>, parser_state: &ParserState, left_side: &JsAstExpression) -> ParseResult<Vec<JsAstIdentifier>> {
+fn convert_left_side_of_arrow(tokens: &Vec<JsTokenWithLocation>, parser_state: &ParserState, left_side: &JsAstExpression) -> ParseResult<Vec<JsAstFunctionParameter>> {
     return match left_side {
         JsAstExpression::Identifier(identifier) => {
-            ParseResult::Ok(vec![JsAstIdentifier { name: identifier.name.clone() }])
+            ParseResult::Ok(vec![JsAstFunctionParameter { name: identifier.name.clone(), default: None }])
         },
         JsAstExpression::BinOp(binop) if matches!(binop.op, JsBinOp::Comma) => {
-            let mut arguments = convert_left_side_of_arrow(tokens, parser_state, &binop.left)?;
-            arguments.extend(convert_left_side_of_arrow(tokens, parser_state, &binop.right)?);
-            ParseResult::Ok(arguments)
+            let mut parameters = convert_left_side_of_arrow(tokens, parser_state, &binop.left)?;
+            parameters.extend(convert_left_side_of_arrow(tokens, parser_state, &binop.right)?);
+            ParseResult::Ok(parameters)
         },
+        //TODO: handle default values, which arrive here as an Assignment
         _ => {
             ParseResult::Err(ParseError::error_for_token(ParseErrorType::IdentierExpected, tokens, parser_state))
         },
@@ -735,12 +736,12 @@ fn parse_object_literal(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Pa
 fn parse_method_shorthand(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) -> ParseResult<JsAstFunctionExpression> {
     expect(tokens, parser_state, JsToken::OpenParenthesis)?;
 
-    let mut arguments = Vec::new();
+    let mut parameters = Vec::new();
     loop {
         match &tokens[parser_state.cursor].token {
             JsToken::Identifier(ident) => {
                 parser_state.next();
-                arguments.push(JsAstIdentifier { name: ident.clone() });
+                parameters.push(JsAstFunctionParameter { name: ident.clone(), default: None }); //TODO: parse default values
             },
             JsToken::Comma => {
                 parser_state.next();
@@ -758,7 +759,7 @@ fn parse_method_shorthand(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
     expect(tokens, parser_state, JsToken::OpenBrace)?;
     let script = parse_script(tokens, parser_state)?;
 
-    return ParseResult::Ok(JsAstFunctionExpression { name: None, arguments, script: Rc::from(script) })
+    return ParseResult::Ok(JsAstFunctionExpression { name: None, parameters, script: Rc::from(script) })
 }
 
 
@@ -904,14 +905,14 @@ fn parse_function_declaration(tokens: &Vec<JsTokenWithLocation>, parser_state: &
 
     expect(tokens, parser_state, JsToken::OpenParenthesis)?;
 
-    let mut arguments = Vec::new();
+    let mut parameters = Vec::new();
     let mut first = true;
     loop {
 
         match &tokens[parser_state.cursor].token {
             JsToken::Identifier(ident) => {
                 parser_state.next();
-                arguments.push(JsAstIdentifier { name: ident.clone() });
+                parameters.push(JsAstFunctionParameter { name: ident.clone(), default: None }); //TODO: parse default values
             },
             JsToken::CloseParenthesis => {
                 if first {
@@ -935,7 +936,7 @@ fn parse_function_declaration(tokens: &Vec<JsTokenWithLocation>, parser_state: &
                 break;
             }
             _ => {
-                todo!(); //TODO: this should be an error (function arguments expected)
+                todo!(); //TODO: this should be an error (function parameters expected)
             },
         }
 
@@ -945,7 +946,7 @@ fn parse_function_declaration(tokens: &Vec<JsTokenWithLocation>, parser_state: &
     expect(tokens, parser_state, JsToken::OpenBrace)?;
 
     let script = parse_script(tokens, parser_state)?;
-    return ParseResult::Ok(JsAstFunctionDeclaration { name: function_name.clone(), arguments, script: Rc::from(script) })
+    return ParseResult::Ok(JsAstFunctionDeclaration { name: function_name.clone(), parameters, script: Rc::from(script) })
 }
 
 

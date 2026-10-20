@@ -7,6 +7,7 @@ use super::js_values::{
     JsBuiltinFunction,
     JsError,
     JsFunction,
+    JsFunctionParameter,
     JsHeapObject,
     JsObject,
     JsReference,
@@ -43,7 +44,7 @@ impl JsInterpreter {
 
     fn create_builtins(&mut self) {
         let console_log_function = JsHeapObject::Object(JsObject::make_function(JsFunction {
-            argument_names: Vec::new(), //Note that this function _does_ take an argument, but it does not have a name
+            parameters: Vec::new(), //Note that this function _does_ take an argument, but it does not have a name
             script: None,
             builtin: Some(JsBuiltinFunction::ConsoleLog),
         }));
@@ -61,7 +62,7 @@ impl JsInterpreter {
 
         #[cfg(test)] {
             let tester_export_function = JsHeapObject::Object(JsObject::make_function(JsFunction {
-                argument_names: Vec::new(), //Note that this function _does_ take an argument, but it does not have a name
+                parameters: Vec::new(), //Note that this function _does_ take an argument, but it does not have a name
                 script: None,
                 builtin: Some(JsBuiltinFunction::TesterExport),
             }));
@@ -91,19 +92,36 @@ impl JsInterpreter {
         self.current_error = Some(error);
     }
 
-    pub fn run_script(&mut self, script: &Script, arguments: Vec<(String, JsValue)>) -> bool {
+    pub fn run_script(&mut self, script: &Script) -> bool {
+        self.start_new_context();
+        let keep_going = self.run_statements(script);
+        self.context_stack.pop();
+        return keep_going;
+    }
+
+    pub fn call_function(&mut self, script: &Script, parameters: &Vec<JsFunctionParameter>, mut arguments: Vec<JsValue>) -> bool {
         self.start_new_context();
 
-        for (arg_name, arg_value) in arguments {
-            self.set_reference(JsReference::Variable(arg_name), arg_value);
+        arguments.resize(parameters.len(), JsValue::Undefined);
+        for (parameter, argument) in parameters.iter().zip(arguments) {
+            let value = match (&argument, &parameter.default) {
+                (JsValue::Undefined, Some(default)) => default.execute(self),
+                _ => argument,
+            };
+            self.set_reference(JsReference::Variable(parameter.name.clone()), value);
         }
+        let keep_going = self.run_statements(script);
+        self.context_stack.pop();
+
+        return keep_going;
+    }
+
+    fn run_statements(&mut self, script: &Script) -> bool {
         for statement in script {
             if !statement.execute(self) {
-                self.context_stack.pop();
                 return false;
             }
         }
-        self.context_stack.pop();
         return true;
     }
 

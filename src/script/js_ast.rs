@@ -11,6 +11,7 @@ use super::js_values::{
     JsError,
     JsHeapObject,
     JsFunction,
+    JsFunctionParameter,
     JsReference,
     JsObject,
     JsValue,
@@ -72,13 +73,13 @@ impl JsAstStatement {
 #[derive(Debug)]
 pub struct JsAstFunctionDeclaration {
     pub name: String,
-    pub arguments: Vec<JsAstIdentifier>,
+    pub parameters: Vec<JsAstFunctionParameter>,
     pub script: Rc<Script>,
 }
 impl JsAstFunctionDeclaration {
     fn execute(&self, js_interpreter: &mut JsInterpreter) {
-        let argument_names = self.arguments.iter().map(|arg| arg.name.clone()).collect();
-        let function = JsFunction { script: Some(self.script.clone()), argument_names: argument_names, builtin: None };
+        let parameters = self.parameters.iter().map(|parameter| parameter.execute()).collect();
+        let function = JsFunction { script: Some(self.script.clone()), parameters, builtin: None };
 
         let address = js_interpreter.add_new_heap_item(JsHeapObject::Object(JsObject::make_function(function)));
         js_interpreter.set_reference(JsReference::Variable(self.name.clone()), JsValue::Address(address));
@@ -89,13 +90,13 @@ impl JsAstFunctionDeclaration {
 #[derive(Debug)]
 pub struct JsAstFunctionExpression {
     #[allow(unused)] pub name: Option<String>, //TODO: currently unused, but function expressions with a name exist
-    pub arguments: Vec<JsAstIdentifier>,
+    pub parameters: Vec<JsAstFunctionParameter>,
     pub script: Rc<Script>,
 }
 impl JsAstFunctionExpression {
     fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
-        let argument_names = self.arguments.iter().map(|arg| arg.name.clone()).collect();
-        let function = JsFunction { script: Some(self.script.clone()), argument_names: argument_names, builtin: None };
+        let parameters = self.parameters.iter().map(|parameter| parameter.execute()).collect();
+        let function = JsFunction { script: Some(self.script.clone()), parameters, builtin: None };
         let address = js_interpreter.add_new_heap_item(JsHeapObject::Object(JsObject::make_function(function)));
         return JsValue::Address(address);
     }
@@ -112,9 +113,9 @@ pub struct JsAstTryCatch {
 impl JsAstTryCatch {
     fn execute(&self, js_interpreter: &mut JsInterpreter) -> bool {
         //TODO: since we don't have exceptions, we just run the script and the finally script for now
-        let keep_going = js_interpreter.run_script(&self.script, Vec::new());
+        let keep_going = js_interpreter.run_script(&self.script);
         if self.finally_script.is_some() {
-            if !js_interpreter.run_script(self.finally_script.as_ref().unwrap(), Vec::new()) {
+            if !js_interpreter.run_script(self.finally_script.as_ref().unwrap()) {
                 return false;
             }
         }
@@ -968,6 +969,18 @@ impl JsAstUnOp {
 }
 
 
+#[derive(Debug)]
+pub struct JsAstFunctionParameter {
+    pub name: String,
+    pub default: Option<Rc<JsAstExpression>>,
+}
+impl JsAstFunctionParameter {
+    fn execute(&self) -> JsFunctionParameter {
+        return JsFunctionParameter { name: self.name.clone(), default: self.default.clone() };
+    }
+}
+
+
 #[derive(Debug, Clone)]
 pub struct JsAstIdentifier {
     pub name: String,
@@ -1011,7 +1024,7 @@ pub enum JsAstExpression {
     Void(JsAstVoid),
 }
 impl JsAstExpression {
-    fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
+    pub fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
         match self {
             JsAstExpression::BinOp(binop) => { return binop.execute(js_interpreter); },
             JsAstExpression::UnaryOp(unop) => { return unop.execute(js_interpreter); },
@@ -1153,16 +1166,15 @@ impl JsAstFunctionCall {
                     }
 
                 } else {
-                    let mut args = Vec::new();
-                    let argument_names = js_interpreter.get_callable_from_heap(address).argument_names.clone();
-                    for (idx, argument_name) in argument_names.into_iter().enumerate() {
-                        let arg_ast = self.arguments.get(idx);
-                        let arg_value = arg_ast.unwrap().execute(js_interpreter); //TODO: we need to properly handle the unwrap here
-                        args.push( (argument_name, arg_value));
+                    let mut arguments = Vec::new();
+                    for argument_ast in &self.arguments {
+                        arguments.push(argument_ast.execute(js_interpreter));
                     }
 
-                    let script = &js_interpreter.get_callable_from_heap(address).script;
-                    js_interpreter.run_script(&script.as_ref().unwrap().clone(), args);
+                    let function = js_interpreter.get_callable_from_heap(address);
+                    let script = function.script.as_ref().unwrap().clone();
+                    let parameters = function.parameters.clone();
+                    js_interpreter.call_function(&script, &parameters, arguments);
 
                     let return_value = js_interpreter.return_value.clone();
                     js_interpreter.return_value = None;

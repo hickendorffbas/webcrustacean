@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use super::js_ast::Script;
+use super::js_ast::{JsAstExpression, Script};
 
 
 pub type JsAddress = usize;
@@ -70,8 +70,16 @@ pub struct JsArray {
 #[derive(Clone)]
 pub struct JsFunction {
     pub script: Option<Rc<Script>>,
-    pub argument_names: Vec<String>,
+    pub parameters: Vec<JsFunctionParameter>,
     pub builtin: Option<JsBuiltinFunction>,
+}
+
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone)]
+pub struct JsFunctionParameter {
+    pub name: String,
+    pub default: Option<Rc<JsAstExpression>>,
 }
 
 

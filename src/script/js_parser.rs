@@ -449,54 +449,16 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
             let name = match &tokens[parser_state.cursor].token {
                 JsToken::OpenParenthesis => {
                     //This is an anonymous function
-                    parser_state.next();
                     None
                 },
                 JsToken::Identifier(ident) => {
                     parser_state.next();
-                    expect(tokens, parser_state, JsToken::OpenParenthesis)?;
                     Some(ident.clone())
                 },
                 _ => todo!(), //TODO: some kind of error
             };
 
-            let mut parameters = Vec::new();
-            let mut first = true;
-            loop {
-
-                match &tokens[parser_state.cursor].token {
-                    JsToken::Identifier(ident) => {
-                        parser_state.next();
-                        parameters.push(JsAstFunctionParameter { name: ident.clone(), default: None }); //TODO: parse default values
-                    },
-                    JsToken::CloseParenthesis => {
-                        if first {
-                            parser_state.next();
-                            break;
-                        } else {
-                            todo!(); //TODO: some kind of error
-                        }
-                    },
-                    _ => {
-                        todo!(); //TODO: some kind of error
-                    }
-                }
-
-                match &tokens[parser_state.cursor].token {
-                    JsToken::Comma => {
-                        parser_state.next();
-                    },
-                    JsToken::CloseParenthesis => {
-                        parser_state.next();
-                        break;
-                    }
-                    _ => {
-                        todo!(); //TODO: this should be an error (function parameters expected)
-                    },
-                }
-
-                first = false;
-            }
+            let parameters = parse_function_parameters(tokens, parser_state)?;
 
             expect(tokens, parser_state, JsToken::OpenBrace)?;
 
@@ -656,7 +618,14 @@ fn convert_left_side_of_arrow(tokens: &Vec<JsTokenWithLocation>, parser_state: &
             parameters.extend(convert_left_side_of_arrow(tokens, parser_state, &binop.right)?);
             ParseResult::Ok(parameters)
         },
-        //TODO: handle default values, which arrive here as an Assignment
+        JsAstExpression::Assignment(assign) => {
+            if let [(None, target)] = assign.left.as_slice() {
+                if let JsAstExpression::Identifier(identifier) = target.as_ref() {
+                    return ParseResult::Ok(vec![JsAstFunctionParameter { name: identifier.name.clone(), default: Some(assign.right.clone()) }]);
+                }
+            }
+            ParseResult::Err(ParseError::error_for_token(ParseErrorType::IdentierExpected, tokens, parser_state))
+        },
         _ => {
             ParseResult::Err(ParseError::error_for_token(ParseErrorType::IdentierExpected, tokens, parser_state))
         },
@@ -734,27 +703,7 @@ fn parse_object_literal(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Pa
 
 
 fn parse_method_shorthand(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) -> ParseResult<JsAstFunctionExpression> {
-    expect(tokens, parser_state, JsToken::OpenParenthesis)?;
-
-    let mut parameters = Vec::new();
-    loop {
-        match &tokens[parser_state.cursor].token {
-            JsToken::Identifier(ident) => {
-                parser_state.next();
-                parameters.push(JsAstFunctionParameter { name: ident.clone(), default: None }); //TODO: parse default values
-            },
-            JsToken::Comma => {
-                parser_state.next();
-            },
-            JsToken::CloseParenthesis => {
-                parser_state.next();
-                break;
-            }
-            _ => {
-                todo!(); //TODO: some kind of error
-            }
-        }
-    }
+    let parameters = parse_function_parameters(tokens, parser_state)?;
 
     expect(tokens, parser_state, JsToken::OpenBrace)?;
     let script = parse_script(tokens, parser_state)?;
@@ -903,6 +852,16 @@ fn parse_function_declaration(tokens: &Vec<JsTokenWithLocation>, parser_state: &
         }
     };
 
+    let parameters = parse_function_parameters(tokens, parser_state)?;
+
+    expect(tokens, parser_state, JsToken::OpenBrace)?;
+
+    let script = parse_script(tokens, parser_state)?;
+    return ParseResult::Ok(JsAstFunctionDeclaration { name: function_name.clone(), parameters, script: Rc::from(script) })
+}
+
+
+fn parse_function_parameters(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) -> ParseResult<Vec<JsAstFunctionParameter>> {
     expect(tokens, parser_state, JsToken::OpenParenthesis)?;
 
     let mut parameters = Vec::new();
@@ -912,7 +871,18 @@ fn parse_function_declaration(tokens: &Vec<JsTokenWithLocation>, parser_state: &
         match &tokens[parser_state.cursor].token {
             JsToken::Identifier(ident) => {
                 parser_state.next();
-                parameters.push(JsAstFunctionParameter { name: ident.clone(), default: None }); //TODO: parse default values
+
+                let default = match &tokens[parser_state.cursor].token {
+                    JsToken::Assign => {
+                        parser_state.next();
+                        Some(Rc::from(pratt_parse_expression(tokens, parser_state, 0, true)?))
+                    },
+                    _ => {
+                        None
+                    }
+                };
+
+                parameters.push(JsAstFunctionParameter { name: ident.clone(), default });
             },
             JsToken::CloseParenthesis => {
                 if first {
@@ -943,10 +913,7 @@ fn parse_function_declaration(tokens: &Vec<JsTokenWithLocation>, parser_state: &
         first = false;
     }
 
-    expect(tokens, parser_state, JsToken::OpenBrace)?;
-
-    let script = parse_script(tokens, parser_state)?;
-    return ParseResult::Ok(JsAstFunctionDeclaration { name: function_name.clone(), parameters, script: Rc::from(script) })
+    return ParseResult::Ok(parameters);
 }
 
 

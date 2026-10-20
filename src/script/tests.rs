@@ -521,3 +521,8 @@ fn arrow_function_single_parameter_with_expression_body() {
 fn arrow_function_no_parameters() {
     assert_js("var five = () => { return 5; }; tester.export(five());", JsValue::Number(5.0));
 }
+
+#[test]
+fn function_default_parameter() {
+    assert_js("function add(a, b = 3) { return a + b; } tester.export(add(1) * 10 + add(3, 5));", JsValue::Number(48.0));
+}

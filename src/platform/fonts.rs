@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use rusttype::{
-    point,
     Font as RustTypeFont,
     Scale,
 };
@@ -87,9 +86,7 @@ impl FontContext {
         let v_metrics = rust_type_font.v_metrics(scale);
 
         let glyphs_height = (v_metrics.ascent - v_metrics.descent + v_metrics.line_gap).ceil();
-        let glyphs_width = rust_type_font.layout(text, scale, point(0.0, 0.0)).last()
-                .map(|g| g.position().x + g.unpositioned().h_metrics().advance_width)
-                .unwrap_or(0.0);
+        let glyphs_width = compute_char_end_positions(rust_type_font, scale, text).last().copied().unwrap_or(0.0);
 
         return (glyphs_width, glyphs_height);
     }
@@ -97,20 +94,36 @@ impl FontContext {
     pub fn compute_char_position_mapping(&self, font: &Font, text: &String) -> Vec<f32> {
         //This returns the relative ending x positions of each character in the text
 
-        let mut char_position_mapping = Vec::new();
-
         let rust_type_font = &self.font_data[&font.to_font_key()];
-
         let scale = Scale::uniform(font.size as f32);
-        let v_metrics = rust_type_font.v_metrics(scale);
-        let glyphs: Vec<_> = rust_type_font.layout(text, scale, point(0.0, v_metrics.ascent)).collect();
-
-        for glyph in glyphs {
-            char_position_mapping.push(glyph.position().x + glyph.unpositioned().h_metrics().advance_width);
-        }
+        let char_position_mapping = compute_char_end_positions(rust_type_font, scale, text);
 
         debug_assert!(text.chars().count() == char_position_mapping.len());
         return char_position_mapping;
     }
 
+}
+
+
+fn compute_char_end_positions(rust_type_font: &RustTypeFont<'static>, scale: Scale, text: &str) -> Vec<f32> {
+    //We don't use rusttype's layout() for measuring, because it computes the pixel bounding box of every glyph by parsing its full outline,
+    //which is very slow and computes much more than widths. This does the same computation as layout() for widths, so the results are identical.
+
+    let mut char_end_positions = Vec::new();
+    let mut position = 0.0;
+    let mut last_glyph_id = None;
+
+    for character in text.chars() {
+        let glyph = rust_type_font.glyph(character).scaled(scale);
+        if let Some(last_glyph_id) = last_glyph_id {
+            position += rust_type_font.pair_kerning(scale, last_glyph_id, glyph.id());
+        }
+
+        position += glyph.h_metrics().advance_width;
+        char_end_positions.push(position);
+
+        last_glyph_id = Some(glyph.id());
+    }
+
+    return char_end_positions;
 }

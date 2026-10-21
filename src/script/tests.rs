@@ -526,3 +526,8 @@ fn arrow_function_no_parameters() {
 fn function_default_parameter() {
     assert_js("function add(a, b = 3) { return a + b; } tester.export(add(1) * 10 + add(3, 5));", JsValue::Number(48.0));
 }
+
+#[test]
+fn optional_chaining() {
+    assert_js("var a = {b: {c: 4}}; var n = undefined; tester.export(n?.b.c === undefined ? a?.b.c : 0);", JsValue::Number(4.0));
+}

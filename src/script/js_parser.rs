@@ -383,6 +383,62 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
 
                 let parameters = convert_left_side_of_arrow(tokens, parser_state, &lhs)?;
                 lhs = parse_arrow_function_body(tokens, parser_state, parameters, right_bp)?;
+            },
+
+            JsToken::OptionalChainer => {
+                //We now need to process the rest of the chain here, since the ?. is short circuiting. We need to make sure all of it
+                //end up under the same node, so the right parts can be skipped.
+                let mut links = Vec::new();
+
+                loop {
+                    if parser_state.has_ended() {
+                        break;
+                    }
+
+                    let optional = tokens[parser_state.cursor].token == JsToken::OptionalChainer;
+                    if optional {
+                        parser_state.next();
+                        if parser_state.has_ended() {
+                            return ParseResult::Err(ParseError::error_for_token(ParseErrorType::EOF, tokens, parser_state));
+                        }
+                    }
+
+                    match &tokens[parser_state.cursor].token {
+                        JsToken::Dot if !optional => {
+                            parser_state.next();
+                            match &tokens[parser_state.cursor].token {
+                                JsToken::Identifier(ident) => {
+                                    parser_state.next();
+                                    links.push(JsAstChainLink { optional: false, kind: JsAstChainLinkKind::Property(JsAstExpression::StringLiteral(ident.clone())) });
+                                },
+                                _ => {
+                                    return ParseResult::Err(ParseError::error_for_token(ParseErrorType::IdentierExpected, tokens, parser_state));
+                                }
+                            }
+                        },
+                        JsToken::Identifier(ident) if optional => {
+                            parser_state.next();
+                            links.push(JsAstChainLink { optional: true, kind: JsAstChainLinkKind::Property(JsAstExpression::StringLiteral(ident.clone())) });
+                        },
+                        JsToken::OpenBracket => {
+                            parser_state.next();
+                            let index_expression = pratt_parse_expression(tokens, parser_state, 0, false)?;
+                            expect(tokens, parser_state, JsToken::CloseBracket)?;
+                            links.push(JsAstChainLink { optional, kind: JsAstChainLinkKind::Property(index_expression) });
+                        },
+                        JsToken::OpenParenthesis => {
+                            parser_state.next();
+                            let arguments = parse_list_of_expressions(tokens, parser_state)?;
+                            links.push(JsAstChainLink { optional, kind: JsAstChainLinkKind::Call(arguments) });
+                        },
+                        _ if optional => {
+                            return ParseResult::Err(ParseError::error_for_token(ParseErrorType::IdentierExpected, tokens, parser_state));
+                        },
+                        _ => break,
+                    }
+                }
+
+                lhs = JsAstExpression::OptionalChain(JsAstOptionalChain { base: Rc::from(lhs), links });
             }
 
             _ => todo!(),
@@ -833,6 +889,7 @@ fn infix_binding_power(token: &JsToken) -> Option<(u8, u8)> {
         JsToken::Remainder => (22, 23),
         JsToken::Dot => (100, 101),
         JsToken::OpenParenthesis => (100, 101),
+        JsToken::OptionalChainer => (100, 101),
         JsToken::Increment => (110, 111),
         JsToken::Decrement => (110, 111),
         _ => return None,

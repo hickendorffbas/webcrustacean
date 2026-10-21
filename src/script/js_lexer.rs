@@ -53,6 +53,7 @@ pub enum JsToken {
     Decrement,
     Remainder,
     Arrow,
+    OptionalChainer,
 
     Bigger,
     Smaller,
@@ -134,6 +135,13 @@ impl <'document> JsSourceIterator<'document> {
             return self.next;
         }
         return self.iter.peek().copied();
+    }
+    pub fn peek_second(&mut self) -> Option<char> {
+        self.skip_possible_comment();
+        if self.next.is_some() {
+            return self.iter.peek().copied();
+        }
+        return None;
     }
     pub fn next(&mut self) -> char {
         self.skip_possible_comment();
@@ -470,7 +478,19 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                             }
                         } else { JsToken::ExclamationMark }
                     },
-                    '?' => { JsToken::QuestionMark }
+                    '?' => {
+                        if js_iterator.has_next() {
+                            match js_iterator.peek().unwrap() {
+                                '.' => {
+                                    if !(js_iterator.peek_second().is_some() && js_iterator.peek_second().unwrap().is_ascii_digit()) {
+                                        js_iterator.next();
+                                        JsToken::OptionalChainer
+                                    } else { JsToken::QuestionMark }
+                                },
+                                _ => { JsToken::QuestionMark }
+                            }
+                        } else { JsToken::QuestionMark }
+                    },
                     '^' => {
                         if js_iterator.has_next() {
                             match js_iterator.peek().unwrap() {
@@ -478,7 +498,7 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                                 _ => { JsToken::BitWiseXor }
                             }
                         } else { JsToken::BitWiseXor }
-                        }
+                    },
                     '#' => { JsToken::Hash }
                     '+' => {
                         if js_iterator.has_next() {

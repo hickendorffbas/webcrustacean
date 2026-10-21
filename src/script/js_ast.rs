@@ -392,49 +392,7 @@ impl JsAstBinOp {
                     self.right.execute(js_interpreter)
                 };
 
-                let object = match left_val {
-                    JsValue::Address(address) => {
-                        js_interpreter.get_from_heap(address)
-                    },
-                    _ => {
-                        js_interpreter.set_error(JsError::ReferenceError);
-                        js_console::log_js_error(format!("not a valid object to access").as_str()); //TODO: eventually we want to trigger the logging of the error
-                                                                                                    //      from setting it (so we can also show stack etc.)
-                        return JsValue::Undefined;
-                    }
-                };
-
-                match object {
-                    JsHeapObject::Object(object) => {
-                        match &property {
-                            JsValue::String(property_value) => {
-                                match object.members.get(property_value) {
-                                    Some(value) => { return value.clone(); },
-                                    None =>  { return JsValue::Undefined; },
-                                }
-                            },
-                            _ => {
-                                //TODO: some of these are invalid, others (like number) are valid (for example for "x[3]")
-                                todo!();
-                            }
-                        }
-                    },
-                    JsHeapObject::Array(array) => {
-                        match property {
-                            JsValue::Number(number) => {
-                                match array.elements.get(number as usize) {
-                                    Some(value) => { return value.clone() },
-                                    None => todo!(),  //TODO: this should be an error
-                                }
-                            },
-                            _ => {
-                                //TODO: there are some standard functions and attributes you can call on an array, not sure how to handle that nicely
-                                //      we should probably defer to the same code that an object has in those cases
-                                return JsValue::Undefined;
-                            }
-                        }
-                    },
-                }
+                return access_property(left_val, property, js_interpreter);
             },
             JsBinOp::Equals => {
                 let right_val = self.right.execute(js_interpreter);
@@ -741,6 +699,53 @@ impl JsAstBinOp {
 }
 
 
+fn access_property(object: JsValue, property: JsValue, js_interpreter: &mut JsInterpreter) -> JsValue {
+    let object = match object {
+        JsValue::Address(address) => {
+            js_interpreter.get_from_heap(address)
+        },
+        _ => {
+            js_interpreter.set_error(JsError::ReferenceError);
+            js_console::log_js_error(format!("not a valid object to access").as_str()); //TODO: eventually we want to trigger the logging of the error
+                                                                                        //      from setting it (so we can also show stack etc.)
+            return JsValue::Undefined;
+        }
+    };
+
+    match object {
+        JsHeapObject::Object(object) => {
+            match &property {
+                JsValue::String(property_value) => {
+                    match object.members.get(property_value) {
+                        Some(value) => { return value.clone(); },
+                        None =>  { return JsValue::Undefined; },
+                    }
+                },
+                _ => {
+                    //TODO: some of these are invalid, others (like number) are valid (for example for "x[3]")
+                    todo!();
+                }
+            }
+        },
+        JsHeapObject::Array(array) => {
+            match property {
+                JsValue::Number(number) => {
+                    match array.elements.get(number as usize) {
+                        Some(value) => { return value.clone() },
+                        None => todo!(),  //TODO: this should be an error
+                    }
+                },
+                _ => {
+                    //TODO: there are some standard functions and attributes you can call on an array, not sure how to handle that nicely
+                    //      we should probably defer to the same code that an object has in those cases
+                    return JsValue::Undefined;
+                }
+            }
+        },
+    }
+}
+
+
 #[derive(Debug)]
 pub struct JsAstAssign {
     pub left: Rc<Vec<(Option<JsAstExpression>, Rc<JsAstExpression>)>>, // A list of destructuring (source, target) tuples, is just a single target
@@ -1022,6 +1027,7 @@ pub enum JsAstExpression {
     TypeOf(JsAstTypeOf),
     Delete(JsAstDelete),
     Void(JsAstVoid),
+    OptionalChain(JsAstOptionalChain),
 }
 impl JsAstExpression {
     pub fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
@@ -1040,6 +1046,7 @@ impl JsAstExpression {
             JsAstExpression::UndefinedLiteral() => { return JsValue::Undefined; },
             JsAstExpression::TypeOf(type_of) => { return type_of.execute(js_interpreter); },
             JsAstExpression::Void(void) => { return void.execute(js_interpreter); },
+            JsAstExpression::OptionalChain(optional_chain) => { return optional_chain.execute(js_interpreter); },
             JsAstExpression::Delete(delete) => { return delete.execute(js_interpreter); },
             JsAstExpression::FunctionCall(function_call) => { return function_call.execute(js_interpreter) },
             JsAstExpression::NumericLiteral(value) => { return JsValue::Number(*value) },
@@ -1112,86 +1119,90 @@ pub struct JsAstFunctionCall {
 impl JsAstFunctionCall {
     fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
         let function = self.function_expression.execute(js_interpreter);
+        return call_value(function, &self.arguments, js_interpreter);
+    }
+}
 
-        match function {
-            JsValue::Address(address) => {
-                match js_interpreter.get_from_heap(address) {
-                    JsHeapObject::Object(js_object) => {
-                        if js_object.callable.is_none() {
-                            js_interpreter.set_error(JsError::TypeError); //TODO: eventually we should actually throw this error
-                            js_console::log_js_error(format!("object is not a function").as_str()); //TODO: eventually we want to trigger the logging of the error
-                                                                                                    //      from setting it (so we can also show stack etc.)
-                            return JsValue::Undefined;
-                        }
-                    },
-                    JsHeapObject::Array(_) => {
+
+fn call_value(function: JsValue, arguments: &Vec<JsAstExpression>, js_interpreter: &mut JsInterpreter) -> JsValue {
+    match function {
+        JsValue::Address(address) => {
+            match js_interpreter.get_from_heap(address) {
+                JsHeapObject::Object(js_object) => {
+                    if js_object.callable.is_none() {
                         js_interpreter.set_error(JsError::TypeError); //TODO: eventually we should actually throw this error
                         js_console::log_js_error(format!("object is not a function").as_str()); //TODO: eventually we want to trigger the logging of the error
                                                                                                 //      from setting it (so we can also show stack etc.)
                         return JsValue::Undefined;
-                    },
-                };
-
-                let is_builtin = js_interpreter.get_callable_from_heap(address).builtin.is_some();
-                if is_builtin {
-                    match js_interpreter.get_callable_from_heap(address).builtin.as_ref().unwrap() {
-                        JsBuiltinFunction::ConsoleLog => {
-                            let to_log = self.arguments.get(0); //TODO: handle there being to little or to many arguments
-
-                            let to_log = to_log.unwrap().execute(js_interpreter);
-
-                            let to_log = match to_log {
-                                JsValue::String(string) =>  { string }
-                                JsValue::Number(number) => {
-                                    if number.fract() == 0.0 {
-                                        number.trunc().to_string()
-                                    } else {
-                                        number.to_string()
-                                    }
-                                },
-                                JsValue::Boolean(bool) => { if bool { "true".to_owned() } else { "false".to_owned() } },
-                                JsValue::Undefined => { "undefined".to_owned() },
-                                JsValue::Address(_) => todo!(), //TODO: implement
-                            };
-
-                            js_console::print(to_log.as_str());
-                            return JsValue::Undefined;
-                        },
-                        #[cfg(test)] JsBuiltinFunction::TesterExport => {
-                            let data_ast = self.arguments.get(0);
-                            let data = data_ast.unwrap().execute(js_interpreter); //TODO: even for tests, we probably want to handle the unwrap here
-                            js_interpreter.export_test_data(data);
-                            return JsValue::Undefined;
-                        }
                     }
-
-                } else {
-                    let mut arguments = Vec::new();
-                    for argument_ast in &self.arguments {
-                        arguments.push(argument_ast.execute(js_interpreter));
-                    }
-
-                    let function = js_interpreter.get_callable_from_heap(address);
-                    let script = function.script.as_ref().unwrap().clone();
-                    let parameters = function.parameters.clone();
-                    js_interpreter.call_function(&script, &parameters, arguments);
-
-                    let return_value = js_interpreter.return_value.clone();
-                    js_interpreter.return_value = None;
-
-                    if return_value.is_some() {
-                        return return_value.unwrap();
-                    }
+                },
+                JsHeapObject::Array(_) => {
+                    js_interpreter.set_error(JsError::TypeError); //TODO: eventually we should actually throw this error
+                    js_console::log_js_error(format!("object is not a function").as_str()); //TODO: eventually we want to trigger the logging of the error
+                                                                                            //      from setting it (so we can also show stack etc.)
                     return JsValue::Undefined;
+                },
+            };
+
+            let is_builtin = js_interpreter.get_callable_from_heap(address).builtin.is_some();
+            if is_builtin {
+                match js_interpreter.get_callable_from_heap(address).builtin.as_ref().unwrap() {
+                    JsBuiltinFunction::ConsoleLog => {
+                        let to_log = arguments.get(0); //TODO: handle there being to little or to many arguments
+
+                        let to_log = to_log.unwrap().execute(js_interpreter);
+
+                        let to_log = match to_log {
+                            JsValue::String(string) =>  { string }
+                            JsValue::Number(number) => {
+                                if number.fract() == 0.0 {
+                                    number.trunc().to_string()
+                                } else {
+                                    number.to_string()
+                                }
+                            },
+                            JsValue::Boolean(bool) => { if bool { "true".to_owned() } else { "false".to_owned() } },
+                            JsValue::Undefined => { "undefined".to_owned() },
+                            JsValue::Address(_) => todo!(), //TODO: implement
+                        };
+
+                        js_console::print(to_log.as_str());
+                        return JsValue::Undefined;
+                    },
+                    #[cfg(test)] JsBuiltinFunction::TesterExport => {
+                        let data_ast = arguments.get(0);
+                        let data = data_ast.unwrap().execute(js_interpreter); //TODO: even for tests, we probably want to handle the unwrap here
+                        js_interpreter.export_test_data(data);
+                        return JsValue::Undefined;
+                    }
                 }
-            },
-            _ => {
-                js_interpreter.set_error(JsError::TypeError); //TODO: eventually we should actually throw this error
-                js_console::log_js_error(format!("object is not a function").as_str()); //TODO: eventually we want to trigger the logging of the error
-                                                                                        //      from setting it (so we can also show stack etc.)
+
+            } else {
+                let mut argument_values = Vec::new();
+                for argument_ast in arguments {
+                    argument_values.push(argument_ast.execute(js_interpreter));
+                }
+
+                let function = js_interpreter.get_callable_from_heap(address);
+                let script = function.script.as_ref().unwrap().clone();
+                let parameters = function.parameters.clone();
+                js_interpreter.call_function(&script, &parameters, argument_values);
+
+                let return_value = js_interpreter.return_value.clone();
+                js_interpreter.return_value = None;
+
+                if return_value.is_some() {
+                    return return_value.unwrap();
+                }
                 return JsValue::Undefined;
-            },
-        }
+            }
+        },
+        _ => {
+            js_interpreter.set_error(JsError::TypeError); //TODO: eventually we should actually throw this error
+            js_console::log_js_error(format!("object is not a function").as_str()); //TODO: eventually we want to trigger the logging of the error
+                                                                                    //      from setting it (so we can also show stack etc.)
+            return JsValue::Undefined;
+        },
     }
 }
 
@@ -1310,6 +1321,50 @@ impl JsAstVoid {
         let _ = self.expression.execute(js_interpreter);
         return JsValue::Undefined;
     }
+}
+
+
+#[derive(Debug)]
+pub struct JsAstOptionalChain {
+    pub base: Rc<JsAstExpression>,
+    pub links: Vec<JsAstChainLink>,
+}
+impl JsAstOptionalChain {
+    fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
+        let mut value = self.base.execute(js_interpreter);
+
+        for link in &self.links {
+            if link.optional && matches!(value, JsValue::Undefined) {
+                return JsValue::Undefined;
+            }
+
+            value = match &link.kind {
+                JsAstChainLinkKind::Property(property_expression) => {
+                    let property = property_expression.execute(js_interpreter);
+                    access_property(value, property, js_interpreter)
+                },
+                JsAstChainLinkKind::Call(arguments) => {
+                    call_value(value, arguments, js_interpreter)
+                },
+            };
+        }
+
+        return value;
+    }
+}
+
+
+#[derive(Debug)]
+pub struct JsAstChainLink {
+    pub optional: bool,
+    pub kind: JsAstChainLinkKind,
+}
+
+
+#[derive(Debug)]
+pub enum JsAstChainLinkKind {
+    Property(JsAstExpression),
+    Call(Vec<JsAstExpression>),
 }
 
 

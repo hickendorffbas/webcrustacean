@@ -481,6 +481,11 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
             parser_state.next();
             return ParseResult::Ok(JsAstExpression::StringLiteral(literal_string.clone()));
         },
+        JsToken::TemplateLiteral(template_literal) => {
+            parser_state.next();
+            //TODO: eventually we first need to run the code in the template before returning the string, this needs to be encoded on the AST somehow
+            return ParseResult::Ok(JsAstExpression::StringLiteral(template_literal.clone()));
+        },
         JsToken::LiteralBoolean(boolean_value) => {
             parser_state.next();
             return ParseResult::Ok(JsAstExpression::BooleanLiteral(*boolean_value));

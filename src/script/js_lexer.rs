@@ -23,6 +23,7 @@ pub enum JsToken {
     LiteralUndefined,
     Identifier(String),
     RegexLiteral(String),
+    TemplateLiteral(String),
     Dot,
     Assign,
     Semicolon,
@@ -105,6 +106,7 @@ pub struct JsSourceIterator<'document> {
     prev: Option<char>,
     current_string_starter: Option<char>,
     in_regex_literal: bool,
+    in_template_literal: bool,
     new_line_pending: bool,
     new_line_while_peeking: bool,
 }
@@ -121,6 +123,7 @@ impl <'document> JsSourceIterator<'document> {
             prev: None,
             current_string_starter: None,
             in_regex_literal: false,
+            in_template_literal: false,
             new_line_pending: false,
             new_line_while_peeking: false,
         }
@@ -152,7 +155,7 @@ impl <'document> JsSourceIterator<'document> {
         } else {
             self.iter.next()
         };
-        if (next_char == '"' || next_char == '\'') && self.prev != Some('\\') {
+        if (next_char == '"' || next_char == '\'') && self.prev != Some('\\') && !self.in_template_literal {
             if self.current_string_starter.is_none() {
                 self.current_string_starter = Some(next_char);
             } else {
@@ -176,6 +179,9 @@ impl <'document> JsSourceIterator<'document> {
         }
         if self.in_regex_literal {
             return; //we are reading inside a literal regex, and // is just text to match there, not a comment
+        }
+        if self.in_template_literal {
+            return; //double slash is allowed in inside ${} inside templates
         }
 
         if self.next == Some('/') && self.iter.peek() == Some(&'/') {
@@ -247,10 +253,8 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
         else if js_iterator.peek() == Some(' ') || js_iterator.peek() == Some('\t') || js_iterator.peek() == Some('\r') {
             eat_whitespace(&mut js_iterator);
         }
-        else if js_iterator.peek() == Some('"') || js_iterator.peek() == Some('\'') || js_iterator.peek() == Some('`') {
+        else if js_iterator.peek() == Some('"') || js_iterator.peek() == Some('\'') {
             //TODO: this would also match "bla ' " , but by matching the ', not the corresponding "
-            //TODO: the backtick is for string tempates and is actually more complicated
-            //      see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Template_literals#tagged_templates
 
             let token_line_pos = js_iterator.iter.current_line;
             let token_char_pos = js_iterator.iter.current_char;
@@ -276,6 +280,9 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
             js_iterator.new_line_pending = false;
             tokens.push(token);
             js_iterator.next(); //eat the closing "
+        }
+        else if js_iterator.peek() == Some('`') {
+            tokens.push(lex_template_literal(&mut js_iterator));
         }
         else if js_iterator.peek() == Some('/') {
             //This is either a token on its own (for division), or it is the start of a literal regex. Figuring this out actually requires
@@ -618,6 +625,81 @@ fn lex_number(js_iterator: &mut JsSourceIterator) -> JsTokenWithLocation {
                                       character: token_char_pos, had_newline_before: js_iterator.new_line_pending };
     js_iterator.new_line_pending = false;
     return token;
+}
+
+
+fn lex_template_literal(js_iterator: &mut JsSourceIterator) -> JsTokenWithLocation {
+    let token_line_pos = js_iterator.iter.current_line;
+    let token_char_pos = js_iterator.iter.current_char;
+
+    js_iterator.in_template_literal = true;
+    js_iterator.next(); //eat the opening `
+    let mut raw_text = String::new();
+    scan_template_literal_content(js_iterator, &mut raw_text);
+    js_iterator.in_template_literal = false;
+
+    //TODO: for now we just storing all text in the template in a literal token, eventually we'll to parse the contents
+    let token = JsTokenWithLocation { token: JsToken::TemplateLiteral(raw_text), line: token_line_pos,
+                                      character: token_char_pos, had_newline_before: js_iterator.new_line_pending };
+    js_iterator.new_line_pending = false;
+    return token;
+}
+
+
+fn scan_template_literal_content(js_iterator: &mut JsSourceIterator, raw_text: &mut String) {
+    //here we just make sure we don't close the template too early, we don't interpret it yet
+    while js_iterator.has_next() {
+        let ch = js_iterator.next();
+        match ch {
+            '`' => { return; },
+            '\\' => {
+                raw_text.push(ch);
+                if js_iterator.has_next() {
+                    raw_text.push(js_iterator.next());
+                }
+            },
+            '$' if js_iterator.peek() == Some('{') => {
+                raw_text.push(ch);
+                raw_text.push(js_iterator.next());
+                scan_template_substitution(js_iterator, raw_text);
+            },
+            _ => { raw_text.push(ch); },
+        }
+    }
+}
+
+
+fn scan_template_substitution(js_iterator: &mut JsSourceIterator, raw_text: &mut String) {
+    let mut brace_depth = 1;
+    while js_iterator.has_next() {
+        let ch = js_iterator.next();
+        raw_text.push(ch);
+        match ch {
+            '{' => { brace_depth += 1; },
+            '}' => {
+                brace_depth -= 1;
+                if brace_depth == 0 {
+                    return;
+                }
+            },
+            quote @ ('"' | '\'') => {
+                while js_iterator.has_next() {
+                    let string_char = js_iterator.next();
+                    raw_text.push(string_char);
+                    if string_char == '\\' && js_iterator.has_next() {
+                        raw_text.push(js_iterator.next());
+                    } else if string_char == quote {
+                        break;
+                    }
+                }
+            },
+            '`' => {
+                scan_template_literal_content(js_iterator, raw_text);
+                raw_text.push('`');
+            },
+            _ => {},
+        }
+    }
 }
 
 

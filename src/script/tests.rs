@@ -531,3 +531,8 @@ fn function_default_parameter() {
 fn optional_chaining() {
     assert_js("var a = {b: {c: 4}}; var n = undefined; tester.export(n?.b.c === undefined ? a?.b.c : 0);", JsValue::Number(4.0));
 }
+
+#[test]
+fn test_double_slash_in_template_literal_is_not_a_comment() {
+    assert_js(r#"x = `https://www.reddit.com`; tester.export(x);"#, JsValue::String("https://www.reddit.com".to_owned()));
+}

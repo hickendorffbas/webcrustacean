@@ -108,7 +108,7 @@ impl JsInterpreter {
                 (JsValue::Undefined, Some(default)) => default.execute(self),
                 _ => argument,
             };
-            self.set_reference(JsReference::Variable(parameter.name.clone()), value);
+            parameter.pattern.execute(value, self);
         }
         let keep_going = self.run_statements(script);
         self.context_stack.pop();

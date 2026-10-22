@@ -541,3 +541,18 @@ fn test_double_slash_in_template_literal_is_not_a_comment() {
 fn tagged_template_literal() {
     assert_js(r#"function tag(strings) { return strings[0] + "!"; } tester.export(tag`a template`);"#, JsValue::String("a template!".to_owned()));
 }
+
+#[test]
+fn object_destructuring_in_function_parameter() {
+    assert_js(r#"function f({a: d, b: e}) { return d + e; } tester.export(f({a: 1, b: 2}));"#, JsValue::Number(3.0));
+}
+
+#[test]
+fn assignment_evaluates_target_before_value() {
+    assert_js(r#"
+function target() { tester.export("target"); return 0; }
+function value() { tester.export("value"); return 5; }
+var a = [1];
+a[target()] = value();"#,
+    JsValue::String("value".to_owned()));
+}

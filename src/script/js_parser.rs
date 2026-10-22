@@ -671,7 +671,8 @@ fn parse_arrow_function_body(tokens: &Vec<JsTokenWithLocation>, parser_state: &m
 fn convert_left_side_of_arrow(tokens: &Vec<JsTokenWithLocation>, parser_state: &ParserState, left_side: &JsAstExpression) -> ParseResult<Vec<JsAstFunctionParameter>> {
     return match left_side {
         JsAstExpression::Identifier(identifier) => {
-            ParseResult::Ok(vec![JsAstFunctionParameter { name: identifier.name.clone(), default: None }])
+            let pattern = JsAstAssignmentPattern::Target(Rc::from(JsAstExpression::Identifier(identifier.clone())));
+            ParseResult::Ok(vec![JsAstFunctionParameter { pattern: Rc::from(pattern), default: None }])
         },
         JsAstExpression::BinOp(binop) if matches!(binop.op, JsBinOp::Comma) => {
             let mut parameters = convert_left_side_of_arrow(tokens, parser_state, &binop.left)?;
@@ -680,8 +681,9 @@ fn convert_left_side_of_arrow(tokens: &Vec<JsTokenWithLocation>, parser_state: &
         },
         JsAstExpression::Assignment(assign) => {
             if let JsAstAssignmentPattern::Target(target) = &assign.left {
-                if let JsAstExpression::Identifier(identifier) = target.as_ref() {
-                    return ParseResult::Ok(vec![JsAstFunctionParameter { name: identifier.name.clone(), default: Some(assign.right.clone()) }]);
+                if let JsAstExpression::Identifier(_) = target.as_ref() {
+                    let pattern = JsAstAssignmentPattern::Target(target.clone());
+                    return ParseResult::Ok(vec![JsAstFunctionParameter { pattern: Rc::from(pattern), default: Some(assign.right.clone()) }]);
                 }
             }
             ParseResult::Err(ParseError::error_for_token(ParseErrorType::IdentierExpected, tokens, parser_state))
@@ -930,21 +932,16 @@ fn parse_function_parameters(tokens: &Vec<JsTokenWithLocation>, parser_state: &m
     let mut first = true;
     loop {
 
-        match &tokens[parser_state.cursor].token {
+        let pattern = match &tokens[parser_state.cursor].token {
             JsToken::Identifier(ident) => {
                 parser_state.next();
-
-                let default = match &tokens[parser_state.cursor].token {
-                    JsToken::Assign => {
-                        parser_state.next();
-                        Some(Rc::from(pratt_parse_expression(tokens, parser_state, 0, true)?))
-                    },
-                    _ => {
-                        None
-                    }
-                };
-
-                parameters.push(JsAstFunctionParameter { name: ident.clone(), default });
+                JsAstAssignmentPattern::Target(Rc::from(JsAstExpression::Identifier(JsAstIdentifier { name: ident.clone() })))
+            },
+            JsToken::OpenBrace => {
+                convert_left_side_of_assign(parse_object_literal(tokens, parser_state)?)
+            },
+            JsToken::OpenBracket => {
+                convert_left_side_of_assign(parse_array_literal(tokens, parser_state)?)
             },
             JsToken::CloseParenthesis => {
                 if first {
@@ -957,7 +954,19 @@ fn parse_function_parameters(tokens: &Vec<JsTokenWithLocation>, parser_state: &m
             _ => {
                 todo!(); //TODO: some kind of error
             }
-        }
+        };
+
+        let default = match &tokens[parser_state.cursor].token {
+            JsToken::Assign => {
+                parser_state.next();
+                Some(Rc::from(pratt_parse_expression(tokens, parser_state, 0, true)?))
+            },
+            _ => {
+                None
+            }
+        };
+
+        parameters.push(JsAstFunctionParameter { pattern: Rc::from(pattern), default });
 
         match &tokens[parser_state.cursor].token {
             JsToken::Comma => {

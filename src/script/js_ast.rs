@@ -752,6 +752,55 @@ pub enum JsAstAssignmentPattern {
     Object(Vec<(String, JsAstIdentifier)>),
     Array(Vec<JsAstIdentifier>),
 }
+impl JsAstAssignmentPattern {
+    pub fn execute(&self, value_to_assign: JsValue, js_interpreter: &mut JsInterpreter) {
+        match self {
+            JsAstAssignmentPattern::Target(target) => {
+                let assignment_reference = match target.execute_for_reference(js_interpreter) {
+                    Some(assignment_reference) => assignment_reference,
+                    None => {
+                        js_console::log_js_error("Assignment failed, no valid target"); //TODO: this should include a line number (we need to build that generically)
+                        //TODO: we should stop evaluating on these kind of errors, so we should probably return a result or something
+                        return
+                    },
+                };
+                js_interpreter.set_reference(assignment_reference, value_to_assign);
+            },
+            JsAstAssignmentPattern::Object(properties) => {
+                let js_object = match value_to_assign {
+                    JsValue::Address(address) => {
+                        match js_interpreter.get_from_heap(address).clone() {
+                            JsHeapObject::Object(js_object) => js_object,
+                            _ => todo!(), //TODO: some kind of error
+                        }
+                    },
+                    _ => todo!(), //TODO: some kind of error
+                };
+
+                for (property_name, target) in properties {
+                    let element = js_object.members[property_name].clone();
+                    js_interpreter.set_reference(JsReference::Variable(target.name.clone()), element);
+                }
+            },
+            JsAstAssignmentPattern::Array(targets) => {
+                let js_array = match value_to_assign {
+                    JsValue::Address(address) => {
+                        match js_interpreter.get_from_heap(address).clone() {
+                            JsHeapObject::Array(js_array) => js_array,
+                            _ => todo!(), //TODO: some kind of error
+                        }
+                    },
+                    _ => todo!(), //TODO: some kind of error
+                };
+
+                for (index, target) in targets.iter().enumerate() {
+                    let element = js_array.elements[index].clone();
+                    js_interpreter.set_reference(JsReference::Variable(target.name.clone()), element);
+                }
+            },
+        }
+    }
+}
 
 
 #[derive(Debug)]
@@ -774,37 +823,9 @@ impl JsAstAssign {
                 let value = self.right.execute(js_interpreter);
                 js_interpreter.set_reference(assignment_reference, value);
             },
-            JsAstAssignmentPattern::Object(properties) => {
-                let js_object = match self.right.execute(js_interpreter) {
-                    JsValue::Address(address) => {
-                        match js_interpreter.get_from_heap(address).clone() {
-                            JsHeapObject::Object(js_object) => js_object,
-                            _ => todo!(), //TODO: some kind of error
-                        }
-                    },
-                    _ => todo!(), //TODO: some kind of error
-                };
-
-                for (property_name, target) in properties {
-                    let element = js_object.members[property_name].clone();
-                    js_interpreter.set_reference(JsReference::Variable(target.name.clone()), element);
-                }
-            },
-            JsAstAssignmentPattern::Array(targets) => {
-                let js_array = match self.right.execute(js_interpreter) {
-                    JsValue::Address(address) => {
-                        match js_interpreter.get_from_heap(address).clone() {
-                            JsHeapObject::Array(js_array) => js_array,
-                            _ => todo!(), //TODO: some kind of error
-                        }
-                    },
-                    _ => todo!(), //TODO: some kind of error
-                };
-
-                for (index, target) in targets.iter().enumerate() {
-                    let element = js_array.elements[index].clone();
-                    js_interpreter.set_reference(JsReference::Variable(target.name.clone()), element);
-                }
+            JsAstAssignmentPattern::Object(_) | JsAstAssignmentPattern::Array(_) => {
+                let value = self.right.execute(js_interpreter);
+                self.left.execute(value, js_interpreter);
             },
         }
     }
@@ -951,12 +972,12 @@ impl JsAstUnOp {
 
 #[derive(Debug)]
 pub struct JsAstFunctionParameter {
-    pub name: String,
+    pub pattern: Rc<JsAstAssignmentPattern>,
     pub default: Option<Rc<JsAstExpression>>,
 }
 impl JsAstFunctionParameter {
     fn execute(&self) -> JsFunctionParameter {
-        return JsFunctionParameter { name: self.name.clone(), default: self.default.clone() };
+        return JsFunctionParameter { pattern: self.pattern.clone(), default: self.default.clone() };
     }
 }
 

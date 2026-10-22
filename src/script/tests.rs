@@ -536,3 +536,8 @@ fn optional_chaining() {
 fn test_double_slash_in_template_literal_is_not_a_comment() {
     assert_js(r#"x = `https://www.reddit.com`; tester.export(x);"#, JsValue::String("https://www.reddit.com".to_owned()));
 }
+
+#[test]
+fn tagged_template_literal() {
+    assert_js(r#"function tag(strings) { return strings[0] + "!"; } tester.export(tag`a template`);"#, JsValue::String("a template!".to_owned()));
+}

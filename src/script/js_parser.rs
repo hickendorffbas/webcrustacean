@@ -359,6 +359,15 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                 lhs = JsAstExpression::FunctionCall(JsAstFunctionCall { function_expression: Rc::from(lhs), arguments });
             },
 
+            JsToken::TemplateLiteral(template_literal) => { //this is a tagged template (since it is a postfix)
+                parser_state.next();
+
+                //TODO: we should call the function with the right data, after we implemented evaluating the ${} parts in the template
+                //      for now we just pretend it has no placeholders, and pass everthing as 1 string.
+                let strings = JsAstExpression::ArrayLiteral(JsAstArrayLiteral { elements: vec![JsAstExpression::StringLiteral(template_literal.clone())] });
+                lhs = JsAstExpression::FunctionCall(JsAstFunctionCall { function_expression: Rc::from(lhs), arguments: vec![strings] });
+            },
+
             JsToken::QuestionMark => {
                 parser_state.next();
 
@@ -894,6 +903,7 @@ fn infix_binding_power(token: &JsToken) -> Option<(u8, u8)> {
         JsToken::Remainder => (22, 23),
         JsToken::Dot => (100, 101),
         JsToken::OpenParenthesis => (100, 101),
+        JsToken::TemplateLiteral(_) => (100, 101),
         JsToken::OptionalChainer => (100, 101),
         JsToken::Increment => (110, 111),
         JsToken::Decrement => (110, 111),

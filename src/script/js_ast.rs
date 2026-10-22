@@ -747,89 +747,64 @@ fn access_property(object: JsValue, property: JsValue, js_interpreter: &mut JsIn
 
 
 #[derive(Debug)]
+pub enum JsAstAssignmentPattern {
+    Target(Rc<JsAstExpression>),
+    Object(Vec<(String, JsAstIdentifier)>),
+    Array(Vec<JsAstIdentifier>),
+}
+
+
+#[derive(Debug)]
 pub struct JsAstAssign {
-    pub left: Rc<Vec<(Option<JsAstExpression>, Rc<JsAstExpression>)>>, // A list of destructuring (source, target) tuples, is just a single target
-                                                                       // without a source label for the most basic assign
+    pub left: JsAstAssignmentPattern,
     pub right: Rc<JsAstExpression>,
 }
 impl JsAstAssign {
     fn execute(&self, js_interpreter: &mut JsInterpreter) {
-
-        let mut sources = Vec::new();
-        let mut assignment_references = Vec::new();
-        for (source, target) in self.left.iter() {
-            if source.is_some() {
-                sources.push(source.as_ref().unwrap());
-            }
-            let opt_assignment_reference = target.execute_for_reference(js_interpreter);
-            match opt_assignment_reference {
-                Some(assignment_reference) => assignment_references.push(assignment_reference),
-                None => {
-                    js_console::log_js_error("Assignment failed, no valid target"); //TODO: this should include a line number (we need to build that generically)
-                    //TODO: we should stop evaluating on these kind of errors, so we should probably return a result or something
-                    return
-                },
-            }
-        }
-
-        let value = self.right.execute(js_interpreter);
-
-        let mut sources_evaluated = Vec::new();
-        for source in sources {
-            sources_evaluated.push(source.execute(js_interpreter));
-        }
-
-        match value {
-            JsValue::Address(address) => {
-                match js_interpreter.get_from_heap(address).clone() {
-                    JsHeapObject::Object(js_object) => {
-                        if assignment_references.len() > 1 {
-
-                            for idx in 0..sources_evaluated.len() {
-                                let source = sources_evaluated.get(idx).unwrap();
-                                let assignment_ref = assignment_references.get(idx).unwrap();
-
-                                match source {
-                                    JsValue::String(object_key) => {
-                                        let element = js_object.members[object_key].clone();
-                                        js_interpreter.set_reference(assignment_ref.clone(), element);
-                                    },
-                                    _ => {
-                                        todo!(); //TODO: some kind of error
-                                    }
-                                }
-                            }
-                        } else {
-                            js_interpreter.set_reference(assignment_references[0].clone(), value);
+        match &self.left {
+            JsAstAssignmentPattern::Target(target) => {
+                let assignment_reference = match target.execute_for_reference(js_interpreter) {
+                    Some(assignment_reference) => assignment_reference,
+                    None => {
+                        js_console::log_js_error("Assignment failed, no valid target"); //TODO: this should include a line number (we need to build that generically)
+                        //TODO: we should stop evaluating on these kind of errors, so we should probably return a result or something
+                        return
+                    },
+                };
+                let value = self.right.execute(js_interpreter);
+                js_interpreter.set_reference(assignment_reference, value);
+            },
+            JsAstAssignmentPattern::Object(properties) => {
+                let js_object = match self.right.execute(js_interpreter) {
+                    JsValue::Address(address) => {
+                        match js_interpreter.get_from_heap(address).clone() {
+                            JsHeapObject::Object(js_object) => js_object,
+                            _ => todo!(), //TODO: some kind of error
                         }
                     },
-                    JsHeapObject::Array(js_array) => {
-                        if assignment_references.len() > 1 {
+                    _ => todo!(), //TODO: some kind of error
+                };
 
-                            for idx in 0..sources_evaluated.len() {
-                                let source = sources_evaluated.get(idx).unwrap();
-                                let assignment_ref = assignment_references.get(idx).unwrap();
-                                match source {
-                                    JsValue::Number(idx) => {
-                                        let element = js_array.elements[(*idx) as usize].clone();
-                                        js_interpreter.set_reference(assignment_ref.clone(), element);
-                                    },
-                                    _ => {
-                                        todo!(); //TODO: some kind of error
-                                    }
-                                }
-                            }
-                        } else {
-                            js_interpreter.set_reference(assignment_references[0].clone(), value);
-                        }
-                    },
+                for (property_name, target) in properties {
+                    let element = js_object.members[property_name].clone();
+                    js_interpreter.set_reference(JsReference::Variable(target.name.clone()), element);
                 }
             },
-            _ => {
-                if assignment_references.len() != 1 {
-                    todo!(); //TODO: some kind of error
+            JsAstAssignmentPattern::Array(targets) => {
+                let js_array = match self.right.execute(js_interpreter) {
+                    JsValue::Address(address) => {
+                        match js_interpreter.get_from_heap(address).clone() {
+                            JsHeapObject::Array(js_array) => js_array,
+                            _ => todo!(), //TODO: some kind of error
+                        }
+                    },
+                    _ => todo!(), //TODO: some kind of error
+                };
+
+                for (index, target) in targets.iter().enumerate() {
+                    let element = js_array.elements[index].clone();
+                    js_interpreter.set_reference(JsReference::Variable(target.name.clone()), element);
                 }
-                js_interpreter.set_reference(assignment_references[0].clone(), value);
             },
         }
     }

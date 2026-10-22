@@ -283,7 +283,7 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                                                                     //      but instead only in declaration (where we now already support it)
 
                 let rhs = pratt_parse_expression(tokens, parser_state, right_bp, true)?;
-                lhs = JsAstExpression::Assignment(JsAstAssign { left: Rc::from(assign_left), right: Rc::from(rhs) });
+                lhs = JsAstExpression::Assignment(JsAstAssign { left: assign_left, right: Rc::from(rhs) });
             },
 
             compound @ (JsToken::CompoundAssignAdd | JsToken::CompoundAssignMinus | JsToken::CompoundAssignTimes | JsToken::CompoundAssignDiv |
@@ -305,7 +305,7 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
 
                 let lhs_rc = Rc::from(lhs);
                 let rhs = JsAstExpression::BinOp(JsAstBinOp { op, left: lhs_rc.clone(), right: Rc::from(rhs), is_dot_property_access: false });
-                lhs = JsAstExpression::Assignment(JsAstAssign { left: Rc::from(vec![(None, lhs_rc)]), right: Rc::from(rhs) });
+                lhs = JsAstExpression::Assignment(JsAstAssign { left: JsAstAssignmentPattern::Target(lhs_rc), right: Rc::from(rhs) });
             },
 
             binop @ (JsToken::Plus | JsToken::Minus | JsToken::Star | JsToken::ForwardSlash | JsToken::LeftShift | JsToken::RightShift | JsToken::BitWiseXor |
@@ -613,50 +613,40 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
 }
 
 
-fn convert_left_side_of_assign(current_left_size: JsAstExpression) -> Vec<(Option<JsAstExpression>, Rc<JsAstExpression>)> {
+fn convert_left_side_of_assign(current_left_size: JsAstExpression) -> JsAstAssignmentPattern {
     return match current_left_size {
         JsAstExpression::ArrayLiteral(literal) => {
-            let mut assign_targets = Vec::new();
+            let mut targets = Vec::new();
 
-            for (index, item) in literal.elements.iter().enumerate() {
+            for item in literal.elements {
                 match item {
-                    JsAstExpression::Identifier(assignment_target) => {
-                        let new_target_ast = JsAstExpression::Identifier(JsAstIdentifier { name: assignment_target.name.clone() });
-                        assign_targets.push((Some(JsAstExpression::NumericLiteral(index as f64)), Rc::from(new_target_ast)));
+                    JsAstExpression::Identifier(target) => {
+                        targets.push(target);
                     },
                     _ => {
                         todo!(); //TODO: some kind of error
                     }
                 }
             }
-            assign_targets
+            JsAstAssignmentPattern::Array(targets)
         }
         JsAstExpression::ObjectLiteral(literal) => {
-            let mut assign_targets = Vec::new();
+            let mut properties = Vec::new();
 
-            for (source, target) in literal.members.iter() {
-                match source {
-                    JsAstExpression::StringLiteral(identifier) => {
-                        let new_source_ast = JsAstExpression::StringLiteral(identifier.clone());
-                        let new_target_ast = match target {
-                            JsAstExpression::Identifier(assignment_target) => {
-                                JsAstExpression::Identifier(JsAstIdentifier { name: assignment_target.name.clone() })
-                            },
-                            _ => {
-                                todo!(); //TODO: some kind of error
-                            }
-                        };
-                        assign_targets.push((Some(new_source_ast), Rc::from(new_target_ast)));
+            for (source, target) in literal.members {
+                match (source, target) {
+                    (JsAstExpression::StringLiteral(property_name), JsAstExpression::Identifier(target)) => {
+                        properties.push((property_name, target));
                     },
                     _ => {
                         todo!(); //TODO: some kind of error
                     }
                 }
             }
-            assign_targets
+            JsAstAssignmentPattern::Object(properties)
         },
         _ => {
-            vec![(None, Rc::from(current_left_size))]  //We just have a single thing to assign to
+            JsAstAssignmentPattern::Target(Rc::from(current_left_size))
         },
     };
 }
@@ -689,7 +679,7 @@ fn convert_left_side_of_arrow(tokens: &Vec<JsTokenWithLocation>, parser_state: &
             ParseResult::Ok(parameters)
         },
         JsAstExpression::Assignment(assign) => {
-            if let [(None, target)] = assign.left.as_slice() {
+            if let JsAstAssignmentPattern::Target(target) = &assign.left {
                 if let JsAstExpression::Identifier(identifier) = target.as_ref() {
                     return ParseResult::Ok(vec![JsAstFunctionParameter { name: identifier.name.clone(), default: Some(assign.right.clone()) }]);
                 }
@@ -1225,7 +1215,7 @@ fn parse_declaration(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Parse
 
                 let expression = pratt_parse_expression(tokens, parser_state, 0, true)?;
                 let left_side = convert_left_side_of_assign(declared_item);
-                let assignment = Some(JsAstAssign { left: Rc::from(left_side), right: Rc::from(expression) });
+                let assignment = Some(JsAstAssign { left: left_side, right: Rc::from(expression) });
                 declarations.push(JsAstDeclaration { variable: None, assignment, decl_type });
 
                 if !parser_state.has_ended() && tokens[parser_state.cursor].token == JsToken::Comma {

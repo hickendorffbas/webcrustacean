@@ -141,12 +141,14 @@ fn parse_statement(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserS
 
             match &tokens[parser_state.cursor].token {
                 JsToken::Semicolon | JsToken::CloseBrace => {
+                    expect_statement_terminator(tokens, parser_state)?;
                     return ParseResult::Ok(Some(JsAstStatement::Return(None)));
                 },
                 _ => {},
             }
 
             let ast = pratt_parse_expression(tokens, parser_state, 0, false)?;
+            expect_statement_terminator(tokens, parser_state)?;
             return ParseResult::Ok(Some(JsAstStatement::Return(Some(ast))));
         },
         JsToken::KeyWordIf => {
@@ -172,6 +174,7 @@ fn parse_statement(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserS
         JsToken::KeyWordThrow => {
             parser_state.next();
             let ast = pratt_parse_expression(tokens, parser_state, 0, false)?;
+            expect_statement_terminator(tokens, parser_state)?;
             return ParseResult::Ok(Some(JsAstStatement::Throw(JsAstThrow { expression: Rc::from(ast) })));
         },
         decl_keyword @ (JsToken::KeyWordVar | JsToken::KeyWordLet | JsToken::KeyWordConst) => {
@@ -989,22 +992,26 @@ fn parse_function_parameters(tokens: &Vec<JsTokenWithLocation>, parser_state: &m
 
 
 fn parse_conditional(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) -> ParseResult<JsAstStatement> {
-    //TODO: javascript supports having a single statement without { } after if, we still need to add that
-
     expect(tokens, parser_state, JsToken::OpenParenthesis)?;
     let condition = pratt_parse_expression(tokens, parser_state, 0, false)?;
     expect(tokens, parser_state, JsToken::CloseParenthesis)?;
 
-    match tokens[parser_state.cursor].token {
+    let script = match tokens[parser_state.cursor].token {
         JsToken::OpenBrace => {
             parser_state.next();
+            parse_script(tokens, parser_state)?
         },
         _ => {
-            todo!(); //TODO: this should be an error (not in all cases, if we have a single statement after the if....)
+            match parse_statement(tokens, parser_state)? {
+                Some(statement) => {
+                    vec![statement]
+                },
+                None => {
+                    todo!() //TODO: this should be an error
+                },
+            }
         }
-    }
-
-    let script = parse_script(tokens, parser_state)?;
+    };
 
     let else_present = !parser_state.has_ended() &&
         match tokens[parser_state.cursor].token {

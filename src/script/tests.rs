@@ -556,3 +556,8 @@ var a = [1];
 a[target()] = value();"#,
     JsValue::String("value".to_owned()));
 }
+
+#[test]
+fn if_without_braces() {
+    assert_js(r#"function f(a) { if (a) return 1; return 2; } tester.export(f(true) * 10 + f(false));"#, JsValue::Number(12.0));
+}

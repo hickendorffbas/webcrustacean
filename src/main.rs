@@ -243,7 +243,6 @@ fn main() -> Result<(), String> {
                         match ui_state.focus_target {
                             FocusTarget::None => {},
                             FocusTarget::MainContent => {
-                                RefCell::borrow_mut(&full_layout_tree.borrow_mut().root_node).reset_selection();
                                 let full_layout_tree = full_layout_tree.borrow();
                                 set_selection_regions(&full_layout_tree, &selection);
                             },

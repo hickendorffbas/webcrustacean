@@ -4,11 +4,11 @@ use std::{
 };
 
 use crate::dom::{Document, ElementDomNode};
+#[cfg(debug_assertions)] use crate::layout::get_next_layout_node_interal_id;
 use crate::layout::{
     build_layout_tree,
     compute_layout_for_node,
     compute_potential_widths,
-    get_next_layout_node_interal_id,
     CssBox,
     FormattingContext,
     LayoutNode,
@@ -257,7 +257,7 @@ pub fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>,
                             }
 
                             let cell_layout_node = LayoutNode {
-                                internal_id: get_next_layout_node_interal_id(),
+                                #[cfg(debug_assertions)] internal_id: get_next_layout_node_interal_id(),
                                 children: Some(cell_children),
                                 from_dom_node: Some(dom_row_child.clone()),
                                 formatting_context: FormattingContext::Inline, //TODO: this should be based on the css properties
@@ -294,7 +294,7 @@ pub fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>,
     }
 
     return LayoutNode {
-        internal_id: get_next_layout_node_interal_id(),
+        #[cfg(debug_assertions)] internal_id: get_next_layout_node_interal_id(),
         children: Some(layout_children),
         from_dom_node: Some(table_dom_node.clone()),
         formatting_context: FormattingContext::Table,

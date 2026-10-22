@@ -4,6 +4,7 @@
 - Commandline option for taking screenshots added
 - Javascript has automatic semicolon insertion now
 - Javascript arrow function support
+- Improved text selection logic
 
 
 0.8.0

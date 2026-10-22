@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+#[cfg(debug_assertions)] use std::sync::atomic::{AtomicUsize, Ordering};
 
 use image::RgbaImage;
 
@@ -36,8 +36,8 @@ mod tables;
 #[cfg(test)] mod tests;
 
 
-static NEXT_LAYOUT_NODE_INTERNAL: AtomicUsize = AtomicUsize::new(1);
-pub fn get_next_layout_node_interal_id() -> usize { NEXT_LAYOUT_NODE_INTERNAL.fetch_add(1, Ordering::Relaxed) }
+#[cfg(debug_assertions)] static NEXT_LAYOUT_NODE_INTERNAL: AtomicUsize = AtomicUsize::new(1);
+#[cfg(debug_assertions)] pub fn get_next_layout_node_interal_id() -> usize { NEXT_LAYOUT_NODE_INTERNAL.fetch_add(1, Ordering::Relaxed) }
 
 
 pub struct FullLayout {
@@ -166,7 +166,7 @@ pub enum PositioningScheme {
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct LayoutNode {
-    pub internal_id: usize,
+    #[cfg(debug_assertions)] pub internal_id: usize,
     pub children: Option<Vec<Rc<RefCell<LayoutNode>>>>,
 
     pub from_dom_node: Option<Rc<RefCell<ElementDomNode>>>,
@@ -280,22 +280,6 @@ impl LayoutNode {
         return None;
     }
 
-    pub fn find_content_child_at_position(&self, x: f32, y: f32) -> Option<Rc<RefCell<LayoutNode>>> {
-        if self.children.is_some() {
-            for child in self.children.as_ref().unwrap() {
-                if RefCell::borrow(child).visible && child.borrow().content.is_inside(x, y) {
-                    let possible_node = child.borrow().find_content_child_at_position(x, y);
-                    if possible_node.is_some() {
-                        return possible_node;
-                    }
-                    return Some(child.clone());
-                }
-            }
-        }
-
-        return None;
-    }
-
     pub fn click(&self, x: f32, y: f32, document: &Document) -> NavigationAction {
         let possible_dom_node = self.find_dom_node_at_position(x, y);
 
@@ -307,7 +291,7 @@ impl LayoutNode {
 
     pub fn new_empty() -> LayoutNode {
         return LayoutNode {
-            internal_id: 0,
+            #[cfg(debug_assertions)] internal_id: 0,
             visible: true,
             children: None,
             from_dom_node: None,
@@ -357,7 +341,7 @@ impl LayoutNode {
                 for css_text_box in &text_layout_node.css_text_boxes {
                     if css_text_box.selection_char_range.is_some() {
                         let (start_idx, end_idx) = css_text_box.selection_char_range.unwrap();
-                        result.push_str(css_text_box.text.chars().skip(start_idx).take(end_idx - start_idx + 1).collect::<String>().as_str());
+                        result.push_str(css_text_box.text.chars().skip(start_idx).take(end_idx - start_idx).collect::<String>().as_str());
                     }
                 }
             },
@@ -499,7 +483,7 @@ pub struct CssTextBox {
     pub text: String,
     pub char_position_mapping: Vec<f32>,
     pub selection_rect: Option<SelectionRect>,
-    pub selection_char_range: Option<(usize, usize)>,
+    pub selection_char_range: Option<(usize, usize)>, //the end index is exclusive
 }
 
 
@@ -512,7 +496,7 @@ pub fn build_full_layout(document: &Document, font_context: &FontContext) -> Ful
     //Note: we need a node above the first node actually containing any content or styles, since for updates to content or styles we re-assign
     //      children to the parent, so we need all nodes that could update to have a valid parent. That is this root_node for the toplevel node(s).
     let root_node = LayoutNode {
-        internal_id: get_next_layout_node_interal_id(),
+        #[cfg(debug_assertions)] internal_id: get_next_layout_node_interal_id(),
         visible: true,
         children: Some(top_level_layout_nodes),
         from_dom_node: None,
@@ -535,6 +519,10 @@ pub fn build_full_layout(document: &Document, font_context: &FontContext) -> Ful
 
 pub fn collect_content_nodes_in_walk_order_for_normal_flow(node: &Rc<RefCell<LayoutNode>>, result: &mut Vec<Rc<RefCell<LayoutNode>>>) {
     //TODO: we need to check if an item is not in normal flow, and not include it in that case (such as position: absolute items etc.)
+
+    if !RefCell::borrow(node).visible {
+        return;
+    }
 
     match RefCell::borrow(node).content {
         LayoutNodeContent::TextLayoutNode(_) => { result.push(Rc::clone(&node)); },
@@ -959,6 +947,7 @@ fn apply_inline_layout(node: &mut LayoutNode, top_left_x: f32, top_left_y: f32, 
                             if next_is_first_child_on_line {
                                 //TODO: we now do this here, because we lack the concept of a CSS linebox. Leading spaces in a linebox should be stripped
                                 new_css_text_box.text = new_css_text_box.text.trim_start_matches(' ').to_string();
+                                new_css_text_box.char_position_mapping = font_context.compute_char_position_mapping(&text_layout_node.font, &new_css_text_box.text);
                                 next_is_first_child_on_line = false;
                             }
 
@@ -1351,7 +1340,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
     };
 
     let new_node = LayoutNode {
-        internal_id: get_next_layout_node_interal_id(),
+        #[cfg(debug_assertions)] internal_id: get_next_layout_node_interal_id(),
         formatting_context: partial_formatting_context,
         visible: partial_node_visible,
         children: partial_node_children,
@@ -1386,15 +1375,13 @@ pub fn rebuild_dirty_layout_childs(main_node: &Rc<RefCell<LayoutNode>>, document
 
 
 fn build_anonymous_layout_node(visible: bool, inline_children: Vec<Rc<RefCell<LayoutNode>>>, background_color: Color, formatting_context: FormattingContext) -> Rc<RefCell<LayoutNode>> {
-    let id_of_node_being_built = get_next_layout_node_interal_id();
-
     let empty_box_layout_node = AreaLayoutNode {
         css_box: CssBox::empty(),
         background_color,
     };
 
     let anonymous_node = LayoutNode {
-        internal_id: id_of_node_being_built,
+        #[cfg(debug_assertions)] internal_id: get_next_layout_node_interal_id(),
         formatting_context: formatting_context,
         visible: visible,
         children: Some(inline_children),

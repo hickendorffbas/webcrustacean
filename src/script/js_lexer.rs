@@ -104,8 +104,7 @@ pub struct JsSourceIterator<'document> {
 
     pub iter: TrackingIterator<'document>,
     next: Option<char>,
-    prev: Option<char>,
-    current_string_starter: Option<char>,
+    in_string_literal: bool,
     in_regex_literal: bool,
     in_template_literal: bool,
     new_line_pending: bool,
@@ -121,8 +120,7 @@ impl <'document> JsSourceIterator<'document> {
         return JsSourceIterator {
             iter,
             next: None,
-            prev: None,
-            current_string_starter: None,
+            in_string_literal: false,
             in_regex_literal: false,
             in_template_literal: false,
             new_line_pending: false,
@@ -156,16 +154,6 @@ impl <'document> JsSourceIterator<'document> {
         } else {
             self.iter.next()
         };
-        if (next_char == '"' || next_char == '\'') && self.prev != Some('\\') && !self.in_template_literal {
-            if self.current_string_starter.is_none() {
-                self.current_string_starter = Some(next_char);
-            } else {
-                if self.current_string_starter == Some(next_char) { // we check if the string was started with the same kind of quote
-                    self.current_string_starter = None;
-                }
-            }
-        }
-        self.prev = Some(next_char);
         return next_char;
     }
     fn skip_possible_comment(&mut self) {
@@ -175,8 +163,8 @@ impl <'document> JsSourceIterator<'document> {
         if self.next.is_none() {
             self.next = Some(self.iter.next());
         }
-        if self.current_string_starter.is_some() {
-            return; //we are currently reading inside a string, so a comment can't be started
+        if self.in_string_literal {
+            return;
         }
         if self.in_regex_literal {
             return; //we are reading inside a literal regex, and // is just text to match there, not a comment
@@ -261,6 +249,8 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
             let token_char_pos = js_iterator.iter.current_char;
 
             let quote_type_used = js_iterator.next();
+            js_iterator.in_string_literal = true;
+
             let mut literal = String::new();
             let mut next_char_is_escaped = false;
             while js_iterator.has_next() && (js_iterator.peek().unwrap() != quote_type_used || next_char_is_escaped) {
@@ -281,6 +271,7 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
             js_iterator.new_line_pending = false;
             tokens.push(token);
             js_iterator.next(); //eat the closing "
+            js_iterator.in_string_literal = false;
         }
         else if js_iterator.peek() == Some('`') {
             tokens.push(lex_template_literal(&mut js_iterator));

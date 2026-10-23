@@ -566,3 +566,8 @@ fn if_without_braces() {
 fn test_bitwise_not_operator() {
     assert_js(r#"var n = 5; tester.export(~n + ~~-3);"#, JsValue::Number(-9.0));
 }
+
+#[test]
+fn test_quote_in_regex_does_not_start_a_string() {
+    assert_js(r#"x = /"/; tester.export("//");"#, JsValue::String("//".to_owned()));
+}

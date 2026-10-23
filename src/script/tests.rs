@@ -561,3 +561,8 @@ a[target()] = value();"#,
 fn if_without_braces() {
     assert_js(r#"function f(a) { if (a) return 1; return 2; } tester.export(f(true) * 10 + f(false));"#, JsValue::Number(12.0));
 }
+
+#[test]
+fn test_bitwise_not_operator() {
+    assert_js(r#"var n = 5; tester.export(~n + ~~-3);"#, JsValue::Number(-9.0));
+}

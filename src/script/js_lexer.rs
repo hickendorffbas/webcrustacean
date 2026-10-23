@@ -44,6 +44,7 @@ pub enum JsToken {
     BitWiseOr,
     BitWiseXor,
     BitWiseAnd,
+    BitWiseNot,
     Hash,
     LogicalAnd,
     LogicalOr,
@@ -506,6 +507,7 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                             }
                         } else { JsToken::BitWiseXor }
                     },
+                    '~' => { JsToken::BitWiseNot }
                     '#' => { JsToken::Hash }
                     '+' => {
                         if js_iterator.has_next() {

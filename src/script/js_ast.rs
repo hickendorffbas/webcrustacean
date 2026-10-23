@@ -903,6 +903,7 @@ pub enum JsUnOp {
     Plus,
     Minus,
     Not,
+    BitWiseNot,
     PostfixIncrement,
     PostfixDecrement,
     #[allow(dead_code)] PrefixIncrement, //TODO: implement
@@ -935,6 +936,13 @@ impl JsAstUnOp {
             JsUnOp::Not => {
                 let operand = self.operand.execute(js_interpreter);
                 return JsValue::Boolean(!operand.is_thruty());
+            }
+            JsUnOp::BitWiseNot => {
+                let operand = self.operand.execute(js_interpreter);
+                match operand {
+                    JsValue::Number(number) => return JsValue::Number(!(number as i32) as f64),
+                    _ => { todo!() }, //TODO: at least doing this on a string also seems to be defined, we need to fix that
+                }
             }
             JsUnOp::PostfixIncrement => {
                 let operand_reference = self.operand.execute_for_reference(js_interpreter);

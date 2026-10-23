@@ -469,7 +469,7 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
 
     match &tokens[parser_state.cursor].token {
 
-        operator @ (JsToken::Minus | JsToken::Plus | JsToken::ExclamationMark) => {
+        operator @ (JsToken::Minus | JsToken::Plus | JsToken::ExclamationMark | JsToken::BitWiseNot) => {
             //These are the unary operators
             parser_state.next();
 
@@ -480,6 +480,7 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
                 JsToken::Minus => JsUnOp::Minus,
                 JsToken::Plus => JsUnOp::Plus,
                 JsToken::ExclamationMark => JsUnOp::Not,
+                JsToken::BitWiseNot => JsUnOp::BitWiseNot,
                 _ => panic!("unreachable"),
             };
             return ParseResult::Ok(JsAstExpression::UnaryOp(JsAstUnOp { op: un_op, operand: Rc::from(rhs) }))
@@ -853,6 +854,7 @@ fn prefix_binding_power(token: &JsToken) -> u8 {
         JsToken::Plus => 99,
         JsToken::Minus => 99,
         JsToken::ExclamationMark => 99,
+        JsToken::BitWiseNot => 99,
         JsToken::KeyWordVoid => 99,
         JsToken::KeyWordDelete => 99,
         JsToken::KeyWordTypeOf => 99,

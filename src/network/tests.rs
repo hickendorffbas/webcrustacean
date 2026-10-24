@@ -16,6 +16,9 @@ fn test_to_string_is_symmetrical() {
 
     let url_str = "file:///some/path/to/file.txt";
     assert_eq!(Url::from(&String::from(url_str)).to_string(), url_str);
+
+    let url_str = "http://localhost:8000/page.html";
+    assert_eq!(Url::from(&String::from(url_str)).to_string(), url_str);
 }
 
 
@@ -67,6 +70,23 @@ fn test_simple_html_file_url() {
 fn test_file_url_with_slash() {
     assert_eq!(Url::from_base_url(&String::from("/doc2.html"), Some(&Url::from(&String::from("file:///doc1.html")))),
                build_url("file", "", &vec!["doc2.html".to_owned()]));
+}
+
+
+#[test]
+fn test_url_with_port() {
+    let mut expected = build_url("http", "localhost", &vec![String::from("page.html")]);
+    expected.port = String::from("8000");
+    assert_eq!(Url::from(&String::from("http://localhost:8000/page.html")), expected);
+
+    let mut expected = build_url("http", "localhost", &vec![String::new()]);
+    expected.port = String::from("8000");
+    assert_eq!(Url::from(&String::from("http://localhost:8000")), expected);
+
+    let mut expected = build_url_with_query("http", "localhost", &vec![String::new()], String::from("a=1"));
+    expected.port = String::from("8000");
+    assert_eq!(Url::from(&String::from("http://localhost:8000?a=1")), expected);
+    assert_eq!(Url::from(&String::from("http://localhost:08000/?a=1")), expected);
 }
 
 

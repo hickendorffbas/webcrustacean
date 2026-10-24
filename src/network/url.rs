@@ -356,7 +356,31 @@ impl Url {
                     }
                 },
 
-                UrlParsingState::PortState => todo!(), //TODO: add test and implement
+                UrlParsingState::PortState => {
+                    if next_char.is_some() && next_char.unwrap().is_ascii_digit() {
+                        buffer.push(next_char.unwrap());
+                    } else if next_char == None || next_char == Some('/') || next_char == Some('?') || next_char == Some('#') {
+                        if !buffer.is_empty() {
+                            let port_number = buffer.parse::<u16>();
+                            if port_number.is_err() {
+                                todo!(); //TODO: this should be some error
+                            }
+                            let port_number = port_number.unwrap();
+
+                            if Url::default_port(&scheme) == Some(port_number) {
+                                //If the port is the default port we need to remove it, so that there is 1 canonical form we can compare
+                                port = String::new();
+                            } else {
+                                port = port_number.to_string();
+                            }
+                            buffer = String::new();
+                        }
+                        state = UrlParsingState::PathStartState;
+                        pointer = max(pointer - 1, -1);
+                    } else {
+                        todo!(); //TODO: this should be some error
+                    }
+                },
 
             }
 
@@ -398,6 +422,10 @@ impl Url {
             full_string.push_str(":");
         }
         full_string.push_str(&self.host);
+        if !self.port.is_empty() {
+            full_string.push(':');
+            full_string.push_str(&self.port);
+        }
         if self.scheme != "about" {  //TODO: this is a hack, I'm missing something in the URL spec to make this work I think (about: should not have slashes)
             full_string.push_str("/");
         }
@@ -428,6 +456,15 @@ impl Url {
         //Special is meant in the definition of https://url.spec.whatwg.org/#is-special
         // the spec also checks for ws and wss, but we are not implementing those
         return scheme == "http" || scheme == "https" || scheme == "ftp" || scheme == "file";
+    }
+
+    fn default_port(scheme: &str) -> Option<u16> {
+        return match scheme {
+            "http" => Some(80),
+            "https" => Some(443),
+            "ftp" => Some(21),
+            _ => None,
+        };
     }
 }
 

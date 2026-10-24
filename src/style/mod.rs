@@ -271,7 +271,8 @@ pub fn compute_styles(dom_node: &Rc<RefCell<ElementDomNode>>, all_dom_nodes: &Ha
 }
 
 
-const HTML_BLOCK_ELEMENTS: &[&'static str] = &["div", "form", "h1", "h2", "h3", "h4", "h5", "h6", "hr", "p", "table", "html", "body"];
+const HTML_BLOCK_ELEMENTS: &[&'static str] = &["div", "form", "h1", "h2", "h3", "h4", "h5", "h6", "hr", "p", "table", "html", "body",
+                                               "main", "header", "footer", "nav", "section", "ul"];
 
 
 pub fn get_user_agent_style_sheet() -> Vec<StyleRule> {

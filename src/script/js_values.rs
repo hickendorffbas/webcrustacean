@@ -35,6 +35,16 @@ impl JsValue {
             JsValue::Undefined => { return false; },
         }
     }
+
+    pub fn to_js_string(self) -> String {
+        return match self {
+            JsValue::String(string) =>  { string }
+            JsValue::Number(number) => { number.to_string() }, //TODO: this will need some special casing for values like Inf etc.
+            JsValue::Boolean(bool) => { if bool { "true".to_owned() } else { "false".to_owned() } },
+            JsValue::Undefined => { "undefined".to_owned() },
+            JsValue::Address(_) => todo!(), //TODO: implement
+        };
+    }
 }
 
 

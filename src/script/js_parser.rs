@@ -704,7 +704,7 @@ fn parse_object_literal(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Pa
 
     let mut members = Vec::new();
     let mut first = true;
-    let mut current_property_name;
+    let mut current_property_expression;
     loop {
 
         match &tokens[parser_state.cursor].token {
@@ -729,11 +729,15 @@ fn parse_object_literal(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Pa
         match &tokens[parser_state.cursor].token {
             JsToken::Identifier(property_name) => {
                 parser_state.next();
-                current_property_name = property_name;
+                current_property_expression = JsAstExpression::StringLiteral(property_name.clone());
             },
             JsToken::LiteralString(property_name) => {
                 parser_state.next();
-                current_property_name = property_name;
+                current_property_expression = JsAstExpression::StringLiteral(property_name.clone());
+            },
+            JsToken::Number(number) => {
+                parser_state.next();
+                current_property_expression = JsAstExpression::NumericLiteral(*number);
             },
             JsToken::CloseBrace => { //This is possible due to allowing trailing comma's
                 parser_state.next();
@@ -750,7 +754,7 @@ fn parse_object_literal(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Pa
             },
             JsToken::OpenParenthesis => {
                 let method_ast = parse_method_shorthand(tokens, parser_state)?;
-                members.push((JsAstExpression::StringLiteral(current_property_name.clone()), JsAstExpression::FunctionExpression(method_ast)));
+                members.push((current_property_expression, JsAstExpression::FunctionExpression(method_ast)));
                 first = false;
                 continue;
             },
@@ -760,7 +764,7 @@ fn parse_object_literal(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Pa
         }
 
         let expression = pratt_parse_expression(tokens, parser_state, 0, true)?;
-        members.push((JsAstExpression::StringLiteral(current_property_name.clone()), expression));
+        members.push((current_property_expression, expression));
 
         first = false;
     }

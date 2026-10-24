@@ -714,9 +714,9 @@ fn access_property(object: JsValue, property: JsValue, js_interpreter: &mut JsIn
 
     match object {
         JsHeapObject::Object(object) => {
-            match &property {
-                JsValue::String(property_value) => {
-                    match object.members.get(property_value) {
+            match property {
+                val @ (JsValue::String(_) | JsValue::Number(_)) => {
+                    match object.members.get(&val.to_js_string()) {
                         Some(value) => { return value.clone(); },
                         None =>  { return JsValue::Undefined; },
                     }
@@ -1154,22 +1154,7 @@ fn call_value(function: JsValue, arguments: &Vec<JsAstExpression>, js_interprete
                     JsBuiltinFunction::ConsoleLog => {
                         let to_log = arguments.get(0); //TODO: handle there being to little or to many arguments
 
-                        let to_log = to_log.unwrap().execute(js_interpreter);
-
-                        let to_log = match to_log {
-                            JsValue::String(string) =>  { string }
-                            JsValue::Number(number) => {
-                                if number.fract() == 0.0 {
-                                    number.trunc().to_string()
-                                } else {
-                                    number.to_string()
-                                }
-                            },
-                            JsValue::Boolean(bool) => { if bool { "true".to_owned() } else { "false".to_owned() } },
-                            JsValue::Undefined => { "undefined".to_owned() },
-                            JsValue::Address(_) => todo!(), //TODO: implement
-                        };
-
+                        let to_log = to_log.unwrap().execute(js_interpreter).to_js_string();
                         js_console::print(to_log.as_str());
                         return JsValue::Undefined;
                     },
@@ -1224,8 +1209,8 @@ impl JsAstObjectLiteral {
         for (key_ast, value_ast) in self.members.iter() {
 
             match key_ast.execute(js_interpreter) {
-                JsValue::String(property_name) => {
-                    members.insert(property_name, value_ast.execute(js_interpreter));
+                val @ (JsValue::String(_) | JsValue::Number(_)) => {
+                    members.insert(val.to_js_string(), value_ast.execute(js_interpreter));
                 },
                 _ => {
                     todo!(); //TODO: this should be an error

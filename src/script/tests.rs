@@ -581,3 +581,8 @@ fn test_number_literal_with_leading_or_trailing_dot() {
 fn test_number_with_signed_exponent() {
     assert_js(r#"tester.export(8e-5 + 1e+2);"#, JsValue::Number(8e-5 + 1e+2));
 }
+
+#[test]
+fn test_object_literal_with_numeric_keys() {
+    assert_js(r#"var m = {3144: function(e) { return e + 1; }, 7: 2}; tester.export(m["3144"](m[7]));"#, JsValue::Number(3.0));
+}

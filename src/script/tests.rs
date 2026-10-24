@@ -576,3 +576,8 @@ fn test_quote_in_regex_does_not_start_a_string() {
 fn test_number_literal_with_leading_or_trailing_dot() {
     assert_js(r#"tester.export(1. + .5);"#, JsValue::Number(1.5));
 }
+
+#[test]
+fn test_number_with_signed_exponent() {
+    assert_js(r#"tester.export(8e-5 + 1e+2);"#, JsValue::Number(8e-5 + 1e+2));
+}

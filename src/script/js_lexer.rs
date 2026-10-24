@@ -631,6 +631,10 @@ fn lex_number(js_iterator: &mut JsSourceIterator) -> JsTokenWithLocation {
                 }
                 seen_e = true;
                 number_text.push(js_iterator.next());
+
+                if js_iterator.peek().unwrap() == '+' || js_iterator.peek().unwrap() == '-' {
+                    number_text.push(js_iterator.next());
+                }
             } else {
                 break;
             }

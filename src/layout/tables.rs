@@ -126,8 +126,8 @@ pub fn compute_layout_for_table(table_layout_node: &Rc<RefCell<LayoutNode>>, top
     let mut cursor_x = top_left_x;
     let mut cursor_y = top_left_y;
 
-    let mut max_cursor_x_seen = 0.0;
-    let mut max_cursor_y_seen = 0.0;
+    let mut max_cursor_x_seen = top_left_x;
+    let mut max_cursor_y_seen = top_left_y;
 
     let mut minimal_starting_point_per_row = Vec::with_capacity(table_height_in_slots);
     for _idx in 0..table_height_in_slots {
@@ -189,7 +189,7 @@ pub fn compute_layout_for_table(table_layout_node: &Rc<RefCell<LayoutNode>>, top
     }
 
     drop(layout_node_borrow);
-    table_layout_node.borrow_mut().update_css_box(CssBox { x: top_left_x, y: top_left_y, width: max_cursor_x_seen, height: max_cursor_y_seen });
+    table_layout_node.borrow_mut().update_css_box(CssBox { x: top_left_x, y: top_left_y, width: max_cursor_x_seen - top_left_x, height: max_cursor_y_seen - top_left_y });
 }
 
 

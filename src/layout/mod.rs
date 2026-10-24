@@ -954,7 +954,7 @@ fn apply_inline_layout(node: &mut LayoutNode, top_left_x: f32, top_left_y: f32, 
                             new_css_text_boxes.push(new_css_text_box);
 
                             cursor_x += rect_width;
-                            max_width = max_width.max(cursor_x);
+                            max_width = max_width.max(cursor_x - top_left_x);
                             max_height_of_line = max_height_of_line.max(rect_height);
 
                         }
@@ -995,13 +995,13 @@ fn apply_inline_layout(node: &mut LayoutNode, top_left_x: f32, top_left_y: f32, 
                     let (_, _, child_width, child_height) = RefCell::borrow(child).get_bounding_box();
 
                     cursor_x += child_width;
-                    max_width = max_width.max(cursor_x);
+                    max_width = max_width.max(cursor_x - top_left_x);
                     max_height_of_line = child_height;
 
                 } else {
                     //we already are on a new line, we just put it here
                     cursor_x += child_width;
-                    max_width = max_width.max(cursor_x);
+                    max_width = max_width.max(cursor_x - top_left_x);
                     max_height_of_line = max_height_of_line.max(child_height);
                 }
 
@@ -1011,7 +1011,7 @@ fn apply_inline_layout(node: &mut LayoutNode, top_left_x: f32, top_left_y: f32, 
             // we append the items to the current line because it fits
 
             cursor_x += child_width;
-            max_width = max_width.max(cursor_x);
+            max_width = max_width.max(cursor_x - top_left_x);
             max_height_of_line = max_height_of_line.max(child_height);
         }
 

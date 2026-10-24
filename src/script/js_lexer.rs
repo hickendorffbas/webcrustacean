@@ -276,6 +276,16 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
         else if js_iterator.peek() == Some('`') {
             tokens.push(lex_template_literal(&mut js_iterator));
         }
+        else if js_iterator.peek() == Some('.') {
+            if js_iterator.peek_second().unwrap().is_numeric() {
+                tokens.push(lex_number(&mut js_iterator));
+            } else {
+                tokens.push(JsTokenWithLocation { token: JsToken::Dot, line: js_iterator.iter.current_line,
+                                                  character: js_iterator.iter.current_char, had_newline_before: js_iterator.new_line_pending });
+                js_iterator.new_line_pending = false;
+                js_iterator.next();
+            }
+        }
         else if js_iterator.peek() == Some('/') {
             //This is either a token on its own (for division), or it is the start of a literal regex. Figuring this out actually requires
             //  parsing rather then lexing. For now we rely on heuristics as described in
@@ -427,10 +437,11 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                     '{' => { JsToken::OpenBrace }
                     '}' => { JsToken::CloseBrace }
                     ',' => { JsToken::Comma }
-                    '.' => { JsToken::Dot }
                     ':' => { JsToken::Colon }
                     ';' => { JsToken::Semicolon }
                     '%' => { JsToken::Remainder }
+                    '~' => { JsToken::BitWiseNot }
+                    '#' => { JsToken::Hash }
                     '>' => {
                         if js_iterator.has_next() {
                             match js_iterator.peek().unwrap() {
@@ -498,8 +509,6 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                             }
                         } else { JsToken::BitWiseXor }
                     },
-                    '~' => { JsToken::BitWiseNot }
-                    '#' => { JsToken::Hash }
                     '+' => {
                         if js_iterator.has_next() {
                             match js_iterator.peek().unwrap() {
@@ -591,6 +600,7 @@ fn lex_number(js_iterator: &mut JsSourceIterator) -> JsTokenWithLocation {
 
     let number_value = if number_text == "0" && js_iterator.has_next() && js_iterator.peek().unwrap() == 'x' {
         //Hexadecimal number
+
         number_text.clear();
         js_iterator.next();
 
@@ -601,10 +611,25 @@ fn lex_number(js_iterator: &mut JsSourceIterator) -> JsTokenWithLocation {
         i64::from_str_radix(number_text.as_str(), 16).unwrap() as f64
 
     } else {
+        //Normal number
+
+        let mut seen_dot = number_text == ".";
+        let mut seen_e = false;
+
         while js_iterator.has_next() {
-            if js_iterator.peek().unwrap().is_numeric() ||
-                    js_iterator.peek().unwrap() == '.' ||
-                    js_iterator.peek().unwrap() == 'e' { //the exponential notation will just be converted when converting the string to an int
+            if js_iterator.peek().unwrap().is_numeric() {
+                number_text.push(js_iterator.next());
+            } else if js_iterator.peek().unwrap() == '.' {
+                if seen_dot || seen_e {
+                    break;
+                }
+                seen_dot = true;
+                number_text.push(js_iterator.next());
+            } else if js_iterator.peek().unwrap() == 'e' {
+                if seen_e {
+                    break;
+                }
+                seen_e = true;
                 number_text.push(js_iterator.next());
             } else {
                 break;

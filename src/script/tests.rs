@@ -571,3 +571,8 @@ fn test_bitwise_not_operator() {
 fn test_quote_in_regex_does_not_start_a_string() {
     assert_js(r#"x = /"/; tester.export("//");"#, JsValue::String("//".to_owned()));
 }
+
+#[test]
+fn test_number_literal_with_leading_or_trailing_dot() {
+    assert_js(r#"tester.export(1. + .5);"#, JsValue::Number(1.5));
+}

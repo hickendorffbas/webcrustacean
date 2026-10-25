@@ -358,7 +358,7 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
             JsToken::OpenParenthesis => {
                 parser_state.next();
 
-                let arguments = parse_list_of_expressions(tokens, parser_state)?;
+                let arguments = parse_list_of_arguments(tokens, parser_state)?;
                 lhs = JsAstExpression::FunctionCall(JsAstFunctionCall { function_expression: Rc::from(lhs), arguments });
             },
 
@@ -368,7 +368,8 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                 //TODO: we should call the function with the right data, after we implemented evaluating the ${} parts in the template
                 //      for now we just pretend it has no placeholders, and pass everthing as 1 string.
                 let strings = JsAstExpression::ArrayLiteral(JsAstArrayLiteral { elements: vec![JsAstExpression::StringLiteral(template_literal.clone())] });
-                lhs = JsAstExpression::FunctionCall(JsAstFunctionCall { function_expression: Rc::from(lhs), arguments: vec![strings] });
+                let args = vec![JsAstFunctionCallArgument::Normal(strings)];
+                lhs = JsAstExpression::FunctionCall(JsAstFunctionCall { function_expression: Rc::from(lhs), arguments: args });
             },
 
             JsToken::QuestionMark => {
@@ -440,7 +441,7 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                         },
                         JsToken::OpenParenthesis => {
                             parser_state.next();
-                            let arguments = parse_list_of_expressions(tokens, parser_state)?;
+                            let arguments = parse_list_of_arguments(tokens, parser_state)?;
                             links.push(JsAstChainLink { optional, kind: JsAstChainLinkKind::Call(arguments) });
                         },
                         _ if optional => {
@@ -563,7 +564,7 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
             let arguments = match &tokens[parser_state.cursor].token {
                 JsToken::OpenParenthesis => {
                     parser_state.next();
-                    parse_list_of_expressions(tokens, parser_state)?
+                    parse_list_of_arguments(tokens, parser_state)?
                 },
                 _ => {
                     //Arguments in object construction are optional (if the constructor has no arguments)
@@ -817,7 +818,7 @@ fn parse_array_literal(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Par
 }
 
 
-fn parse_list_of_expressions(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) -> ParseResult<Vec<JsAstExpression>> {
+fn parse_list_of_arguments(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) -> ParseResult<Vec<JsAstFunctionCallArgument>> {
     let mut arguments = Vec::new();
     let mut first = true;
 
@@ -843,8 +844,23 @@ fn parse_list_of_expressions(tokens: &Vec<JsTokenWithLocation>, parser_state: &m
                 }
             },
         }
+
+
+        let has_ellipsis = match &tokens[parser_state.cursor].token {
+            JsToken::Ellipsis => {
+                parser_state.next();
+                true
+            },
+            _ => { false },
+        };
+
         let expression = pratt_parse_expression(tokens, parser_state, 0, true)?;
-        arguments.push(expression);
+
+        if has_ellipsis {
+            arguments.push(JsAstFunctionCallArgument::Spread(expression));
+        } else {
+            arguments.push(JsAstFunctionCallArgument::Normal(expression));
+        }
 
         first = false;
     }

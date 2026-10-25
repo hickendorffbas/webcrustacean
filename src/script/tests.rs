@@ -586,3 +586,8 @@ fn test_number_with_signed_exponent() {
 fn test_object_literal_with_numeric_keys() {
     assert_js(r#"var m = {3144: function(e) { return e + 1; }, 7: 2}; tester.export(m["3144"](m[7]));"#, JsValue::Number(3.0));
 }
+
+#[test]
+fn test_spread_in_call_arguments() {
+    assert_js(r#"function f(a, b, c) { return a + b * c; } var args = [2, 3]; tester.export(f(1, ...args));"#, JsValue::Number(7.0));
+}

@@ -25,6 +25,7 @@ pub enum JsToken {
     RegexLiteral(String),
     TemplateLiteral(String),
     Dot,
+    Ellipsis,
     Assign,
     Semicolon,
     OpenParenthesis,
@@ -280,10 +281,22 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
             if js_iterator.peek_second().unwrap().is_numeric() {
                 tokens.push(lex_number(&mut js_iterator));
             } else {
-                tokens.push(JsTokenWithLocation { token: JsToken::Dot, line: js_iterator.iter.current_line,
-                                                  character: js_iterator.iter.current_char, had_newline_before: js_iterator.new_line_pending });
-                js_iterator.new_line_pending = false;
+
+                let token_line_pos = js_iterator.iter.current_line;
+                let token_char_pos = js_iterator.iter.current_char;
                 js_iterator.next();
+
+                if js_iterator.peek() == Some('.') && js_iterator.peek_second() == Some('.') {
+                    js_iterator.next();
+                    js_iterator.next();
+                    tokens.push(JsTokenWithLocation { token: JsToken::Ellipsis, line: token_line_pos, character: token_char_pos,
+                                                      had_newline_before: js_iterator.new_line_pending });
+                } else {
+                    tokens.push(JsTokenWithLocation { token: JsToken::Dot, line: token_line_pos, character: token_char_pos,
+                                                      had_newline_before: js_iterator.new_line_pending });
+                }
+
+                js_iterator.new_line_pending = false;
             }
         }
         else if js_iterator.peek() == Some('/') {

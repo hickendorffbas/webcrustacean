@@ -20,7 +20,7 @@ use super::js_values::{
 pub type Script = Vec<JsAstStatement>;
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum JsAstStatement {
     Expression(JsAstExpression),
     Declaration(Vec<JsAstDeclaration>),
@@ -70,7 +70,7 @@ impl JsAstStatement {
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct JsAstFunctionDeclaration {
     pub name: String,
     pub parameters: Vec<JsAstFunctionParameter>,
@@ -87,7 +87,7 @@ impl JsAstFunctionDeclaration {
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct JsAstFunctionExpression {
     #[allow(unused)] pub name: Option<String>, //TODO: currently unused, but function expressions with a name exist
     pub parameters: Vec<JsAstFunctionParameter>,
@@ -103,7 +103,7 @@ impl JsAstFunctionExpression {
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct JsAstTryCatch {
     pub script: Rc<Script>,
     #[allow(unused)] pub target: Option<String>,
@@ -124,7 +124,7 @@ impl JsAstTryCatch {
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct JsAstConditional {
     pub condition: Rc<JsAstExpression>,
     pub script: Rc<Script>,
@@ -160,7 +160,7 @@ impl JsAstConditional {
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct JsAstWhile {
     pub condition: Rc<JsAstExpression>,
     pub script: Rc<Script>,
@@ -187,7 +187,7 @@ impl JsAstWhile {
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct JsAstFor {
     //NOTE: we expect either initial expression, or intial declarations because both are allowed in the first expression of the for()
     pub initial_expression: Option<Rc<JsAstExpression>>,
@@ -230,7 +230,7 @@ impl JsAstFor {
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct JsAstForEach {
     pub initial_expression: Option<Rc<JsAstExpression>>,
     pub initial_declarations: Option<Rc<Vec<JsAstDeclaration>>>,
@@ -281,7 +281,7 @@ impl JsAstForEach {
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct JsAstTernary {
     pub condition: Rc<JsAstExpression>,
     pub if_true: Rc<JsAstExpression>,
@@ -300,7 +300,7 @@ impl JsAstTernary {
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct JsAstBinOp {
     pub op: JsBinOp,
     pub left: Rc<JsAstExpression>,
@@ -746,7 +746,7 @@ fn access_property(object: JsValue, property: JsValue, js_interpreter: &mut JsIn
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum JsAstAssignmentPattern {
     Target(Rc<JsAstExpression>),
     Object(Vec<(String, JsAstIdentifier)>),
@@ -803,7 +803,7 @@ impl JsAstAssignmentPattern {
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct JsAstAssign {
     pub left: JsAstAssignmentPattern,
     pub right: Rc<JsAstExpression>,
@@ -832,7 +832,8 @@ impl JsAstAssign {
 }
 
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Copy, Clone, PartialEq)]
 pub enum DeclType {
     Var,
     Let,
@@ -840,7 +841,7 @@ pub enum DeclType {
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct JsAstDeclaration {
     #[allow(dead_code)] pub decl_type: DeclType, //TODO: use, and remove dead code attribute
     pub variable: Option<JsAstIdentifier>,
@@ -869,7 +870,7 @@ impl JsAstDeclaration {
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum JsBinOp {
     Plus,
     Minus,
@@ -898,7 +899,7 @@ pub enum JsBinOp {
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum JsUnOp {
     Plus,
     Minus,
@@ -911,7 +912,7 @@ pub enum JsUnOp {
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct JsAstUnOp {
     pub op: JsUnOp,
     pub operand: Rc<JsAstExpression>,
@@ -978,7 +979,7 @@ impl JsAstUnOp {
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct JsAstFunctionParameter {
     pub pattern: Rc<JsAstAssignmentPattern>,
     pub default: Option<Rc<JsAstExpression>>,
@@ -990,7 +991,8 @@ impl JsAstFunctionParameter {
 }
 
 
-#[derive(Debug, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone)]
 pub struct JsAstIdentifier {
     pub name: String,
 }
@@ -1011,7 +1013,7 @@ impl JsAstIdentifier {
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum JsAstExpression {
     BinOp(JsAstBinOp),
     UnaryOp(JsAstUnOp),
@@ -1115,10 +1117,17 @@ impl JsAstExpression {
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub enum JsAstFunctionCallArgument {
+    Normal(JsAstExpression),
+    Spread(JsAstExpression),
+}
+
+
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct JsAstFunctionCall {
     pub function_expression: Rc<JsAstExpression>,
-    pub arguments: Vec<JsAstExpression>,
+    pub arguments: Vec<JsAstFunctionCallArgument>,
 }
 impl JsAstFunctionCall {
     fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
@@ -1128,7 +1137,7 @@ impl JsAstFunctionCall {
 }
 
 
-fn call_value(function: JsValue, arguments: &Vec<JsAstExpression>, js_interpreter: &mut JsInterpreter) -> JsValue {
+fn call_value(function: JsValue, arguments: &Vec<JsAstFunctionCallArgument>, js_interpreter: &mut JsInterpreter) -> JsValue {
     match function {
         JsValue::Address(address) => {
             match js_interpreter.get_from_heap(address) {
@@ -1152,26 +1161,28 @@ fn call_value(function: JsValue, arguments: &Vec<JsAstExpression>, js_interprete
             if is_builtin {
                 match js_interpreter.get_callable_from_heap(address).builtin.as_ref().unwrap() {
                     JsBuiltinFunction::ConsoleLog => {
-                        let to_log = arguments.get(0); //TODO: handle there being to little or to many arguments
+                        let to_log = evaluate_arguments(arguments, js_interpreter);
 
-                        let to_log = to_log.unwrap().execute(js_interpreter).to_js_string();
-                        js_console::print(to_log.as_str());
+                        let string_to_log = to_log.into_iter().map(|arg| arg.to_js_string()).collect::<Vec<_>>().join(" ");
+                        js_console::print(string_to_log.as_str());
                         return JsValue::Undefined;
                     },
                     #[cfg(test)] JsBuiltinFunction::TesterExport => {
-                        let data_ast = arguments.get(0);
-                        let data = data_ast.unwrap().execute(js_interpreter); //TODO: even for tests, we probably want to handle the unwrap here
-                        js_interpreter.export_test_data(data);
+                        let mut arg_data = evaluate_arguments(arguments, js_interpreter);
+                        if arg_data.len() != 1 {
+                            js_interpreter.set_error(JsError::TypeError); //TODO: eventually we should actually throw this error
+                            js_console::log_js_error(format!("Incorrect number of arguments").as_str()); //TODO: eventually we want to trigger the logging of the error
+                                                                                                         //      from setting it (so we can also show stack etc.)
+                            return JsValue::Undefined;
+                        }
+
+                        js_interpreter.export_test_data(arg_data.remove(0));
                         return JsValue::Undefined;
                     }
                 }
 
             } else {
-                let mut argument_values = Vec::new();
-                for argument_ast in arguments {
-                    argument_values.push(argument_ast.execute(js_interpreter));
-                }
-
+                let argument_values = evaluate_arguments(arguments, js_interpreter);
                 let function = js_interpreter.get_callable_from_heap(address);
                 let script = function.script.as_ref().unwrap().clone();
                 let parameters = function.parameters.clone();
@@ -1196,7 +1207,36 @@ fn call_value(function: JsValue, arguments: &Vec<JsAstExpression>, js_interprete
 }
 
 
-#[derive(Debug)]
+fn evaluate_arguments(arguments: &Vec<JsAstFunctionCallArgument>, js_interpreter: &mut JsInterpreter) -> Vec<JsValue> {
+    let mut argument_values = Vec::new();
+
+    for argument_ast in arguments {
+        match argument_ast {
+            JsAstFunctionCallArgument::Normal(js_ast_expression) => argument_values.push(js_ast_expression.execute(js_interpreter)),
+            JsAstFunctionCallArgument::Spread(js_ast_expression) => {
+                match js_ast_expression.execute(js_interpreter) {
+                    JsValue::Address(iterable_address) => {
+                        let object = js_interpreter.get_from_heap(iterable_address);
+                        match object {
+                            JsHeapObject::Object(_) => todo!(), //TODO: this should be an error (you cant spread objects in a functioncall)
+                            JsHeapObject::Array(js_array) => {
+                                for item in &js_array.elements {
+                                    argument_values.push(item.clone());
+                                }
+                            },
+                        }
+                    },
+                    _ => todo!(), //TODO: this should be an error (at least for all non-iterables)
+                }
+            },
+        }
+    }
+
+    return argument_values;
+}
+
+
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct JsAstObjectLiteral {
     //NOTE: for now, we only support strings as member names, but we keep expressions here as key, because eventually we need to support
     //      computed property names (using square brackets)
@@ -1224,7 +1264,7 @@ impl JsAstObjectLiteral {
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct JsAstArrayLiteral {
     pub elements: Vec<JsAstExpression>,
 }
@@ -1243,7 +1283,7 @@ impl JsAstArrayLiteral {
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct JsAstRegexLiteral {
     #[allow(unused)] pub regex: String, //TODO: remove unused when implemented
 }
@@ -1255,7 +1295,7 @@ impl JsAstRegexLiteral {
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct JsAstObjectCreation {
     #[allow(unused)] pub constructor: JsAstFunctionCall, //TODO: remove unused when implemented
 }
@@ -1270,7 +1310,7 @@ impl JsAstObjectCreation {
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct JsAstTypeOf {
     pub expression: Rc<JsAstExpression>,
 }
@@ -1301,7 +1341,7 @@ impl JsAstTypeOf {
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct JsAstVoid {
     pub expression: Rc<JsAstExpression>,
 }
@@ -1313,7 +1353,7 @@ impl JsAstVoid {
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct JsAstOptionalChain {
     pub base: Rc<JsAstExpression>,
     pub links: Vec<JsAstChainLink>,
@@ -1343,21 +1383,21 @@ impl JsAstOptionalChain {
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct JsAstChainLink {
     pub optional: bool,
     pub kind: JsAstChainLinkKind,
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum JsAstChainLinkKind {
     Property(JsAstExpression),
-    Call(Vec<JsAstExpression>),
+    Call(Vec<JsAstFunctionCallArgument>),
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct JsAstDelete {
     pub expression: Rc<JsAstExpression>,
 }
@@ -1405,7 +1445,7 @@ impl JsAstDelete {
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct JsAstThrow {
     pub expression: Rc<JsAstExpression>,
 }

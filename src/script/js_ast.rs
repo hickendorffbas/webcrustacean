@@ -241,13 +241,14 @@ pub struct JsAstForEach {
 
     pub iteration_target: Rc<JsAstExpression>,
     pub script: Rc<Script>,
+    pub is_for_of: bool,
 }
 impl JsAstForEach {
     fn execute(&self, js_interpreter: &mut JsInterpreter) -> bool {
         let iteration_reference = if self.initial_expression.is_some() {
             self.initial_expression.as_ref().unwrap().execute_for_reference(js_interpreter).unwrap()
         } else {
-            // In a for ... in ....  we can only have a single declaration:
+            // In a for ... (in/of) ....  we can only have a single declaration:
             let declaration = self.initial_declarations.as_ref().unwrap().first().unwrap();
             declaration.execute_for_reference()
         };
@@ -258,6 +259,13 @@ impl JsAstForEach {
             JsValue::Address(address) => {
                 match js_interpreter.get_from_heap(*address) {
                     JsHeapObject::Object(js_object) => {
+                        if self.is_for_of {
+                            js_interpreter.set_error(JsError::TypeError); //TODO: eventually we should actually throw this error
+                            js_console::log_js_error(format!("Object is not iterable").as_str()); //TODO: eventually we want to trigger the logging of the error
+                                                                                                  //      from setting it (so we can also show stack etc.)
+                            return false;
+                        }
+
                         let keys = js_object.members.keys().cloned().collect::<Vec<_>>();
 
                         for key in keys {
@@ -270,8 +278,31 @@ impl JsAstForEach {
                             }
                         }
                     },
-                    JsHeapObject::Array(_) => {
-                        todo!(); //TODO: this should be an error (foreach is not supported on arrays)
+                    JsHeapObject::Array(array) => {
+                        if self.is_for_of {
+
+                            for element in array.elements.clone() {
+                                js_interpreter.set_reference(iteration_reference.clone(), element);
+                                for statement in self.script.iter() {
+                                    let keep_going = statement.execute(js_interpreter);
+                                    if !keep_going {
+                                        return false;
+                                    }
+                                }
+                            }
+                        } else {
+                            let length = array.elements.len();
+
+                            for index in 0..length {
+                                js_interpreter.set_reference(iteration_reference.clone(), JsValue::String(index.to_string()));
+                                for statement in self.script.iter() {
+                                    let keep_going = statement.execute(js_interpreter);
+                                    if !keep_going {
+                                        return false;
+                                    }
+                                }
+                            }
+                        }
                     },
                 };
             },

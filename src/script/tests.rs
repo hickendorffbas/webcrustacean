@@ -606,3 +606,8 @@ fn test_nullish_coalescing() {
 fn test_for_loop_with_empty_init_and_step() {
     assert_js(r#"var n = 0; for (; n < 3;) { n = n + 1; } tester.export(n);"#, JsValue::Number(3.0));
 }
+
+#[test]
+fn test_for_of_loop_over_array() {
+    assert_js(r#"var s = 0; for (let x of [1, 2, 3]) { s = s * 10 + x; } tester.export(s);"#, JsValue::Number(123.0));
+}

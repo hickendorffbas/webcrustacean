@@ -1187,11 +1187,13 @@ fn parse_for_loop(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserSt
 
     parser_state.in_is_allowed = true;
 
+    let is_for_of = matches!(&tokens[parser_state.cursor].token, JsToken::Identifier(ident) if ident == "of");
+
     match &tokens[parser_state.cursor].token {
         JsToken::Semicolon => {
             parser_state.next();
         },
-        JsToken::KeyWordIn => {
+        token if *token == JsToken::KeyWordIn || is_for_of => {
             parser_state.next();
 
             let iteration_target = Rc::from(pratt_parse_expression(tokens, parser_state, 0, false)?);
@@ -1199,7 +1201,7 @@ fn parse_for_loop(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserSt
             expect(tokens, parser_state, JsToken::OpenBrace)?;
             let script = Rc::from(parse_script(tokens, parser_state)?);
 
-            return ParseResult::Ok(JsAstStatement::ForEach(JsAstForEach { initial_expression, initial_declarations, iteration_target, script }));
+            return ParseResult::Ok(JsAstStatement::ForEach(JsAstForEach { initial_expression, initial_declarations, iteration_target, script, is_for_of }));
         },
         _ => {
             todo!(); //TODO: this should be an error

@@ -90,6 +90,7 @@ pub struct JsFunction {
 pub struct JsFunctionParameter {
     pub pattern: Rc<JsAstAssignmentPattern>,
     pub default: Option<Rc<JsAstExpression>>,
+    pub rest: bool,
 }
 
 

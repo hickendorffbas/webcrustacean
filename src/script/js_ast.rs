@@ -983,10 +983,11 @@ impl JsAstUnOp {
 pub struct JsAstFunctionParameter {
     pub pattern: Rc<JsAstAssignmentPattern>,
     pub default: Option<Rc<JsAstExpression>>,
+    pub rest: bool,
 }
 impl JsAstFunctionParameter {
     fn execute(&self) -> JsFunctionParameter {
-        return JsFunctionParameter { pattern: self.pattern.clone(), default: self.default.clone() };
+        return JsFunctionParameter { pattern: self.pattern.clone(), default: self.default.clone(), rest: self.rest };
     }
 }
 

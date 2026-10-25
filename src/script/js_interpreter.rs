@@ -102,6 +102,15 @@ impl JsInterpreter {
     pub fn call_function(&mut self, script: &Script, parameters: &Vec<JsFunctionParameter>, mut arguments: Vec<JsValue>) -> bool {
         self.start_new_context();
 
+        if parameters.len() > 0 && parameters.last().unwrap().rest {
+            let normal_parameter_count = parameters.len() - 1;
+            let rest_values = if arguments.len() > normal_parameter_count { arguments.split_off(normal_parameter_count) } else { Vec::new() };
+            arguments.resize(normal_parameter_count, JsValue::Undefined);
+
+            let rest_array_address = self.add_new_heap_item(JsHeapObject::Array(super::js_values::JsArray { elements: rest_values }));
+            arguments.push(JsValue::Address(rest_array_address));
+        }
+
         arguments.resize(parameters.len(), JsValue::Undefined);
         for (parameter, argument) in parameters.iter().zip(arguments) {
             let value = match (&argument, &parameter.default) {

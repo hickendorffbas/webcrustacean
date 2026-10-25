@@ -591,3 +591,8 @@ fn test_object_literal_with_numeric_keys() {
 fn test_spread_in_call_arguments() {
     assert_js(r#"function f(a, b, c) { return a + b * c; } var args = [2, 3]; tester.export(f(1, ...args));"#, JsValue::Number(7.0));
 }
+
+#[test]
+fn test_rest_parameter() {
+    assert_js(r#"function f(a, ...t) { return a + t[0] * t[1]; } tester.export(f(1, 2, 3));"#, JsValue::Number(7.0));
+}

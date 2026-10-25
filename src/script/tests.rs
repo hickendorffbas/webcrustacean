@@ -611,3 +611,13 @@ fn test_for_loop_with_empty_init_and_step() {
 fn test_for_of_loop_over_array() {
     assert_js(r#"var s = 0; for (let x of [1, 2, 3]) { s = s * 10 + x; } tester.export(s);"#, JsValue::Number(123.0));
 }
+
+#[test]
+fn test_object_spread_in_literal() {
+    assert_js(r#"var o = {a: 1, ...{b: 2, c: 3}, c: 4}; tester.export(o.a + o.b * 10 + o.c * 100);"#, JsValue::Number(421.0));
+}
+
+#[test]
+fn test_object_rest_in_destructuring() {
+    assert_js(r#"var {a: x, ...r} = {a: 1, b: 2, c: 3}; tester.export(x + r.b * 10 + r.c * 100 + ("a" in r ? 1000 : 0));"#, JsValue::Number(321.0));
+}

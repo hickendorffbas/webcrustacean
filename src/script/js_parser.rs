@@ -638,18 +638,26 @@ fn convert_left_side_of_assign(current_left_size: JsAstExpression) -> JsAstAssig
         }
         JsAstExpression::ObjectLiteral(literal) => {
             let mut properties = Vec::new();
+            let mut rest = None;
 
-            for (source, target) in literal.members {
-                match (source, target) {
-                    (JsAstExpression::StringLiteral(property_name), JsAstExpression::Identifier(target)) => {
+            for member in literal.members {
+                if rest.is_some() {
+                    todo!(); //TODO: some kind of error (the rest element has to be the last one)
+                }
+
+                match member {
+                    JsAstObjectLiteralMember::Property(JsAstExpression::StringLiteral(property_name), JsAstExpression::Identifier(target)) => {
                         properties.push((property_name, target));
+                    },
+                    JsAstObjectLiteralMember::Spread(JsAstExpression::Identifier(target)) => {
+                        rest = Some(target);
                     },
                     _ => {
                         todo!(); //TODO: some kind of error
                     }
                 }
             }
-            JsAstAssignmentPattern::Object(properties)
+            JsAstAssignmentPattern::Object { properties, rest }
         },
         _ => {
             JsAstAssignmentPattern::Target(Rc::from(current_left_size))
@@ -745,6 +753,13 @@ fn parse_object_literal(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Pa
                 parser_state.next();
                 break;
             },
+            JsToken::Ellipsis => {
+                parser_state.next();
+                let expression = pratt_parse_expression(tokens, parser_state, 0, true)?;
+                members.push(JsAstObjectLiteralMember::Spread(expression));
+                first = false;
+                continue;
+            },
             _ => {
                 todo!(); //TODO: are there any valid cases for this?
             },
@@ -756,7 +771,7 @@ fn parse_object_literal(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Pa
             },
             JsToken::OpenParenthesis => {
                 let method_ast = parse_method_shorthand(tokens, parser_state)?;
-                members.push((current_property_expression, JsAstExpression::FunctionExpression(method_ast)));
+                members.push(JsAstObjectLiteralMember::Property(current_property_expression, JsAstExpression::FunctionExpression(method_ast)));
                 first = false;
                 continue;
             },
@@ -766,7 +781,7 @@ fn parse_object_literal(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Pa
         }
 
         let expression = pratt_parse_expression(tokens, parser_state, 0, true)?;
-        members.push((current_property_expression, expression));
+        members.push(JsAstObjectLiteralMember::Property(current_property_expression, expression));
 
         first = false;
     }

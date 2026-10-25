@@ -792,7 +792,7 @@ fn access_property(object: JsValue, property: JsValue, js_interpreter: &mut JsIn
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub enum JsAstAssignmentPattern {
     Target(Rc<JsAstExpression>),
-    Object(Vec<(String, JsAstIdentifier)>),
+    Object { properties: Vec<(String, JsAstIdentifier)>, rest: Option<JsAstIdentifier> },
     Array(Vec<JsAstIdentifier>),
 }
 impl JsAstAssignmentPattern {
@@ -809,7 +809,7 @@ impl JsAstAssignmentPattern {
                 };
                 js_interpreter.set_reference(assignment_reference, value_to_assign);
             },
-            JsAstAssignmentPattern::Object(properties) => {
+            JsAstAssignmentPattern::Object { properties, rest } => {
                 let js_object = match value_to_assign {
                     JsValue::Address(address) => {
                         match js_interpreter.get_from_heap(address).clone() {
@@ -823,6 +823,16 @@ impl JsAstAssignmentPattern {
                 for (property_name, target) in properties {
                     let element = js_object.members[property_name].clone();
                     js_interpreter.set_reference(JsReference::Variable(target.name.clone()), element);
+                }
+
+                if let Some(rest_target) = rest {
+                    let rest_members = js_object.members.iter()
+                        .filter(|(name, _)| !properties.iter().any(|(property_name, _)| property_name == *name))
+                        .map(|(name, value)| (name.clone(), value.clone()))
+                        .collect();
+
+                    let address = js_interpreter.add_new_heap_item(JsHeapObject::Object(JsObject { members: rest_members, callable: None }));
+                    js_interpreter.set_reference(JsReference::Variable(rest_target.name.clone()), JsValue::Address(address));
                 }
             },
             JsAstAssignmentPattern::Array(targets) => {
@@ -866,7 +876,7 @@ impl JsAstAssign {
                 let value = self.right.execute(js_interpreter);
                 js_interpreter.set_reference(assignment_reference, value);
             },
-            JsAstAssignmentPattern::Object(_) | JsAstAssignmentPattern::Array(_) => {
+            JsAstAssignmentPattern::Object { .. } | JsAstAssignmentPattern::Array(_) => {
                 let value = self.right.execute(js_interpreter);
                 self.left.execute(value, js_interpreter);
             },
@@ -1282,24 +1292,51 @@ fn evaluate_arguments(arguments: &Vec<JsAstFunctionCallArgument>, js_interpreter
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]
+pub enum JsAstObjectLiteralMember {
+    Property(JsAstExpression, JsAstExpression),
+    Spread(JsAstExpression),
+}
+
+
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct JsAstObjectLiteral {
-    //NOTE: for now, we only support strings as member names, but we keep expressions here as key, because eventually we need to support
-    //      computed property names (using square brackets)
-    pub members: Vec<(JsAstExpression, JsAstExpression)>,
+    pub members: Vec<JsAstObjectLiteralMember>,
 }
 impl JsAstObjectLiteral {
     fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
         let mut members = HashMap::new();
 
-        for (key_ast, value_ast) in self.members.iter() {
-
-            match key_ast.execute(js_interpreter) {
-                val @ (JsValue::String(_) | JsValue::Number(_)) => {
-                    members.insert(val.to_js_string(), value_ast.execute(js_interpreter));
+        for member in self.members.iter() {
+            match member {
+                JsAstObjectLiteralMember::Property(key_ast, value_ast) => {
+                    match key_ast.execute(js_interpreter) {
+                        val @ (JsValue::String(_) | JsValue::Number(_)) => {
+                            members.insert(val.to_js_string(), value_ast.execute(js_interpreter));
+                        },
+                        _ => {
+                            todo!(); //TODO: this should be an error
+                        }
+                    }
                 },
-                _ => {
-                    todo!(); //TODO: this should be an error
-                }
+                JsAstObjectLiteralMember::Spread(source_ast) => {
+                    match source_ast.execute(js_interpreter) {
+                        JsValue::Address(address) => {
+                            match js_interpreter.get_from_heap(address) {
+                                JsHeapObject::Object(source) => {
+                                    for (name, value) in source.members.iter() {
+                                        members.insert(name.clone(), value.clone());
+                                    }
+                                },
+                                JsHeapObject::Array(source) => {
+                                    for (index, value) in source.elements.iter().enumerate() {
+                                        members.insert(index.to_string(), value.clone());
+                                    }
+                                },
+                            }
+                        },
+                        _ => {},
+                    }
+                },
             }
         }
 

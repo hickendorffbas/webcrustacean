@@ -694,6 +694,14 @@ impl JsAstBinOp {
                     _ => { todo!() }
                 }
             },
+            JsBinOp::NullishCoalescing => {
+                match left_val {
+                    JsValue::Undefined => { //TODO: check for null here as well, once we have null implemented
+                        return self.right.execute(js_interpreter);
+                    },
+                    _ => { return left_val; }
+                }
+            }
         }
     }
 }
@@ -896,6 +904,7 @@ pub enum JsBinOp {
     Remainder,
     BiggerOrEqual,
     SmallerOrEqual,
+    NullishCoalescing,
 }
 
 

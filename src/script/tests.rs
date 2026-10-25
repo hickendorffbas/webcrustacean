@@ -596,3 +596,8 @@ fn test_spread_in_call_arguments() {
 fn test_rest_parameter() {
     assert_js(r#"function f(a, ...t) { return a + t[0] * t[1]; } tester.export(f(1, 2, 3));"#, JsValue::Number(7.0));
 }
+
+#[test]
+fn test_nullish_coalescing() {
+    assert_js(r#"var a; tester.export((a ?? 1) + (2 ?? 5) * 10);"#, JsValue::Number(21.0));
+}

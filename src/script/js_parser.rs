@@ -314,7 +314,7 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
             binop @ (JsToken::Plus | JsToken::Minus | JsToken::Star | JsToken::ForwardSlash | JsToken::LeftShift | JsToken::RightShift | JsToken::BitWiseXor |
                      JsToken::Equals | JsToken::EqualsStrict | JsToken::LogicalAnd | JsToken::LogicalOr | JsToken::BitWiseOr | JsToken::BitWiseAnd | JsToken::Comma |
                      JsToken::Bigger | JsToken::Smaller | JsToken::KeyWordIn | JsToken::Remainder | JsToken::BiggerOrEqual | JsToken::SmallerOrEqual |
-                     JsToken::UnsignedRightShift | JsToken::NotEquals | JsToken::NotEqualsStrict) => {
+                     JsToken::UnsignedRightShift | JsToken::NotEquals | JsToken::NotEqualsStrict | JsToken::NullishCoalescing) => {
 
                 if matches!(binop, JsToken::KeyWordIn) && !parser_state.in_is_allowed {
                     //There is situations where "in" is not allowed, for example on the left size of for(.... in ....)
@@ -349,6 +349,7 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                     JsToken::KeyWordIn          => JsBinOp::In,
                     JsToken::Remainder          => JsBinOp::Remainder,
                     JsToken::UnsignedRightShift => JsBinOp::UnsignedRightShift,
+                    JsToken::NullishCoalescing  => JsBinOp::NullishCoalescing,
                     _ => panic!("This should never happen"),
                 };
 
@@ -897,6 +898,7 @@ fn infix_binding_power(token: &JsToken) -> Option<(u8, u8)> {
         JsToken::CompoundAssignBitWiseAnd => (2, 1),
         JsToken::QuestionMark => (3, 2),
         JsToken::LogicalOr => (4, 5),
+        JsToken::NullishCoalescing => (4, 5),
         JsToken::LogicalAnd => (6, 7),
         JsToken::BitWiseOr => (8, 9),
         JsToken::BitWiseXor => (10, 11),

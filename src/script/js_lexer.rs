@@ -42,6 +42,7 @@ pub enum JsToken {
     ExclamationMark,
     Colon,
     QuestionMark,
+    NullishCoalescing,
     BitWiseOr,
     BitWiseXor,
     BitWiseAnd,
@@ -510,6 +511,7 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
                                         JsToken::OptionalChainer
                                     } else { JsToken::QuestionMark }
                                 },
+                                '?' => { js_iterator.next(); JsToken::NullishCoalescing },
                                 _ => { JsToken::QuestionMark }
                             }
                         } else { JsToken::QuestionMark }

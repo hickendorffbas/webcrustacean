@@ -601,3 +601,8 @@ fn test_rest_parameter() {
 fn test_nullish_coalescing() {
     assert_js(r#"var a; tester.export((a ?? 1) + (2 ?? 5) * 10);"#, JsValue::Number(21.0));
 }
+
+#[test]
+fn test_for_loop_with_empty_init_and_step() {
+    assert_js(r#"var n = 0; for (; n < 3;) { n = n + 1; } tester.export(n);"#, JsValue::Number(3.0));
+}

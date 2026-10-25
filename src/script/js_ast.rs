@@ -193,8 +193,8 @@ pub struct JsAstFor {
     pub initial_expression: Option<Rc<JsAstExpression>>,
     pub initial_declarations: Option<Rc<Vec<JsAstDeclaration>>>,
 
-    pub loop_condition: Rc<JsAstExpression>,
-    pub next_step_expression: Rc<JsAstExpression>,
+    pub loop_condition: Option<Rc<JsAstExpression>>,
+    pub next_step_expression: Option<Rc<JsAstExpression>>,
     pub script: Rc<Script>,
 }
 impl JsAstFor {
@@ -210,9 +210,11 @@ impl JsAstFor {
         }
 
         loop {
-            let condition_value = self.loop_condition.execute(js_interpreter);
-            if !condition_value.is_thruty() {
-                break;
+            if self.loop_condition.is_some() {
+                let condition_value = self.loop_condition.as_ref().unwrap().execute(js_interpreter);
+                if !condition_value.is_thruty() {
+                    break;
+                }
             }
 
             for statement in self.script.iter() {
@@ -222,7 +224,9 @@ impl JsAstFor {
                 }
             }
 
-            self.next_step_expression.execute(js_interpreter);
+            if self.next_step_expression.is_some() {
+                self.next_step_expression.as_ref().unwrap().execute(js_interpreter);
+            }
         }
 
         return true;

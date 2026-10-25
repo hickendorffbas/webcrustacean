@@ -1176,7 +1176,9 @@ fn parse_for_loop(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserSt
             let initial_declarations = Rc::from(parse_declaration(tokens, parser_state, decl_type)?);
             (Some(initial_declarations), None)
         },
-
+        JsToken::Semicolon => {
+            (None, None)
+        },
         _ => {
             let initial_expression = Rc::from(pratt_parse_expression(tokens, parser_state, 0, false)?);
             (None, Some(initial_expression))
@@ -1206,10 +1208,26 @@ fn parse_for_loop(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserSt
 
     parser_state.in_is_allowed = true;
 
-    let loop_condition = Rc::from(pratt_parse_expression(tokens, parser_state, 0, false)?);
+    let loop_condition_present = match tokens[parser_state.cursor].token {
+        JsToken::Semicolon => false,
+        _ => true,
+    };
+    let loop_condition = if loop_condition_present {
+        Some(Rc::from(pratt_parse_expression(tokens, parser_state, 0, false)?))
+    } else {
+        None
+    };
     expect(tokens, parser_state, JsToken::Semicolon)?;
 
-    let next_step_expression = Rc::from(pratt_parse_expression(tokens, parser_state, 0, false)?);
+    let next_step_expression_present = match tokens[parser_state.cursor].token {
+        JsToken::CloseParenthesis => false,
+        _ => true,
+    };
+    let next_step_expression = if next_step_expression_present {
+        Some(Rc::from(pratt_parse_expression(tokens, parser_state, 0, false)?))
+    } else {
+        None
+    };
     expect(tokens, parser_state, JsToken::CloseParenthesis)?;
     expect(tokens, parser_state, JsToken::OpenBrace)?;
 

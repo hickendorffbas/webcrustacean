@@ -132,7 +132,7 @@ impl Platform {
     pub fn render_image(&mut self, image: &RgbaImage, x: f32, y: f32) {
         let texture_creator = self.canvas.texture_creator(); //TODO: reuse the texture creator for the canvas by storing it on the context?
 
-        let raw_pixels = image.clone().into_raw();
+        let raw_pixels = image.as_raw();
         let mut texture = texture_creator.create_texture_streaming(PixelFormatEnum::ABGR8888, image.width(), image.height()).unwrap();
 
         texture.update(None, &raw_pixels, (image.width() * 4) as usize).unwrap();

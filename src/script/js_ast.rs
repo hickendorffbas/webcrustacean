@@ -949,7 +949,7 @@ impl JsAstUnOp {
                 let operand_reference = self.operand.execute_for_reference(js_interpreter);
                 match operand_reference {
                     Some(reference) => {
-                        let target = js_interpreter.get_by_reference(reference);
+                        let target = js_interpreter.get_by_reference(&reference);
                         match target {
                             Some(value) => {
                                 match value {
@@ -999,7 +999,7 @@ pub struct JsAstIdentifier {
 impl JsAstIdentifier {
     fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
 
-        match js_interpreter.get_by_reference(JsReference::Variable(self.name.clone())) {
+        match js_interpreter.get_by_reference(&JsReference::Variable(self.name.clone())) {
             Some(value) => return value.clone(),
             None => {
                 js_interpreter.set_error(JsError::ReferenceError);

@@ -234,22 +234,21 @@ pub fn resolve_full_styles_for_dom_node(dom_node: &Rc<RefCell<ElementDomNode>>, 
 
     if dom_node.borrow().parent_id != 0 {
         let parent_node = all_dom_nodes.get(&dom_node.borrow().parent_id).expect(format!("id {} not present in all nodes", dom_node.borrow().parent_id).as_str());
-        let parent_styles = parent_node.borrow().styles.clone();
 
-        for (parent_style_property, parent_style_value) in parent_styles {
+        for (parent_style_property, parent_style_value) in &parent_node.borrow().styles {
 
             //Some styles should not be inherited:  //TODO: this list is not complete yet
             //TODO: maybe we should list the ones that _are_ inherited, or make a method on the CssProperty
-            if parent_style_property == CssProperty::Display ||
-               parent_style_property == CssProperty::BackgroundColor ||
-               parent_style_property == CssProperty::Flex ||
-               parent_style_property == CssProperty::FlexDirection ||
-               parent_style_property == CssProperty::TextDecoration {
+            if parent_style_property == &CssProperty::Display ||
+               parent_style_property == &CssProperty::BackgroundColor ||
+               parent_style_property == &CssProperty::Flex ||
+               parent_style_property == &CssProperty::FlexDirection ||
+               parent_style_property == &CssProperty::TextDecoration {
                     continue;
             }
 
             if !resolved_styles.contains_key(&parent_style_property) {
-                resolved_styles.insert(parent_style_property.clone(), parent_style_value);
+                resolved_styles.insert(parent_style_property.clone(), parent_style_value.clone());
             }
         }
     }

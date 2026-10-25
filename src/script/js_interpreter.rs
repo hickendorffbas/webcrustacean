@@ -185,11 +185,11 @@ impl JsInterpreter {
         return new_address;
     }
 
-    pub fn get_by_reference(&mut self, reference: JsReference) -> Option<&mut JsValue> {
+    pub fn get_by_reference(&mut self, reference: &JsReference) -> Option<&mut JsValue> {
         match reference {
             JsReference::Variable(variable_name) => {
                 for context in self.context_stack.iter_mut().rev() {
-                    let value = context.get_mut(&variable_name);
+                    let value = context.get_mut(variable_name);
                     if value.is_some() {
                         return value;
                     }
@@ -197,9 +197,9 @@ impl JsInterpreter {
                 return None;
             },
             JsReference::Property { object_address, member } => {
-                match self.get_from_heap_mut(object_address) {
+                match self.get_from_heap_mut(*object_address) {
                     JsHeapObject::Object(js_object) => {
-                        return js_object.members.get_mut(&member);
+                        return js_object.members.get_mut(member);
                     },
                     JsHeapObject::Array(_) => {
                         panic!("Not allowed"); //TODO: this might be allowed actually
@@ -207,12 +207,12 @@ impl JsInterpreter {
                 }
             },
             JsReference::Index { object_address, index } => {
-                match self.get_from_heap_mut(object_address) {
+                match self.get_from_heap_mut(*object_address) {
                     JsHeapObject::Object(_) => {
                         panic!("Not allowed"); //TODO: this might be allowed actually
                     },
                     JsHeapObject::Array(js_array) => {
-                        return js_array.elements.get_mut(index);
+                        return js_array.elements.get_mut(*index);
                     },
                 }
             },

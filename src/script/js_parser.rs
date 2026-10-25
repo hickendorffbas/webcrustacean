@@ -266,15 +266,23 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
 
             JsToken::Dot => {
                 parser_state.next();
-                match &tokens[parser_state.cursor].token {
-                    JsToken::Identifier(ident) => {
-                        parser_state.next();
-                        lhs = JsAstExpression::BinOp(JsAstBinOp { op: JsBinOp::PropertyAccess, left: Rc::from(lhs),
-                                                                  right: Rc::from(JsAstExpression::Identifier(JsAstIdentifier { name: ident.clone() })),
-                                                                  is_dot_property_access: true });
-                    },
-                    _ => {
-                        return ParseResult::Err(ParseError::error_for_token(ParseErrorType::IdentierExpected, tokens, parser_state));
+
+                if let Some(keyword) = keyword_token_as_property_name(&tokens[parser_state.cursor].token) {
+                    parser_state.next();
+                    lhs = JsAstExpression::BinOp(JsAstBinOp { op: JsBinOp::PropertyAccess, left: Rc::from(lhs),
+                                                            right: Rc::from(JsAstExpression::Identifier(JsAstIdentifier { name: keyword })),
+                                                            is_dot_property_access: true });
+                } else {
+                    match &tokens[parser_state.cursor].token {
+                        JsToken::Identifier(ident) => {
+                            parser_state.next();
+                            lhs = JsAstExpression::BinOp(JsAstBinOp { op: JsBinOp::PropertyAccess, left: Rc::from(lhs),
+                                                                    right: Rc::from(JsAstExpression::Identifier(JsAstIdentifier { name: ident.clone() })),
+                                                                    is_dot_property_access: true });
+                        },
+                        _ => {
+                            return ParseResult::Err(ParseError::error_for_token(ParseErrorType::IdentierExpected, tokens, parser_state));
+                        }
                     }
                 }
             },
@@ -415,18 +423,30 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
                         if parser_state.has_ended() {
                             return ParseResult::Err(ParseError::error_for_token(ParseErrorType::EOF, tokens, parser_state));
                         }
+
+                        if let Some(keyword) = keyword_token_as_property_name(&tokens[parser_state.cursor].token) {
+                            parser_state.next();
+                            links.push(JsAstChainLink { optional: true, kind: JsAstChainLinkKind::Property(JsAstExpression::StringLiteral(keyword)) });
+                            continue;
+                        }
                     }
 
                     match &tokens[parser_state.cursor].token {
                         JsToken::Dot if !optional => {
                             parser_state.next();
-                            match &tokens[parser_state.cursor].token {
-                                JsToken::Identifier(ident) => {
-                                    parser_state.next();
-                                    links.push(JsAstChainLink { optional: false, kind: JsAstChainLinkKind::Property(JsAstExpression::StringLiteral(ident.clone())) });
-                                },
-                                _ => {
-                                    return ParseResult::Err(ParseError::error_for_token(ParseErrorType::IdentierExpected, tokens, parser_state));
+
+                            if let Some(keyword) = keyword_token_as_property_name(&tokens[parser_state.cursor].token) {
+                                parser_state.next();
+                                links.push(JsAstChainLink { optional: false, kind: JsAstChainLinkKind::Property(JsAstExpression::StringLiteral(keyword)) });
+                            } else {
+                                match &tokens[parser_state.cursor].token {
+                                    JsToken::Identifier(ident) => {
+                                        parser_state.next();
+                                        links.push(JsAstChainLink { optional: false, kind: JsAstChainLinkKind::Property(JsAstExpression::StringLiteral(ident.clone())) });
+                                    },
+                                    _ => {
+                                        return ParseResult::Err(ParseError::error_for_token(ParseErrorType::IdentierExpected, tokens, parser_state));
+                                    }
                                 }
                             }
                         },
@@ -505,7 +525,7 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
             parser_state.next();
             return ParseResult::Ok(JsAstExpression::BooleanLiteral(*boolean_value));
         },
-        JsToken::LiteralUndefined => {
+        JsToken::KeyWordUndefined => {
             parser_state.next();
             return ParseResult::Ok(JsAstExpression::UndefinedLiteral());
         }
@@ -709,6 +729,35 @@ fn convert_left_side_of_arrow(tokens: &Vec<JsTokenWithLocation>, parser_state: &
 }
 
 
+fn keyword_token_as_property_name(token: &JsToken) -> Option<String> {
+    //keywords are valid property names in js objects, so we have this method to convert them
+
+    let name = match token {
+        JsToken::KeyWordVar => "var",
+        JsToken::KeyWordLet => "let",
+        JsToken::KeyWordConst => "const",
+        JsToken::KeyWordFunction => "function",
+        JsToken::KeyWordReturn => "return",
+        JsToken::KeyWordIf => "if",
+        JsToken::KeyWordElse => "else",
+        JsToken::KeyWordNew => "new",
+        JsToken::KeyWordWhile => "while",
+        JsToken::KeyWordFor => "for",
+        JsToken::KeyWordTypeOf => "typeof",
+        JsToken::KeyWordIn => "in",
+        JsToken::KeyWordTry => "try",
+        JsToken::KeyWordCatch => "catch",
+        JsToken::KeyWordFinally => "finally",
+        JsToken::KeyWordThrow => "throw",
+        JsToken::KeyWordDelete => "delete",
+        JsToken::KeyWordVoid => "void",
+        JsToken::KeyWordUndefined => "undefined",
+        _ => return None,
+    };
+    return Some(name.to_string());
+}
+
+
 fn parse_object_literal(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserState) -> ParseResult<JsAstExpression> {
     expect(tokens, parser_state, JsToken::OpenBrace)?;
 
@@ -736,33 +785,38 @@ fn parse_object_literal(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Pa
             },
         }
 
-        match &tokens[parser_state.cursor].token {
-            JsToken::Identifier(property_name) => {
-                parser_state.next();
-                current_property_expression = JsAstExpression::StringLiteral(property_name.clone());
-            },
-            JsToken::LiteralString(property_name) => {
-                parser_state.next();
-                current_property_expression = JsAstExpression::StringLiteral(property_name.clone());
-            },
-            JsToken::Number(number) => {
-                parser_state.next();
-                current_property_expression = JsAstExpression::NumericLiteral(*number);
-            },
-            JsToken::CloseBrace => { //This is possible due to allowing trailing comma's
-                parser_state.next();
-                break;
-            },
-            JsToken::Ellipsis => {
-                parser_state.next();
-                let expression = pratt_parse_expression(tokens, parser_state, 0, true)?;
-                members.push(JsAstObjectLiteralMember::Spread(expression));
-                first = false;
-                continue;
-            },
-            _ => {
-                todo!(); //TODO: are there any valid cases for this?
-            },
+        if let Some(keyword_name) = keyword_token_as_property_name(&tokens[parser_state.cursor].token) {
+            parser_state.next();
+            current_property_expression = JsAstExpression::StringLiteral(keyword_name);
+        } else {
+            match &tokens[parser_state.cursor].token {
+                JsToken::Identifier(property_name) => {
+                    parser_state.next();
+                    current_property_expression = JsAstExpression::StringLiteral(property_name.clone());
+                },
+                JsToken::LiteralString(property_name) => {
+                    parser_state.next();
+                    current_property_expression = JsAstExpression::StringLiteral(property_name.clone());
+                },
+                JsToken::Number(number) => {
+                    parser_state.next();
+                    current_property_expression = JsAstExpression::NumericLiteral(*number);
+                },
+                JsToken::CloseBrace => { //This is possible due to allowing trailing comma's
+                    parser_state.next();
+                    break;
+                },
+                JsToken::Ellipsis => {
+                    parser_state.next();
+                    let expression = pratt_parse_expression(tokens, parser_state, 0, true)?;
+                    members.push(JsAstObjectLiteralMember::Spread(expression));
+                    first = false;
+                    continue;
+                },
+                _ => {
+                    todo!(); //TODO: are there any valid cases for this?
+                },
+            }
         }
 
         match &tokens[parser_state.cursor].token {

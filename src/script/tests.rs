@@ -621,3 +621,13 @@ fn test_object_spread_in_literal() {
 fn test_object_rest_in_destructuring() {
     assert_js(r#"var {a: x, ...r} = {a: 1, b: 2, c: 3}; tester.export(x + r.b * 10 + r.c * 100 + ("a" in r ? 1000 : 0));"#, JsValue::Number(321.0));
 }
+
+#[test]
+fn test_reserved_word_as_object_literal_key() {
+    assert_js(r#"var o = {insert: 45, delete: 46}; tester.export(o["delete"]);"#, JsValue::Number(46.0));
+}
+
+#[test]
+fn test_reserved_word_in_dot_property_access() {
+    assert_js(r#"var o = {}; o["delete"] = 46; tester.export(o.delete);"#, JsValue::Number(46.0));
+}

@@ -20,7 +20,6 @@ pub enum JsToken {
     Number(f64),
     LiteralString(String),
     LiteralBoolean(bool),
-    LiteralUndefined,
     Identifier(String),
     RegexLiteral(String),
     TemplateLiteral(String),
@@ -78,6 +77,7 @@ pub enum JsToken {
     CompoundAssignBitWiseAnd,
 
     //all keywords:
+    KeyWordUndefined,
     KeyWordVar,
     KeyWordLet,
     KeyWordConst,
@@ -206,7 +206,7 @@ impl <'document> JsSourceIterator<'document> {
 //TODO: this is a heuristic, it is wrong for the ")" of if/while/for and the "}" of a block, which should allow a regex after them
 fn token_can_end_expression(token: &JsToken) -> bool {
     return matches!(token,
-        JsToken::Number(_) | JsToken::LiteralString(_) | JsToken::LiteralBoolean(_) | JsToken::LiteralUndefined |
+        JsToken::Number(_) | JsToken::LiteralString(_) | JsToken::LiteralBoolean(_) | JsToken::KeyWordUndefined |
         JsToken::Identifier(_) | JsToken::RegexLiteral(_) |
         JsToken::CloseParenthesis | JsToken::CloseBracket | JsToken::CloseBrace |
         JsToken::Increment | JsToken::Decrement
@@ -416,7 +416,7 @@ pub fn lex_js(document: &str, starting_line: u32, starting_char_idx: u32) -> Vec
             } else if identifier == "in" {
                 tokens.push(JsTokenWithLocation { token: JsToken::KeyWordIn, line, character, had_newline_before: js_iterator.new_line_pending });
             } else if identifier == "undefined" {
-                tokens.push(JsTokenWithLocation { token: JsToken::LiteralUndefined, line, character, had_newline_before: js_iterator.new_line_pending });
+                tokens.push(JsTokenWithLocation { token: JsToken::KeyWordUndefined, line, character, had_newline_before: js_iterator.new_line_pending });
             } else if identifier == "try" {
                 tokens.push(JsTokenWithLocation { token: JsToken::KeyWordTry, line, character, had_newline_before: js_iterator.new_line_pending });
             } else if identifier == "catch" {

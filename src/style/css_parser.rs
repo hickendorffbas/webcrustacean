@@ -344,25 +344,16 @@ fn parse_declaration(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) 
                     parsed_property = CssProperty::from_string(&ident);
                     if parsed_property.is_none() {
                         debug_log_warn(format!("Unknown css property: {}", ident));
-
-                        //Skip the value of this property
-                        while token_iterator.peek().is_some() {
-                            match &token_iterator.peek().unwrap().css_token {
-                                CssToken::Semicolon => {
-                                    token_iterator.next();
-                                    break;
-                                },
-                                CssToken::CloseBrace => {
-                                    break;
-                                }
-                                _ => {
-                                    token_iterator.next();
-                                },
-                            }
-                        }
+                        skip_to_end_of_declaration(token_iterator);
                     }
                 } else if parsed_value.is_none() {
-                    parsed_value = Some(parse_value(token_iterator));
+                    match parse_value(token_iterator) {
+                        Some(value) => parsed_value = Some(value),
+                        None => {
+                            skip_to_end_of_declaration(token_iterator);
+                            return None;
+                        }
+                    }
                 } else {
                     todo!(); //TODO: this should be an error (we should have returned already if both are filled)
                 }
@@ -391,7 +382,13 @@ fn parse_declaration(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) 
             },
             CssToken::Hash => {
                 if parsed_property.is_some() && parsed_value.is_none() {
-                    parsed_value = Some(parse_value(token_iterator));
+                    match parse_value(token_iterator) {
+                        Some(value) => parsed_value = Some(value),
+                        None => {
+                            skip_to_end_of_declaration(token_iterator);
+                            return None;
+                        }
+                    }
                 } else {
                     todo!(); //TODO: this should be an error
                 }
@@ -406,31 +403,55 @@ fn parse_declaration(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) 
 }
 
 
-fn parse_value(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) -> CssValue {
+fn skip_to_end_of_declaration(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) {
+    while token_iterator.peek().is_some() {
+        match &token_iterator.peek().unwrap().css_token {
+            CssToken::Semicolon => {
+                token_iterator.next();
+                return;
+            },
+            CssToken::CloseBrace => {
+                return;
+            }
+            _ => {
+                token_iterator.next();
+            },
+        }
+    }
+}
+
+
+fn parse_value(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) -> Option<CssValue> {
+    //Returns None for an invalid value, without consuming the token that made it invalid
+
     let mut elements = Vec::new();
 
     while token_iterator.peek().is_some() {
-        let first = token_iterator.next().unwrap();
+        let first = *token_iterator.peek().unwrap();
 
         match &first.css_token {
             CssToken::Whitespace => {
+                token_iterator.next();
                 continue;
             },
-            CssToken::Semicolon => {
+            CssToken::Semicolon | CssToken::CloseBrace => {
                 break;
             },
             CssToken::Hash => {
+                token_iterator.next();
                 loop {
-                    match &token_iterator.next().unwrap().css_token {
+                    match &token_iterator.peek().unwrap().css_token {
                         CssToken::Identifier(value) => {
                             elements.push(CssValue::Hash(value.clone()));
+                            token_iterator.next();
                             break;
                         },
                         CssToken::Whitespace => {
+                            token_iterator.next();
                             continue;
                         },
                         _ => {
-                            todo!(); //TODO: this should be an error
+                            return None;
                         }
                     }
                 }
@@ -441,12 +462,13 @@ fn parse_value(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) -> Css
 
         let first_ident = match &first.css_token {
             CssToken::Identifier(ident) => ident,
-            _ => todo!(), //TODO: this should be an error
+            _ => return None,
         };
+        token_iterator.next();
 
         let mut second = token_iterator.peek();
         if second.is_none() {
-            return CssValue::String(first_ident.clone())
+            return Some(CssValue::String(first_ident.clone()));
         }
 
         while second.is_some() {
@@ -473,15 +495,15 @@ fn parse_value(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) -> Css
                 break;
             }
             _ => {
-                todo!(); //TODO: this needs to become an error
+                return None;
             }
         }
     }
 
     if elements.len() == 1 {
-        return elements[0].clone()
+        return Some(elements[0].clone());
     } else {
-        return CssValue::List(elements);
+        return Some(CssValue::List(elements));
     }
 }
 

@@ -163,3 +163,14 @@ fn test_rules_after_font_face() {
     assert_eq!(b_rule.value, CssValue::String("red".to_owned()));
     assert_eq!(b_rule.at_rules.is_none(), true);
 }
+
+
+#[test]
+fn test_declaration_after_invalid_value() {
+    let css_text = "a{color:default:#ca1a12;background-color:red}";
+    let tokens = css_lexer::lex_css(&css_text, 1, 1);
+    let result = css_parser::parse_css(&tokens);
+
+    let background_rule = result.iter().find(|rule| rule.property == CssProperty::BackgroundColor).unwrap();
+    assert_eq!(background_rule.value, CssValue::String("red".to_owned()));
+}

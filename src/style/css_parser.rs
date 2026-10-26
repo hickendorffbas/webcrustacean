@@ -111,54 +111,74 @@ fn parse_statements(style_rules: &mut Vec<StyleRule>, current_selector_context: 
 fn parse_statement(style_rules: &mut Vec<StyleRule>, current_context: &mut Vec<(CssCombinator, SelectorType, String)>,
                    token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>, current_at_rules: &mut Vec<AtRule>) {
     while token_iterator.peek().is_some() {
-        if token_iterator.peek().is_some() {
-            match &token_iterator.peek().unwrap().css_token {
-                CssToken::AtRule(keyword, rule) => {
-                    token_iterator.next();
+        match &token_iterator.peek().unwrap().css_token {
+            CssToken::AtRule(keyword, rule) => {
+                token_iterator.next();
 
-                    let rule = match keyword.as_str() {
-                        "container" => { AtRule::Container(rule.clone()) },
-                        "media" => { AtRule::Media(rule.clone()) },
-                        "supports" => { AtRule::Supports(rule.clone()) },
-                        "keyframes" => { AtRule::Keyframes(rule.clone()) },
-                        rulename @ _ => {
-                            //TODO: this should log though some utility, so they end up in some dev console, and can be filtered and tagged as css-parsing errors etc
-                            println!("Unknow css at-rule type: {}", rulename);
-                            AtRule::None
-                        },
-                    };
-                    current_at_rules.push(rule);
+                let rule = match keyword.as_str() {
+                    "container" => { AtRule::Container(rule.clone()) },
+                    "media" => { AtRule::Media(rule.clone()) },
+                    "supports" => { AtRule::Supports(rule.clone()) },
+                    "keyframes" => { AtRule::Keyframes(rule.clone()) },
+                    rulename @ _ => {
+                        //TODO: this should log though some utility, so they end up in some dev console, and can be filtered and tagged as css-parsing errors etc
+                        println!("Unknown css at-rule type: {}", rulename);
 
-                    loop {
-                        match &token_iterator.peek().unwrap().css_token {
-                            CssToken::OpenBrace => {
-                                token_iterator.next();
-                                parse_statements(style_rules, current_context, token_iterator, current_at_rules);
-                                token_iterator.next(); //consume the closing brace
-                                break;
-                            },
-                            CssToken::Whitespace => {
-                                token_iterator.next();
-                            }
-                            _ => {
-                                break;
+                        //we ignore rules behind unrecognized at-rules if a block follows (not all at rules have a block after it):
+                        if token_iterator.peek().unwrap().css_token == CssToken::OpenBrace {
+                            let mut open_braces = 0;
+                            while token_iterator.peek().is_some() {
+                                match &token_iterator.peek().unwrap().css_token {
+                                    CssToken::OpenBrace => {
+                                        token_iterator.next();
+                                        open_braces += 1;
+                                    },
+                                    CssToken::CloseBrace => {
+                                        token_iterator.next();
+                                        open_braces -= 1;
+                                        if open_braces == 0 {
+                                            break;
+                                        }
+                                    },
+                                    _ => { token_iterator.next(); }
+                                }
                             }
                         }
-                    }
 
-                    current_at_rules.pop();
-                    break;
-                },
-                CssToken::Whitespace => {
-                    token_iterator.next();
-                    continue;
+                        break;
+                    },
+                };
+                current_at_rules.push(rule);
+
+                loop {
+                    match &token_iterator.peek().unwrap().css_token {
+                        CssToken::OpenBrace => {
+                            token_iterator.next();
+                            parse_statements(style_rules, current_context, token_iterator, current_at_rules);
+                            token_iterator.next(); //consume the closing brace
+                            break;
+                        },
+                        CssToken::Whitespace => {
+                            token_iterator.next();
+                        }
+                        _ => {
+                            break;
+                        }
+                    }
                 }
-                _ => {
-                    let selectors = parse_selectors(current_context, token_iterator);
-                    parse_declaration_block(selectors, style_rules, token_iterator, current_at_rules);
-                    break;
-                },
+
+                current_at_rules.pop();
+                break;
+            },
+            CssToken::Whitespace => {
+                token_iterator.next();
+                continue;
             }
+            _ => {
+                let selectors = parse_selectors(current_context, token_iterator);
+                parse_declaration_block(selectors, style_rules, token_iterator, current_at_rules);
+                break;
+            },
         }
     }
 }

@@ -101,7 +101,6 @@ pub enum AtRule {
     Supports(String),
     Container(String),
     Keyframes(String),
-    None,
 }
 
 

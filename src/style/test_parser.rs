@@ -150,3 +150,16 @@ fn test_rules_after_at_rule() {
     assert_eq!(result[1].selector.elements[0], (CssCombinator::None, SelectorType::Name, "b".to_owned()));
     assert_eq!(result[1].at_rules.is_none(), true);
 }
+
+
+#[test]
+fn test_rules_after_font_face() {
+    let css_text = "@font-face { font-family: 'X'; font-style: normal; } b{color: red}";
+    let tokens = css_lexer::lex_css(&css_text, 1, 1);
+    let result = css_parser::parse_css(&tokens);
+
+    let b_rule = result.iter().find(|rule| rule.selector.elements[0] == (CssCombinator::None, SelectorType::Name, "b".to_owned())).unwrap();
+    assert_eq!(b_rule.property, CssProperty::Color);
+    assert_eq!(b_rule.value, CssValue::String("red".to_owned()));
+    assert_eq!(b_rule.at_rules.is_none(), true);
+}

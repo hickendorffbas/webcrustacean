@@ -961,8 +961,8 @@ pub enum JsUnOp {
     BitWiseNot,
     PostfixIncrement,
     PostfixDecrement,
-    #[allow(dead_code)] PrefixIncrement, //TODO: implement
-    #[allow(dead_code)] PrefixDecrement, //TODO: implement
+    PrefixIncrement,
+    PrefixDecrement,
 }
 
 
@@ -999,35 +999,37 @@ impl JsAstUnOp {
                     _ => { todo!() }, //TODO: at least doing this on a string also seems to be defined, we need to fix that
                 }
             }
-            JsUnOp::PostfixIncrement => {
-                let operand_reference = self.operand.execute_for_reference(js_interpreter);
-                match operand_reference {
-                    Some(reference) => {
-                        let target = js_interpreter.get_by_reference(&reference);
-                        match target {
-                            Some(value) => {
-                                match value {
-                                    JsValue::Number(num) => {
-                                        let original = *num;
-                                        *num += 1.0;
-                                        return JsValue::Number(original);
-                                    },
-                                    _ => {
-                                        todo!(); //TODO: some kind of error
-                                    }
-                                }
+            JsUnOp::PostfixIncrement => return self.update_number(js_interpreter, 1.0, false),
+            JsUnOp::PostfixDecrement => return self.update_number(js_interpreter, -1.0, false),
+            JsUnOp::PrefixIncrement => return self.update_number(js_interpreter, 1.0, true),
+            JsUnOp::PrefixDecrement => return self.update_number(js_interpreter, -1.0, true),
+        }
+    }
+
+    fn update_number(&self, js_interpreter: &mut JsInterpreter, delta: f64, return_new_value: bool) -> JsValue {
+        let operand_reference = self.operand.execute_for_reference(js_interpreter);
+        match operand_reference {
+            Some(reference) => {
+                let target = js_interpreter.get_by_reference(&reference);
+                match target {
+                    Some(value) => {
+                        match value {
+                            JsValue::Number(num) => {
+                                let original = *num;
+                                *num += delta;
+                                return JsValue::Number(if return_new_value { *num } else { original });
+                            },
+                            _ => {
+                                todo!(); //TODO: some kind of error
                             }
-                            None => todo!(), //TODO: some kind of error
                         }
-                    },
-                    None => {
-                        todo!(); //TODO: this should become an error, you are trying to increment something that does not resolve to an address
-                    },
+                    }
+                    None => todo!(), //TODO: some kind of error
                 }
             },
-            JsUnOp::PostfixDecrement => todo!(), //TODO: implement
-            JsUnOp::PrefixIncrement => todo!(), //TODO: implement
-            JsUnOp::PrefixDecrement => todo!(), //TODO: implement
+            None => {
+                todo!(); //TODO: this should become an error, you are trying to increment something that does not resolve to an address
+            },
         }
     }
 }

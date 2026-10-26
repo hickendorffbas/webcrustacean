@@ -634,6 +634,16 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
             let expression = pratt_parse_expression(tokens, parser_state, prefix_binding_power(token), true)?;
             return ParseResult::Ok(JsAstExpression::Void(JsAstVoid { expression: Rc::from(expression) }));
         },
+        token @ (JsToken::Increment | JsToken::Decrement) => {
+            parser_state.next();
+            let operand = pratt_parse_expression(tokens, parser_state, prefix_binding_power(token), true)?;
+            let op = match token {
+                JsToken::Increment => JsUnOp::PrefixIncrement,
+                JsToken::Decrement => JsUnOp::PrefixDecrement,
+                _ => panic!("unreachable"),
+            };
+            return ParseResult::Ok(JsAstExpression::UnaryOp(JsAstUnOp { op, operand: Rc::from(operand) }));
+        },
         _ => todo!(),
     }
 }
@@ -948,6 +958,8 @@ fn prefix_binding_power(token: &JsToken) -> u8 {
         JsToken::KeyWordVoid => 99,
         JsToken::KeyWordDelete => 99,
         JsToken::KeyWordTypeOf => 99,
+        JsToken::Increment => 99,
+        JsToken::Decrement => 99,
         _ => todo!(),
     }
 }

@@ -631,3 +631,8 @@ fn test_reserved_word_as_object_literal_key() {
 fn test_reserved_word_in_dot_property_access() {
     assert_js(r#"var o = {}; o["delete"] = 46; tester.export(o.delete);"#, JsValue::Number(46.0));
 }
+
+#[test]
+fn test_prefix_increment_on_property() {
+    assert_js(r#"var t = {current: 1}; var r = {}; r.current = ++t.current; tester.export(r.current * 10 + t.current);"#, JsValue::Number(22.0));
+}

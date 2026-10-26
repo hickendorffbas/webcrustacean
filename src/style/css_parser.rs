@@ -242,6 +242,7 @@ fn parse_selectors(current_selector_context: &mut Vec<(CssCombinator, SelectorTy
 
                     selector_elements.push( (next_combinator, next_selector_type, ident.clone()) );
                     next_combinator = CssCombinator::None;
+                    next_selector_type = SelectorType::Name;
                 }
             },
             CssToken::Whitespace => {

@@ -174,3 +174,15 @@ fn test_declaration_after_invalid_value() {
     let background_rule = result.iter().find(|rule| rule.property == CssProperty::BackgroundColor).unwrap();
     assert_eq!(background_rule.value, CssValue::String("red".to_owned()));
 }
+
+
+#[test]
+fn test_selector_type_resets_after_class() {
+    let css_text = ".a li, b {color:red}";
+    let tokens = css_lexer::lex_css(&css_text, 1, 1);
+    let result = css_parser::parse_css(&tokens);
+
+    assert_eq!(result[0].selector.elements[0], (CssCombinator::Descendent, SelectorType::Name, "li".to_owned()));
+    assert_eq!(result[0].selector.elements[1], (CssCombinator::None, SelectorType::Class, "a".to_owned()));
+    assert_eq!(result[1].selector.elements[0], (CssCombinator::None, SelectorType::Name, "b".to_owned()));
+}

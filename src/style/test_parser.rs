@@ -198,3 +198,16 @@ fn test_rules_after_functional_pseudoclass() {
     assert_eq!(b_rule.property, CssProperty::Color);
     assert_eq!(b_rule.value, CssValue::String("red".to_owned()));
 }
+
+
+#[test]
+fn test_selector_with_unknown_pseudoelement_is_dropped() {
+    let css_text = ".a::-webkit-scrollbar, .b{display:none}";
+    let tokens = css_lexer::lex_css(&css_text, 1, 1);
+    let result = css_parser::parse_css(&tokens);
+
+    let a_selector = (CssCombinator::None, SelectorType::Class, "a".to_owned());
+    let b_selector = (CssCombinator::None, SelectorType::Class, "b".to_owned());
+    assert!(result.iter().all(|rule| rule.selector.elements[0] != a_selector));
+    assert!(result.iter().any(|rule| rule.selector.elements[0] == b_selector && rule.property == CssProperty::Display));
+}

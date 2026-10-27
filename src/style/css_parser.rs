@@ -194,13 +194,16 @@ fn parse_selectors(current_selector_context: &mut Vec<(CssCombinator, SelectorTy
     let mut parsing_pseudoelement = false;
     let mut current_pseudoclasses = None;
     let mut current_pseudoelement = None;
+    let mut current_selector_valid = true;
 
     while token_iterator.peek().is_some() {
         match &token_iterator.peek().unwrap().css_token {
             CssToken::OpenBrace => {
                 if !selector_elements.is_empty() {
                     selector_elements.reverse();
-                    selectors.push(Selector { elements: selector_elements, pseudoclasses: current_pseudoclasses, pseudoelement: current_pseudoelement });
+                    if current_selector_valid {
+                        selectors.push(Selector { elements: selector_elements, pseudoclasses: current_pseudoclasses, pseudoelement: current_pseudoelement });
+                    }
                 }
 
                 return selectors;
@@ -212,11 +215,14 @@ fn parse_selectors(current_selector_context: &mut Vec<(CssCombinator, SelectorTy
 
                 if !selector_elements.is_empty() {
                     selector_elements.reverse();
-                    selectors.push(Selector { elements: selector_elements, pseudoclasses: current_pseudoclasses, pseudoelement: current_pseudoelement });
+                    if current_selector_valid {
+                        selectors.push(Selector { elements: selector_elements, pseudoclasses: current_pseudoclasses, pseudoelement: current_pseudoelement });
+                    }
                     selector_elements = current_selector_context.clone();
                     current_pseudoclasses = None;
                     current_pseudoelement = None;
                 }
+                current_selector_valid = true;
             },
             CssToken::Identifier(ident) => {
                 token_iterator.next();
@@ -229,11 +235,15 @@ fn parse_selectors(current_selector_context: &mut Vec<(CssCombinator, SelectorTy
                     current_pseudoclasses.as_mut().unwrap().push(ident.clone());
                 } else if parsing_pseudoelement {
                     let elem = match ident.as_str() {
-                        "before" => PseudoElement::Before,
-                        "after" => PseudoElement::After,
-                        _ => todo!(), //TODO: there are a few more
+                        "before" => Some(PseudoElement::Before),
+                        "after" => Some(PseudoElement::After),
+                        //TODO: there are a few more valid ones, we drop the rest
+                        _ => {
+                            current_selector_valid = false;
+                            None
+                        }
                     };
-                    current_pseudoelement = Some(elem);
+                    current_pseudoelement = elem;
                     parsing_pseudoelement = false;
                 } else {
                     if selector_elements.len() > 0 && next_combinator == CssCombinator::None {

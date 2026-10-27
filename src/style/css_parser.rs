@@ -279,6 +279,32 @@ fn parse_selectors(current_selector_context: &mut Vec<(CssCombinator, SelectorTy
                     }
                 }
             },
+            CssToken::OpenParenthesis => {
+                token_iterator.next();
+
+                //this is for functions in pseudoclasses
+
+                let mut open_paren = 1;
+                while token_iterator.peek().is_some() {
+                    match &token_iterator.peek().unwrap().css_token {
+                        CssToken::OpenParenthesis => {
+                            token_iterator.next();
+                            open_paren += 1;
+                        },
+                        CssToken::CloseParenthesis => {
+                            token_iterator.next();
+                            open_paren -=1 ;
+                            if open_paren == 0 {
+                                break;
+                            }
+                        },
+                        _ => {
+                            //TODO: eventually we will need to do something with the arguments
+                            token_iterator.next();
+                        }
+                    }
+                }
+            },
             CssToken::Dot => {
                 token_iterator.next();
                 next_selector_type = SelectorType::Class;

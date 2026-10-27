@@ -186,3 +186,15 @@ fn test_selector_type_resets_after_class() {
     assert_eq!(result[0].selector.elements[1], (CssCombinator::None, SelectorType::Class, "a".to_owned()));
     assert_eq!(result[1].selector.elements[0], (CssCombinator::None, SelectorType::Name, "b".to_owned()));
 }
+
+
+#[test]
+fn test_rules_after_functional_pseudoclass() {
+    let css_text = "li:nth-last-child(2){display:none} b{color:red}";
+    let tokens = css_lexer::lex_css(&css_text, 1, 1);
+    let result = css_parser::parse_css(&tokens);
+
+    let b_rule = result.iter().find(|rule| rule.selector.elements[0] == (CssCombinator::None, SelectorType::Name, "b".to_owned())).unwrap();
+    assert_eq!(b_rule.property, CssProperty::Color);
+    assert_eq!(b_rule.value, CssValue::String("red".to_owned()));
+}

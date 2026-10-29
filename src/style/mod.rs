@@ -72,12 +72,12 @@ pub enum CssValue {
     Block(Vec<CssValue>), //This represents the contents of a grouping without a function like the inner part of calc(100% - (2 * 3px))
 }
 impl CssValue {
-    fn resolve(&self) -> String {
+    fn resolve(&self) -> Option<String> {
         match self {
-            CssValue::String(string_value) => return string_value.clone(),
+            CssValue::String(string_value) => return Some(string_value.clone()),
             CssValue::List(_) => todo!(), //TODO: I think we should recursively resolve here?
             CssValue::Function(css_function) => return css_function.resolve(),
-            CssValue::Hash(value) => return "#".to_owned() + value,
+            CssValue::Hash(value) => return Some("#".to_owned() + value),
             CssValue::Comma => todo!(), //TODO: implement
             CssValue::Block(_) => todo!(), //TODO: implement
         }
@@ -92,8 +92,8 @@ pub struct CssFunction {
     pub arguments: Vec<CssValue>,
 }
 impl CssFunction {
-    fn resolve(&self) -> String {
-        todo!(); //TODO: implement
+    fn resolve(&self) -> Option<String> {
+        return None; //TODO: implement specific functions, keep returning None for the rest
     }
 }
 
@@ -232,7 +232,10 @@ pub fn resolve_full_styles_for_dom_node(dom_node: &Rc<RefCell<ElementDomNode>>, 
 
     let mut resolved_styles = HashMap::new();
     for active_style_rule in active_style_rules {
-        resolved_styles.insert(active_style_rule.property, active_style_rule.property_value.resolve());
+        match active_style_rule.property_value.resolve() {
+            Some(value) => { resolved_styles.insert(active_style_rule.property, value); }
+            None => { resolved_styles.remove(&active_style_rule.property); } //Per spec, if a property does not resolve, we should not take the value of earlier rules
+        };
     }
 
     if dom_node.borrow().parent_id != 0 {

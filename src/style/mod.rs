@@ -68,6 +68,8 @@ pub enum CssValue {
     List(Vec<CssValue>),
     Function(CssFunction),
     Hash(String),
+    Comma, //We model this as a value, because the position of a comma matters in functions
+    Block(Vec<CssValue>), //This represents the contents of a grouping without a function like the inner part of calc(100% - (2 * 3px))
 }
 impl CssValue {
     fn resolve(&self) -> String {
@@ -76,6 +78,8 @@ impl CssValue {
             CssValue::List(_) => todo!(), //TODO: I think we should recursively resolve here?
             CssValue::Function(css_function) => return css_function.resolve(),
             CssValue::Hash(value) => return "#".to_owned() + value,
+            CssValue::Comma => todo!(), //TODO: implement
+            CssValue::Block(_) => todo!(), //TODO: implement
         }
     }
 }
@@ -333,10 +337,6 @@ pub fn resolve_css_numeric_type_value(value: &str) -> f32 {
         return 1.0; //TODO: implement this case (we probably need to bring in more context)
     } else if value.len() > 3 && &value[value.len() - 3..] == "rem" {
         return 1.0; //TODO: implement this case (we probably need to bring in more context)
-    } else if value.len() > 5 && &value[0..4] == "var(" && value.chars().last() == Some(')') {
-        //TODO: These kind of things should be parsed in the parser already, into some structure that we can just evaluate here (the eval should happen here)
-        //      for now we are just ignoring this case and returning a temp value, because it happens a lot
-        18.0
     } else {
         let parsed_unwrapped = value.parse::<f32>();
         if parsed_unwrapped.is_err() {
@@ -356,12 +356,6 @@ pub fn has_style_value(styles: &HashMap<CssProperty, String>, property: CssPrope
 
 pub fn get_color_style_value(styles: &HashMap<CssProperty, String>, property: CssProperty) -> Color {
     let item = get_property_from_computed_styles(styles, property);
-
-    if item.len() > 5 && &item[0..4] == "var(" && item.chars().last() == Some(')') {
-        //TODO: These kind of things should be parsed in the parser already, into some structure that we can just evaluate here (the eval should happen here)
-        //      for now we are just ignoring this case because it happens a lot
-        return Color::BLACK;
-    }
 
     let color = Color::from_string(item);
 

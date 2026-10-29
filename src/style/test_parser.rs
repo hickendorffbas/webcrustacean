@@ -211,3 +211,21 @@ fn test_selector_with_unknown_pseudoelement_is_dropped() {
     assert!(result.iter().all(|rule| rule.selector.elements[0] != a_selector));
     assert!(result.iter().any(|rule| rule.selector.elements[0] == b_selector && rule.property == CssProperty::Display));
 }
+
+
+#[test]
+fn test_function_arguments_keep_commas_and_nesting() {
+    let css_text = "h3 { font-size: var(--a, var(--b, 16px)); }";
+    let tokens = css_lexer::lex_css(&css_text, 1, 1);
+    let result = css_parser::parse_css(&tokens);
+
+    let font_size_rule = result.iter().find(|rule| rule.property == CssProperty::FontSize).unwrap();
+    let inner_var = CssValue::Function(CssFunction { name: "var".to_owned(),
+                                                     arguments: vec![CssValue::String("--b".to_owned()),
+                                                                     CssValue::Comma,
+                                                                     CssValue::String("16px".to_owned())] });
+    assert_eq!(font_size_rule.value, CssValue::Function(CssFunction { name: "var".to_owned(),
+                                                                      arguments: vec![CssValue::String("--a".to_owned()),
+                                                                                      CssValue::Comma,
+                                                                                      inner_var] }));
+}

@@ -70,15 +70,7 @@ fn process_shorthands(style_rules: Vec<StyleRule>) -> Vec<StyleRule> {
                                                                   value: part, at_rules: style_rule.at_rules.clone() });
                         }
                     },
-                    CssValue::String(_) => {
-                        todo!();
-                    },
-                    CssValue::Function(_) => {
-                        todo!();
-                    },
-                    CssValue::Hash(_) => {
-                        todo!();
-                    }
+                    _ => todo!(), //TODO: investigate what is needed here
                 }
             },
             _ => {
@@ -224,7 +216,7 @@ fn parse_selectors(current_selector_context: &mut Vec<(CssCombinator, SelectorTy
                 }
                 current_selector_valid = true;
             },
-            CssToken::Identifier(ident) => {
+            CssToken::Identifier(ident) | CssToken::Function(ident) => {
                 token_iterator.next();
 
                 if parsing_pseudoclass {
@@ -417,7 +409,7 @@ fn parse_declaration(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) 
             CssToken::Whitespace => {
                 token_iterator.next();
             },
-            CssToken::Hash => {
+            CssToken::Hash | CssToken::Function(_) => {
                 if parsed_property.is_some() && parsed_value.is_none() {
                     match parse_value(token_iterator) {
                         Some(value) => parsed_value = Some(value),
@@ -459,158 +451,79 @@ fn skip_to_end_of_declaration(token_iterator: &mut Peekable<Iter<CssTokenWithLoc
 
 
 fn parse_value(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) -> Option<CssValue> {
-    //Returns None for an invalid value, without consuming the token that made it invalid
-
-    let mut elements = Vec::new();
-
-    while token_iterator.peek().is_some() {
-        let first = *token_iterator.peek().unwrap();
-
-        match &first.css_token {
-            CssToken::Whitespace => {
-                token_iterator.next();
-                continue;
-            },
-            CssToken::Semicolon | CssToken::CloseBrace => {
-                break;
-            },
-            CssToken::Hash => {
-                token_iterator.next();
-                loop {
-                    match &token_iterator.peek().unwrap().css_token {
-                        CssToken::Identifier(value) => {
-                            elements.push(CssValue::Hash(value.clone()));
-                            token_iterator.next();
-                            break;
-                        },
-                        CssToken::Whitespace => {
-                            token_iterator.next();
-                            continue;
-                        },
-                        _ => {
-                            return None;
-                        }
-                    }
-                }
-                break;
-            }
-            _ => {}
-        }
-
-        let first_ident = match &first.css_token {
-            CssToken::Identifier(ident) => ident,
-            _ => return None,
-        };
-        token_iterator.next();
-
-        let mut second = token_iterator.peek();
-        if second.is_none() {
-            return Some(CssValue::String(first_ident.clone()));
-        }
-
-        while second.is_some() {
-            match &second.unwrap().css_token {
-                CssToken::Whitespace | CssToken::Comma => {
-                    token_iterator.next();
-                    second = token_iterator.peek();
-                },
-                _ => {
-                    break;
-                }
-            }
-        }
-
-        match &second.unwrap().css_token {
-            CssToken::Identifier(_) => {
-                elements.push(CssValue::String(first_ident.clone()));
-            },
-            CssToken::OpenParenthesis => {
-                elements.push(parse_css_function(token_iterator, first_ident));
-            },
-            CssToken::CloseBrace | CssToken::Semicolon => {
-                elements.push(CssValue::String(first_ident.clone()));
-                break;
-            }
-            _ => {
-                return None;
-            }
-        }
-    }
-
+    let mut elements = parse_sequence(token_iterator, false)?;
     if elements.len() == 1 {
-        return Some(elements[0].clone());
+        return Some(elements.remove(0));
     } else {
         return Some(CssValue::List(elements));
     }
 }
 
-fn parse_css_function(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>, function_name: &String) -> CssValue {
 
-    token_iterator.next(); //consume the (
-
-    let mut arguments = Vec::new();
-
+fn parse_sequence(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>, nested: bool) -> Option<Vec<CssValue>> {
+    let mut elements = Vec::new();
 
     while token_iterator.peek().is_some() {
-        let first = token_iterator.next().unwrap();
-
-        match &first.css_token {
+        match &token_iterator.peek().unwrap().css_token {
             CssToken::Whitespace => {
-                continue;
+                token_iterator.next();
+            },
+            CssToken::CloseBrace | CssToken::Semicolon => {
+                if nested {
+                    return None;
+                } else {
+                    return Some(elements);
+                }
             },
             CssToken::CloseParenthesis => {
-                break;
-            },
-            _ => {}
-        }
-
-        let first_ident = match &first.css_token {
-            CssToken::Identifier(ident) => ident,
-            _ => todo!(), //TODO: this should be an error
-        };
-
-        let mut second = token_iterator.peek();
-        if second.is_none() {
-            return CssValue::String(first_ident.clone())
-        }
-
-        while second.is_some() {
-            match &second.unwrap().css_token {
-                CssToken::Whitespace | CssToken::Comma => {
+                if nested {
                     token_iterator.next();
-                    second = token_iterator.peek();
-                },
-                _ => {
-                    break;
+                    return Some(elements);
+                } else {
+                    return None;
                 }
-            }
-        }
-
-        match &second.unwrap().css_token {
-            CssToken::Identifier(_) => {
-                arguments.push(CssValue::String(first_ident.clone()));
+            },
+            CssToken::Identifier(ident) => {
+                token_iterator.next();
+                elements.push(CssValue::String(ident.clone()));
+            },
+            CssToken::Plus => {
+                token_iterator.next();
+                elements.push(CssValue::String("+".to_string()));
+            },
+            CssToken::Comma => {
+                token_iterator.next();
+                elements.push(CssValue::Comma);
+            },
+            CssToken::Hash => {
+                token_iterator.next();
+                match &token_iterator.peek().unwrap().css_token {
+                    CssToken::Identifier(ident) => {
+                        token_iterator.next();
+                        elements.push(CssValue::Hash(ident.clone()));
+                    },
+                    _ => { return None; }
+                }
+            },
+            CssToken::Function(function_name) => {
+                token_iterator.next();
+                token_iterator.next(); //consume the opening (
+                let arguments = parse_sequence(token_iterator, true)?;
+                elements.push(CssValue::Function(CssFunction { name: function_name.clone(), arguments }));
             },
             CssToken::OpenParenthesis => {
-                arguments.push(parse_css_function(token_iterator, first_ident));
+                token_iterator.next();
+                let arguments = parse_sequence(token_iterator, true)?;
+                elements.push(CssValue::Block(arguments));
             },
-            CssToken::CloseParenthesis => {
-                arguments.push(CssValue::String(first_ident.clone()));
-                token_iterator.next(); //eat the ")"
-                break;
-            }
-            CssToken::CloseBrace | CssToken::Semicolon => {
-                arguments.push(CssValue::String(first_ident.clone()));
-                if arguments.len() == 1 {
-                    return arguments[0].clone()
-                } else {
-                    return CssValue::List(arguments);
-                }
-            }
             _ => {
-                todo!(); //TODO: this needs to become an error
-            }
+                return None;
+            },
         }
     }
 
-    return CssValue::Function(CssFunction { name: function_name.clone(), arguments })
+    if nested {
+        return None;
+    }
+    return Some(elements);
 }

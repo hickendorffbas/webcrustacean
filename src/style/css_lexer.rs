@@ -16,6 +16,7 @@ pub enum CssToken {
     Identifier(String),
     #[allow(unused)] StringLiteral(String), //TODO: implement
     AtRule(String, String),
+    Function(String),
 
     OpenBrace,
     CloseBrace,
@@ -104,6 +105,11 @@ fn lex_css_block(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenW
 
             char @ ('{' | '}' | '(' | ')' | '.' | '+' | '>' | ',' | ':' | ';' | '~'| '#') => {
                 last_token_was_whitespace = false;
+
+                if char == '(' && !buffer.is_empty() {
+                    tokens.push(make_token(css_iterator, CssToken::Function(buffer.clone())));
+                    buffer.clear();
+                }
 
                 if !buffer.is_empty() {
                     tokens.push(make_token(css_iterator, CssToken::Identifier(buffer.clone())));

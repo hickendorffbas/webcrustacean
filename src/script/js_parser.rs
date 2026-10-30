@@ -184,7 +184,7 @@ fn parse_statement(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserS
                 JsToken::KeyWordVar => { DeclType::Var },
                 JsToken::KeyWordLet => { DeclType::Let },
                 JsToken::KeyWordConst => { DeclType::Const },
-                _ => { panic!("unreachable"); }
+                _ => { unreachable!(); }
             };
 
             let ast = parse_declaration(tokens, parser_state, decl_type)?;
@@ -504,7 +504,7 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
                 JsToken::Plus => JsUnOp::Plus,
                 JsToken::ExclamationMark => JsUnOp::Not,
                 JsToken::BitWiseNot => JsUnOp::BitWiseNot,
-                _ => panic!("unreachable"),
+                _ => unreachable!(),
             };
             return ParseResult::Ok(JsAstExpression::UnaryOp(JsAstUnOp { op: un_op, operand: Rc::from(rhs) }))
         },
@@ -526,10 +526,6 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
             parser_state.next();
             return ParseResult::Ok(JsAstExpression::BooleanLiteral(*boolean_value));
         },
-        JsToken::KeyWordUndefined => {
-            parser_state.next();
-            return ParseResult::Ok(JsAstExpression::UndefinedLiteral());
-        }
         JsToken::Identifier(ident) => {
             parser_state.next();
             return ParseResult::Ok(JsAstExpression::Identifier(JsAstIdentifier { name: ident.clone() }));
@@ -641,7 +637,7 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
             let op = match token {
                 JsToken::Increment => JsUnOp::PrefixIncrement,
                 JsToken::Decrement => JsUnOp::PrefixDecrement,
-                _ => panic!("unreachable"),
+                _ => unreachable!(),
             };
             return ParseResult::Ok(JsAstExpression::UnaryOp(JsAstUnOp { op, operand: Rc::from(operand) }));
         },
@@ -769,7 +765,6 @@ fn keyword_token_as_property_name(token: &JsToken) -> Option<String> {
         JsToken::KeyWordThrow => "throw",
         JsToken::KeyWordDelete => "delete",
         JsToken::KeyWordVoid => "void",
-        JsToken::KeyWordUndefined => "undefined",
         _ => return None,
     };
     return Some(name.to_string());
@@ -1268,7 +1263,7 @@ fn parse_for_loop(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut ParserSt
                 JsToken::KeyWordVar => { DeclType::Var },
                 JsToken::KeyWordLet => { DeclType::Let },
                 JsToken::KeyWordConst => { DeclType::Const },
-                _ => { panic!("unreachable"); }
+                _ => { unreachable!(); }
             };
 
             let initial_declarations = Rc::from(parse_declaration(tokens, parser_state, decl_type)?);

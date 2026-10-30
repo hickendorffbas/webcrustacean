@@ -22,6 +22,7 @@ pub fn get_next_js_heap_address() -> JsAddress { NEXT_JS_HEAP_ADDRESS.fetch_add(
 pub struct JsInterpreter {
     pub context_stack: Vec<HashMap<String, JsValue>>,
     pub heap: HashMap<JsAddress, JsHeapObject>,
+    global_object_address: JsAddress,
     current_error: Option<JsError>,
     pub return_value: Option<JsValue>,
     #[cfg(test)] pub last_test_data: Option<JsValue>,
@@ -29,17 +30,30 @@ pub struct JsInterpreter {
 
 impl JsInterpreter {
     pub fn new() -> JsInterpreter {
+        let global_object_address = get_next_js_heap_address();
+        let global_object = JsHeapObject::Object(JsObject { members: HashMap::new(), callable: None });
+
         let mut interpreter = JsInterpreter {
             context_stack: Vec::new(),
-            heap: HashMap::new(),
+            heap: HashMap::from([(global_object_address, global_object)]),
+            global_object_address,
             current_error: None,
             return_value: None,
             #[cfg(test)] last_test_data: None,
         };
 
-        interpreter.start_new_context();
         interpreter.create_builtins();
         return interpreter;
+    }
+
+    fn set_global_property(&mut self, name: &str, value: JsValue) {
+        let global_object = self.get_from_heap_mut(self.global_object_address);
+        match global_object {
+            JsHeapObject::Object(js_object) => {
+                js_object.members.insert(name.to_string(), value);
+            },
+            JsHeapObject::Array(_) => unreachable!(),
+        }
     }
 
     fn create_builtins(&mut self) {
@@ -58,7 +72,12 @@ impl JsInterpreter {
         let console_object_address = get_next_js_heap_address();
         self.heap.insert(console_object_address, console_builtin);
 
-        self.context_stack.last_mut().unwrap().insert(String::from("console"), JsValue::Address(console_object_address));
+        self.set_global_property("console", JsValue::Address(console_object_address));
+
+        self.set_global_property("undefined", JsValue::Undefined);
+
+        //window is a pointer to the global object, but also has to be a member of the global object, so the window variable resolves
+        self.set_global_property("window", JsValue::Address(self.global_object_address));
 
         #[cfg(test)] {
             let tester_export_function = JsHeapObject::Object(JsObject::make_function(JsFunction {
@@ -76,7 +95,7 @@ impl JsInterpreter {
             let tester_object_address = get_next_js_heap_address();
             self.heap.insert(tester_object_address, tester_builtin);
 
-            self.context_stack.last_mut().unwrap().insert(String::from("tester"), JsValue::Address(tester_object_address));
+            self.set_global_property("tester", JsValue::Address(tester_object_address));
         }
     }
 
@@ -90,13 +109,6 @@ impl JsInterpreter {
 
     pub fn set_error(&mut self, error: JsError) {
         self.current_error = Some(error);
-    }
-
-    pub fn run_script(&mut self, script: &Script) -> bool {
-        self.start_new_context();
-        let keep_going = self.run_statements(script);
-        self.context_stack.pop();
-        return keep_going;
     }
 
     pub fn call_function(&mut self, script: &Script, parameters: &Vec<JsFunctionParameter>, mut arguments: Vec<JsValue>) -> bool {
@@ -119,13 +131,13 @@ impl JsInterpreter {
             };
             parameter.pattern.execute(value, self);
         }
-        let keep_going = self.run_statements(script);
+        let keep_going = self.run_script(script);
         self.context_stack.pop();
 
         return keep_going;
     }
 
-    fn run_statements(&mut self, script: &Script) -> bool {
+    pub fn run_script(&mut self, script: &Script) -> bool {
         for statement in script {
             if !statement.execute(self) {
                 return false;
@@ -145,7 +157,11 @@ impl JsInterpreter {
     pub fn set_reference(&mut self, reference: JsReference, value: JsValue) {
         match reference {
             JsReference::Variable(variable_name) => {
-                self.context_stack.last_mut().unwrap().insert(variable_name, value);
+                if self.context_stack.is_empty() {
+                    self.set_global_property(&variable_name, value);
+                } else {
+                    self.context_stack.last_mut().unwrap().insert(variable_name, value);
+                }
             },
             JsReference::Property { object_address, member } => {
                 let object = self.heap.get_mut(&object_address).unwrap();
@@ -203,7 +219,13 @@ impl JsInterpreter {
                         return value;
                     }
                 }
-                return None;
+
+                match self.heap.get_mut(&self.global_object_address).unwrap() {
+                    JsHeapObject::Object(global_object) => {
+                        return global_object.members.get_mut(variable_name);
+                    },
+                    JsHeapObject::Array(_) => unreachable!(),
+                }
             },
             JsReference::Property { object_address, member } => {
                 match self.get_from_heap_mut(*object_address) {

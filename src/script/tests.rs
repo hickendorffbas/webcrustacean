@@ -641,3 +641,13 @@ fn test_prefix_increment_on_property() {
 fn test_spread_in_array_literal() {
     assert_js(r#"var a = [2, 3]; var b = [1, ...a, 4]; tester.export(b[0] + b[1] * 10 + b[2] * 100 + b[3] * 1000);"#, JsValue::Number(4321.0));
 }
+
+#[test]
+fn test_top_level_var_and_window_property_are_the_same() {
+    assert_js(r#"var x = 3; window.x = x + 1; tester.export(x);"#, JsValue::Number(4.0));
+}
+
+#[test]
+fn test_undefined_as_parameter_name_shadows_global() {
+    assert_js(r#"(function (a, undefined) { tester.export(a + undefined); })(4, 3);"#, JsValue::Number(7.0));
+}

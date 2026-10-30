@@ -1271,25 +1271,31 @@ fn evaluate_arguments(arguments: &Vec<JsAstFunctionCallArgument>, js_interpreter
         match argument_ast {
             JsAstFunctionCallArgument::Normal(js_ast_expression) => argument_values.push(js_ast_expression.execute(js_interpreter)),
             JsAstFunctionCallArgument::Spread(js_ast_expression) => {
-                match js_ast_expression.execute(js_interpreter) {
-                    JsValue::Address(iterable_address) => {
-                        let object = js_interpreter.get_from_heap(iterable_address);
-                        match object {
-                            JsHeapObject::Object(_) => todo!(), //TODO: this should be an error (you cant spread objects in a functioncall)
-                            JsHeapObject::Array(js_array) => {
-                                for item in &js_array.elements {
-                                    argument_values.push(item.clone());
-                                }
-                            },
-                        }
-                    },
-                    _ => todo!(), //TODO: this should be an error (at least for all non-iterables)
-                }
+                let value_to_spread = js_ast_expression.execute(js_interpreter);
+                spread_iterable_into(value_to_spread, &mut argument_values, js_interpreter);
             },
         }
     }
 
     return argument_values;
+}
+
+
+fn spread_iterable_into(value_to_spread: JsValue, target: &mut Vec<JsValue>, js_interpreter: &mut JsInterpreter) {
+    match value_to_spread {
+        JsValue::Address(iterable_address) => {
+            let object = js_interpreter.get_from_heap(iterable_address);
+            match object {
+                JsHeapObject::Object(_) => todo!(), //TODO: this should be an error (objects are not iterable)
+                JsHeapObject::Array(js_array) => {
+                    for item in &js_array.elements {
+                        target.push(item.clone());
+                    }
+                },
+            }
+        },
+        _ => todo!(), //TODO: this should be an error (at least for all non-iterables)
+    }
 }
 
 
@@ -1349,16 +1355,31 @@ impl JsAstObjectLiteral {
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]
+pub enum JsAstArrayLiteralMember {
+    Normal(JsAstExpression),
+    Spread(JsAstExpression),
+}
+
+
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct JsAstArrayLiteral {
-    pub elements: Vec<JsAstExpression>,
+    pub elements: Vec<JsAstArrayLiteralMember>,
 }
 impl JsAstArrayLiteral {
     fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
         let mut elements = Vec::new();
 
         for value_ast in self.elements.iter() {
-            let value = value_ast.execute(js_interpreter);
-            elements.push(value);
+            match value_ast {
+                JsAstArrayLiteralMember::Normal(js_ast_expression) => {
+                    let value = js_ast_expression.execute(js_interpreter);
+                    elements.push(value);
+                },
+                JsAstArrayLiteralMember::Spread(js_ast_expression) => {
+                    let value_to_spread = js_ast_expression.execute(js_interpreter);
+                    spread_iterable_into(value_to_spread, &mut elements, js_interpreter);
+                }
+            }
         }
 
         let address = js_interpreter.add_new_heap_item(JsHeapObject::Array(JsArray { elements: elements }));

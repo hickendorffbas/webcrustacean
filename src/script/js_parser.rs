@@ -376,7 +376,8 @@ fn pratt_parse_expression(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut 
 
                 //TODO: we should call the function with the right data, after we implemented evaluating the ${} parts in the template
                 //      for now we just pretend it has no placeholders, and pass everthing as 1 string.
-                let strings = JsAstExpression::ArrayLiteral(JsAstArrayLiteral { elements: vec![JsAstExpression::StringLiteral(template_literal.clone())] });
+                let elements = vec![JsAstArrayLiteralMember::Normal(JsAstExpression::StringLiteral(template_literal.clone()))];
+                let strings = JsAstExpression::ArrayLiteral(JsAstArrayLiteral { elements });
                 let args = vec![JsAstFunctionCallArgument::Normal(strings)];
                 lhs = JsAstExpression::FunctionCall(JsAstFunctionCall { function_expression: Rc::from(lhs), arguments: args });
             },
@@ -656,11 +657,18 @@ fn convert_left_side_of_assign(current_left_size: JsAstExpression) -> JsAstAssig
 
             for item in literal.elements {
                 match item {
-                    JsAstExpression::Identifier(target) => {
-                        targets.push(target);
+                    JsAstArrayLiteralMember::Normal(js_ast_expression) => {
+                        match js_ast_expression {
+                            JsAstExpression::Identifier(target) => {
+                                targets.push(target);
+                            },
+                            _ => {
+                                todo!(); //TODO: some kind of error
+                            }
+                        }
                     },
-                    _ => {
-                        todo!(); //TODO: some kind of error
+                    JsAstArrayLiteralMember::Spread(_) => {
+                        todo!(); //TODO: implement
                     }
                 }
             }
@@ -889,8 +897,17 @@ fn parse_array_literal(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Par
             }
         }
 
-        let expression = pratt_parse_expression(tokens, parser_state, 0, true)?;
-        elements.push(expression);
+        match &tokens[parser_state.cursor].token {
+            JsToken::Ellipsis => {
+                parser_state.next();
+                let expression = pratt_parse_expression(tokens, parser_state, 0, true)?;
+                elements.push(JsAstArrayLiteralMember::Spread(expression));
+            },
+            _ => {
+                let expression = pratt_parse_expression(tokens, parser_state, 0, true)?;
+                elements.push(JsAstArrayLiteralMember::Normal(expression));
+            },
+        }
 
         first = false;
     }

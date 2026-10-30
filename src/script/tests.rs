@@ -636,3 +636,8 @@ fn test_reserved_word_in_dot_property_access() {
 fn test_prefix_increment_on_property() {
     assert_js(r#"var t = {current: 1}; var r = {}; r.current = ++t.current; tester.export(r.current * 10 + t.current);"#, JsValue::Number(22.0));
 }
+
+#[test]
+fn test_spread_in_array_literal() {
+    assert_js(r#"var a = [2, 3]; var b = [1, ...a, 4]; tester.export(b[0] + b[1] * 10 + b[2] * 100 + b[3] * 1000);"#, JsValue::Number(4321.0));
+}

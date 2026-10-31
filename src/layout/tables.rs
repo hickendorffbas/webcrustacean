@@ -54,7 +54,7 @@ pub fn compute_layout_for_table(table_layout_node: &Rc<RefCell<LayoutNode>>, top
     }
 
     let layout_node_borrow = table_layout_node.borrow();
-    let cell_nodes = layout_node_borrow.children.as_ref().unwrap();
+    let cell_nodes = &layout_node_borrow.children;
 
     for y_pos in 0..table_height_in_slots {
         for x_pos in 0..table_width_in_slots {
@@ -199,103 +199,98 @@ pub fn build_layout_tree_for_table(table_dom_node: &Rc<RefCell<ElementDomNode>>,
     let mut highest_slot_x_idx = 0;
     let mut highest_slot_y_idx = 0;
 
-    if table_dom_node.borrow().children.is_some() {
-        for dom_table_child in table_dom_node.borrow().children.as_ref().unwrap() {
+    for dom_table_child in &table_dom_node.borrow().children {
 
-            let dom_table_child = dom_table_child.borrow();
-            if dom_table_child.name.is_some() && dom_table_child.name.as_ref().unwrap() == &String::from("tr") {
+        let dom_table_child = dom_table_child.borrow();
+        if dom_table_child.name.is_some() && dom_table_child.name.as_ref().unwrap() == &String::from("tr") {
 
-                let mut slot_x_idx = 0;
+            let mut slot_x_idx = 0;
 
-                if dom_table_child.children.is_some() {
-                    for dom_row_child in dom_table_child.children.as_ref().unwrap() {
+            for dom_row_child in &dom_table_child.children {
 
-                        let borr_dom_row_child = dom_row_child.borrow();
-                        if borr_dom_row_child.name.is_some() && (borr_dom_row_child.name.as_ref().unwrap() == &String::from("td") ||
-                                                                 borr_dom_row_child.name.as_ref().unwrap() == &String::from("th")) {
+                let borr_dom_row_child = dom_row_child.borrow();
+                if borr_dom_row_child.name.is_some() && (borr_dom_row_child.name.as_ref().unwrap() == &String::from("td") ||
+                                                            borr_dom_row_child.name.as_ref().unwrap() == &String::from("th")) {
 
-                            let colspan_str = borr_dom_row_child.get_attribute_value("colspan");
-                            let colspan = if colspan_str.is_some() {
-                                //TODO: this parsing to numeric should probably live on the dom node somewhere
-                                colspan_str.unwrap().parse::<usize>().unwrap_or(1)
-                            } else {
-                                1
-                            };
+                    let colspan_str = borr_dom_row_child.get_attribute_value("colspan");
+                    let colspan = if colspan_str.is_some() {
+                        //TODO: this parsing to numeric should probably live on the dom node somewhere
+                        colspan_str.unwrap().parse::<usize>().unwrap_or(1)
+                    } else {
+                        1
+                    };
 
-                            let rowspan_str = borr_dom_row_child.get_attribute_value("rowspan");
-                            let rowspan = if rowspan_str.is_some() {
-                                //TODO: this parsing to numeric should probably live on the dom node somewhere
-                                rowspan_str.unwrap().parse::<usize>().unwrap_or(1)
-                            } else {
-                                1
-                            };
+                    let rowspan_str = borr_dom_row_child.get_attribute_value("rowspan");
+                    let rowspan = if rowspan_str.is_some() {
+                        //TODO: this parsing to numeric should probably live on the dom node somewhere
+                        rowspan_str.unwrap().parse::<usize>().unwrap_or(1)
+                    } else {
+                        1
+                    };
 
-                            loop {
-                                let mut all_are_free = true;
-                                'offset_loops: for x_offset in 0..colspan {
-                                    for y_offset in 0..rowspan {
-                                        if find_node_at_table_slot(&layout_children, slot_x_idx + x_offset, slot_y_idx + y_offset, false).is_some() {
-                                            all_are_free = false;
-                                            break 'offset_loops;
-                                        }
-                                    }
-                                }
-                                if all_are_free {
-                                    break;
-                                } else {
-                                    slot_x_idx += 1;
+                    loop {
+                        let mut all_are_free = true;
+                        'offset_loops: for x_offset in 0..colspan {
+                            for y_offset in 0..rowspan {
+                                if find_node_at_table_slot(&layout_children, slot_x_idx + x_offset, slot_y_idx + y_offset, false).is_some() {
+                                    all_are_free = false;
+                                    break 'offset_loops;
                                 }
                             }
-
-                            let mut cell_children = Vec::new();
-
-                            if borr_dom_row_child.children.is_some() {
-                                for dom_cell_child in borr_dom_row_child.children.as_ref().unwrap() {
-                                    let layout_child = build_layout_tree(dom_cell_child, document, font_context);
-                                    cell_children.push(layout_child);
-                                }
-                            }
-
-                            let cell_layout_node = LayoutNode {
-                                #[cfg(debug_assertions)] internal_id: get_next_layout_node_interal_id(),
-                                children: Some(cell_children),
-                                from_dom_node: Some(dom_row_child.clone()),
-                                formatting_context: FormattingContext::Inline, //TODO: this should be based on the css properties
-                                                                               //      its now inline to make text work, but this is not always correct
-                                visible: true,
-                                content: LayoutNodeContent::TableCellLayoutNode(TableCellLayoutNode {
-                                    css_box: CssBox::empty(),
-                                    slot_x_idx,
-                                    slot_y_idx,
-                                    cell_width: colspan,
-                                    cell_height: rowspan,
-                                }),
-                                positioning_scheme: PositioningScheme::Static,
-                            };
-                            if slot_x_idx + colspan - 1 > highest_slot_x_idx { highest_slot_x_idx = slot_x_idx + colspan - 1; }
-                            if slot_y_idx + rowspan - 1 > highest_slot_y_idx { highest_slot_y_idx = slot_y_idx + rowspan - 1; }
-
-                            layout_children.push(Rc::from(RefCell::from(cell_layout_node)));
-
-                            slot_x_idx += colspan;
                         }
-
-                        //TODO: handle other cases, we at least also have table body, in which case we need to recurse somehow
-                        //      there might also be text (at the very least whitespace that we should ignore) in between rows and cells
+                        if all_are_free {
+                            break;
+                        } else {
+                            slot_x_idx += 1;
+                        }
                     }
+
+                    let mut cell_children = Vec::new();
+
+                    for dom_cell_child in &borr_dom_row_child.children {
+                        let layout_child = build_layout_tree(dom_cell_child, document, font_context);
+                        cell_children.push(layout_child);
+                    }
+
+                    let cell_layout_node = LayoutNode {
+                        #[cfg(debug_assertions)] internal_id: get_next_layout_node_interal_id(),
+                        children: cell_children,
+                        from_dom_node: Some(dom_row_child.clone()),
+                        formatting_context: FormattingContext::Inline, //TODO: this should be based on the css properties
+                                                                        //      its now inline to make text work, but this is not always correct
+                        visible: true,
+                        content: LayoutNodeContent::TableCellLayoutNode(TableCellLayoutNode {
+                            css_box: CssBox::empty(),
+                            slot_x_idx,
+                            slot_y_idx,
+                            cell_width: colspan,
+                            cell_height: rowspan,
+                        }),
+                        positioning_scheme: PositioningScheme::Static,
+                    };
+                    if slot_x_idx + colspan - 1 > highest_slot_x_idx { highest_slot_x_idx = slot_x_idx + colspan - 1; }
+                    if slot_y_idx + rowspan - 1 > highest_slot_y_idx { highest_slot_y_idx = slot_y_idx + rowspan - 1; }
+
+                    layout_children.push(Rc::from(RefCell::from(cell_layout_node)));
+
+                    slot_x_idx += colspan;
                 }
 
-                slot_y_idx += 1;
+                //TODO: handle other cases, we at least also have table body, in which case we need to recurse somehow
+                //      there might also be text (at the very least whitespace that we should ignore) in between rows and cells
             }
 
-            //TODO: handle other cases, we at least also have table body, in which case we need to recurse somehow
-            //      there might also be text (at the very least whitespace that we should ignore) in between rows and cells
+            slot_y_idx += 1;
         }
+
+        //TODO: handle other cases, we at least also have table body, in which case we need to recurse somehow
+        //      there might also be text (at the very least whitespace that we should ignore) in between rows and cells
     }
 
+    
     return LayoutNode {
         #[cfg(debug_assertions)] internal_id: get_next_layout_node_interal_id(),
-        children: Some(layout_children),
+        children: layout_children,
         from_dom_node: Some(table_dom_node.clone()),
         formatting_context: FormattingContext::Table,
         visible: true,

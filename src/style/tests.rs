@@ -26,7 +26,7 @@ fn check_style(resolved_styles: &HashMap<CssProperty, String>, property: &CssPro
 
 fn make_element_node(dom_node_id: usize, parent_node_id: usize, name: String) -> ElementDomNode {
     return ElementDomNode { internal_id: dom_node_id, parent_id: parent_node_id, text: None, is_document_node: false, dirty: false,
-                            name: Some(name), name_for_layout: TagName::Other, children: Some(Vec::new()), attributes: None,
+                            name: Some(name), name_for_layout: TagName::Other, children: Vec::new(), attributes: None,
                             image: None, image_load_task_id: None, page_component: None, styles: HashMap::new() };
 }
 
@@ -55,7 +55,7 @@ fn test_inherit_style_from_parent() {
     let parent_node_id = get_next_test_id();
     let main_node = Rc::new(RefCell::from(make_element_node(main_node_id, parent_node_id, "b".to_owned())));
     let parent_node = Rc::new(RefCell::from(make_element_node(parent_node_id, document_node_id, "h3".to_owned())));
-    parent_node.borrow_mut().children.as_mut().unwrap().push(Rc::clone(&main_node));
+    parent_node.borrow_mut().children.push(Rc::clone(&main_node));
 
     let mut all_dom_nodes = HashMap::new();
     all_dom_nodes.insert(main_node_id, Rc::clone(&main_node));

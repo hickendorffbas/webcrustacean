@@ -208,25 +208,21 @@ fn css_box_to_json(css_box: &CssBox) -> String {
 }
 
 
-fn childs_to_json(childs: &Option<Vec<Rc<RefCell<LayoutNode>>>>) -> String {
+fn childs_to_json(childs: &Vec<Rc<RefCell<LayoutNode>>>) -> String {
     let mut buffer = String::new();
     buffer.push('[');
 
-    if childs.is_some() {
+    let mut first = true;
 
-        let mut first = true;
-
-        for child in childs.as_ref().unwrap() {
-            let our_child = child.borrow();
-            let node_json = layout_node_to_json(&our_child);
-            
-            buffer += node_json.as_str();
-            if !first {
-                buffer.push(',');
-            }
-            first = false;
+    for child in childs {
+        let our_child = child.borrow();
+        let node_json = layout_node_to_json(&our_child);
+        
+        if !first {
+            buffer.push(',');
         }
-
+        buffer += node_json.as_str();
+        first = false;
     }
 
     buffer.push(']');
@@ -330,10 +326,8 @@ pub fn dom_node_to_json(node: &Rc<RefCell<ElementDomNode>>, buffer: &mut String)
     }
 
     buffer.push_str("], \"children\": [");
-    if node.children.is_some() {
-        for child in node.children.as_ref().unwrap() {
-            dom_node_to_json(child, buffer);
-        }
+    for child in &node.children {
+        dom_node_to_json(child, buffer);
     }
 
     buffer.push_str("]}");

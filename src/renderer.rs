@@ -94,11 +94,9 @@ fn render_layout_node(platform: &mut Platform, ui_state: &mut UIState, layout_no
         LayoutNodeContent::NoContent => {},
     }
 
-    if layout_node.children.is_some() {
-        for child in layout_node.children.as_ref().unwrap() {
-            if child.borrow().visible {
-                render_layout_node(platform, ui_state, &child.borrow());
-            }
+    for child in &layout_node.children {
+        if child.borrow().visible {
+            render_layout_node(platform, ui_state, &child.borrow());
         }
     }
 }

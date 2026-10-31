@@ -111,14 +111,14 @@ impl HtmlParser {
             Token::StartTag { name, self_closing } => {
                 if name == "html" {
                     let root = Rc::new(RefCell::new(ElementDomNode::new(name)));
-                    self.document.document_node.borrow_mut().children = Some(vec![root.clone()]);
+                    self.document.document_node.borrow_mut().children = vec![root.clone()];
                     self.document.all_nodes.insert(root.borrow().internal_id, root.clone());
                     self.stack.push(root);
                     self.mode = InsertionMode::Parsing;
                 } else {
                     //We implicitly generate a root here, and then re-handle the token:
                     let root = Rc::new(RefCell::new(ElementDomNode::new("html".to_owned())));
-                    self.document.document_node.borrow_mut().children = Some(vec![root.clone()]);
+                    self.document.document_node.borrow_mut().children = vec![root.clone()];
                     self.document.all_nodes.insert(root.borrow().internal_id, root.clone());
                     self.stack.push(root);
 
@@ -134,7 +134,7 @@ impl HtmlParser {
 
                 //Since the document does not start with a an html node, we insert a root and re-handle the token:
                 let root = Rc::new(RefCell::new(ElementDomNode::new("html".to_owned())));
-                self.document.document_node.borrow_mut().children = Some(vec![root.clone()]);
+                self.document.document_node.borrow_mut().children = vec![root.clone()];
                 self.document.all_nodes.insert(root.borrow().internal_id, root.clone());
                 self.stack.push(root);
 
@@ -253,7 +253,7 @@ impl HtmlParser {
                             self.state = ParserState::ShouldDownloadScript(source_url);
                         } else {
                             let node_borr = node.borrow();
-                            let content = node_borr.children.as_ref().unwrap().get(0);
+                            let content = node_borr.children.get(0);
                             let text_content = content.unwrap().borrow().text.as_ref().unwrap().text_content.clone();
                             self.state = ParserState::ShouldExecuteScript { source_url: self.url.clone(), script: text_content };
                         };
@@ -263,7 +263,7 @@ impl HtmlParser {
                 if node.borrow().name.as_ref().unwrap().as_str() == "style" {
 
                     let node_borr = node.borrow();
-                    let content_node = node_borr.children.as_ref().unwrap()[0].borrow();
+                    let content_node = node_borr.children[0].borrow();
                     let content = &content_node.text.as_ref().unwrap().text_content;
 
                     let style_tokens = css_lexer::lex_css(content, self.last_line_idx as u32, self.last_char_idx as u32);
@@ -280,11 +280,8 @@ impl HtmlParser {
 
     fn register_node_as_child(&mut self, parent_node: Rc<RefCell<ElementDomNode>>, node: Rc<RefCell<ElementDomNode>>) {
         let mut parent = parent_node.borrow_mut();
-        if parent.children.is_none() {
-            parent.children = Some(Vec::new())
-        }
         node.borrow_mut().parent_id = parent.internal_id;
         self.document.all_nodes.insert(node.borrow().internal_id, node.clone());
-        parent.children.as_mut().unwrap().push(node);
+        parent.children.push(node);
     }
 }

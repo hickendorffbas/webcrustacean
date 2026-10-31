@@ -32,7 +32,6 @@ fn debug_print_dom_node_tree_with_indent(dom_node: &Rc<RefCell<ElementDomNode>>,
     }
 
     if dom_node.text.is_some() {
-        debug_assert!(dom_node.children.is_none());
         debug_assert!(dom_node.attributes.is_none());
 
         println!("{}TEXT: \"{}\" ({}) (parent: {})", indent, dom_node.text.as_ref().unwrap().text_content, dom_node.internal_id, dom_node.parent_id);
@@ -49,10 +48,8 @@ fn debug_print_dom_node_tree_with_indent(dom_node: &Rc<RefCell<ElementDomNode>>,
             }
         }
 
-        if dom_node.children.is_some() {
-            for child in dom_node.children.clone().unwrap() {
-                debug_print_dom_node_tree_with_indent(&child, indent_cnt + INDENT_AMOUNT);
-            }
+        for child in &dom_node.children {
+            debug_print_dom_node_tree_with_indent(&child, indent_cnt + INDENT_AMOUNT);
         }
     }
 }
@@ -111,9 +108,7 @@ fn debug_print_layout_tree_with_indent(node: &Rc<RefCell<LayoutNode>>, indent_cn
     };
 
     println!("{}{:?} ({}) {}", indent, rect_str, node.internal_id, visible);
-    if node.children.is_some() {
-        for child in node.children.clone().unwrap() {
-            debug_print_layout_tree_with_indent(&child, indent_cnt + INDENT_AMOUNT)
-        }
+    for child in &node.children {
+        debug_print_layout_tree_with_indent(&child, indent_cnt + INDENT_AMOUNT)
     }
 }

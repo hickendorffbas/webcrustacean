@@ -268,10 +268,8 @@ pub fn compute_styles(dom_node: &Rc<RefCell<ElementDomNode>>, all_dom_nodes: &Ha
 
     dom_node.borrow_mut().styles = computed_styles;
 
-    if dom_node.borrow().children.is_some() {
-        for child in dom_node.borrow().children.as_ref().unwrap() {
-            compute_styles(child, all_dom_nodes, style_context);
-        }
+    for child in &dom_node.borrow().children {
+        compute_styles(child, all_dom_nodes, style_context);
     }
 }
 
@@ -296,6 +294,13 @@ pub fn get_user_agent_style_sheet() -> Vec<StyleRule> {
 
         StyleRule::make_for_tag_name("a", CssProperty::Color, "blue", None),
         StyleRule::make_for_tag_name("a", CssProperty::TextDecoration, "underline", None),
+
+        StyleRule::make_for_tag_name("script", CssProperty::Display, "none", None),
+        StyleRule::make_for_tag_name("title", CssProperty::Display, "none", None),
+        StyleRule::make_for_tag_name("style", CssProperty::Display, "none", None),
+        StyleRule::make_for_tag_name("head", CssProperty::Display, "none", None),
+        StyleRule::make_for_tag_name("meta", CssProperty::Display, "none", None),
+        StyleRule::make_for_tag_name("link", CssProperty::Display, "none", None),
     ];
 
     for element in HTML_BLOCK_ELEMENTS {
@@ -480,7 +485,7 @@ fn check_selector_for_match(selector: &Selector, starting_idx: usize, node_being
 
                 let mut found = false;
                 let mut node_updated = false;
-                for child in parent_node.borrow().children.as_ref().unwrap().iter().rev() {
+                for child in parent_node.borrow().children.iter().rev() {
                     if child.borrow().text.is_some() && child.borrow().text.as_ref().unwrap().text_content.trim().is_empty() {
                         //Its not strictly according to spec, but all the big browsers ignore whitespace text in between nodes for this combinator
                         continue;

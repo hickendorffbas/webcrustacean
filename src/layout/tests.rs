@@ -65,10 +65,8 @@ fn test_basic_paragraph_layout() {
 
 fn build_all_nodes_from_document_node(dom_node: &Rc<RefCell<ElementDomNode>>, all_nodes_map: &mut HashMap<usize, Rc<RefCell<ElementDomNode>>>) {
 
-    if dom_node.borrow().children.is_some() {
-        for child in dom_node.borrow().children.as_ref().unwrap() {
-            build_all_nodes_from_document_node(&child, all_nodes_map);
-        }
+    for child in &dom_node.borrow().children {
+        build_all_nodes_from_document_node(&child, all_nodes_map);
     }
 
     let new_rc = Rc::clone(dom_node);

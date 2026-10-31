@@ -3,6 +3,7 @@ use std::{
     fs::File,
     io::Read,
     path::Path,
+    sync::Mutex,
     thread,
     time
 };
@@ -17,6 +18,7 @@ use crate::network::url::Url;
 use crate::platform::{Platform, self};
 use crate::renderer;
 use crate::resource_loader::{CookieStore, ResourceLoader};
+use crate::style::compute_styles;
 use crate::ui::{
     UIState,
     CONTENT_TOP_LEFT_X,
@@ -27,6 +29,9 @@ use crate::ui::{
 const DEFAULT_SCREEN_WIDTH: f32 = 600.0;
 const DEFAULT_SCREEN_HEIGHT: f32 = 600.0;
 const WAIT_FOR_SDL2_MILLIS: u64 = 250;
+
+//SDL can only be initialized once at the same time, and cargo test runs tests in parallel
+static SDL_LOCK: Mutex<()> = Mutex::new(());
 
 
 fn read_file(file_path: &Path) -> String {
@@ -70,6 +75,8 @@ fn render_doc(filename: &str, platform: &mut Platform, save_output: bool) -> Vec
     run_parser(&mut html_parser);
     let mut document = html_parser.document;
 
+    compute_styles(&document.document_node, &document.all_nodes, &document.style_context);
+
     let resource_loader = &mut ResourceLoader::new();
 
     document.document_node.borrow_mut().post_construct(platform);
@@ -102,6 +109,8 @@ fn render_doc(filename: &str, platform: &mut Platform, save_output: bool) -> Vec
 
 
 fn run_ref_test(test_number: usize, save_output: bool) {
+    //A failing reftest poisons the lock, but that should not make the other reftests fail
+    let _sdl_guard = SDL_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
 
     //TODO: platform init would be better to do once for all tests? Can we have state over tests even?
     let sdl_context = sdl2::init().unwrap();
@@ -124,3 +133,9 @@ fn reftest_1() {
     run_ref_test(1, false);
 }
 
+
+#[test]
+fn reftest_2() {
+    //Check that elements with display: none render the same as when they are not in the document at all
+    run_ref_test(2, false);
+}

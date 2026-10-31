@@ -167,7 +167,7 @@ pub enum PositioningScheme {
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct LayoutNode {
     #[cfg(debug_assertions)] pub internal_id: usize,
-    pub children: Option<Vec<Rc<RefCell<LayoutNode>>>>,
+    pub children: Vec<Rc<RefCell<LayoutNode>>>,
 
     pub from_dom_node: Option<Rc<RefCell<ElementDomNode>>>,
 
@@ -261,13 +261,11 @@ impl LayoutNode {
 
     pub fn find_dom_node_at_position(&self, x: f32, y: f32) -> Option<Rc<RefCell<ElementDomNode>>> {
         if self.content.is_inside(x, y) {
-            if self.children.is_some() {
-                for child in self.children.as_ref().unwrap() {
-                    if RefCell::borrow(child).visible {
-                        let possible_node = child.borrow().find_dom_node_at_position(x, y);
-                        if possible_node.is_some() {
-                            return possible_node;
-                        }
+            for child in &self.children {
+                if RefCell::borrow(child).visible {
+                    let possible_node = child.borrow().find_dom_node_at_position(x, y);
+                    if possible_node.is_some() {
+                        return possible_node;
                     }
                 }
             }
@@ -293,7 +291,7 @@ impl LayoutNode {
         return LayoutNode {
             #[cfg(debug_assertions)] internal_id: 0,
             visible: true,
-            children: None,
+            children: Vec::new(),
             from_dom_node: None,
             content: LayoutNodeContent::NoContent,
             formatting_context: FormattingContext::Block,
@@ -328,10 +326,8 @@ impl LayoutNode {
             LayoutNodeContent::NoContent => {},
         }
 
-        if self.children.is_some() {
-            for child in self.children.as_ref().unwrap() {
-                RefCell::borrow_mut(child).reset_selection();
-            }
+        for child in &self.children {
+            RefCell::borrow_mut(child).reset_selection();
         }
     }
 
@@ -357,10 +353,8 @@ impl LayoutNode {
             LayoutNodeContent::NoContent => {},
         }
 
-        if self.children.is_some() {
-            for child in self.children.as_ref().unwrap() {
-                RefCell::borrow_mut(child).get_selected_text(result);
-            }
+        for child in &self.children {
+            RefCell::borrow_mut(child).get_selected_text(result);
         }
     }
 
@@ -369,11 +363,9 @@ impl LayoutNode {
             return true;
         }
 
-        if self.children.is_some() {
-            for child in self.children.as_ref().unwrap() {
-                if child.borrow().is_dirty_anywhere() {
-                    return true;
-                }
+        for child in &self.children {
+            if child.borrow().is_dirty_anywhere() {
+                return true;
             }
         }
         return false;
@@ -395,11 +387,9 @@ impl LayoutNode {
             LayoutNodeContent::NoContent => { panic!("Cant adjust position of a node without content"); }
         }
 
-        if self.children.is_some() {
-            for child in self.children.as_ref().unwrap() {
-                let mut mut_child = RefCell::borrow_mut(child);
-                mut_child.move_node_vertically(y_diff);
-            }
+        for child in &self.children {
+            let mut mut_child = RefCell::borrow_mut(child);
+            mut_child.move_node_vertically(y_diff);
         }
     }
 
@@ -498,7 +488,7 @@ pub fn build_full_layout(document: &Document, font_context: &FontContext) -> Ful
     let root_node = LayoutNode {
         #[cfg(debug_assertions)] internal_id: get_next_layout_node_interal_id(),
         visible: true,
-        children: Some(top_level_layout_nodes),
+        children: top_level_layout_nodes,
         from_dom_node: None,
         content: LayoutNodeContent::AreaLayoutNode(AreaLayoutNode {
             css_box: CssBox::empty(),
@@ -537,10 +527,8 @@ pub fn collect_content_nodes_in_walk_order_for_normal_flow(node: &Rc<RefCell<Lay
         LayoutNodeContent::NoContent => {},
     }
 
-    if RefCell::borrow(node).children.as_ref().is_some() {
-        for child in RefCell::borrow(node).children.as_ref().unwrap() {
-            collect_content_nodes_in_walk_order_for_normal_flow(&child, result);
-        }
+    for child in &RefCell::borrow(node).children {
+        collect_content_nodes_in_walk_order_for_normal_flow(&child, result);
     }
 }
 
@@ -561,10 +549,8 @@ fn reset_dirtyness(node: &Rc<RefCell<LayoutNode>>) {
         RefCell::borrow_mut(dom_node).dirty = false;
     }
 
-    if node.children.is_some() {
-        for child in node.children.as_ref().unwrap() {
-            reset_dirtyness(child);
-        }
+    for child in &node.children {
+        reset_dirtyness(child);
     }
 }
 
@@ -589,33 +575,32 @@ fn compute_layout_for_node(node: &Rc<RefCell<LayoutNode>>, top_left_x: f32, top_
     match mut_node.positioning_scheme {
         PositioningScheme::Static => {
 
-            match mut_node.children {
-                Some(_) => {
-                    match mut_node.formatting_context {
-                        FormattingContext::Block => {
-                            apply_block_layout(&mut mut_node, top_left_x, top_left_y, current_scroll_y, font_context, force_full_layout, available_width);
-                        },
-                        FormattingContext::Inline => {
-                            apply_inline_layout(&mut mut_node, top_left_x, top_left_y, current_scroll_y, font_context, force_full_layout, available_width);
-                        },
-                        FormattingContext::Flex => {
-                            apply_flex_layout(&mut mut_node, top_left_x, top_left_y, current_scroll_y, font_context, force_full_layout, available_width);
-                        }
-                        FormattingContext::Table => {
-                            match &mut_node.content {
-                                LayoutNodeContent::TableLayoutNode(_) => {
-                                    drop(mut_node);
-                                    tables::compute_layout_for_table(node, top_left_x, top_left_y, font_context, current_scroll_y,
-                                                                     only_update_block_vertical_position, force_full_layout, available_width);
-                                },
-                                _ => panic!("Table formatting context on non-table layout node")
-                            }
-                        },
+            if mut_node.children.is_empty() {
+                set_css_boxes_for_node_without_children(&mut mut_node, top_left_x, top_left_y, font_context, available_width, allow_single_node_wrap);
+            } else {
+
+                match mut_node.formatting_context {
+                    FormattingContext::Block => {
+                        apply_block_layout(&mut mut_node, top_left_x, top_left_y, current_scroll_y, font_context, force_full_layout, available_width);
+                    },
+                    FormattingContext::Inline => {
+                        apply_inline_layout(&mut mut_node, top_left_x, top_left_y, current_scroll_y, font_context, force_full_layout, available_width);
+                    },
+                    FormattingContext::Flex => {
+                        apply_flex_layout(&mut mut_node, top_left_x, top_left_y, current_scroll_y, font_context, force_full_layout, available_width);
                     }
-                },
-                None => {
-                    set_css_boxes_for_node_without_children(&mut mut_node, top_left_x, top_left_y, font_context, available_width, allow_single_node_wrap);
-                },
+                    FormattingContext::Table => {
+                        match &mut_node.content {
+                            LayoutNodeContent::TableLayoutNode(_) => {
+                                drop(mut_node);
+                                tables::compute_layout_for_table(node, top_left_x, top_left_y, font_context, current_scroll_y,
+                                                                    only_update_block_vertical_position, force_full_layout, available_width);
+                            },
+                            _ => panic!("Table formatting context on non-table layout node")
+                        }
+                    },
+                }
+
             }
         },
         _ => todo!("Positioning scheme not yet implemented"),
@@ -756,7 +741,7 @@ fn apply_block_layout(node: &mut LayoutNode, top_left_x: f32, top_left_y: f32, c
     let mut cursor_y = top_left_y;
     let mut max_width: f32 = 0.0;
 
-    for child in node.children.as_ref().unwrap() {
+    for child in &node.children {
         let only_update_block_vertical_position = !child.borrow().is_dirty_anywhere(); //Since the parent node is block layout, we can shift the while block up and down if its not dirty
         compute_layout_for_node(&child, top_left_x, cursor_y, font_context, current_scroll_y,
                                 only_update_block_vertical_position, force_full_layout, available_width, true);
@@ -779,10 +764,10 @@ fn fix_inline_whitespace(node: &mut LayoutNode) {
     //      new line, all whitespace should be stripped)
     //      for now we do a best effort
 
-    if !node.children.as_ref().unwrap().is_empty() {
+    if !node.children.is_empty() {
 
         let mut is_first = true;
-        for child in node.children.as_ref().unwrap() {
+        for child in &node.children {
 
             if is_first {
                 if let LayoutNodeContent::TextLayoutNode(text_node) = &mut child.borrow_mut().content {
@@ -799,7 +784,7 @@ fn fix_inline_whitespace(node: &mut LayoutNode) {
             is_first = false;
         }
 
-        let mut last_child = node.children.as_ref().unwrap().last().unwrap().borrow_mut();
+        let mut last_child = node.children.last().unwrap().borrow_mut();
         if let LayoutNodeContent::TextLayoutNode(ref mut text_node) = last_child.content {
             let first_box = text_node.css_text_boxes.first_mut().unwrap();
             first_box.text = first_box.text.trim_end_matches(' ').to_string();
@@ -841,7 +826,7 @@ fn apply_inline_layout(node: &mut LayoutNode, top_left_x: f32, top_left_y: f32, 
     //TODO: we track this because we don't have proper lineboxes (we need to implement those) and the first items behaves differently (has leading space stripped)
     let mut next_is_first_child_on_line = true;
 
-    for child in node.children.as_ref().unwrap() {
+    for child in &node.children {
 
         if child.borrow().from_dom_node.is_some() {
             let child_borr = child.borrow();
@@ -907,7 +892,7 @@ fn apply_inline_layout(node: &mut LayoutNode, top_left_x: f32, top_left_y: f32, 
 
         if (cursor_x - top_left_x + child_width) > available_width {
 
-            if child_borrow.children.is_none() && child_borrow.can_wrap() {
+            if child_borrow.can_wrap() {
                 // in this case, we might be able to split the css boxes, and put part of the node on this line
 
                 let mut new_css_text_boxes;
@@ -1031,7 +1016,7 @@ fn apply_flex_layout(node: &mut LayoutNode, top_left_x: f32, top_left_y: f32, cu
 
     if flex_dir == "row" {
 
-        for child in node.children.as_ref().unwrap() {
+        for child in &node.children {
 
             //TODO: implement flex_grow and flex_shrink
             let flex_basis = child.borrow().get_style_value(CssProperty::FlexBasis);
@@ -1140,10 +1125,9 @@ fn contains_block_and_inline_level_elements(children: &Vec<Rc<RefCell<ElementDom
 
 
 fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Document, font_context: &FontContext) -> Rc<RefCell<LayoutNode>> {
-    let mut partial_node_visible = true;
     let mut partial_node_optional_img = None;
     let mut partial_node_line_break = false;
-    let mut partial_node_children = None;
+    let mut partial_node_children = Vec::new();
     let mut partial_node_is_submit_button = false;
     let mut partial_node_is_text_input = false;
     let mut partial_node_text = None;
@@ -1158,7 +1142,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
     let positioning_scheme = PositioningScheme::Static; //TODO: this should be derived from the position attribute on the DOM node
 
-    let mut childs_to_recurse_on: &Option<Vec<Rc<RefCell<ElementDomNode>>>> = &None;
+    let mut childs_to_recurse_on: &[Rc<RefCell<ElementDomNode>>] = &[];
 
     let main_node_refcell = main_node;
     let main_node = RefCell::borrow(main_node);
@@ -1191,7 +1175,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
                     //      ownership causes issues). For now we just clone every time we built the layout node.
                     partial_node_optional_img = Some(main_node.image.as_ref().unwrap().deref().clone());
                 }
-                childs_to_recurse_on = &None; //images should not have children (its a tag that does not have a close tag, formally)
+                childs_to_recurse_on = &[]; //images should not have children (its a tag that does not have a close tag, formally)
             }
 
             TagName::Input => {
@@ -1210,11 +1194,8 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
                 }
             }
 
-            //TODO: we need these in the DOM, but we should not even generate a layout box for them actually:
-            TagName::Script | TagName::Style | TagName::Title => { partial_node_visible = false; }
-
             TagName::Table => {
-                childs_to_recurse_on = &None; // we handle the children in our own method //TODO: it would still be nice to re-use the block/inline logic below
+                childs_to_recurse_on = &[]; // we handle the children in our own method //TODO: it would still be nice to re-use the block/inline logic below
                 drop(main_node);
                 prebuilt_node = Some(tables::build_layout_tree_for_table(main_node_refcell, document, font_context));
             }
@@ -1225,15 +1206,17 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
         childs_to_recurse_on = &main_node.children;
     }
 
-    if childs_to_recurse_on.is_some() && childs_to_recurse_on.as_ref().unwrap().len() > 0 {
-        partial_node_children = Some(Vec::new());
-        let first_child = childs_to_recurse_on.as_ref().unwrap().iter().next().unwrap();
+    let childs_to_recurse_on: Vec<Rc<RefCell<ElementDomNode>>>
+        = childs_to_recurse_on.iter().filter(|child| child.borrow().dom_property_display() != DomPropertyDisplay::None).cloned().collect();
 
-        if contains_block_and_inline_level_elements(&childs_to_recurse_on.as_ref().unwrap()) {
+    if childs_to_recurse_on.len() > 0 {
+        let first_child = childs_to_recurse_on.iter().next().unwrap();
+
+        if contains_block_and_inline_level_elements(&childs_to_recurse_on) {
             let mut temp_inline_child_buffer = Vec::new();
             let background_color = partial_node_background_color;
 
-            for child in childs_to_recurse_on.as_ref().unwrap() {
+            for child in &childs_to_recurse_on {
 
                 if child.borrow().dom_property_display().is_block_level() {
                     if !temp_inline_child_buffer.is_empty() {
@@ -1245,13 +1228,13 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
                         }
 
                         let anon_block = build_anonymous_layout_node(true, layout_childs, background_color, FormattingContext::Inline);
-                        partial_node_children.as_mut().unwrap().push(anon_block);
+                        partial_node_children.push(anon_block);
 
                         temp_inline_child_buffer = Vec::new();
                     }
 
                     let layout_child = build_layout_tree(child, document, font_context);
-                    partial_node_children.as_mut().unwrap().push(layout_child);
+                    partial_node_children.push(layout_child);
 
                 } else {
                     temp_inline_child_buffer.push(child);
@@ -1266,38 +1249,35 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
                 }
 
                 let anon_block = build_anonymous_layout_node(true, layout_childs, background_color, FormattingContext::Inline);
-                partial_node_children.as_mut().unwrap().push(anon_block);
+                partial_node_children.push(anon_block);
             }
 
         } else if first_child.borrow().dom_property_display() == DomPropertyDisplay::Inline {
 
             partial_formatting_context = FormattingContext::Inline;
 
-            for child in childs_to_recurse_on.as_ref().unwrap() {
-                let layout_child = build_layout_tree(child, document, font_context);
-                partial_node_children.as_mut().unwrap().push(layout_child);
+            for child in childs_to_recurse_on {
+                let layout_child = build_layout_tree(&child, document, font_context);
+                partial_node_children.push(layout_child);
             }
 
         } else if first_child.borrow().dom_property_display() == DomPropertyDisplay::Flex {
 
             partial_formatting_context = FormattingContext::Flex;
 
-            for child in childs_to_recurse_on.as_ref().unwrap() {
-                let layout_child = build_layout_tree(child, document, font_context);
-                partial_node_children.as_mut().unwrap().push(layout_child);
+            for child in childs_to_recurse_on {
+                let layout_child = build_layout_tree(&child, document, font_context);
+                partial_node_children.push(layout_child);
             }
 
-        } else { //This means the children have all display = block   //TODO: this is not true, there might be Disply: None in here as well, which also goes
-                                                                      //      for the above cases, structure needs to be a bit different probably
-
+        } else {
             partial_formatting_context = FormattingContext::Block;
 
-            for child in childs_to_recurse_on.as_ref().unwrap() {
-                let layout_child = build_layout_tree(child, document, font_context);
-                partial_node_children.as_mut().unwrap().push(layout_child);
+            for child in childs_to_recurse_on {
+                let layout_child = build_layout_tree(&child, document, font_context);
+                partial_node_children.push(layout_child);
             }
         }
-
     }
 
     if prebuilt_node.is_some() {
@@ -1342,7 +1322,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
     let new_node = LayoutNode {
         #[cfg(debug_assertions)] internal_id: get_next_layout_node_interal_id(),
         formatting_context: partial_formatting_context,
-        visible: partial_node_visible,
+        visible: true, //TODO: we now don't make layout nodes for display:none, check if there is still a usecase for this flag
         children: partial_node_children,
         from_dom_node: Some(Rc::clone(&main_node_refcell)),
         content: content,
@@ -1357,19 +1337,17 @@ pub fn rebuild_dirty_layout_childs(main_node: &Rc<RefCell<LayoutNode>>, document
     let mut main_node_mut = RefCell::borrow_mut(main_node);
     let main_node_children = &mut main_node_mut.children;
 
-    if main_node_children.is_some() {
-        for child_idx in 0..main_node_children.as_ref().unwrap().len() {
-            let child = &main_node_children.as_ref().unwrap()[child_idx];
+    for child_idx in 0..main_node_children.len() {
+        let child = &main_node_children[child_idx];
 
-            if child.borrow().from_dom_node.is_some() && child.borrow().from_dom_node.as_ref().unwrap().borrow().dirty {
-                let new_child = build_layout_tree(&child.borrow().from_dom_node.as_ref().unwrap(), document, font_context);
-                main_node_children.as_mut().unwrap()[child_idx] = new_child;
+        if child.borrow().from_dom_node.is_some() && child.borrow().from_dom_node.as_ref().unwrap().borrow().dirty {
+            let new_child = build_layout_tree(&child.borrow().from_dom_node.as_ref().unwrap(), document, font_context);
+            main_node_children[child_idx] = new_child;
 
-            } else {
-                rebuild_dirty_layout_childs(&child, document, font_context);
-            }
-
+        } else {
+            rebuild_dirty_layout_childs(&child, document, font_context);
         }
+
     }
 }
 
@@ -1384,7 +1362,7 @@ fn build_anonymous_layout_node(visible: bool, inline_children: Vec<Rc<RefCell<La
         #[cfg(debug_assertions)] internal_id: get_next_layout_node_interal_id(),
         formatting_context: formatting_context,
         visible: visible,
-        children: Some(inline_children),
+        children: inline_children,
         from_dom_node: None,
         content: LayoutNodeContent::AreaLayoutNode(empty_box_layout_node),
         positioning_scheme: PositioningScheme::Static,

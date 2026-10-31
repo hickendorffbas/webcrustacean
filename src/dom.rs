@@ -75,10 +75,7 @@ pub enum TagName {
     Br,
     Img,
     Input,
-    Script,
-    Style,
     Table,
-    Title,
 
     Other,
 }
@@ -89,10 +86,7 @@ impl TagName {
             "br" => TagName::Br,
             "img" => TagName::Img,
             "input" => TagName::Input,
-            "script" => TagName::Script,
-            "style" => TagName::Style,
             "table" => TagName::Table,
-            "title" => TagName::Title,
 
             _ => {
                 //this is not an error, since we only translate tags that we need to do something for in the layout tree
@@ -128,7 +122,7 @@ pub struct ElementDomNode {
     pub name: Option<String>,
     pub name_for_layout: TagName,
 
-    pub children: Option<Vec<Rc<RefCell<ElementDomNode>>>>,
+    pub children: Vec<Rc<RefCell<ElementDomNode>>>,
     pub attributes: Option<Vec<Rc<RefCell<AttributeDomNode>>>>,
     pub styles: HashMap<CssProperty, String>,
 
@@ -185,10 +179,8 @@ impl ElementDomNode {
             }
         }
 
-        if self.children.is_some() {
-            for child in self.children.as_ref().unwrap() {
-                child.borrow_mut().post_construct(platform);
-            }
+        for child in &self.children {
+            child.borrow_mut().post_construct(platform);
         }
     }
 
@@ -197,12 +189,10 @@ impl ElementDomNode {
 
         let mut any_child_dirty = false;
 
-        if self.children.is_some() {
-            for child in self.children.as_ref().unwrap() {
-                let child_dirty = child.borrow_mut().update(document, cookie_store, resource_loader);
-                if child_dirty {
-                    any_child_dirty = true;
-                }
+        for child in &self.children {
+            let child_dirty = child.borrow_mut().update(document, cookie_store, resource_loader);
+            if child_dirty {
+                any_child_dirty = true;
             }
         }
 
@@ -324,10 +314,8 @@ impl ElementDomNode {
             }
         }
 
-        if self.children.is_some() {
-            for child in self.children.as_ref().unwrap() {
-                child.borrow().collect_all_inputs(fields);
-            }
+        for child in &self.children {
+            child.borrow().collect_all_inputs(fields);
         }
     }
 
@@ -357,7 +345,7 @@ impl ElementDomNode {
             text: text,
             name: name.clone(),
             name_for_layout: TagName::from_string(&name.unwrap_or_default()),
-            children: None,
+            children: Vec::new(),
             attributes: None,
             styles: HashMap::new(), //TODO: its worth checking if we can have 1 static immutable hashmap or something (with COW copy on write?)
             image: None,
@@ -367,7 +355,7 @@ impl ElementDomNode {
     }
 
     pub fn dom_property_display(&self) -> DomPropertyDisplay {
-        //TODO: is this actually a DOM property and not just a style value?
+        //TODO: is this actually a DOM property and not just a style value? -> its just a style value, not a dom property, so this needs to be different
         let css_display_property = get_property_from_computed_styles(&self.styles, CssProperty::Display);
         let possible_display = DomPropertyDisplay::from_string(css_display_property);
         if possible_display.is_some() {
@@ -379,10 +367,8 @@ impl ElementDomNode {
     pub fn mark_all_as_dirty(&mut self) {
         self.dirty = true;
 
-        if self.children.is_some() {
-            for child in self.children.as_ref().unwrap() {
-                child.borrow_mut().mark_all_as_dirty();
-            }
+        for child in &self.children {
+            child.borrow_mut().mark_all_as_dirty();
         }
     }
 }
@@ -394,7 +380,7 @@ pub enum DomPropertyDisplay {
     Block,
     Inline,
     Flex,
-    #[allow(dead_code)] None,  //TODO: add this case (needs to be parsed from css property)
+    None,
 }
 impl DomPropertyDisplay {
     pub fn from_string(value: &str) -> Option<DomPropertyDisplay> {

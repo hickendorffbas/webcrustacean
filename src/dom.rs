@@ -17,6 +17,7 @@ use crate::resource_loader::{
 };
 use crate::style::{
     CssProperty,
+    Declaration,
     StyleContext,
     get_property_from_computed_styles,
     get_user_agent_style_sheet,
@@ -125,6 +126,7 @@ pub struct ElementDomNode {
     pub children: Vec<Rc<RefCell<ElementDomNode>>>,
     pub attributes: Option<Vec<Rc<RefCell<AttributeDomNode>>>>,
     pub styles: HashMap<CssProperty, String>,
+    pub inline_style: Vec<Declaration>,
 
     pub image: Option<Rc<RgbaImage>>,
     pub image_load_task_id: Option<usize>,
@@ -348,6 +350,7 @@ impl ElementDomNode {
             children: Vec::new(),
             attributes: None,
             styles: HashMap::new(), //TODO: its worth checking if we can have 1 static immutable hashmap or something (with COW copy on write?)
+            inline_style: Vec::new(),
             image: None,
             image_load_task_id: None,
             page_component: None,

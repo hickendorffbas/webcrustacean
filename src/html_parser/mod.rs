@@ -209,6 +209,12 @@ impl HtmlParser {
             },
             Token::Attribute { name, value } => {
                 let mut parent_node = self.stack.last().unwrap().borrow_mut();
+
+                if name == "style" {
+                    let css_tokens = css_lexer::lex_css(&value, 1, 1);
+                    parent_node.inline_style = css_parser::parse_declaration_list(&css_tokens);
+                }
+
                 let mut attribute_node = AttributeDomNode { name, value, parent_id: parent_node.internal_id };
 
                 if parent_node.attributes.is_none() {

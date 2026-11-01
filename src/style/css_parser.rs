@@ -28,7 +28,6 @@ pub fn parse_css(css_tokens: &Vec<CssTokenWithLocation>) -> Vec<StyleRule> {
 }
 
 
-#[allow(unused)] //TODO: use for parsing inline css styles
 pub fn parse_declaration_list(css_tokens: &Vec<CssTokenWithLocation>) -> Vec<Declaration> {
     let mut declarations = Vec::new();
     let mut token_iterator = css_tokens.iter().peekable();

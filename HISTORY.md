@@ -5,6 +5,7 @@
 - Javascript has automatic semicolon insertion now
 - Javascript arrow function support
 - Improved text selection logic
+- Inline styles are now supported
 
 
 0.8.0

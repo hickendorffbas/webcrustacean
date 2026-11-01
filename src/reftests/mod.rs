@@ -139,3 +139,10 @@ fn reftest_2() {
     //Check that elements with display: none render the same as when they are not in the document at all
     run_ref_test(2, false);
 }
+
+
+#[test]
+fn reftest_3() {
+    //Check that declarations in the style attribute apply, and win over stylesheet rules for the same property
+    run_ref_test(3, false);
+}

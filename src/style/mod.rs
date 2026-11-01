@@ -182,10 +182,10 @@ struct ActiveStyleRule {
     property: CssProperty,
     property_value: CssValue,
     origin: Origin,
-    specificity_attribute: u8,
-    specificity_id: u8,
-    specificity_class: u8,
-    specificity_type: u8,
+    element_attached: bool,
+    specificity_a_id: u8,
+    specificity_b_class: u8,
+    specificity_c_type: u8,
     definition_order: u32,
 }
 
@@ -206,11 +206,11 @@ pub fn resolve_full_styles_for_dom_node(dom_node: &Rc<RefCell<ElementDomNode>>, 
                     property: style_rule.declaration.property,
                     property_value: style_rule.declaration.value.clone(),
                     origin: Origin::UserAgent,
-                    specificity_attribute: 0,  //TODO: implement
-                    specificity_id: 0,  //TODO: implement
-                    specificity_class: 0,  //TODO: implement
-                    specificity_type: 0,  //TODO: implement
                     definition_order: rule_idx,
+                    element_attached: false,
+                    specificity_a_id: 0, //TODO: implement
+                    specificity_b_class: 0, //TODO: implement
+                    specificity_c_type: 0, //TODO: implement
                 }
             );
         }
@@ -224,16 +224,33 @@ pub fn resolve_full_styles_for_dom_node(dom_node: &Rc<RefCell<ElementDomNode>>, 
                     property: style_rule.declaration.property,
                     property_value: style_rule.declaration.value.clone(),
                     origin: Origin::Author,
-                    specificity_attribute: 0,  //TODO: implement
-                    specificity_id: 0,  //TODO: implement
-                    specificity_class: 0,  //TODO: implement
-                    specificity_type: 0,  //TODO: implement
                     definition_order: rule_idx,
+                    element_attached: false,
+                    specificity_a_id: 0, //TODO: implement
+                    specificity_b_class: 0, //TODO: implement
+                    specificity_c_type: 0, //TODO: implement
                 }
             );
         }
         rule_idx += 1;
     }
+
+    for declaration in &dom_node.borrow().inline_style {
+        active_style_rules.push(
+            ActiveStyleRule {
+                property: declaration.property,
+                property_value: declaration.value.clone(),
+                origin: Origin::Author,
+                definition_order: rule_idx,
+                element_attached: true,
+                specificity_a_id: 0,
+                specificity_b_class: 0,
+                specificity_c_type: 0,
+            }
+        );
+        rule_idx += 1;
+    }
+
 
     active_style_rules.sort_by(|rule_a, rule_b| compare_style_rules(rule_a, rule_b));
 
@@ -395,17 +412,18 @@ fn compare_style_rules(rule_a: &ActiveStyleRule, rule_b: &ActiveStyleRule) -> Or
         return Ordering::Greater;
     }
 
-    if rule_a.specificity_attribute > rule_b.specificity_attribute { return Ordering::Greater; }
-    if rule_a.specificity_attribute < rule_b.specificity_attribute { return Ordering::Less; }
+    if rule_a.element_attached != rule_b.element_attached {
+        if rule_a.element_attached { return Ordering::Greater } else { return Ordering::Less }
+    }
 
-    if rule_a.specificity_id > rule_b.specificity_id { return Ordering::Greater; }
-    if rule_a.specificity_id < rule_b.specificity_id { return Ordering::Less; }
+    if rule_a.specificity_a_id > rule_b.specificity_a_id { return Ordering::Greater; }
+    if rule_a.specificity_a_id < rule_b.specificity_a_id { return Ordering::Less; }
 
-    if rule_a.specificity_class > rule_b.specificity_class { return Ordering::Greater; }
-    if rule_a.specificity_class < rule_b.specificity_class { return Ordering::Less; }
+    if rule_a.specificity_b_class > rule_b.specificity_b_class { return Ordering::Greater; }
+    if rule_a.specificity_b_class < rule_b.specificity_b_class { return Ordering::Less; }
 
-    if rule_a.specificity_type > rule_b.specificity_type { return Ordering::Greater; }
-    if rule_a.specificity_type < rule_b.specificity_type { return Ordering::Less; }
+    if rule_a.specificity_c_type > rule_b.specificity_c_type { return Ordering::Greater; }
+    if rule_a.specificity_c_type < rule_b.specificity_c_type { return Ordering::Less; }
 
     if rule_a.definition_order > rule_b.definition_order { return Ordering::Greater; }
     if rule_a.definition_order < rule_b.definition_order { return Ordering::Less; }

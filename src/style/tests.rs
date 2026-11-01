@@ -27,7 +27,8 @@ fn check_style(resolved_styles: &HashMap<CssProperty, String>, property: &CssPro
 fn make_element_node(dom_node_id: usize, parent_node_id: usize, name: String) -> ElementDomNode {
     return ElementDomNode { internal_id: dom_node_id, parent_id: parent_node_id, text: None, is_document_node: false, dirty: false,
                             name: Some(name), name_for_layout: TagName::Other, children: Vec::new(), attributes: None,
-                            image: None, image_load_task_id: None, page_component: None, styles: HashMap::new() };
+                            image: None, image_load_task_id: None, page_component: None, styles: HashMap::new(),
+                            inline_style: Vec::new() };
 }
 
 

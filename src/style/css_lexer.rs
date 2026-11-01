@@ -182,4 +182,7 @@ fn lex_css_block(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenW
         }
     }
 
+    if !buffer.is_empty() {
+        tokens.push(make_token(css_iterator, CssToken::Identifier(buffer)));
+    }
 }

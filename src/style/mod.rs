@@ -108,18 +108,25 @@ pub enum AtRule {
 }
 
 
+#[derive(PartialEq, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub struct Declaration {
+    pub property: CssProperty,
+    pub value: CssValue,
+}
+
+
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct StyleRule {
     pub selector: Selector,
-    pub property: CssProperty,
-    pub value: CssValue,
+    pub declaration: Declaration,
     pub at_rules: Option<Vec<AtRule>>,
 }
 impl StyleRule {
     fn make_for_tag_name(tag_name: &str, property: CssProperty, value: &str, at_rules: Option<Vec<AtRule>>) -> StyleRule {
         return StyleRule { selector: Selector { elements: vec![(CssCombinator::None, SelectorType::Name, tag_name.to_owned())],
                                                 pseudoclasses: None, pseudoelement: None },
-                           property, value: CssValue::String(value.to_owned()), at_rules }
+                           declaration: Declaration { property, value: CssValue::String(value.to_owned()) }, at_rules }
     }
 }
 
@@ -196,8 +203,8 @@ pub fn resolve_full_styles_for_dom_node(dom_node: &Rc<RefCell<ElementDomNode>>, 
         if style_rule_applies(&style_rule, &dom_node, all_dom_nodes) {
             active_style_rules.push(
                 ActiveStyleRule {
-                    property: style_rule.property,
-                    property_value: style_rule.value.clone(),
+                    property: style_rule.declaration.property,
+                    property_value: style_rule.declaration.value.clone(),
                     origin: Origin::UserAgent,
                     specificity_attribute: 0,  //TODO: implement
                     specificity_id: 0,  //TODO: implement
@@ -214,8 +221,8 @@ pub fn resolve_full_styles_for_dom_node(dom_node: &Rc<RefCell<ElementDomNode>>, 
         if style_rule_applies(&style_rule, &dom_node, all_dom_nodes) {
             active_style_rules.push(
                 ActiveStyleRule {
-                    property: style_rule.property,
-                    property_value: style_rule.value.clone(),
+                    property: style_rule.declaration.property,
+                    property_value: style_rule.declaration.value.clone(),
                     origin: Origin::Author,
                     specificity_attribute: 0,  //TODO: implement
                     specificity_id: 0,  //TODO: implement

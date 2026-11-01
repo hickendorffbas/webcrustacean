@@ -9,6 +9,7 @@ use crate::style::{
     CssFunction,
     CssProperty,
     CssValue,
+    Declaration,
     PseudoElement,
     Selector,
     SelectorType,
@@ -27,6 +28,22 @@ pub fn parse_css(css_tokens: &Vec<CssTokenWithLocation>) -> Vec<StyleRule> {
 }
 
 
+#[allow(unused)] //TODO: use for parsing inline css styles
+pub fn parse_declaration_list(css_tokens: &Vec<CssTokenWithLocation>) -> Vec<Declaration> {
+    let mut declarations = Vec::new();
+    let mut token_iterator = css_tokens.iter().peekable();
+
+    while token_iterator.peek().is_some() {
+        let decl = parse_declaration(&mut token_iterator);
+        if let Some(decl) = decl {
+            declarations.extend(expand_shorthand(decl));
+        }
+    }
+
+    return declarations;
+}
+
+
 fn clone_or_none(current_at_rules: &Vec<AtRule>) -> Option<Vec<AtRule>> {
     if current_at_rules.len() == 0 {
         return None;
@@ -38,48 +55,55 @@ fn process_shorthands(style_rules: Vec<StyleRule>) -> Vec<StyleRule> {
     let mut resolved_style_rules = Vec::new();
 
     for style_rule in style_rules {
-
-        match style_rule.property {
-            CssProperty::Flex => {
-
-                //TODO: in reality, this is more complicated, since some of the 3 values can be omitted, but how that is determined
-                //      depends on the values (wether they are percentages or numbers etc.)
-
-                match style_rule.value {
-
-                    CssValue::List(style_values) => {
-                        let mut expecting_flex_grow = true;
-                        let mut expecting_flex_shrink = true;
-                        let mut expecting_flex_basis = true;
-
-                        for part in style_values {
-                            let property = if expecting_flex_grow {
-                                expecting_flex_grow = false;
-                                CssProperty::FlexGrow
-                            } else if expecting_flex_shrink {
-                                expecting_flex_shrink = false;
-                                CssProperty::FlexShrink
-                            } else if expecting_flex_basis {
-                                expecting_flex_basis = false;
-                                CssProperty::FlexBasis
-                            } else {
-                                break;
-                            };
-
-                            resolved_style_rules.push(StyleRule { selector: style_rule.selector.clone(), property,
-                                                                  value: part, at_rules: style_rule.at_rules.clone() });
-                        }
-                    },
-                    _ => todo!(), //TODO: investigate what is needed here
-                }
-            },
-            _ => {
-                resolved_style_rules.push(style_rule);
-            }
+        for declaration in expand_shorthand(style_rule.declaration) {
+            resolved_style_rules.push(StyleRule { selector: style_rule.selector.clone(), declaration, at_rules: style_rule.at_rules.clone() });
         }
     }
 
     return resolved_style_rules;
+}
+
+
+fn expand_shorthand(declaration: Declaration) -> Vec<Declaration> {
+    match declaration.property {
+        CssProperty::Flex => {
+
+            //TODO: in reality, this is more complicated, since some of the 3 values can be omitted, but how that is determined
+            //      depends on the values (wether they are percentages or numbers etc.)
+
+            match declaration.value {
+
+                CssValue::List(style_values) => {
+                    let mut expanded = Vec::new();
+                    let mut expecting_flex_grow = true;
+                    let mut expecting_flex_shrink = true;
+                    let mut expecting_flex_basis = true;
+
+                    for part in style_values {
+                        let property = if expecting_flex_grow {
+                            expecting_flex_grow = false;
+                            CssProperty::FlexGrow
+                        } else if expecting_flex_shrink {
+                            expecting_flex_shrink = false;
+                            CssProperty::FlexShrink
+                        } else if expecting_flex_basis {
+                            expecting_flex_basis = false;
+                            CssProperty::FlexBasis
+                        } else {
+                            break;
+                        };
+
+                        expanded.push(Declaration { property, value: part });
+                    }
+                    return expanded;
+                },
+                _ => todo!(), //TODO: investigate what is needed here
+            }
+        },
+        _ => {
+            return vec![declaration];
+        }
+    }
 }
 
 
@@ -348,9 +372,9 @@ fn parse_declaration_block(selectors: Vec<Selector>, style_rules: &mut Vec<Style
             _ => {
                 let declaration = parse_declaration(token_iterator);
                 if declaration.is_some() {
-                    let (property, value) = declaration.unwrap();
                     for selector in &selectors {
-                        style_rules.push(StyleRule { selector: selector.clone(), property, value: value.clone(), at_rules: clone_or_none(current_at_rules) });
+                        let new_decl = declaration.as_ref().unwrap().clone();
+                        style_rules.push(StyleRule { selector: selector.clone(), declaration: new_decl, at_rules: clone_or_none(current_at_rules) });
                     }
                 }
             }
@@ -359,7 +383,7 @@ fn parse_declaration_block(selectors: Vec<Selector>, style_rules: &mut Vec<Style
 }
 
 
-fn parse_declaration(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) -> Option<(CssProperty, CssValue)> {
+fn parse_declaration(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) -> Option<Declaration> {
     let mut parsed_property = None;
     let mut parsed_value = None;
 
@@ -390,13 +414,13 @@ fn parse_declaration(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) 
             CssToken::Semicolon => {
                 token_iterator.next();
                 if parsed_property.is_some() && parsed_value.is_some() {
-                    return Some( (parsed_property.unwrap(), parsed_value.unwrap()) );
+                    return Some(Declaration { property: parsed_property.unwrap(), value: parsed_value.unwrap() });
                 }
                 return None;
             },
             CssToken::CloseBrace => {
                 if parsed_property.is_some() && parsed_value.is_some() {
-                    return Some( (parsed_property.unwrap(), parsed_value.unwrap()) );
+                    return Some(Declaration { property: parsed_property.unwrap(), value: parsed_value.unwrap() });
                 }
                 return None;
             },
@@ -428,7 +452,10 @@ fn parse_declaration(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) 
         }
     }
 
-    todo!(); //TODO: this should be an error
+    if parsed_property.is_some() && parsed_value.is_some() {
+        return Some(Declaration { property: parsed_property.unwrap(), value: parsed_value.unwrap() });
+    }
+    return None;
 }
 
 

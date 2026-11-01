@@ -388,20 +388,20 @@ fn compare_style_rules(rule_a: &ActiveStyleRule, rule_b: &ActiveStyleRule) -> Or
         return Ordering::Greater;
     }
 
-    if rule_a.specificity_attribute > rule_a.specificity_attribute { return Ordering::Greater; }
-    if rule_a.specificity_attribute < rule_a.specificity_attribute { return Ordering::Less; }
+    if rule_a.specificity_attribute > rule_b.specificity_attribute { return Ordering::Greater; }
+    if rule_a.specificity_attribute < rule_b.specificity_attribute { return Ordering::Less; }
 
-    if rule_a.specificity_id > rule_a.specificity_id { return Ordering::Greater; }
-    if rule_a.specificity_id < rule_a.specificity_id { return Ordering::Less; }
+    if rule_a.specificity_id > rule_b.specificity_id { return Ordering::Greater; }
+    if rule_a.specificity_id < rule_b.specificity_id { return Ordering::Less; }
 
-    if rule_a.specificity_class > rule_a.specificity_class { return Ordering::Greater; }
-    if rule_a.specificity_class < rule_a.specificity_class { return Ordering::Less; }
+    if rule_a.specificity_class > rule_b.specificity_class { return Ordering::Greater; }
+    if rule_a.specificity_class < rule_b.specificity_class { return Ordering::Less; }
 
-    if rule_a.specificity_type > rule_a.specificity_type { return Ordering::Greater; }
-    if rule_a.specificity_type < rule_a.specificity_type { return Ordering::Less; }
+    if rule_a.specificity_type > rule_b.specificity_type { return Ordering::Greater; }
+    if rule_a.specificity_type < rule_b.specificity_type { return Ordering::Less; }
 
-    if rule_a.definition_order > rule_a.definition_order { return Ordering::Greater; }
-    if rule_a.definition_order < rule_a.definition_order { return Ordering::Less; }
+    if rule_a.definition_order > rule_b.definition_order { return Ordering::Greater; }
+    if rule_a.definition_order < rule_b.definition_order { return Ordering::Less; }
 
     return Ordering::Equal;
 }

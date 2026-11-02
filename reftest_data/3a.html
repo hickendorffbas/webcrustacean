@@ -1,0 +1,25 @@
+<html>
+<head>
+<style>
+.red {
+  color: red;
+}
+#red-id {
+  color: red;
+}
+.bold {
+  font-weight: bold;
+}
+</style>
+</head>
+<body>
+<div style="color: green">Inline style only</div>
+<div class="red" style="color: green">Inline style beats a class rule</div>
+<div id="red-id" style="color: green">Inline style beats an id rule</div>
+<div class="bold" style="color: green">Inline style combines with a class rule on another property</div>
+<div style="color: red; color: blue">The last inline declaration wins</div>
+<div style="color: blue; background-color: yellow">Two inline declarations</div>
+<div style="color: green">Inline styles are <span>inherited</span></div>
+<div><span style="display: none">NOT visible </span>Inline display none</div>
+</body>
+</html>

@@ -96,7 +96,14 @@ fn expand_shorthand(declaration: Declaration) -> Vec<Declaration> {
                     }
                     return expanded;
                 },
-                _ => todo!(), //TODO: investigate what is needed here
+                CssValue::String(single_value) => {
+                    return vec![
+                        Declaration { property: CssProperty::FlexGrow, value: CssValue::String(single_value), important: declaration.important },
+                        Declaration { property: CssProperty::FlexShrink, value: CssValue::String("1".to_string()), important: declaration.important },
+                        Declaration { property: CssProperty::FlexBasis, value: CssValue::String("0%".to_string()), important: declaration.important },
+                    ]
+                }
+                _ => { return Vec::new(); }, //TODO: we need to log a warning when we have a good dev-console
             }
         },
         _ => {

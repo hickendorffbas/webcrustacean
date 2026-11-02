@@ -244,3 +244,16 @@ fn test_important_is_parsed_as_flag() {
     assert_eq!(color_rule.declaration.value, CssValue::String("green".to_owned()));
     assert!(color_rule.declaration.important);
 }
+
+
+#[test]
+fn test_flex_shorthand_with_single_number() {
+    let css_text = ".a { flex: 1; }";
+    let tokens = css_lexer::lex_css(&css_text, 1, 1);
+    let result = css_parser::parse_css(&tokens);
+
+    let value_for = |property: CssProperty| result.iter().find(|rule| rule.declaration.property == property).unwrap().declaration.value.clone();
+    assert_eq!(value_for(CssProperty::FlexGrow), CssValue::String("1".to_owned()));
+    assert_eq!(value_for(CssProperty::FlexShrink), CssValue::String("1".to_owned()));
+    assert_eq!(value_for(CssProperty::FlexBasis), CssValue::String("0%".to_owned()));
+}

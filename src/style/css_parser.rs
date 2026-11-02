@@ -92,7 +92,7 @@ fn expand_shorthand(declaration: Declaration) -> Vec<Declaration> {
                             break;
                         };
 
-                        expanded.push(Declaration { property, value: part });
+                        expanded.push(Declaration { property, value: part, important: declaration.important });
                     }
                     return expanded;
                 },
@@ -385,6 +385,7 @@ fn parse_declaration_block(selectors: Vec<Selector>, style_rules: &mut Vec<Style
 fn parse_declaration(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) -> Option<Declaration> {
     let mut parsed_property = None;
     let mut parsed_value = None;
+    let mut important = false;
 
     while token_iterator.peek().is_some() {
         match &token_iterator.peek().unwrap().css_token {
@@ -413,15 +414,38 @@ fn parse_declaration(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) 
             CssToken::Semicolon => {
                 token_iterator.next();
                 if parsed_property.is_some() && parsed_value.is_some() {
-                    return Some(Declaration { property: parsed_property.unwrap(), value: parsed_value.unwrap() });
+                    return Some(Declaration { property: parsed_property.unwrap(), value: parsed_value.unwrap(), important });
                 }
                 return None;
             },
             CssToken::CloseBrace => {
                 if parsed_property.is_some() && parsed_value.is_some() {
-                    return Some(Declaration { property: parsed_property.unwrap(), value: parsed_value.unwrap() });
+                    return Some(Declaration { property: parsed_property.unwrap(), value: parsed_value.unwrap(), important });
                 }
                 return None;
+            },
+            CssToken::ExclamationMark => {
+                token_iterator.next();
+
+                while token_iterator.peek().is_some() {
+                    match &token_iterator.peek().unwrap().css_token {
+                        CssToken::Identifier(ident) => {
+                            if ident.to_ascii_lowercase() == "important" {
+                                token_iterator.next();
+                                important = true;
+                                break;
+                            } else {
+                                todo!(); //TODO: some kind of error
+                            }
+                        },
+                        CssToken::Whitespace => {
+                            token_iterator.next();
+                        },
+                        _ => {
+                            todo!(); //TODO: some kind of errors
+                        }
+                    }
+                }
             },
             CssToken::Colon => {
                 token_iterator.next();
@@ -452,7 +476,7 @@ fn parse_declaration(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) 
     }
 
     if parsed_property.is_some() && parsed_value.is_some() {
-        return Some(Declaration { property: parsed_property.unwrap(), value: parsed_value.unwrap() });
+        return Some(Declaration { property: parsed_property.unwrap(), value: parsed_value.unwrap(), important });
     }
     return None;
 }
@@ -494,7 +518,7 @@ fn parse_sequence(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>, nes
             CssToken::Whitespace => {
                 token_iterator.next();
             },
-            CssToken::CloseBrace | CssToken::Semicolon => {
+            CssToken::CloseBrace | CssToken::Semicolon | CssToken::ExclamationMark => {
                 if nested {
                     return None;
                 } else {

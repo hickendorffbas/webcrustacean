@@ -113,6 +113,7 @@ pub enum AtRule {
 pub struct Declaration {
     pub property: CssProperty,
     pub value: CssValue,
+    pub important: bool,
 }
 
 
@@ -126,7 +127,7 @@ impl StyleRule {
     fn make_for_tag_name(tag_name: &str, property: CssProperty, value: &str, at_rules: Option<Vec<AtRule>>) -> StyleRule {
         return StyleRule { selector: Selector { elements: vec![(CssCombinator::None, SelectorType::Name, tag_name.to_owned())],
                                                 pseudoclasses: None, pseudoelement: None },
-                           declaration: Declaration { property, value: CssValue::String(value.to_owned()) }, at_rules }
+                           declaration: Declaration { property, value: CssValue::String(value.to_owned()), important: false }, at_rules }
     }
 }
 
@@ -187,6 +188,7 @@ struct ActiveStyleRule {
     specificity_b_class: u8,
     specificity_c_type: u8,
     definition_order: u32,
+    important: bool,
 }
 
 
@@ -211,6 +213,7 @@ pub fn resolve_full_styles_for_dom_node(dom_node: &Rc<RefCell<ElementDomNode>>, 
                     specificity_a_id: 0, //TODO: implement
                     specificity_b_class: 0, //TODO: implement
                     specificity_c_type: 0, //TODO: implement
+                    important: style_rule.declaration.important,
                 }
             );
         }
@@ -229,6 +232,7 @@ pub fn resolve_full_styles_for_dom_node(dom_node: &Rc<RefCell<ElementDomNode>>, 
                     specificity_a_id: 0, //TODO: implement
                     specificity_b_class: 0, //TODO: implement
                     specificity_c_type: 0, //TODO: implement
+                    important: style_rule.declaration.important,
                 }
             );
         }
@@ -246,6 +250,7 @@ pub fn resolve_full_styles_for_dom_node(dom_node: &Rc<RefCell<ElementDomNode>>, 
                 specificity_a_id: 0,
                 specificity_b_class: 0,
                 specificity_c_type: 0,
+                important: declaration.important,
             }
         );
         rule_idx += 1;
@@ -410,6 +415,10 @@ fn compare_style_rules(rule_a: &ActiveStyleRule, rule_b: &ActiveStyleRule) -> Or
             return Ordering::Less;
         }
         return Ordering::Greater;
+    }
+
+    if rule_a.important != rule_b.important {
+        if rule_a.important { return Ordering::Greater } else { return Ordering::Less }
     }
 
     if rule_a.element_attached != rule_b.element_attached {

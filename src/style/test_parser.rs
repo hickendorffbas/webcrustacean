@@ -18,7 +18,7 @@ fn test_parse_basic_style() {
     let result = css_parser::parse_css(&tokens);
 
     assert_eq!(result.len(), 1);
-    assert_eq!(result[0].declaration, Declaration { property: CssProperty::Color, value: CssValue::String("red".to_owned())});
+    assert_eq!(result[0].declaration, Declaration { property: CssProperty::Color, value: CssValue::String("red".to_owned()), important: false });
     assert_eq!(result[0].selector.elements[0], (CssCombinator::None, SelectorType::Name, "h3".to_owned()));
 }
 
@@ -30,7 +30,7 @@ fn test_lex_basic_style_with_more_whitespace() {
     let result = css_parser::parse_css(&tokens);
 
     assert_eq!(result.len(), 1);
-    assert_eq!(result[0].declaration, Declaration { property: CssProperty::Color, value: CssValue::String("red".to_owned())});
+    assert_eq!(result[0].declaration, Declaration { property: CssProperty::Color, value: CssValue::String("red".to_owned()), important: false });
     assert_eq!(result[0].selector.elements[0], (CssCombinator::None, SelectorType::Name, "h3".to_owned()));
 }
 
@@ -42,7 +42,7 @@ fn test_comments() {
     let result = css_parser::parse_css(&tokens);
 
     assert_eq!(result.len(), 1);
-    assert_eq!(result[0].declaration, Declaration { property: CssProperty::Color, value: CssValue::String("red".to_owned())});
+    assert_eq!(result[0].declaration, Declaration { property: CssProperty::Color, value: CssValue::String("red".to_owned()), important: false });
     assert_eq!(result[0].selector.elements[0], (CssCombinator::None, SelectorType::Name, "h3".to_owned()));
 }
 
@@ -55,10 +55,10 @@ fn test_multiple_selectors() {
 
     assert_eq!(result.len(), 2);
 
-    assert_eq!(result[0].declaration, Declaration { property: CssProperty::Color, value: CssValue::String("red".to_owned())});
+    assert_eq!(result[0].declaration, Declaration { property: CssProperty::Color, value: CssValue::String("red".to_owned()), important: false });
     assert_eq!(result[0].selector.elements[0], (CssCombinator::None, SelectorType::Name, "h3".to_owned()));
 
-    assert_eq!(result[1].declaration, Declaration { property: CssProperty::Color, value: CssValue::String("red".to_owned())});
+    assert_eq!(result[1].declaration, Declaration { property: CssProperty::Color, value: CssValue::String("red".to_owned()), important: false });
     assert_eq!(result[1].selector.elements[0], (CssCombinator::None, SelectorType::Name, "h4".to_owned()));
 }
 
@@ -70,7 +70,7 @@ fn test_basic_combinator() {
     let result = css_parser::parse_css(&tokens);
 
     assert_eq!(result.len(), 1);
-    assert_eq!(result[0].declaration, Declaration { property: CssProperty::Color, value: CssValue::String("red".to_owned())});
+    assert_eq!(result[0].declaration, Declaration { property: CssProperty::Color, value: CssValue::String("red".to_owned()), important: false });
     assert_eq!(result[0].selector.elements[0], (CssCombinator::Child, SelectorType::Name, "p".to_owned()));
     assert_eq!(result[0].selector.elements[1], (CssCombinator::None, SelectorType::Name, "h3".to_owned()));
 }
@@ -83,7 +83,7 @@ fn test_parse_id_style() {
     let result = css_parser::parse_css(&tokens);
 
     assert_eq!(result.len(), 1);
-    assert_eq!(result[0].declaration, Declaration { property: CssProperty::Color, value: CssValue::String("red".to_owned())});
+    assert_eq!(result[0].declaration, Declaration { property: CssProperty::Color, value: CssValue::String("red".to_owned()), important: false });
     assert_eq!(result[0].selector.elements[0], (CssCombinator::None, SelectorType::Id, "ident".to_owned()));
 }
 
@@ -99,7 +99,7 @@ fn test_parse_function() {
                                                     value: CssValue::Function(CssFunction { name: "rgb".to_owned(),
                                                                  arguments: vec![CssValue::String("10".to_owned()),
                                                                                  CssValue::String("20".to_owned()),
-                                                                                 CssValue::String("30".to_owned())] })});
+                                                                                 CssValue::String("30".to_owned())] }), important: false });
     assert_eq!(result[0].selector.elements[0], (CssCombinator::None, SelectorType::Name, "h3".to_owned()));
 }
 //TODO: test a nested css function (for example calc())
@@ -112,7 +112,7 @@ fn test_parse_hash_color() {
     let result = css_parser::parse_css(&tokens);
 
     assert_eq!(result.len(), 1);
-    assert_eq!(result[0].declaration, Declaration { property: CssProperty::Color, value: CssValue::Hash("ffffff".to_owned())});
+    assert_eq!(result[0].declaration, Declaration { property: CssProperty::Color, value: CssValue::Hash("ffffff".to_owned()), important: false });
     assert_eq!(result[0].selector.elements[0], (CssCombinator::None, SelectorType::Name, "a".to_owned()));
 }
 
@@ -124,7 +124,7 @@ fn test_parse_at_rule() {
     let result = css_parser::parse_css(&tokens);
 
     assert_eq!(result.len(), 1);
-    assert_eq!(result[0].declaration, Declaration { property: CssProperty::Color, value: CssValue::String("blue".to_owned())});
+    assert_eq!(result[0].declaration, Declaration { property: CssProperty::Color, value: CssValue::String("blue".to_owned()), important: false });
     assert_eq!(result[0].selector.elements[0], (CssCombinator::None, SelectorType::Class, "mw-parser-output".to_owned()));
     assert_eq!(result[0].at_rules.as_ref().unwrap()[0], AtRule::Media("(max-width:500px)".to_owned()));
 }
@@ -137,7 +137,7 @@ fn test_rules_after_at_rule() {
     let result = css_parser::parse_css(&tokens);
 
     assert_eq!(result.len(), 2);
-    assert_eq!(result[1].declaration, Declaration { property: CssProperty::Color, value: CssValue::String("red".to_owned())});
+    assert_eq!(result[1].declaration, Declaration { property: CssProperty::Color, value: CssValue::String("red".to_owned()), important: false });
     assert_eq!(result[1].selector.elements[0], (CssCombinator::None, SelectorType::Name, "b".to_owned()));
     assert_eq!(result[1].at_rules.is_none(), true);
 }
@@ -150,7 +150,7 @@ fn test_rules_after_font_face() {
     let result = css_parser::parse_css(&tokens);
 
     let b_rule = result.iter().find(|rule| rule.selector.elements[0] == (CssCombinator::None, SelectorType::Name, "b".to_owned())).unwrap();
-    assert_eq!(b_rule.declaration, Declaration { property: CssProperty::Color, value: CssValue::String("red".to_owned())});
+    assert_eq!(b_rule.declaration, Declaration { property: CssProperty::Color, value: CssValue::String("red".to_owned()), important: false });
     assert_eq!(b_rule.at_rules.is_none(), true);
 }
 
@@ -185,7 +185,7 @@ fn test_rules_after_functional_pseudoclass() {
     let result = css_parser::parse_css(&tokens);
 
     let b_rule = result.iter().find(|rule| rule.selector.elements[0] == (CssCombinator::None, SelectorType::Name, "b".to_owned())).unwrap();
-    assert_eq!(b_rule.declaration, Declaration { property: CssProperty::Color, value: CssValue::String("red".to_owned())});
+    assert_eq!(b_rule.declaration, Declaration { property: CssProperty::Color, value: CssValue::String("red".to_owned()), important: false });
 }
 
 
@@ -231,4 +231,16 @@ fn test_declaration_list_without_selector_or_braces() {
 
     let background_color = result.iter().find(|declaration| declaration.property == CssProperty::BackgroundColor).unwrap();
     assert_eq!(background_color.value, CssValue::String("yellow".to_owned()));
+}
+
+
+#[test]
+fn test_important_is_parsed_as_flag() {
+    let css_text = "div { color: green !important; }";
+    let tokens = css_lexer::lex_css(&css_text, 1, 1);
+    let result = css_parser::parse_css(&tokens);
+
+    let color_rule = result.iter().find(|rule| rule.declaration.property == CssProperty::Color).unwrap();
+    assert_eq!(color_rule.declaration.value, CssValue::String("green".to_owned()));
+    assert!(color_rule.declaration.important);
 }

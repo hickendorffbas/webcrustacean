@@ -1,3 +1,4 @@
+use crate::html_parser::lexer::{Lexer, Token};
 use crate::html_parser::{HtmlParser, ParserState};
 use crate::jsonify;
 use crate::network::url::Url;
@@ -16,6 +17,19 @@ fn run_parser(parser: &mut HtmlParser) {
                 panic!("These tests don't support script");
             }
         }
+    }
+}
+
+
+fn lex_all(code: &str) -> Vec<Token> {
+    let mut lexer = Lexer::new(code.to_owned());
+    let mut tokens = Vec::new();
+    loop {
+        let token = lexer.next_token().token;
+        if token == Token::EOF {
+            return tokens;
+        }
+        tokens.push(token);
     }
 }
 
@@ -442,4 +456,14 @@ fn test_empty_page() {
     "#.to_string();
 
     assert!(jsonify::json_is_equal(&json, &expected_json));
+}
+
+
+#[test]
+fn test_unterminated_entity_in_attribute_value_is_kept_literally() {
+    let tokens = lex_all(r#"<script src="api.js?a=b&render=explicit" async></script><input style="display: none;">"#);
+
+    assert!(tokens.contains(&Token::Attribute { name: "src".to_owned(), value: "api.js?a=b&render=explicit".to_owned() }));
+    assert!(tokens.contains(&Token::StartTag { name: "input".to_owned(), self_closing: true }));
+    assert!(tokens.contains(&Token::Attribute { name: "style".to_owned(), value: "display: none;".to_owned() }));
 }

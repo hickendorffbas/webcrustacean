@@ -85,6 +85,7 @@ pub struct Lexer {
     line_pos: usize,
     char_pos: usize,
     pending_token: Option<TokenWithLocation>,
+    char_to_reconsume: Option<char>,
 }
 impl Lexer {
     pub fn new(input: String) -> Self {
@@ -100,6 +101,7 @@ impl Lexer {
             line_pos: 0,
             char_pos: 0,
             pending_token: None,
+            char_to_reconsume: None,
         }
     }
 
@@ -129,7 +131,7 @@ impl Lexer {
         }
 
         loop {
-            let ch = match self.next_char() {
+            let ch = match self.char_to_reconsume.take().or_else(|| self.next_char()) {
                 Some(c) => c,
                 None => {
                     if !self.buffer.is_empty() {
@@ -292,16 +294,24 @@ impl Lexer {
                     if ch == ';' {
                         self.push_entity();
                         self.state = HtmlLexerState::Data;
-                    } else {
+                    } else if is_entity_name_char(ch) {
                         self.entity_buffer.push(ch);
+                    } else {
+                        self.push_unterminated_entity();
+                        self.char_to_reconsume = Some(ch);
+                        self.state = HtmlLexerState::Data;
                     }
                 },
                 HtmlLexerState::EntityInAttributeValue => {
                     if ch == ';' {
                         self.push_entity();
                         self.state = HtmlLexerState::AttributeValue;
-                    } else {
+                    } else if is_entity_name_char(ch) {
                         self.entity_buffer.push(ch);
+                    } else {
+                        self.push_unterminated_entity();
+                        self.char_to_reconsume = Some(ch);
+                        self.state = HtmlLexerState::AttributeValue;
                     }
                 },
                 HtmlLexerState::InComment => {
@@ -363,6 +373,16 @@ impl Lexer {
             }
         }
     }
+
+    fn push_unterminated_entity(&mut self) {
+        self.buffer.push('&');
+        self.buffer.push_str(&std::mem::take(&mut self.entity_buffer));
+    }
+}
+
+
+fn is_entity_name_char(ch: char) -> bool {
+    return ch.is_ascii_alphanumeric() || ch == '#';
 }
 
 

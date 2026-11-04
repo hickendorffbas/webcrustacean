@@ -177,9 +177,7 @@ impl Lexer {
                     self.state = HtmlLexerState::EndTagName;
                 },
                 HtmlLexerState::TagName => {
-                    if ch == 'E' && self.buffer == "!DOCTYP" {
-                        self.state = HtmlLexerState::InDocType;
-                    } else if ch == '-' && self.buffer == "!-" {
+                    if ch == '-' && self.buffer == "!-" {
                         self.state = HtmlLexerState::InComment;
                         self.buffer = String::new();
                     } else if ch.is_whitespace() {
@@ -200,6 +198,10 @@ impl Lexer {
                         return self.make_token(Token::StartTag { self_closing: is_self_closing(&name), name });
                     } else {
                         self.buffer.push(ch);
+                        if self.buffer.eq_ignore_ascii_case("!doctype") {
+                            self.buffer.clear();
+                            self.state = HtmlLexerState::InDocType;
+                        }
                     }
                 },
                 HtmlLexerState::EndTagName => {

@@ -666,3 +666,10 @@ fn test_boolean_as_object_key() {
 fn test_assignment_expression_evaluates_to_assigned_value() {
     assert_js(r#"var a; tester.export(a = 7);"#, JsValue::Number(7.0));
 }
+
+#[test]
+fn test_trailing_comma_in_call_arguments_and_array_literal() {
+    assert_js(
+        r#"function combine(a, b) { return a + b * 10; } const list = [combine(1, 2,),3,]; var s = 0; for (let x of list) { s = s * 100 + x; } tester.export(s);"#,
+    JsValue::Number(2103.0));
+}

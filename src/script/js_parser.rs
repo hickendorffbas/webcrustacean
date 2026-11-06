@@ -892,6 +892,17 @@ fn parse_array_literal(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Par
             }
         }
 
+        if !first {
+            //if there was a trailing comma, we can see a close bracket here
+            match &tokens[parser_state.cursor].token {
+                JsToken::CloseBracket => {
+                    parser_state.next();
+                    break;
+                },
+                _ => {},
+            }
+        }
+
         match &tokens[parser_state.cursor].token {
             JsToken::Ellipsis => {
                 parser_state.next();
@@ -937,6 +948,16 @@ fn parse_list_of_arguments(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
             },
         }
 
+        if !first {
+            //if there was a trailing comma, we can see a close parenthesis here
+            match &tokens[parser_state.cursor].token {
+                JsToken::CloseParenthesis => {
+                    parser_state.next();
+                    break;
+                },
+                _ => {},
+            }
+        }
 
         let has_ellipsis = match &tokens[parser_state.cursor].token {
             JsToken::Ellipsis => {
@@ -1049,7 +1070,6 @@ fn parse_function_parameters(tokens: &Vec<JsTokenWithLocation>, parser_state: &m
     expect(tokens, parser_state, JsToken::OpenParenthesis)?;
 
     let mut parameters = Vec::new();
-    let mut first = true;
     loop {
 
         let has_rest_operator = match &tokens[parser_state.cursor].token {
@@ -1069,7 +1089,7 @@ fn parse_function_parameters(tokens: &Vec<JsTokenWithLocation>, parser_state: &m
                 convert_left_side_of_assign(parse_array_literal(tokens, parser_state)?)
             },
             JsToken::CloseParenthesis => {
-                if first && !has_rest_operator {
+                if !has_rest_operator {
                     parser_state.next();
                     break;
                 } else {
@@ -1114,8 +1134,6 @@ fn parse_function_parameters(tokens: &Vec<JsTokenWithLocation>, parser_state: &m
                 todo!(); //TODO: this should be an error (function parameters expected)
             },
         }
-
-        first = false;
     }
 
     return ParseResult::Ok(parameters);

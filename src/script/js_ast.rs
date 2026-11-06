@@ -758,7 +758,7 @@ fn access_property(object: JsValue, property: JsValue, js_interpreter: &mut JsIn
     match object {
         JsHeapObject::Object(object) => {
             match property {
-                val @ (JsValue::String(_) | JsValue::Number(_)) => {
+                val @ (JsValue::String(_) | JsValue::Number(_) | JsValue::Undefined | JsValue::Boolean(_)) => {
                     match object.members.get(&val.to_js_string()) {
                         Some(value) => { return value.clone(); },
                         None =>  { return JsValue::Undefined; },
@@ -862,7 +862,7 @@ pub struct JsAstAssign {
     pub right: Rc<JsAstExpression>,
 }
 impl JsAstAssign {
-    fn execute(&self, js_interpreter: &mut JsInterpreter) {
+    fn execute(&self, js_interpreter: &mut JsInterpreter) -> JsValue {
         match &self.left {
             JsAstAssignmentPattern::Target(target) => {
                 let assignment_reference = match target.execute_for_reference(js_interpreter) {
@@ -870,15 +870,17 @@ impl JsAstAssign {
                     None => {
                         js_console::log_js_error("Assignment failed, no valid target"); //TODO: this should include a line number (we need to build that generically)
                         //TODO: we should stop evaluating on these kind of errors, so we should probably return a result or something
-                        return
+                        return JsValue::Undefined;
                     },
                 };
                 let value = self.right.execute(js_interpreter);
-                js_interpreter.set_reference(assignment_reference, value);
+                js_interpreter.set_reference(assignment_reference, value.clone());
+                return value;
             },
             JsAstAssignmentPattern::Object { .. } | JsAstAssignmentPattern::Array(_) => {
                 let value = self.right.execute(js_interpreter);
-                self.left.execute(value, js_interpreter);
+                self.left.execute(value.clone(), js_interpreter);
+                return value;
             },
         }
     }
@@ -1111,10 +1113,7 @@ impl JsAstExpression {
             JsAstExpression::Delete(delete) => { return delete.execute(js_interpreter); },
             JsAstExpression::FunctionCall(function_call) => { return function_call.execute(js_interpreter) },
             JsAstExpression::NumericLiteral(value) => { return JsValue::Number(*value) },
-            JsAstExpression::Assignment(js_ast_assign) => {
-                js_ast_assign.execute(js_interpreter);
-                return JsValue::Undefined; //TODO: I think an assignment expression should return its value, we need to fix that if so
-            },
+            JsAstExpression::Assignment(js_ast_assign) => { return js_ast_assign.execute(js_interpreter); },
         }
     }
 
@@ -1145,8 +1144,8 @@ impl JsAstExpression {
                                     JsValue::Number(index) => {
                                         return Some(JsReference::Index { object_address: left_address, index: index as usize })
                                     },
-                                    JsValue::String(member) => {
-                                        return Some(JsReference::Property { object_address: left_address, member });
+                                    JsValue::String(_) | JsValue::Boolean(_) | JsValue::Undefined => {
+                                        return Some(JsReference::Property { object_address: left_address, member: property.to_js_string() })
                                     },
                                     _ => {
                                         todo!(); //TODO: most of these should be an error or None, but maybe some are valid?

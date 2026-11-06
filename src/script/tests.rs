@@ -651,3 +651,18 @@ fn test_top_level_var_and_window_property_are_the_same() {
 fn test_undefined_as_parameter_name_shadows_global() {
     assert_js(r#"(function (a, undefined) { tester.export(a + undefined); })(4, 3);"#, JsValue::Number(7.0));
 }
+
+#[test]
+fn test_undefined_as_object_key() {
+    assert_js(r#"var o = {"undefined": 1}; o[undefined] = o[undefined] + 6; tester.export(o["undefined"]);"#, JsValue::Number(7.0));
+}
+
+#[test]
+fn test_boolean_as_object_key() {
+    assert_js(r#"var o = {}; o[true] = 1; o["false"] = 2; tester.export(o["true"] * 10 + o[false]);"#, JsValue::Number(12.0));
+}
+
+#[test]
+fn test_assignment_expression_evaluates_to_assigned_value() {
+    assert_js(r#"var a; tester.export(a = 7);"#, JsValue::Number(7.0));
+}

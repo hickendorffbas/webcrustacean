@@ -58,8 +58,16 @@ pub enum JsHeapObject {
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone)]
+pub enum JsPropertyValue {
+    Data(JsValue),
+    Accessor { getter: Option<JsAddress>, setter: Option<JsAddress> },
+}
+
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone)]
 pub struct JsObject {
-    pub members: HashMap<String, JsValue>,
+    pub members: HashMap<String, JsPropertyValue>,
     pub callable: Option<JsFunction>,
 }
 impl JsObject {

@@ -14,6 +14,7 @@ use super::js_values::{
     JsFunctionParameter,
     JsReference,
     JsObject,
+    JsPropertyValue,
     JsValue,
 };
 
@@ -760,13 +761,25 @@ fn access_property(object: JsValue, property: JsValue, js_interpreter: &mut JsIn
             match property {
                 val @ (JsValue::String(_) | JsValue::Number(_) | JsValue::Undefined | JsValue::Boolean(_)) => {
                     match object.members.get(&val.to_js_string()) {
-                        Some(value) => { return value.clone(); },
+                        Some(value) => {
+                            match value {
+                                JsPropertyValue::Data(js_value) => {
+                                    return js_value.clone();
+                                },
+                                JsPropertyValue::Accessor { getter, .. } => {
+                                    if getter.is_some() {
+                                        return call_value(JsValue::Address(getter.unwrap()), &Vec::new(), js_interpreter);
+                                    } else {
+                                        return JsValue::Undefined;
+                                    }
+                                },
+                            }
+                        },
                         None =>  { return JsValue::Undefined; },
                     }
                 },
                 _ => {
-                    //TODO: some of these are invalid, others (like number) are valid (for example for "x[3]")
-                    todo!();
+                    todo!(); //TODO: some error?
                 }
             }
         },
@@ -821,7 +834,7 @@ impl JsAstAssignmentPattern {
                 };
 
                 for (property_name, target) in properties {
-                    let element = js_object.members[property_name].clone();
+                    let element = access_property(value_to_assign.clone(), JsValue::String(property_name.clone()), js_interpreter);
                     js_interpreter.set_reference(JsReference::Variable(target.name.clone()), element);
                 }
 
@@ -1191,7 +1204,7 @@ impl JsAstFunctionCall {
 }
 
 
-fn call_value(function: JsValue, arguments: &Vec<JsAstFunctionCallArgument>, js_interpreter: &mut JsInterpreter) -> JsValue {
+pub fn call_value(function: JsValue, arguments: &Vec<JsAstFunctionCallArgument>, js_interpreter: &mut JsInterpreter) -> JsValue {
     match function {
         JsValue::Address(address) => {
             match js_interpreter.get_from_heap(address) {
@@ -1300,6 +1313,8 @@ fn spread_iterable_into(value_to_spread: JsValue, target: &mut Vec<JsValue>, js_
 pub enum JsAstObjectLiteralMember {
     Property(JsAstExpression, JsAstExpression),
     Spread(JsAstExpression),
+    Getter(JsAstExpression, JsAstFunctionExpression),
+    #[allow(dead_code)] Setter(JsAstExpression, JsAstFunctionExpression), //TODO: remove dead code attribute when setters are implemented
 }
 
 
@@ -1316,12 +1331,36 @@ impl JsAstObjectLiteral {
                 JsAstObjectLiteralMember::Property(key_ast, value_ast) => {
                     match key_ast.execute(js_interpreter) {
                         val @ (JsValue::String(_) | JsValue::Number(_)) => {
-                            members.insert(val.to_js_string(), value_ast.execute(js_interpreter));
+                            members.insert(val.to_js_string(), JsPropertyValue::Data(value_ast.execute(js_interpreter)));
                         },
                         _ => {
                             todo!(); //TODO: this should be an error
                         }
                     }
+                },
+                JsAstObjectLiteralMember::Getter(key_ast, function_ast) => {
+                    match key_ast.execute(js_interpreter) {
+                        val @ (JsValue::String(_) | JsValue::Number(_)) => {
+                            let key = val.to_js_string();
+                            if members.contains_key(&key) {
+                                todo!(); //TODO: set on existing accessor member
+                            } else {
+                                let function_address = match function_ast.execute(js_interpreter) {
+                                    JsValue::Address(function_address) => {
+                                        function_address
+                                    },
+                                    _ => unreachable!(),
+                                };
+                                members.insert(key, JsPropertyValue::Accessor { getter: Some(function_address), setter: None } );
+                            }
+                        },
+                        _ => {
+                            todo!(); //TODO: this should be an error
+                        }
+                    }
+                },
+                JsAstObjectLiteralMember::Setter(_, _) => {
+                    todo!(); //TODO: implement
                 },
                 JsAstObjectLiteralMember::Spread(source_ast) => {
                     match source_ast.execute(js_interpreter) {
@@ -1334,7 +1373,7 @@ impl JsAstObjectLiteral {
                                 },
                                 JsHeapObject::Array(source) => {
                                     for (index, value) in source.elements.iter().enumerate() {
-                                        members.insert(index.to_string(), value.clone());
+                                        members.insert(index.to_string(), JsPropertyValue::Data(value.clone()));
                                     }
                                 },
                             }

@@ -10,6 +10,7 @@ use super::js_values::{
     JsFunctionParameter,
     JsHeapObject,
     JsObject,
+    JsPropertyValue,
     JsReference,
     JsValue,
 };
@@ -50,7 +51,7 @@ impl JsInterpreter {
         let global_object = self.get_from_heap_mut(self.global_object_address);
         match global_object {
             JsHeapObject::Object(js_object) => {
-                js_object.members.insert(name.to_string(), value);
+                js_object.members.insert(name.to_string(), JsPropertyValue::Data(value));
             },
             JsHeapObject::Array(_) => unreachable!(),
         }
@@ -67,7 +68,7 @@ impl JsInterpreter {
         self.heap.insert(console_log_address, console_log_function);
 
         let console_builtin = JsHeapObject::Object(JsObject {
-            members: HashMap::from([(String::from("log"), JsValue::Address(console_log_address))]), callable: None,
+            members: HashMap::from([(String::from("log"), JsPropertyValue::Data(JsValue::Address(console_log_address)))]), callable: None,
         });
         let console_object_address = get_next_js_heap_address();
         self.heap.insert(console_object_address, console_builtin);
@@ -90,7 +91,7 @@ impl JsInterpreter {
             self.heap.insert(tester_export_address, tester_export_function);
 
             let tester_builtin = JsHeapObject::Object(JsObject {
-                members: HashMap::from([(String::from("export"), JsValue::Address(tester_export_address))]), callable: None,
+                members: HashMap::from([(String::from("export"), JsPropertyValue::Data(JsValue::Address(tester_export_address)))]), callable: None,
             });
             let tester_object_address = get_next_js_heap_address();
             self.heap.insert(tester_object_address, tester_builtin);
@@ -167,7 +168,19 @@ impl JsInterpreter {
                 let object = self.heap.get_mut(&object_address).unwrap();
                 match object {
                     JsHeapObject::Object(ref mut js_object) => {
-                        js_object.members.insert(member, value);
+
+                        if js_object.members.contains_key(&member) {
+                            match js_object.members[&member] {
+                                JsPropertyValue::Accessor { setter, .. } => {
+                                    if setter.is_some() {
+                                        todo!(); //TODO: implement setter
+                                    }
+                                },
+                                _ => {}
+                            }
+                        }
+
+                        js_object.members.insert(member, JsPropertyValue::Data(value));
                     },
                     _ => {
                         todo!(); //TODO: some kind of error?
@@ -222,7 +235,15 @@ impl JsInterpreter {
 
                 match self.heap.get_mut(&self.global_object_address).unwrap() {
                     JsHeapObject::Object(global_object) => {
-                        return global_object.members.get_mut(variable_name);
+                        match global_object.members.get_mut(variable_name) {
+                            Some(JsPropertyValue::Data(value)) => {
+                                return Some(value)
+                            },
+                            Some(JsPropertyValue::Accessor { .. }) => {
+                                todo!(); //TODO: can you even have accessors on the global object?
+                            }
+                            None => return None,
+                        }
                     },
                     JsHeapObject::Array(_) => unreachable!(),
                 }
@@ -230,7 +251,19 @@ impl JsInterpreter {
             JsReference::Property { object_address, member } => {
                 match self.get_from_heap_mut(*object_address) {
                     JsHeapObject::Object(js_object) => {
-                        return js_object.members.get_mut(member);
+                        match js_object.members.get_mut(member) {
+                            Some(member) => {
+                                match member {
+                                    JsPropertyValue::Data(js_value) => {
+                                        return Some(js_value);
+                                    },
+                                    JsPropertyValue::Accessor { .. } => {
+                                        todo!(); //TODO: implement, but this seems to be a rare case
+                                    },
+                                }
+                            },
+                            None => return None,
+                        }
                     },
                     JsHeapObject::Array(_) => {
                         panic!("Not allowed"); //TODO: this might be allowed actually

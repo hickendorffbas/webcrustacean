@@ -12,6 +12,7 @@ goals for 0.9.0:
 
 
 other things (later versions):
+       - move to rust 2024 edition
        - exceptions in javascript (generating them, and catching them)
        - implement more box layout css options
        - scrolling

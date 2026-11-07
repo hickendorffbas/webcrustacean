@@ -798,6 +798,45 @@ fn parse_object_literal(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut Pa
             },
         }
 
+        if matches!(&tokens[parser_state.cursor].token, JsToken::Identifier(name) if name == "get") {
+            match &tokens[parser_state.cursor + 1].token {
+                JsToken::Identifier(getter_function_name) => {
+                    parser_state.next(); //skip the "get"
+                    parser_state.next();
+
+                    let method = parse_method_shorthand(tokens, parser_state)?;
+                    if method.parameters.len() != 0 {
+                        return ParseResult::Err(ParseError::error_for_token(ParseErrorType::UnexpectedToken, tokens, parser_state));
+                    }
+
+                    let property = JsAstExpression::StringLiteral(getter_function_name.clone());
+                    members.push(JsAstObjectLiteralMember::Getter(property, method));
+                    first = false;
+                    continue;
+                },
+                _ => {}
+            }
+        }
+        if matches!(&tokens[parser_state.cursor].token, JsToken::Identifier(name) if name == "set") {
+            match &tokens[parser_state.cursor + 1].token {
+                JsToken::Identifier(setter_function_name) => {
+                    parser_state.next(); //skip the "set"
+                    parser_state.next();
+
+                    let method = parse_method_shorthand(tokens, parser_state)?;
+                    if method.parameters.len() != 1 || method.parameters[0].rest {
+                        return ParseResult::Err(ParseError::error_for_token(ParseErrorType::UnexpectedToken, tokens, parser_state));
+                    }
+
+                    let property = JsAstExpression::StringLiteral(setter_function_name.clone());
+                    members.push(JsAstObjectLiteralMember::Setter(property, method));
+                    first = false;
+                    continue;
+                },
+                _ => {}
+            }
+        }
+
         if let Some(keyword_name) = keyword_token_as_property_name(&tokens[parser_state.cursor].token) {
             parser_state.next();
             current_property_expression = JsAstExpression::StringLiteral(keyword_name);

@@ -673,3 +673,8 @@ fn test_trailing_comma_in_call_arguments_and_array_literal() {
         r#"function combine(a, b) { return a + b * 10; } const list = [combine(1, 2,),3,]; var s = 0; for (let x of list) { s = s * 100 + x; } tester.export(s);"#,
     JsValue::Number(2103.0));
 }
+
+#[test]
+fn test_getter_in_object_literal() {
+    assert_js(r#"var o = {get x() { return 42; }}; tester.export(o.x);"#, JsValue::Number(42.0));
+}

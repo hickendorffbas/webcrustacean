@@ -63,35 +63,51 @@ pub struct StyleContext {
 
 #[derive(PartialEq, Clone)]
 #[cfg_attr(debug_assertions, derive(Debug))]
-pub enum CssValue {
+pub enum CssParsedValue {
     String(String),
-    List(Vec<CssValue>),
-    Function(CssFunction),
+    List(Vec<CssParsedValue>),
+    Function(CssParsedFunction),
     Hash(String),
     Comma, //We model this as a value, because the position of a comma matters in functions
-    Block(Vec<CssValue>), //This represents the contents of a grouping without a function like the inner part of calc(100% - (2 * 3px))
+    Block(Vec<CssParsedValue>), //This represents the contents of a grouping without a function like the inner part of calc(100% - (2 * 3px))
 }
-impl CssValue {
+impl CssParsedValue {
     fn resolve(&self) -> Option<String> {
         match self {
-            CssValue::String(string_value) => return Some(string_value.clone()),
-            CssValue::List(_) => todo!(), //TODO: I think we should recursively resolve here?
-            CssValue::Function(css_function) => return css_function.resolve(),
-            CssValue::Hash(value) => return Some("#".to_owned() + value),
-            CssValue::Comma => todo!(), //TODO: implement
-            CssValue::Block(_) => todo!(), //TODO: implement
+            CssParsedValue::String(string_value) => return Some(string_value.clone()),
+            CssParsedValue::List(_) => todo!(), //TODO: I think we should recursively resolve here?
+            CssParsedValue::Function(css_function) => return css_function.resolve(),
+            CssParsedValue::Hash(value) => return Some("#".to_owned() + value),
+            CssParsedValue::Comma => todo!(), //TODO: implement
+            CssParsedValue::Block(_) => todo!(), //TODO: implement
         }
     }
+}
+
+//TODO: start using this as the value for the style hashmaps
+//TODO: slowly add the needed variants here, and remove the ones I don't support yet
+enum CssPropertyValue {
+     BackgroundColor(Color),
+     Color(Color),
+//     Display(Display),
+//     FlexBasis(FlexBasis),
+//     FlexDirection(FlexDirection),
+//     FlexGrow(f32),
+//     FlexShrink(f32),
+//     FontSize(FontSize),
+//     FontStyle(FontStyle),
+//     FontWeight(FontWeight),
+//     TextDecoration(TextDecorationLine),
 }
 
 
 #[derive(PartialEq, Clone)]
 #[cfg_attr(debug_assertions, derive(Debug))]
-pub struct CssFunction {
+pub struct CssParsedFunction {
     pub name: String,
-    pub arguments: Vec<CssValue>,
+    pub arguments: Vec<CssParsedValue>,
 }
-impl CssFunction {
+impl CssParsedFunction {
     fn resolve(&self) -> Option<String> {
         return None; //TODO: implement specific functions, keep returning None for the rest
     }
@@ -112,7 +128,7 @@ pub enum AtRule {
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Declaration {
     pub property: CssProperty,
-    pub value: CssValue,
+    pub value: CssParsedValue,
     pub important: bool,
 }
 
@@ -127,7 +143,7 @@ impl StyleRule {
     fn make_for_tag_name(tag_name: &str, property: CssProperty, value: &str, at_rules: Option<Vec<AtRule>>) -> StyleRule {
         return StyleRule { selector: Selector { elements: vec![(CssCombinator::None, SelectorType::Name, tag_name.to_owned())],
                                                 pseudoclasses: None, pseudoelement: None },
-                           declaration: Declaration { property, value: CssValue::String(value.to_owned()), important: false }, at_rules }
+                           declaration: Declaration { property, value: CssParsedValue::String(value.to_owned()), important: false }, at_rules }
     }
 }
 
@@ -181,7 +197,7 @@ enum Origin {
 #[cfg_attr(debug_assertions, derive(Debug))]
 struct ActiveStyleRule {
     property: CssProperty,
-    property_value: CssValue,
+    property_value: CssParsedValue,
     origin: Origin,
     element_attached: bool,
     specificity_a_id: u8,

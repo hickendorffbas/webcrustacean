@@ -6,9 +6,9 @@ use crate::style::css_lexer::{CssToken, CssTokenWithLocation};
 use crate::style::{
     AtRule,
     CssCombinator,
-    CssFunction,
+    CssParsedFunction,
+    CssParsedValue,
     CssProperty,
-    CssValue,
     Declaration,
     PseudoElement,
     Selector,
@@ -72,7 +72,7 @@ fn expand_shorthand(declaration: Declaration) -> Vec<Declaration> {
 
             match declaration.value {
 
-                CssValue::List(style_values) => {
+                CssParsedValue::List(style_values) => {
                     let mut expanded = Vec::new();
                     let mut expecting_flex_grow = true;
                     let mut expecting_flex_shrink = true;
@@ -96,11 +96,11 @@ fn expand_shorthand(declaration: Declaration) -> Vec<Declaration> {
                     }
                     return expanded;
                 },
-                CssValue::String(single_value) => {
+                CssParsedValue::String(single_value) => {
                     return vec![
-                        Declaration { property: CssProperty::FlexGrow, value: CssValue::String(single_value), important: declaration.important },
-                        Declaration { property: CssProperty::FlexShrink, value: CssValue::String("1".to_string()), important: declaration.important },
-                        Declaration { property: CssProperty::FlexBasis, value: CssValue::String("0%".to_string()), important: declaration.important },
+                        Declaration { property: CssProperty::FlexGrow, value: CssParsedValue::String(single_value), important: declaration.important },
+                        Declaration { property: CssProperty::FlexShrink, value: CssParsedValue::String("1".to_string()), important: declaration.important },
+                        Declaration { property: CssProperty::FlexBasis, value: CssParsedValue::String("0%".to_string()), important: declaration.important },
                     ]
                 }
                 _ => { return Vec::new(); }, //TODO: we need to log a warning when we have a good dev-console
@@ -507,17 +507,17 @@ fn skip_to_end_of_declaration(token_iterator: &mut Peekable<Iter<CssTokenWithLoc
 }
 
 
-fn parse_value(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) -> Option<CssValue> {
+fn parse_value(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) -> Option<CssParsedValue> {
     let mut elements = parse_sequence(token_iterator, false)?;
     if elements.len() == 1 {
         return Some(elements.remove(0));
     } else {
-        return Some(CssValue::List(elements));
+        return Some(CssParsedValue::List(elements));
     }
 }
 
 
-fn parse_sequence(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>, nested: bool) -> Option<Vec<CssValue>> {
+fn parse_sequence(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>, nested: bool) -> Option<Vec<CssParsedValue>> {
     let mut elements = Vec::new();
 
     while token_iterator.peek().is_some() {
@@ -542,22 +542,22 @@ fn parse_sequence(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>, nes
             },
             CssToken::Identifier(ident) => {
                 token_iterator.next();
-                elements.push(CssValue::String(ident.clone()));
+                elements.push(CssParsedValue::String(ident.clone()));
             },
             CssToken::Plus => {
                 token_iterator.next();
-                elements.push(CssValue::String("+".to_string()));
+                elements.push(CssParsedValue::String("+".to_string()));
             },
             CssToken::Comma => {
                 token_iterator.next();
-                elements.push(CssValue::Comma);
+                elements.push(CssParsedValue::Comma);
             },
             CssToken::Hash => {
                 token_iterator.next();
                 match &token_iterator.peek().unwrap().css_token {
                     CssToken::Identifier(ident) => {
                         token_iterator.next();
-                        elements.push(CssValue::Hash(ident.clone()));
+                        elements.push(CssParsedValue::Hash(ident.clone()));
                     },
                     _ => { return None; }
                 }
@@ -566,12 +566,12 @@ fn parse_sequence(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>, nes
                 token_iterator.next();
                 token_iterator.next(); //consume the opening (
                 let arguments = parse_sequence(token_iterator, true)?;
-                elements.push(CssValue::Function(CssFunction { name: function_name.clone(), arguments }));
+                elements.push(CssParsedValue::Function(CssParsedFunction { name: function_name.clone(), arguments }));
             },
             CssToken::OpenParenthesis => {
                 token_iterator.next();
                 let arguments = parse_sequence(token_iterator, true)?;
-                elements.push(CssValue::Block(arguments));
+                elements.push(CssParsedValue::Block(arguments));
             },
             _ => {
                 return None;

@@ -32,7 +32,7 @@ use crate::network::{
 
 pub struct ResourceLoader {
     scheduler: JobScheduler,
-    active_jobs: Vec<(Receiver<JobResult>, Task)>, //TODO: should these not live on the job scheduler?
+    active_jobs: Vec<(Receiver<JobResult>, Task, Option<NavigationAction>)>, //TODO: should these not live on the job scheduler?
 }
 impl ResourceLoader {
     pub fn new() -> ResourceLoader {
@@ -41,19 +41,19 @@ impl ResourceLoader {
     }
 
     pub fn request_text_http_get_text(&mut self, url: &Url, cookies: HashMap<String, String>, task: Task, from_navigation_action: Option<NavigationAction>) {
-        let job = self.scheduler.submit_http_get_text_job(url, cookies, from_navigation_action);
-        self.active_jobs.push((job, task));
+        let job = self.scheduler.submit_http_get_text_job(url, cookies);
+        self.active_jobs.push((job, task, from_navigation_action));
     }
 
     pub fn request_text_http_post_text(&mut self, url: &Url, body: String, cookies: HashMap<String, String>,
                                        task: Task, from_navigation_action: Option<NavigationAction>) {
-        let job = self.scheduler.submit_http_post_text_job(url, body, cookies, from_navigation_action);
-        self.active_jobs.push((job, task));
+        let job = self.scheduler.submit_http_post_text_job(url, body, cookies);
+        self.active_jobs.push((job, task, from_navigation_action));
     }
 
     pub fn request_text_http_get_image(&mut self, url: &Url, cookies: HashMap<String, String>, task: Task) {
         let job = self.scheduler.submit_http_get_image_job(url, cookies);
-        self.active_jobs.push((job, task));
+        self.active_jobs.push((job, task, None));
     }
 
     pub fn any_jobs_in_progress(&self) -> bool {
@@ -81,10 +81,10 @@ impl ResourceLoader {
             return;
         }
 
-        let (_, mut future_task) = self.active_jobs.remove(finished_job_position.unwrap());
+        let (_, mut future_task, from_navigation_action) = self.active_jobs.remove(finished_job_position.unwrap());
 
         match finshed_job_result.unwrap() {
-            JobResult::ResourceRequestResultString { value, from_navigation_action } => {
+            JobResult::ResourceRequestResultString { value } => {
                 match value {
                     ResourceRequestResult::Success { body, new_cookies, domain } => {
 

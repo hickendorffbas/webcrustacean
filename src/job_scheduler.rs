@@ -6,11 +6,9 @@ use std::sync::mpsc::{
     Receiver,
     Sender,
 };
-use std::thread;
 use image::RgbaImage;
 use threadpool::ThreadPool;
 
-use crate::navigation::NavigationAction;
 use crate::network::url::Url;
 use crate::resource_loader::{
     self,
@@ -65,14 +63,12 @@ pub enum Job {
         location: Url,
         cookies: HashMap<String, String>,
         result_sender: Sender<JobResult>,
-        from_navigation_action: Option<NavigationAction>,
     },
     HttpPostText {
         location: Url,
         body: String,
         cookies: HashMap<String, String>,
         result_sender: Sender<JobResult>,
-        from_navigation_action: Option<NavigationAction>,
     },
     HttpGetImage {
         location: Url,
@@ -84,7 +80,6 @@ pub enum Job {
 pub enum JobResult {
     ResourceRequestResultString {
         value: ResourceRequestResult<String>,
-        from_navigation_action: Option<NavigationAction>,
     },
     ResourceRequestResultImage {
         value: ResourceRequestResult<RgbaImage>,
@@ -92,62 +87,44 @@ pub enum JobResult {
 }
 
 pub struct JobScheduler {
-    sender: Sender<Job>,
-    _dispatcher: thread::JoinHandle<()>,
+    pool: ThreadPool,
 }
 
 impl JobScheduler {
     pub fn new(max_concurrent_jobs: usize) -> Self {
-        let (sender, receiver) = channel::<Job>();
-        let pool = ThreadPool::new(max_concurrent_jobs);
-
-        let dispatcher = thread::spawn(move || {
-            while let Ok(job) = receiver.recv() {
-                pool.execute(move || {
-                    Self::run_job(job);
-                });
-            }
-
-            pool.join();
-        });
-
-        Self {
-            sender,
-            _dispatcher: dispatcher,
-        }
+        return Self { pool: ThreadPool::new(max_concurrent_jobs) };
     }
 
-    pub fn submit_http_get_text_job(&self, url: &Url, cookies: HashMap<String, String>, from_navigation_action: Option<NavigationAction>) -> Receiver<JobResult> {
+    pub fn submit_http_get_text_job(&self, url: &Url, cookies: HashMap<String, String>) -> Receiver<JobResult> {
         let (tx, rx) = channel();
-        let job = Job::HttpGetText { location: url.clone(), cookies: cookies, result_sender: tx, from_navigation_action };
-        let _ = self.sender.send(job);
+        let job = Job::HttpGetText { location: url.clone(), cookies: cookies, result_sender: tx };
+        self.pool.execute(move || Self::run_job(job));
         return rx;
     }
 
-    pub fn submit_http_post_text_job(&self, url: &Url, body: String, cookies: HashMap<String, String>,
-                                     from_navigation_action: Option<NavigationAction>) -> Receiver<JobResult> {
+    pub fn submit_http_post_text_job(&self, url: &Url, body: String, cookies: HashMap<String, String>) -> Receiver<JobResult> {
         let (tx, rx) = channel();
-        let job = Job::HttpPostText { location: url.clone(), body, cookies: cookies, result_sender: tx, from_navigation_action };
-        let _ = self.sender.send(job);
+        let job = Job::HttpPostText { location: url.clone(), body, cookies: cookies, result_sender: tx };
+        self.pool.execute(move || Self::run_job(job));
         return rx;
     }
 
     pub fn submit_http_get_image_job(&self, url: &Url, cookies: HashMap<String, String>) -> Receiver<JobResult> {
         let (tx, rx) = channel();
         let job = Job::HttpGetImage { location: url.clone(), cookies: cookies, result_sender: tx };
-        let _ = self.sender.send(job);
+        self.pool.execute(move || Self::run_job(job));
         return rx;
     }
 
     fn run_job(job: Job) {
         match job {
-            Job::HttpGetText { location, cookies, result_sender, from_navigation_action } => {
+            Job::HttpGetText { location, cookies, result_sender } => {
                 let result = resource_loader::load_text(&location, RequestType::Get, None, &cookies);
-                let _ = result_sender.send(JobResult::ResourceRequestResultString { value: result, from_navigation_action });
+                let _ = result_sender.send(JobResult::ResourceRequestResultString { value: result });
             },
-            Job::HttpPostText { location, body, cookies, result_sender, from_navigation_action } => {
+            Job::HttpPostText { location, body, cookies, result_sender } => {
                 let result = resource_loader::load_text(&location, RequestType::Post, Some(body), &cookies);
-                let _ = result_sender.send(JobResult::ResourceRequestResultString{ value: result, from_navigation_action });
+                let _ = result_sender.send(JobResult::ResourceRequestResultString{ value: result });
             }
             Job::HttpGetImage { location, cookies, result_sender } => {
                 let result = resource_loader::load_image(&location, &cookies);

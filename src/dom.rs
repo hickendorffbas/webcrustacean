@@ -16,12 +16,11 @@ use crate::resource_loader::{
     ResourceLoader
 };
 use crate::style::{
-    CssProperty,
     Declaration,
     StyleContext,
-    get_property_from_computed_styles,
-    get_user_agent_style_sheet,
+    get_user_agent_style_sheet
 };
+use crate::style::css_properties::Styles;
 use crate::ui_components::{
     Button,
     PageComponent,
@@ -125,7 +124,7 @@ pub struct ElementDomNode {
 
     pub children: Vec<Rc<RefCell<ElementDomNode>>>,
     pub attributes: Option<Vec<Rc<RefCell<AttributeDomNode>>>>,
-    pub styles: HashMap<CssProperty, String>,
+    pub styles: Styles,
     pub inline_style: Vec<Declaration>,
 
     pub image: Option<Rc<RgbaImage>>,
@@ -349,22 +348,12 @@ impl ElementDomNode {
             name_for_layout: TagName::from_string(&name.unwrap_or_default()),
             children: Vec::new(),
             attributes: None,
-            styles: HashMap::new(), //TODO: its worth checking if we can have 1 static immutable hashmap or something (with COW copy on write?)
+            styles: Styles::new(),
             inline_style: Vec::new(),
             image: None,
             image_load_task_id: None,
             page_component: None,
         };
-    }
-
-    pub fn dom_property_display(&self) -> DomPropertyDisplay {
-        //TODO: is this actually a DOM property and not just a style value? -> its just a style value, not a dom property, so this needs to be different
-        let css_display_property = get_property_from_computed_styles(&self.styles, CssProperty::Display);
-        let possible_display = DomPropertyDisplay::from_string(css_display_property);
-        if possible_display.is_some() {
-            return possible_display.unwrap();
-        }
-        return DomPropertyDisplay::Inline;
     }
 
     pub fn mark_all_as_dirty(&mut self) {
@@ -373,41 +362,6 @@ impl ElementDomNode {
         for child in &self.children {
             child.borrow_mut().mark_all_as_dirty();
         }
-    }
-}
-
-
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(PartialEq)]
-pub enum DomPropertyDisplay {
-    Block,
-    Inline,
-    Flex,
-    None,
-}
-impl DomPropertyDisplay {
-    pub fn from_string(value: &str) -> Option<DomPropertyDisplay> {
-        return match value {
-            "block" => Some(DomPropertyDisplay::Block),
-            "inline" => Some(DomPropertyDisplay::Inline),
-            "flex" => Some(DomPropertyDisplay::Flex),
-            "none" => Some(DomPropertyDisplay::None),
-            _ => None,
-        };
-    }
-
-    pub fn is_block_level(&self) -> bool {
-        return match self {
-            DomPropertyDisplay::Block | DomPropertyDisplay::Flex => true,
-            _ => false,
-        };
-    }
-
-    pub fn is_inline_level(&self) -> bool {
-        return match self {
-            DomPropertyDisplay::Inline => true,
-            _ => false,
-        };
     }
 }
 

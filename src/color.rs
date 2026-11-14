@@ -54,7 +54,7 @@ impl Color {
         return match color_name {
             "aqua" => Some(Color::new(0, 255, 255)),
             "black" => Some(Color::BLACK),
-            "blue" => Some(Color::new(0, 0, 255)),
+            "blue" => Some(Color::BLUE),
             "fuchsia" => Some(Color::new(255, 0, 255)),
             "gray" => Some(Color::GRAY),
             "green" => Some(Color::new(0, 128, 0)),
@@ -74,7 +74,8 @@ impl Color {
 
     //Below we only define Colors we use in other parts of the code in a hardcoded way:
     pub const BLACK: Color = Color::new(0, 0, 0);
+    pub const BLUE: Color = Color::new(0, 0, 255);
     pub const GRAY: Color = Color::new(128, 128, 128);
     pub const WHITE: Color = Color::new(255, 255, 255);
-    pub const DEFAULT_SELECTION_COLOR: Color = Color::new(180, 213, 255);  //TODO: maybe belongs in the ui module? we have other colors there as well...
+    pub const DEFAULT_SELECTION_COLOR: Color = Color::new(180, 213, 255);  //TODO: belongs in the ui module? we have other colors there as well...
 }

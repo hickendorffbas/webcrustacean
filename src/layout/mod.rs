@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 #[cfg(debug_assertions)] use std::sync::atomic::{AtomicUsize, Ordering};
@@ -10,7 +10,6 @@ use crate::color::Color;
 use crate::debug::debug_log_warn;
 use crate::dom::{
     Document,
-    DomPropertyDisplay,
     ElementDomNode,
     TagName,
 };
@@ -22,13 +21,13 @@ use crate::platform::fonts::{
 };
 use crate::ui_components::PageComponent;
 use crate::SelectionRect;
-use crate::style::{
-    CssProperty,
-    default_css_value,
-    get_color_style_value,
-    get_property_from_computed_styles,
-    has_style_value,
-    resolve_css_numeric_type_value,
+use crate::style::css_properties::{
+    Display,
+    FlexBasis,
+    FlexDirection,
+    FontStyle,
+    FontWeight,
+    Styles,
 };
 
 
@@ -408,16 +407,6 @@ impl LayoutNode {
             mut_child.move_node_vertically(y_diff);
         }
     }
-
-    pub fn get_style_value(&self, property: CssProperty) -> String {
-        if self.from_dom_node.is_none() {
-            return default_css_value(property).to_owned()
-        }
-
-        let dom_node = self.from_dom_node.as_ref().unwrap().borrow();
-        get_property_from_computed_styles(&dom_node.styles, property).to_owned()
-    }
-
 }
 
 
@@ -431,12 +420,12 @@ pub enum FormattingContext {
     Table,
 }
 impl FormattingContext {
-    fn from_display(display: DomPropertyDisplay) -> FormattingContext {
+    fn from_display(display: Display) -> FormattingContext {
         match display {
-            DomPropertyDisplay::Block => FormattingContext::Block,
-            DomPropertyDisplay::Inline => FormattingContext::Inline,
-            DomPropertyDisplay::Flex => FormattingContext::Flex,
-            DomPropertyDisplay::None => FormattingContext::Block,
+            Display::Block => FormattingContext::Block,
+            Display::Inline => FormattingContext::Inline,
+            Display::Flex => FormattingContext::Flex,
+            Display::None => FormattingContext::Block,
         }
     }
 }
@@ -737,17 +726,20 @@ fn compute_potential_widths(node: &Rc<RefCell<LayoutNode>>, font_context: &FontC
 }
 
 
-pub fn get_font_given_styles(styles: &HashMap<CssProperty, String>) -> (Font, Color) {
-    let font_bold = has_style_value(&styles, CssProperty::FontWeight, &"bold".to_owned());
-    let font_italic = has_style_value(styles, CssProperty::FontStyle, &"italic".to_owned());
-    let _font_underline = has_style_value(&styles, CssProperty::TextDecoration, &"underline".to_owned()); //TODO: we need to use this in a different way
+pub fn get_font_given_styles(styles: &Styles) -> (Font, Color) {
+    let font_bold = styles.font_weight() == FontWeight::Bold;
+    let font_italic = styles.font_style() == FontStyle::Italic;
 
-    let font_size = resolve_css_numeric_type_value(get_property_from_computed_styles(&styles, CssProperty::FontSize));
-    let font_color = get_color_style_value(&styles, CssProperty::Color);
+    let font_size = match styles.font_size() {
+        crate::style::css_properties::FontSize::Px(pixels) => pixels as u16,
+        crate::style::css_properties::FontSize::Em(factor) => (factor * 18.0) as u16,
+        crate::style::css_properties::FontSize::Percentage(pct) => (pct / 100.0 * 18.0) as u16,
+    };
+    let font_color = styles.color();
 
     let default_font_face = FontFace::TimesNewRomanRegular;
 
-    return (Font { face: default_font_face, bold: font_bold, italic: font_italic, size: font_size as u16}, font_color);
+    return (Font { face: default_font_face, bold: font_bold, italic: font_italic, size: font_size}, font_color);
 }
 
 
@@ -1024,33 +1016,24 @@ fn apply_inline_layout(node: &mut LayoutNode, top_left_x: f32, top_left_y: f32, 
 fn apply_flex_layout(node: &mut LayoutNode, top_left_x: f32, top_left_y: f32, current_scroll_y: f32, font_context: &FontContext,
                      force_full_layout: bool, available_width: f32) {
 
-    let flex_dir = node.get_style_value(CssProperty::FlexDirection);
+    let flex_dir = node.from_dom_node.as_ref().unwrap().borrow().styles.flex_direction();
     let mut cursor_x = top_left_x;
     let cursor_y = top_left_y;
     let mut max_height: f32 = 0.0;
 
-    if flex_dir == "row" {
+    if flex_dir == FlexDirection::Row {
 
         for child in &node.children {
 
             //TODO: implement flex_grow and flex_shrink
-            let flex_basis = child.borrow().get_style_value(CssProperty::FlexBasis);
+            let flex_basis = child.borrow().from_dom_node.as_ref().unwrap().borrow().styles.flex_basis();
 
-            if flex_basis == "auto" {
-                //TODO: implement "auto" and handle value not being present
-                continue;
-            }
-
-            //TODO: for flex-basis we need to same kind of size determination algoritm that we have for example in tables, since we can have
-            //      mixes of pixels, percentages and "auto"
-            let available_width_for_child = if let Some(stripped_flex_basis) = flex_basis.strip_suffix('%') {
-                if let Ok(flex_basis_percentage) = stripped_flex_basis.trim().parse::<f32>() {
+            let available_width_for_child = match flex_basis {
+                FlexBasis::Auto => todo!(), //TODO: implement
+                FlexBasis::Length(length) => length,
+                FlexBasis::Percentage(flex_basis_percentage) => {
                     available_width * (flex_basis_percentage / 100.0)
-                } else {
-                    f32::MAX
-                }
-            } else {
-                f32::MAX
+                },
             };
 
             compute_layout_for_node(&child, cursor_x, cursor_y, font_context, current_scroll_y, false, force_full_layout, available_width_for_child, true);
@@ -1121,7 +1104,7 @@ fn contains_block_and_inline_level_elements(children: &Vec<Rc<RefCell<ElementDom
     let mut has_inline = false;
 
     for child in children {
-        let display = child.borrow().dom_property_display();
+        let display = child.borrow().styles.display();
 
         //NOTE: some display's are neither block or inline, such as display:none
         if display.is_block_level() {
@@ -1149,12 +1132,11 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
     let mut partial_node_font = None;
     let mut partial_node_font_color = None;
     let mut partial_node_non_breaking_space_positions = None;
-    let mut partial_formatting_context = FormattingContext::from_display(main_node.borrow().dom_property_display());
+    let mut partial_formatting_context = FormattingContext::from_display(main_node.borrow().styles.display());
 
     let mut prebuilt_node = None; //TODO: I think it is a good idea to transition all cases to pre built the node? needs checking
 
-    let partial_node_background_color = get_color_style_value(&main_node.borrow().styles, CssProperty::BackgroundColor);
-
+    let partial_node_background_color = main_node.borrow().styles.background_color();
     let positioning_scheme = PositioningScheme::Static; //TODO: this should be derived from the position attribute on the DOM node
 
     let mut childs_to_recurse_on: &[Rc<RefCell<ElementDomNode>>] = &[];
@@ -1222,7 +1204,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
     }
 
     let childs_to_recurse_on: Vec<Rc<RefCell<ElementDomNode>>>
-        = childs_to_recurse_on.iter().filter(|child| child.borrow().dom_property_display() != DomPropertyDisplay::None).cloned().collect();
+        = childs_to_recurse_on.iter().filter(|child| child.borrow().styles.display() != Display::None).cloned().collect();
 
     if childs_to_recurse_on.len() > 0 {
         let first_child = childs_to_recurse_on.iter().next().unwrap();
@@ -1233,7 +1215,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
 
             for child in &childs_to_recurse_on {
 
-                if child.borrow().dom_property_display().is_block_level() {
+                if child.borrow().styles.display().is_block_level() {
                     if !temp_inline_child_buffer.is_empty() {
 
                         let mut layout_childs = Vec::new();
@@ -1267,7 +1249,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
                 partial_node_children.push(anon_block);
             }
 
-        } else if first_child.borrow().dom_property_display() == DomPropertyDisplay::Inline {
+        } else if first_child.borrow().styles.display() == Display::Inline {
 
             partial_formatting_context = FormattingContext::Inline;
 
@@ -1276,7 +1258,7 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
                 partial_node_children.push(layout_child);
             }
 
-        } else if first_child.borrow().dom_property_display() == DomPropertyDisplay::Flex {
+        } else if first_child.borrow().styles.display() == Display::Flex {
 
             partial_formatting_context = FormattingContext::Flex;
 

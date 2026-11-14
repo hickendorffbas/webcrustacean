@@ -1,6 +1,9 @@
 pub mod css_lexer;
 pub mod css_parser;
+pub mod css_properties;
 
+#[cfg(test)] mod tests;
+#[cfg(test)] mod test_parser;
 
 use std::cell::RefCell;
 use std::cmp::Ordering;
@@ -8,109 +11,23 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::color::Color;
-use crate::debug::debug_log_warn;
 use crate::dom::ElementDomNode;
-
-
-#[cfg(test)] mod tests;
-#[cfg(test)] mod test_parser;
-
-
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub enum CssProperty {
-    BackgroundColor,
-    Color,
+use crate::style::css_properties::{
+    CssProperty,
+    CssPropertyValue,
     Display,
-    Flex,
-    FlexBasis,
-    FlexDirection,
-    FlexGrow,
-    FlexShrink,
-    FontWeight,
     FontSize,
     FontStyle,
+    FontWeight,
+    Styles,
     TextDecoration,
-}
-impl CssProperty {
-    pub fn from_string(value: &String) -> Option<CssProperty> {
-        let prop = match value.as_str() {
-            "background-color" => CssProperty::BackgroundColor,
-            "color" => CssProperty::Color,
-            "display" => CssProperty::Display,
-            "flex" => CssProperty::Flex,
-            "flex-basis" => CssProperty::FlexBasis,
-            "flex-direction" => CssProperty::FlexDirection,
-            "flex-grow" => CssProperty::FlexGrow,
-            "flex-shrink" => CssProperty::FlexShrink,
-            "font-weight" => CssProperty::FontWeight,
-            "font-size" => CssProperty::FontSize,
-            "font-style" => CssProperty::FontStyle,
-            "text-decoration" => CssProperty::TextDecoration,
-            _ => return None,
-        };
-        return Some(prop);
-    }
-}
+};
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct StyleContext {
     pub user_agent_sheet: Vec<StyleRule>,
     pub author_sheet: Vec<StyleRule>,
-}
-
-
-#[derive(PartialEq, Clone)]
-#[cfg_attr(debug_assertions, derive(Debug))]
-pub enum CssParsedValue {
-    String(String),
-    List(Vec<CssParsedValue>),
-    Function(CssParsedFunction),
-    Hash(String),
-    Comma, //We model this as a value, because the position of a comma matters in functions
-    Block(Vec<CssParsedValue>), //This represents the contents of a grouping without a function like the inner part of calc(100% - (2 * 3px))
-}
-impl CssParsedValue {
-    fn resolve(&self) -> Option<String> {
-        match self {
-            CssParsedValue::String(string_value) => return Some(string_value.clone()),
-            CssParsedValue::List(_) => todo!(), //TODO: I think we should recursively resolve here?
-            CssParsedValue::Function(css_function) => return css_function.resolve(),
-            CssParsedValue::Hash(value) => return Some("#".to_owned() + value),
-            CssParsedValue::Comma => todo!(), //TODO: implement
-            CssParsedValue::Block(_) => todo!(), //TODO: implement
-        }
-    }
-}
-
-//TODO: start using this as the value for the style hashmaps
-//TODO: slowly add the needed variants here, and remove the ones I don't support yet
-enum CssPropertyValue {
-     BackgroundColor(Color),
-     Color(Color),
-//     Display(Display),
-//     FlexBasis(FlexBasis),
-//     FlexDirection(FlexDirection),
-//     FlexGrow(f32),
-//     FlexShrink(f32),
-//     FontSize(FontSize),
-//     FontStyle(FontStyle),
-//     FontWeight(FontWeight),
-//     TextDecoration(TextDecorationLine),
-}
-
-
-#[derive(PartialEq, Clone)]
-#[cfg_attr(debug_assertions, derive(Debug))]
-pub struct CssParsedFunction {
-    pub name: String,
-    pub arguments: Vec<CssParsedValue>,
-}
-impl CssParsedFunction {
-    fn resolve(&self) -> Option<String> {
-        return None; //TODO: implement specific functions, keep returning None for the rest
-    }
 }
 
 
@@ -124,27 +41,26 @@ pub enum AtRule {
 }
 
 
-#[derive(PartialEq, Clone)]
-#[cfg_attr(debug_assertions, derive(Debug))]
-pub struct Declaration {
-    pub property: CssProperty,
-    pub value: CssParsedValue,
-    pub important: bool,
-}
-
-
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct StyleRule {
     pub selector: Selector,
     pub declaration: Declaration,
-    pub at_rules: Option<Vec<AtRule>>,
+    #[allow(unused)] pub at_rules: Option<Vec<AtRule>>,
 }
 impl StyleRule {
-    fn make_for_tag_name(tag_name: &str, property: CssProperty, value: &str, at_rules: Option<Vec<AtRule>>) -> StyleRule {
+    fn make_for_tag_name(tag_name: &str, value: CssPropertyValue) -> StyleRule {
         return StyleRule { selector: Selector { elements: vec![(CssCombinator::None, SelectorType::Name, tag_name.to_owned())],
                                                 pseudoclasses: None, pseudoelement: None },
-                           declaration: Declaration { property, value: CssParsedValue::String(value.to_owned()), important: false }, at_rules }
+                           declaration: Declaration { value, important: false }, at_rules: None }
     }
+}
+
+
+#[derive(PartialEq, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub struct Declaration {
+    pub value: CssPropertyValue,
+    pub important: bool,
 }
 
 
@@ -196,20 +112,18 @@ enum Origin {
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 struct ActiveStyleRule {
-    property: CssProperty,
-    property_value: CssParsedValue,
+    declaration: Declaration,
     origin: Origin,
     element_attached: bool,
     specificity_a_id: u8,
     specificity_b_class: u8,
     specificity_c_type: u8,
     definition_order: u32,
-    important: bool,
 }
 
 
 pub fn resolve_full_styles_for_dom_node(dom_node: &Rc<RefCell<ElementDomNode>>, all_dom_nodes: &HashMap<usize, Rc<RefCell<ElementDomNode>>>,
-                                        style_context: &StyleContext) -> HashMap<CssProperty, String> {
+                                        style_context: &StyleContext) -> Styles {
 
     //TODO: we are doing the cascade here by first doing the ua sheet, and then the author sheet. We need to make this more general in cascades
     //      because we need to support @layer, which adds an arbitrary amount of cascades
@@ -221,15 +135,13 @@ pub fn resolve_full_styles_for_dom_node(dom_node: &Rc<RefCell<ElementDomNode>>, 
         if style_rule_applies(&style_rule, &dom_node, all_dom_nodes) {
             active_style_rules.push(
                 ActiveStyleRule {
-                    property: style_rule.declaration.property,
-                    property_value: style_rule.declaration.value.clone(),
+                    declaration: style_rule.declaration.clone(),
                     origin: Origin::UserAgent,
                     definition_order: rule_idx,
                     element_attached: false,
                     specificity_a_id: 0, //TODO: implement
                     specificity_b_class: 0, //TODO: implement
                     specificity_c_type: 0, //TODO: implement
-                    important: style_rule.declaration.important,
                 }
             );
         }
@@ -240,15 +152,13 @@ pub fn resolve_full_styles_for_dom_node(dom_node: &Rc<RefCell<ElementDomNode>>, 
         if style_rule_applies(&style_rule, &dom_node, all_dom_nodes) {
             active_style_rules.push(
                 ActiveStyleRule {
-                    property: style_rule.declaration.property,
-                    property_value: style_rule.declaration.value.clone(),
+                    declaration: style_rule.declaration.clone(),
                     origin: Origin::Author,
                     definition_order: rule_idx,
                     element_attached: false,
                     specificity_a_id: 0, //TODO: implement
                     specificity_b_class: 0, //TODO: implement
                     specificity_c_type: 0, //TODO: implement
-                    important: style_rule.declaration.important,
                 }
             );
         }
@@ -258,15 +168,13 @@ pub fn resolve_full_styles_for_dom_node(dom_node: &Rc<RefCell<ElementDomNode>>, 
     for declaration in &dom_node.borrow().inline_style {
         active_style_rules.push(
             ActiveStyleRule {
-                property: declaration.property,
-                property_value: declaration.value.clone(),
+                declaration: declaration.clone(),
                 origin: Origin::Author,
                 definition_order: rule_idx,
                 element_attached: true,
                 specificity_a_id: 0,
                 specificity_b_class: 0,
                 specificity_c_type: 0,
-                important: declaration.important,
             }
         );
         rule_idx += 1;
@@ -275,33 +183,14 @@ pub fn resolve_full_styles_for_dom_node(dom_node: &Rc<RefCell<ElementDomNode>>, 
 
     active_style_rules.sort_by(|rule_a, rule_b| compare_style_rules(rule_a, rule_b));
 
-    let mut resolved_styles = HashMap::new();
+    let mut resolved_styles = Styles::new();
     for active_style_rule in active_style_rules {
-        match active_style_rule.property_value.resolve() {
-            Some(value) => { resolved_styles.insert(active_style_rule.property, value); }
-            None => { resolved_styles.remove(&active_style_rule.property); } //Per spec, if a property does not resolve, we should not take the value of earlier rules
-        };
+        resolved_styles.insert(active_style_rule.declaration.value);
     }
 
     if dom_node.borrow().parent_id != 0 {
         let parent_node = all_dom_nodes.get(&dom_node.borrow().parent_id).expect(format!("id {} not present in all nodes", dom_node.borrow().parent_id).as_str());
-
-        for (parent_style_property, parent_style_value) in &parent_node.borrow().styles {
-
-            //Some styles should not be inherited:  //TODO: this list is not complete yet
-            //TODO: maybe we should list the ones that _are_ inherited, or make a method on the CssProperty
-            if parent_style_property == &CssProperty::Display ||
-               parent_style_property == &CssProperty::BackgroundColor ||
-               parent_style_property == &CssProperty::Flex ||
-               parent_style_property == &CssProperty::FlexDirection ||
-               parent_style_property == &CssProperty::TextDecoration {
-                    continue;
-            }
-
-            if !resolved_styles.contains_key(&parent_style_property) {
-                resolved_styles.insert(parent_style_property.clone(), parent_style_value.clone());
-            }
-        }
+        resolved_styles.inherit_from(&parent_node.borrow().styles);
     }
 
     return resolved_styles;
@@ -325,104 +214,39 @@ const HTML_BLOCK_ELEMENTS: &[&'static str] = &["div", "form", "h1", "h2", "h3", 
 
 pub fn get_user_agent_style_sheet() -> Vec<StyleRule> {
     let mut rules = vec![
-        //TODO: convert to an actual stylesheet (CSS string) we load in (or maybe not, but a better other format?)
+        //TODO: convert to an actual stylesheet (CSS string) we load in?
 
-        StyleRule::make_for_tag_name("h1", CssProperty::FontSize, "32", None),
-        StyleRule::make_for_tag_name("h2", CssProperty::FontSize, "30", None),
-        StyleRule::make_for_tag_name("h3", CssProperty::FontSize, "28", None),
-        StyleRule::make_for_tag_name("h4", CssProperty::FontSize, "26", None),
-        StyleRule::make_for_tag_name("h5", CssProperty::FontSize, "24", None),
-        StyleRule::make_for_tag_name("h6", CssProperty::FontSize, "22", None),
+        //TODO: fontsizes here are probably not correct anymore after our style typing...
+        StyleRule::make_for_tag_name("h1", CssPropertyValue::FontSize(FontSize::Px(32.0))),
+        StyleRule::make_for_tag_name("h2", CssPropertyValue::FontSize(FontSize::Px(30.0))),
+        StyleRule::make_for_tag_name("h3", CssPropertyValue::FontSize(FontSize::Px(28.0))),
+        StyleRule::make_for_tag_name("h4", CssPropertyValue::FontSize(FontSize::Px(26.0))),
+        StyleRule::make_for_tag_name("h5", CssPropertyValue::FontSize(FontSize::Px(24.0))),
+        StyleRule::make_for_tag_name("h6", CssPropertyValue::FontSize(FontSize::Px(22.0))),
 
-        StyleRule::make_for_tag_name("b", CssProperty::FontWeight, "bold", None),
-        StyleRule::make_for_tag_name("i", CssProperty::FontStyle, "italic", None),
+        StyleRule::make_for_tag_name("b", CssPropertyValue::FontWeight(FontWeight::Bold)),
+        StyleRule::make_for_tag_name("i", CssPropertyValue::FontStyle(FontStyle::Italic)),
 
-        StyleRule::make_for_tag_name("a", CssProperty::Color, "blue", None),
-        StyleRule::make_for_tag_name("a", CssProperty::TextDecoration, "underline", None),
+        StyleRule::make_for_tag_name("a", CssPropertyValue::Color(Color::BLUE)),
+        StyleRule::make_for_tag_name("a", CssPropertyValue::TextDecoration(TextDecoration::Underline)),
 
-        StyleRule::make_for_tag_name("script", CssProperty::Display, "none", None),
-        StyleRule::make_for_tag_name("title", CssProperty::Display, "none", None),
-        StyleRule::make_for_tag_name("style", CssProperty::Display, "none", None),
-        StyleRule::make_for_tag_name("head", CssProperty::Display, "none", None),
-        StyleRule::make_for_tag_name("meta", CssProperty::Display, "none", None),
-        StyleRule::make_for_tag_name("link", CssProperty::Display, "none", None),
+        StyleRule::make_for_tag_name("script", CssPropertyValue::Display(Display::None)),
+        StyleRule::make_for_tag_name("title", CssPropertyValue::Display(Display::None)),
+        StyleRule::make_for_tag_name("style", CssPropertyValue::Display(Display::None)),
+        StyleRule::make_for_tag_name("head", CssPropertyValue::Display(Display::None)),
+        StyleRule::make_for_tag_name("meta", CssPropertyValue::Display(Display::None)),
+        StyleRule::make_for_tag_name("link", CssPropertyValue::Display(Display::None)),
     ];
 
     for element in HTML_BLOCK_ELEMENTS {
-        rules.push(StyleRule::make_for_tag_name(element, CssProperty::Display, "block", None));
+        rules.push(StyleRule::make_for_tag_name(element, CssPropertyValue::Display(Display::Block)));
     }
 
     return rules;
 }
 
 
-pub fn get_property_from_computed_styles(styles: &HashMap<CssProperty, String>, property: CssProperty) -> &str {
-    let computed_prop = styles.get(&property);
-    if computed_prop.is_some() {
-        return computed_prop.unwrap().as_str();
-    }
-
-    return default_css_value(property);
-}
-
-
-pub fn default_css_value(property: CssProperty) -> &'static str {
-    return match property {
-        CssProperty::BackgroundColor => "white", //TODO: the actual default is "transparent", but we don't support that yet
-        CssProperty::Color => "black",
-        CssProperty::Display => "inline",
-        CssProperty::Flex => panic!("Defaults for shorthands are not allowed"),
-        CssProperty::FlexBasis => "auto",
-        CssProperty::FlexDirection => "row",
-        CssProperty::FlexGrow => "0",
-        CssProperty::FlexShrink => "1",
-        CssProperty::FontSize => "18",
-        CssProperty::FontStyle => "normal",
-        CssProperty::FontWeight => "normal",
-        CssProperty::TextDecoration => "none", //TODO: this is in reality a more complicated structure
-    };
-}
-
-
-pub fn resolve_css_numeric_type_value(value: &str) -> f32 {
-    //TODO: see https://developer.mozilla.org/en-US/docs/Learn/CSS/Building_blocks/Values_and_units for many missing things here
-    if value.chars().last() == Some('%') {
-        return 1.0; //TODO: implement this case (we probably need to bring in more context)
-    } else if value.len() > 3 && &value[value.len() - 3..] == "rem" {
-        return 1.0; //TODO: implement this case (we probably need to bring in more context)
-    } else {
-        let parsed_unwrapped = value.parse::<f32>();
-        if parsed_unwrapped.is_err() {
-            debug_log_warn(format!("could not parse css value: {:}", value));
-            18.0  //this is a fairly random number, we should never really get here except by accident for unimplemented things
-        } else {
-            parsed_unwrapped.ok().unwrap()
-        }
-    }
-}
-
-
-pub fn has_style_value(styles: &HashMap<CssProperty, String>, property: CssProperty, style_value: &String) -> bool {
-    return get_property_from_computed_styles(styles, property) == *style_value;
-}
-
-
-pub fn get_color_style_value(styles: &HashMap<CssProperty, String>, property: CssProperty) -> Color {
-    let item = get_property_from_computed_styles(styles, property);
-
-    let color = Color::from_string(item);
-
-    if color.is_none() {
-        //color is none, but item was something, so this means a color value is set, but we could not parse it. We fall back to black here
-        //note this this is not the css default, because those might be different per property and are implemented elsewere
-        debug_log_warn(format!("css value could not be parsed as a color: {:?}", item));
-        return Color::BLACK;
-    }
-    return color.unwrap();
-}
-
-
-// This function returns what rule_a is compare to rule_b (less, equal or greater), greater meaning having higher priority
+// This function returns what rule_a is compared to rule_b (less, equal or greater), greater meaning having higher priority
 fn compare_style_rules(rule_a: &ActiveStyleRule, rule_b: &ActiveStyleRule) -> Ordering {
 
     //TODO: this check needs to be different in the future, because we need to support an arbitrary set of cascades
@@ -433,8 +257,8 @@ fn compare_style_rules(rule_a: &ActiveStyleRule, rule_b: &ActiveStyleRule) -> Or
         return Ordering::Greater;
     }
 
-    if rule_a.important != rule_b.important {
-        if rule_a.important { return Ordering::Greater } else { return Ordering::Less }
+    if rule_a.declaration.important != rule_b.declaration.important {
+        if rule_a.declaration.important { return Ordering::Greater } else { return Ordering::Less }
     }
 
     if rule_a.element_attached != rule_b.element_attached {

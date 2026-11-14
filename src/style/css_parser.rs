@@ -5,9 +5,8 @@ use crate::debug::debug_log_warn;
 use crate::style::css_lexer::{CssToken, CssTokenWithLocation};
 use crate::style::{
     AtRule,
+    css_properties,
     CssCombinator,
-    CssParsedFunction,
-    CssParsedValue,
     CssProperty,
     Declaration,
     PseudoElement,
@@ -17,6 +16,43 @@ use crate::style::{
 };
 
 
+#[derive(PartialEq, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub enum CssParsedValue {
+    String(String),
+    List(Vec<CssParsedValue>),
+    Function(CssParsedFunction),
+    Hash(String),
+    Comma, //We model this as a value, because the position of a comma matters in functions
+    Block(Vec<CssParsedValue>), //This represents the contents of a grouping without a function like the inner part of calc(100% - (2 * 3px))
+}
+
+
+#[derive(PartialEq, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub struct CssParsedFunction {
+    pub name: String,
+    pub arguments: Vec<CssParsedValue>,
+}
+
+
+#[derive(PartialEq, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub struct ParsedDeclaration {
+    pub property: CssProperty,
+    pub value: CssParsedValue,
+    pub important: bool,
+}
+
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+struct ParsedStyleRule {
+    selector: Selector,
+    declaration: ParsedDeclaration,
+    at_rules: Option<Vec<AtRule>>,
+}
+
+
 pub fn parse_css(css_tokens: &Vec<CssTokenWithLocation>) -> Vec<StyleRule> {
     let mut style_rules = Vec::new();
     let mut current_selector_context = Vec::new();
@@ -24,19 +60,34 @@ pub fn parse_css(css_tokens: &Vec<CssTokenWithLocation>) -> Vec<StyleRule> {
     let mut current_at_rules = Vec::new();
 
     parse_statements(&mut style_rules, &mut current_selector_context, &mut token_iterator, &mut current_at_rules);
-    return process_shorthands(style_rules);
+
+    let style_rules = process_shorthands(style_rules);
+
+    let mut typed_rules = Vec::new();
+    for rule in style_rules {
+        for typed_decl in css_properties::type_declaration(rule.declaration) {
+            typed_rules.push(StyleRule { selector: rule.selector.clone(), declaration: typed_decl, at_rules: rule.at_rules.clone() });
+        }
+    }
+
+    return typed_rules;
 }
 
 
 pub fn parse_declaration_list(css_tokens: &Vec<CssTokenWithLocation>) -> Vec<Declaration> {
-    let mut declarations = Vec::new();
+    let mut parsed_declarations = Vec::new();
     let mut token_iterator = css_tokens.iter().peekable();
 
     while token_iterator.peek().is_some() {
         let decl = parse_declaration(&mut token_iterator);
         if let Some(decl) = decl {
-            declarations.extend(expand_shorthand(decl));
+            parsed_declarations.extend(expand_shorthand(decl));
         }
+    }
+
+    let mut declarations = Vec::new();
+    for parsed_declaration in parsed_declarations {
+        declarations.extend(css_properties::type_declaration(parsed_declaration));
     }
 
     return declarations;
@@ -50,12 +101,12 @@ fn clone_or_none(current_at_rules: &Vec<AtRule>) -> Option<Vec<AtRule>> {
     return Some(current_at_rules.clone());
 }
 
-fn process_shorthands(style_rules: Vec<StyleRule>) -> Vec<StyleRule> {
+fn process_shorthands(style_rules: Vec<ParsedStyleRule>) -> Vec<ParsedStyleRule> {
     let mut resolved_style_rules = Vec::new();
 
     for style_rule in style_rules {
         for declaration in expand_shorthand(style_rule.declaration) {
-            resolved_style_rules.push(StyleRule { selector: style_rule.selector.clone(), declaration, at_rules: style_rule.at_rules.clone() });
+            resolved_style_rules.push(ParsedStyleRule { selector: style_rule.selector.clone(), declaration, at_rules: style_rule.at_rules.clone() });
         }
     }
 
@@ -63,7 +114,7 @@ fn process_shorthands(style_rules: Vec<StyleRule>) -> Vec<StyleRule> {
 }
 
 
-fn expand_shorthand(declaration: Declaration) -> Vec<Declaration> {
+fn expand_shorthand(declaration: ParsedDeclaration) -> Vec<ParsedDeclaration> {
     match declaration.property {
         CssProperty::Flex => {
 
@@ -92,15 +143,15 @@ fn expand_shorthand(declaration: Declaration) -> Vec<Declaration> {
                             break;
                         };
 
-                        expanded.push(Declaration { property, value: part, important: declaration.important });
+                        expanded.push(ParsedDeclaration { property, value: part, important: declaration.important });
                     }
                     return expanded;
                 },
                 CssParsedValue::String(single_value) => {
                     return vec![
-                        Declaration { property: CssProperty::FlexGrow, value: CssParsedValue::String(single_value), important: declaration.important },
-                        Declaration { property: CssProperty::FlexShrink, value: CssParsedValue::String("1".to_string()), important: declaration.important },
-                        Declaration { property: CssProperty::FlexBasis, value: CssParsedValue::String("0%".to_string()), important: declaration.important },
+                        ParsedDeclaration { property: CssProperty::FlexGrow, value: CssParsedValue::String(single_value), important: declaration.important },
+                        ParsedDeclaration { property: CssProperty::FlexShrink, value: CssParsedValue::String("1".to_string()), important: declaration.important },
+                        ParsedDeclaration { property: CssProperty::FlexBasis, value: CssParsedValue::String("0%".to_string()), important: declaration.important },
                     ]
                 }
                 _ => { return Vec::new(); }, //TODO: we need to log a warning when we have a good dev-console
@@ -113,7 +164,7 @@ fn expand_shorthand(declaration: Declaration) -> Vec<Declaration> {
 }
 
 
-fn parse_statements(style_rules: &mut Vec<StyleRule>, current_selector_context: &mut Vec<(CssCombinator, SelectorType, String)>,
+fn parse_statements(style_rules: &mut Vec<ParsedStyleRule>, current_selector_context: &mut Vec<(CssCombinator, SelectorType, String)>,
                     token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>, current_at_rules: &mut Vec<AtRule>) {
     while token_iterator.peek().is_some() {
 
@@ -130,7 +181,7 @@ fn parse_statements(style_rules: &mut Vec<StyleRule>, current_selector_context: 
 }
 
 
-fn parse_statement(style_rules: &mut Vec<StyleRule>, current_context: &mut Vec<(CssCombinator, SelectorType, String)>,
+fn parse_statement(style_rules: &mut Vec<ParsedStyleRule>, current_context: &mut Vec<(CssCombinator, SelectorType, String)>,
                    token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>, current_at_rules: &mut Vec<AtRule>) {
     while token_iterator.peek().is_some() {
         match &token_iterator.peek().unwrap().css_token {
@@ -355,7 +406,7 @@ fn parse_selectors(current_selector_context: &mut Vec<(CssCombinator, SelectorTy
 }
 
 
-fn parse_declaration_block(selectors: Vec<Selector>, style_rules: &mut Vec<StyleRule>, token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>,
+fn parse_declaration_block(selectors: Vec<Selector>, style_rules: &mut Vec<ParsedStyleRule>, token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>,
                            current_at_rules: &mut Vec<AtRule>) {
     while token_iterator.peek().is_some() {
         match token_iterator.peek().unwrap().css_token {
@@ -380,7 +431,7 @@ fn parse_declaration_block(selectors: Vec<Selector>, style_rules: &mut Vec<Style
                 if declaration.is_some() {
                     for selector in &selectors {
                         let new_decl = declaration.as_ref().unwrap().clone();
-                        style_rules.push(StyleRule { selector: selector.clone(), declaration: new_decl, at_rules: clone_or_none(current_at_rules) });
+                        style_rules.push(ParsedStyleRule { selector: selector.clone(), declaration: new_decl, at_rules: clone_or_none(current_at_rules) });
                     }
                 }
             }
@@ -389,7 +440,7 @@ fn parse_declaration_block(selectors: Vec<Selector>, style_rules: &mut Vec<Style
 }
 
 
-fn parse_declaration(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) -> Option<Declaration> {
+fn parse_declaration(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) -> Option<ParsedDeclaration> {
     let mut parsed_property = None;
     let mut parsed_value = None;
     let mut important = false;
@@ -421,13 +472,13 @@ fn parse_declaration(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) 
             CssToken::Semicolon => {
                 token_iterator.next();
                 if parsed_property.is_some() && parsed_value.is_some() {
-                    return Some(Declaration { property: parsed_property.unwrap(), value: parsed_value.unwrap(), important });
+                    return Some(ParsedDeclaration { property: parsed_property.unwrap(), value: parsed_value.unwrap(), important });
                 }
                 return None;
             },
             CssToken::CloseBrace => {
                 if parsed_property.is_some() && parsed_value.is_some() {
-                    return Some(Declaration { property: parsed_property.unwrap(), value: parsed_value.unwrap(), important });
+                    return Some(ParsedDeclaration { property: parsed_property.unwrap(), value: parsed_value.unwrap(), important });
                 }
                 return None;
             },
@@ -483,7 +534,7 @@ fn parse_declaration(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) 
     }
 
     if parsed_property.is_some() && parsed_value.is_some() {
-        return Some(Declaration { property: parsed_property.unwrap(), value: parsed_value.unwrap(), important });
+        return Some(ParsedDeclaration { property: parsed_property.unwrap(), value: parsed_value.unwrap(), important });
     }
     return None;
 }

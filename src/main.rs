@@ -66,7 +66,11 @@ use crate::selection::{
     SelectionRect,
     set_selection_regions
 };
-use crate::style::compute_styles;
+use crate::style::{
+    compute_styles,
+    css_lexer,
+    css_parser,
+};
 use crate::ui::{
     CONTENT_TOP_LEFT_X,
     CONTENT_TOP_LEFT_Y,
@@ -164,12 +168,17 @@ fn main() -> Result<(), String> {
 
                 match &task.payload {
                     TaskPayload::ParseJs { source_url, script_data } => {
-                        let js_tokens = js_lexer::lex_js(&script_data, 1, 0);
+                        let js_tokens = js_lexer::lex_js(&script_data, 1, 1);
                         let script = js_parser::parse_js(&js_tokens, source_url);
 
                         //TODO: for now we just execute the script, but we need to juse the correct execution context, so the right stuff is shared on the page
                         let mut interpreter = js_interpreter::JsInterpreter::new();
                         interpreter.run_script(&script);
+                    },
+                    TaskPayload::ParseCss { css_data } => {
+                        let css_tokens = css_lexer::lex_css(&css_data, 1, 1);
+                        let styles = css_parser::parse_css(&css_tokens);
+                        html_parser.document.style_context.author_sheet.extend(styles);
                     },
                     TaskPayload::StartParseHtml { html } => {
                         //TODO: we probably want to get the url from some browsing context, not directly from the UI

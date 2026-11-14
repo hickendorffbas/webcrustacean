@@ -100,6 +100,9 @@ impl ResourceLoader {
                             TaskPayload::ParseJs { source_url: _source_url, script_data } => {
                                 *script_data = body;
                             },
+                            TaskPayload::ParseCss { css_data } => {
+                                *css_data = body;
+                            },
                             TaskPayload::StartParseHtml { html } => {
                                 *html = body;
                             },

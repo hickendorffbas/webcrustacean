@@ -28,8 +28,9 @@ pub enum ParserState {
     WaitingForContent { task_id: usize },
     ContinueParsing,
     ShouldDownloadScript(Url),
+    ShouldDownloadStylesheet(Url),
     ShouldExecuteScript { script: String, source_url: Url },
-    WaitingForScriptRun { task_id: usize },
+    WaitingForScriptOrStyleRun { task_id: usize },
     Done,
 }
 
@@ -267,7 +268,6 @@ impl HtmlParser {
                     }
                 }
                 if node.borrow().name.as_ref().unwrap().as_str() == "style" {
-
                     let node_borr = node.borrow();
                     let content_node = node_borr.children[0].borrow();
                     let content = &content_node.text.as_ref().unwrap().text_content;
@@ -276,6 +276,16 @@ impl HtmlParser {
                     let styles = css_parser::parse_css(&style_tokens);
 
                     self.document.style_context.author_sheet.extend(styles);
+                }
+                if node.borrow().name.as_ref().unwrap().as_str() == "link" {
+                    let rel = node.borrow().get_attribute_value("rel");
+                    let href = node.borrow().get_attribute_value("href");
+                    let is_stylesheet = rel.is_some() && rel.unwrap().split_whitespace().any(|rel_type| rel_type.eq_ignore_ascii_case("stylesheet"));
+
+                    if is_stylesheet && href.is_some() {
+                        let source_url = Url::from_base_url(&href.unwrap(), Some(&self.document.base_url));
+                        self.state = ParserState::ShouldDownloadStylesheet(source_url);
+                    }
                 }
             }
 

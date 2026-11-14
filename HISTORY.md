@@ -6,6 +6,7 @@
 - Javascript arrow function support
 - Improved text selection logic
 - Inline styles are now supported
+- External stylesheet are now loaded
 
 
 0.8.0

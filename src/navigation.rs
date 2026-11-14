@@ -117,7 +117,7 @@ pub fn progress_html_parser(parser: &mut HtmlParser, resource_loader: &mut Resou
                 parser.state = state;
                 return any_work_was_performed;
             },
-            ParserState::WaitingForScriptRun { task_id } => {
+            ParserState::WaitingForScriptOrStyleRun { task_id } => {
                 for task in task_store.iter() {
                     if task.id == task_id && task.finished {
                         parser.state = ParserState::ContinueParsing;
@@ -129,7 +129,13 @@ pub fn progress_html_parser(parser: &mut HtmlParser, resource_loader: &mut Resou
             },
             ParserState::ShouldDownloadScript(url) => {
                 let future_task = Task::new_task_not_yet_ready(TaskPayload::ParseJs { source_url: url.clone(), script_data: String::new() });
-                parser.state = ParserState::WaitingForScriptRun { task_id: future_task.id };
+                parser.state = ParserState::WaitingForScriptOrStyleRun { task_id: future_task.id };
+                resource_loader.request_text_http_get_text(&url, cookie_store.get_for_domain(&url.host), future_task, None);
+                return any_work_was_performed;
+            },
+            ParserState::ShouldDownloadStylesheet(url) => {
+                let future_task = Task::new_task_not_yet_ready(TaskPayload::ParseCss { css_data: String::new() });
+                parser.state = ParserState::WaitingForScriptOrStyleRun { task_id: future_task.id };
                 resource_loader.request_text_http_get_text(&url, cookie_store.get_for_domain(&url.host), future_task, None);
                 return any_work_was_performed;
             },
@@ -137,7 +143,7 @@ pub fn progress_html_parser(parser: &mut HtmlParser, resource_loader: &mut Resou
                 let task = Task::new(TaskPayload::ParseJs { source_url, script_data: script });
                 let task_id = task.id;
                 task_store.push(task);
-                parser.state = ParserState::WaitingForScriptRun { task_id };
+                parser.state = ParserState::WaitingForScriptOrStyleRun { task_id };
                 return any_work_was_performed;
             },
             ParserState::Done => {

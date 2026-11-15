@@ -1026,20 +1026,26 @@ fn apply_flex_layout(node: &mut LayoutNode, top_left_x: f32, top_left_y: f32, cu
         for child in &node.children {
 
             //TODO: implement flex_grow and flex_shrink
-            let flex_basis = child.borrow().from_dom_node.as_ref().unwrap().borrow().styles.flex_basis();
+            let flex_basis = match &child.borrow().from_dom_node {
+                Some(dom_node) => dom_node.borrow().styles.flex_basis(),
+                None => FlexBasis::Auto,
+            };
 
-            let available_width_for_child = match flex_basis {
-                FlexBasis::Auto => todo!(), //TODO: implement
-                FlexBasis::Length(length) => length,
+            let remaining_width = f32::max(0.0, available_width - (cursor_x - top_left_x));
+            
+            let (layout_width, minimum_item_width) = match flex_basis {
+                FlexBasis::Auto => (remaining_width, 0.0),
+                FlexBasis::Length(length) => (length, length),
                 FlexBasis::Percentage(flex_basis_percentage) => {
-                    available_width * (flex_basis_percentage / 100.0)
+                    let width = available_width * (flex_basis_percentage / 100.0);
+                    (width, width)
                 },
             };
 
-            compute_layout_for_node(&child, cursor_x, cursor_y, font_context, current_scroll_y, false, force_full_layout, available_width_for_child, true);
+            compute_layout_for_node(&child, cursor_x, cursor_y, font_context, current_scroll_y, false, force_full_layout, layout_width, true);
             let (_, _, bounding_box_width, bounding_box_height) = RefCell::borrow(child).get_bounding_box();
 
-            cursor_x += f32::max(bounding_box_width, available_width_for_child);
+            cursor_x += f32::max(bounding_box_width, minimum_item_width);
             max_height = max_height.max(bounding_box_height);
         }
 
@@ -1209,70 +1215,67 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
     if childs_to_recurse_on.len() > 0 {
         let first_child = childs_to_recurse_on.iter().next().unwrap();
 
-        if contains_block_and_inline_level_elements(&childs_to_recurse_on) {
-            let mut temp_inline_child_buffer = Vec::new();
-            let background_color = partial_node_background_color;
+        if main_node_refcell.borrow().styles.display() == Display::Flex {
+            partial_formatting_context = FormattingContext::Flex;
+            partial_node_children = build_layout_children_for_flex_container(childs_to_recurse_on, document, font_context, partial_node_background_color);
+        } else {
 
-            for child in &childs_to_recurse_on {
+            if contains_block_and_inline_level_elements(&childs_to_recurse_on) {
+                let mut temp_inline_child_buffer = Vec::new();
+                let background_color = partial_node_background_color;
 
-                if child.borrow().styles.display().is_block_level() {
-                    if !temp_inline_child_buffer.is_empty() {
+                for child in &childs_to_recurse_on {
 
-                        let mut layout_childs = Vec::new();
-                        for &node in temp_inline_child_buffer.iter() {
-                            let layout_child = build_layout_tree(node, document, font_context);
-                            layout_childs.push(layout_child);
+                    if child.borrow().styles.display().is_block_level() {
+                        if !temp_inline_child_buffer.is_empty() {
+
+                            let mut layout_childs = Vec::new();
+                            for &node in temp_inline_child_buffer.iter() {
+                                let layout_child = build_layout_tree(node, document, font_context);
+                                layout_childs.push(layout_child);
+                            }
+
+                            let anon_block = build_anonymous_layout_node(true, layout_childs, background_color, FormattingContext::Inline);
+                            partial_node_children.push(anon_block);
+
+                            temp_inline_child_buffer = Vec::new();
                         }
 
-                        let anon_block = build_anonymous_layout_node(true, layout_childs, background_color, FormattingContext::Inline);
-                        partial_node_children.push(anon_block);
+                        let layout_child = build_layout_tree(child, document, font_context);
+                        partial_node_children.push(layout_child);
 
-                        temp_inline_child_buffer = Vec::new();
+                    } else {
+                        temp_inline_child_buffer.push(child);
+                    }
+                }
+
+                if !temp_inline_child_buffer.is_empty() {
+                    let mut layout_childs = Vec::new();
+                    for node in temp_inline_child_buffer.iter() {
+                        let layout_child = build_layout_tree(node, document, font_context);
+                        layout_childs.push(layout_child);
                     }
 
-                    let layout_child = build_layout_tree(child, document, font_context);
+                    let anon_block = build_anonymous_layout_node(true, layout_childs, background_color, FormattingContext::Inline);
+                    partial_node_children.push(anon_block);
+                }
+
+            } else if first_child.borrow().styles.display() == Display::Inline {
+
+                partial_formatting_context = FormattingContext::Inline;
+
+                for child in childs_to_recurse_on {
+                    let layout_child = build_layout_tree(&child, document, font_context);
                     partial_node_children.push(layout_child);
-
-                } else {
-                    temp_inline_child_buffer.push(child);
-                }
-            }
-
-            if !temp_inline_child_buffer.is_empty() {
-                let mut layout_childs = Vec::new();
-                for node in temp_inline_child_buffer.iter() {
-                    let layout_child = build_layout_tree(node, document, font_context);
-                    layout_childs.push(layout_child);
                 }
 
-                let anon_block = build_anonymous_layout_node(true, layout_childs, background_color, FormattingContext::Inline);
-                partial_node_children.push(anon_block);
-            }
+            } else {
+                partial_formatting_context = FormattingContext::Block;
 
-        } else if first_child.borrow().styles.display() == Display::Inline {
-
-            partial_formatting_context = FormattingContext::Inline;
-
-            for child in childs_to_recurse_on {
-                let layout_child = build_layout_tree(&child, document, font_context);
-                partial_node_children.push(layout_child);
-            }
-
-        } else if first_child.borrow().styles.display() == Display::Flex {
-
-            partial_formatting_context = FormattingContext::Flex;
-
-            for child in childs_to_recurse_on {
-                let layout_child = build_layout_tree(&child, document, font_context);
-                partial_node_children.push(layout_child);
-            }
-
-        } else {
-            partial_formatting_context = FormattingContext::Block;
-
-            for child in childs_to_recurse_on {
-                let layout_child = build_layout_tree(&child, document, font_context);
-                partial_node_children.push(layout_child);
+                for child in childs_to_recurse_on {
+                    let layout_child = build_layout_tree(&child, document, font_context);
+                    partial_node_children.push(layout_child);
+                }
             }
         }
     }
@@ -1327,6 +1330,26 @@ fn build_layout_tree(main_node: &Rc<RefCell<ElementDomNode>>, document: &Documen
     };
 
     return Rc::new(RefCell::from(new_node));
+}
+
+
+fn build_layout_children_for_flex_container(childs_to_recurse_on: Vec<Rc<RefCell<ElementDomNode>>>, document: &Document,
+                                                font_context: &FontContext, background_color: Color) -> Vec<Rc<RefCell<LayoutNode>>> {
+    let mut layout_nodes = Vec::new();
+
+    for child in childs_to_recurse_on {
+
+        if child.borrow().text.is_some() {
+            if !child.borrow().text.as_ref().unwrap().text_content.trim().is_empty() {
+                let tree = build_layout_tree(&child, document, font_context);
+                layout_nodes.push(build_anonymous_layout_node(true, vec![tree], background_color, FormattingContext::Inline));
+            }
+        } else {
+            layout_nodes.push(build_layout_tree(&child, document, font_context))
+        }
+    }
+
+    return layout_nodes;
 }
 
 

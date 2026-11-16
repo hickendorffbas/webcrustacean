@@ -104,7 +104,7 @@ fn lex_css_block(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenW
 
         match css_iterator.next() {
 
-            char @ ('{' | '}' | '(' | ')' | '.' | '+' | '>' | ',' | ':' | ';' | '~'| '#' | '!') => {
+            char @ ('{' | '}' | '(' | ')' | '+' | '>' | ',' | ':' | ';' | '~'| '#' | '!') => {
                 last_token_was_whitespace = false;
 
                 if char == '(' && !buffer.is_empty() {
@@ -122,7 +122,6 @@ fn lex_css_block(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenW
                     '}' => tokens.push(make_token(css_iterator, CssToken::CloseBrace)),
                     '(' => tokens.push(make_token(css_iterator, CssToken::OpenParenthesis)),
                     ')' => tokens.push(make_token(css_iterator, CssToken::CloseParenthesis)),
-                    '.' => tokens.push(make_token(css_iterator, CssToken::Dot)),
                     '+' => tokens.push(make_token(css_iterator, CssToken::Plus)),
                     '>' => tokens.push(make_token(css_iterator, CssToken::Greater)),
                     ',' => tokens.push(make_token(css_iterator, CssToken::Comma)),
@@ -137,6 +136,19 @@ fn lex_css_block(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenW
                     }
                 }
             },
+            '.' => {
+                last_token_was_whitespace = false;
+                if css_iterator.has_next() && (*(css_iterator.peek().unwrap())).is_ascii_digit() {
+                    buffer.push('.');  //This dot is part of a number
+                } else {
+                    if !buffer.is_empty() {
+                        tokens.push(make_token(css_iterator, CssToken::Identifier(buffer.clone())));
+                        buffer.clear();
+                    }
+
+                    tokens.push(make_token(css_iterator, CssToken::Dot));
+                }
+            }
             ' ' | '\t' | '\n' => {
                 if !buffer.is_empty() {
                     tokens.push(make_token(css_iterator, CssToken::Identifier(buffer.clone())));

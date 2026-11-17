@@ -159,7 +159,7 @@ impl HtmlParser {
                     self.close_top_node();
                 }
 
-                //TODO: some tags (like "li" and "p") have optional endtags, those need to be closed when seeing the next one of those
+                self.close_nodes_implicitly_ended_by(&name);
 
                 let node = ElementDomNode::new(name);
                 let node_rc = Rc::from(RefCell::from(node));
@@ -234,6 +234,37 @@ impl HtmlParser {
                     self.register_node_as_child(parent_node, node);
                 }
             },
+        }
+    }
+
+    fn close_nodes_implicitly_ended_by(&mut self, new_tag_name: &str) {
+        let (tags_to_close, boundary_tags): (&[&str], &[&str]) = match new_tag_name {
+            "tr" => (&["tr"], &["table", "tbody", "thead", "tfoot"]),
+            "td" | "th" => (&["td", "th"], &["tr", "table"]),
+            _ => {
+                //TODO: more tags (like li and p) need behavior here
+                return;
+            }
+        };
+
+        let mut close_from_idx = None;
+        for idx in (1..self.stack.len()).rev() {  //Skip index 0, because that is the root
+            let node = self.stack[idx].borrow();
+            let node_name = node.name.as_deref().unwrap_or("");
+
+            if tags_to_close.contains(&node_name) {
+                close_from_idx = Some(idx);
+                break;
+            }
+            if boundary_tags.contains(&node_name) {
+                break;
+            }
+        }
+
+        if let Some(close_from_idx) = close_from_idx {
+            while self.stack.len() > close_from_idx {
+                self.close_top_node();
+            }
         }
     }
 

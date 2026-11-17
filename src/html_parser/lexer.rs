@@ -54,7 +54,7 @@ enum InQuotes {
 }
 
 
-static SELF_CLOSING_TAGS: &[&str] = &[
+static VOID_ELEMENTS: &[&str] = &[
     "area",
     "base",
     "br",
@@ -181,12 +181,12 @@ impl Lexer {
                         self.state = HtmlLexerState::InComment;
                         self.buffer = String::new();
                     } else if ch.is_whitespace() {
-                        let name = std::mem::take(&mut self.buffer);
+                        let name = std::mem::take(&mut self.buffer).to_ascii_lowercase();
                         self.state = HtmlLexerState::InTag;
                         self.last_tag_name = name.clone();
-                        return self.make_token(Token::StartTag { self_closing: is_self_closing(&name), name });
+                        return self.make_token(Token::StartTag { self_closing: is_void_element(&name), name });
                     } else if ch == '>' {
-                        let name = std::mem::take(&mut self.buffer);
+                        let name = std::mem::take(&mut self.buffer).to_ascii_lowercase();
                         if name == "script" {
                             self.state = HtmlLexerState::InScript;
                         } else if name == "style" {
@@ -195,7 +195,7 @@ impl Lexer {
                             self.state = HtmlLexerState::Data;
                         }
                         self.last_tag_name = name.clone();
-                        return self.make_token(Token::StartTag { self_closing: is_self_closing(&name), name });
+                        return self.make_token(Token::StartTag { self_closing: is_void_element(&name), name });
                     } else {
                         self.buffer.push(ch);
                         if self.buffer.eq_ignore_ascii_case("!doctype") {
@@ -206,7 +206,7 @@ impl Lexer {
                 },
                 HtmlLexerState::EndTagName => {
                     if ch == '>' {
-                        let name = std::mem::take(&mut self.buffer);
+                        let name = std::mem::take(&mut self.buffer).to_ascii_lowercase();
                         self.state = HtmlLexerState::Data;
                         return self.make_token(Token::EndTag { name });
                     } else {
@@ -236,19 +236,19 @@ impl Lexer {
                     if ch.is_whitespace() {
                         self.state = HtmlLexerState::InTag;
 
-                        let attribute_name = std::mem::take(&mut self.buffer);
+                        let attribute_name = std::mem::take(&mut self.buffer).to_ascii_lowercase();
 
                         //for boolean attributes, the value is specced to be equal to the name
                         return self.make_token(Token::Attribute { name: attribute_name.clone(), value: attribute_name });
                     } else if ch == '>' {
                         self.state = HtmlLexerState::Data;
 
-                        let attribute_name = std::mem::take(&mut self.buffer);
+                        let attribute_name = std::mem::take(&mut self.buffer).to_ascii_lowercase();
 
                         //for boolean attributes, the value is specced to be equal to the name
                         return self.make_token(Token::Attribute { name: attribute_name.clone(), value: attribute_name });
                     } else if ch == '=' {
-                        self.open_attribute_name = Some(std::mem::take(&mut self.buffer));
+                        self.open_attribute_name = Some(std::mem::take(&mut self.buffer).to_ascii_lowercase());
                         self.state = HtmlLexerState::AttributeValueStart;
                     } else {
                         self.buffer.push(ch);
@@ -388,6 +388,6 @@ fn is_entity_name_char(ch: char) -> bool {
 }
 
 
-fn is_self_closing(tagname: &String) -> bool {
-    return SELF_CLOSING_TAGS.contains(&tagname.as_str());
+fn is_void_element(tagname: &String) -> bool {
+    return VOID_ELEMENTS.contains(&tagname.as_str());
 }

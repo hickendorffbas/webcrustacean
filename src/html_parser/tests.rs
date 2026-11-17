@@ -467,3 +467,38 @@ fn test_unterminated_entity_in_attribute_value_is_kept_literally() {
     assert!(tokens.contains(&Token::StartTag { name: "input".to_owned(), self_closing: true }));
     assert!(tokens.contains(&Token::Attribute { name: "style".to_owned(), value: "display: none;".to_owned() }));
 }
+
+
+#[test]
+fn test_tag_and_attribute_names_are_lowercased() {
+    let tokens = lex_all(r#"<DIV Class="Keep-Case">a<BR>b</Div><img SRC=X.png HIDDEN>"#);
+
+    assert!(tokens.contains(&Token::StartTag { name: "div".to_owned(), self_closing: false }));
+    assert!(tokens.contains(&Token::Attribute { name: "class".to_owned(), value: "Keep-Case".to_owned() }));
+    assert!(tokens.contains(&Token::StartTag { name: "br".to_owned(), self_closing: true }));
+    assert!(tokens.contains(&Token::EndTag { name: "div".to_owned() }));
+    assert!(tokens.contains(&Token::Attribute { name: "src".to_owned(), value: "X.png".to_owned() }));
+    assert!(tokens.contains(&Token::Attribute { name: "hidden".to_owned(), value: "hidden".to_owned() }));
+}
+
+
+//TODO: make the json tests use this way of testing instead
+fn parent_id_attribute_of_node_with_id(parser: &HtmlParser, id: &str) -> String {
+    let all_nodes = &parser.document.all_nodes;
+    let node = all_nodes.values().find(|node| node.borrow().get_attribute_value("id").as_deref() == Some(id)).unwrap();
+    let parent = all_nodes.get(&node.borrow().parent_id).unwrap();
+    return parent.borrow().get_attribute_value("id").unwrap();
+}
+
+
+#[test]
+fn test_new_table_cell_implicitly_closes_open_cell() {
+    let code = r#"<table><tr id="row"><td id="first">first<td id="second">second</tr></table>"#;
+
+    let mut parser = HtmlParser::new(Url::empty());
+    parser.start(code.to_owned(), Url::empty());
+    run_parser(&mut parser);
+
+    assert_eq!(parent_id_attribute_of_node_with_id(&parser, "first"), "row");
+    assert_eq!(parent_id_attribute_of_node_with_id(&parser, "second"), "row");
+}

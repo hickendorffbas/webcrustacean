@@ -358,27 +358,38 @@ fn main() -> Result<(), String> {
                                 }
 
                                 if !text_for_clipboard.is_empty() {
-                                    let mut clipboard = Clipboard::new().unwrap();
-                                    clipboard.set_text(text_for_clipboard).expect("Unhandled clipboard error");
+                                    let result = Clipboard::new().and_then(|mut clipboard| clipboard.set_text(text_for_clipboard));
+                                    if let Err(error) = result {
+                                        debug_log_warn(format!("Could not write to clipboard: {}", error));
+                                    }
                                 }
                             }
 
                             if keycode.unwrap().name() == "V" {
-                                let clipboard_text = Clipboard::new().unwrap().get_text().expect("Unhandled clipboard error");
-
-                                match ui_state.focus_target {
-                                    FocusTarget::AddressBar => {
-                                        ui_state.addressbar.insert_text(&platform, &clipboard_text);
+                                let clipboard_text = match Clipboard::new().and_then(|mut clipboard| clipboard.get_text()) {
+                                    Ok(text) => Some(text),
+                                    Err(arboard::Error::ContentNotAvailable) => None,
+                                    Err(error) => {
+                                        debug_log_warn(format!("Could not read from clipboard: {}", error));
+                                        None
                                     },
-                                    FocusTarget::Component(ref mut component) => {
-                                        match *component.borrow_mut() {
-                                            PageComponent::Button(_) => {}, //There is nothing to paste in a button
-                                            PageComponent::TextField(ref mut text_field) => {
-                                                text_field.insert_text(&platform, &clipboard_text);
-                                            },
+                                };
+
+                                if let Some(clipboard_text) = clipboard_text {
+                                    match ui_state.focus_target {
+                                        FocusTarget::AddressBar => {
+                                            ui_state.addressbar.insert_text(&platform, &clipboard_text);
+                                        },
+                                        FocusTarget::Component(ref mut component) => {
+                                            match *component.borrow_mut() {
+                                                PageComponent::Button(_) => {}, //There is nothing to paste in a button
+                                                PageComponent::TextField(ref mut text_field) => {
+                                                    text_field.insert_text(&platform, &clipboard_text);
+                                                },
+                                            }
                                         }
+                                        _ => {},
                                     }
-                                    _ => {},
                                 }
                             }
                         }

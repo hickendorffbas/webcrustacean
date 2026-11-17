@@ -1018,11 +1018,11 @@ fn apply_flex_layout(node: &mut LayoutNode, top_left_x: f32, top_left_y: f32, cu
 
     let flex_dir = node.from_dom_node.as_ref().unwrap().borrow().styles.flex_direction();
     let mut cursor_x = top_left_x;
-    let cursor_y = top_left_y;
-    let mut max_height: f32 = 0.0;
+    let mut cursor_y = top_left_y;
 
     if flex_dir == FlexDirection::Row {
-
+        let mut max_height: f32 = 0.0;
+        
         for child in &node.children {
 
             //TODO: implement flex_grow and flex_shrink
@@ -1052,8 +1052,26 @@ fn apply_flex_layout(node: &mut LayoutNode, top_left_x: f32, top_left_y: f32, cu
         let our_width = cursor_x - top_left_x;
         node.update_css_box(CssBox { x: top_left_x, y: top_left_y, width: our_width, height: max_height });
 
+    } else if flex_dir == FlexDirection::Column {
+        let mut max_width: f32 = 0.0;
+
+        for child in &node.children {
+
+            //TODO: implement flex_grow, flex_shrink and flex_basis (which is a height in this direction)
+            let only_update_block_vertical_position = !child.borrow().is_dirty_anywhere();
+            compute_layout_for_node(&child, cursor_x, cursor_y, font_context, current_scroll_y,
+                                    only_update_block_vertical_position, force_full_layout, available_width, true);
+            let (_, _, bounding_box_width, bounding_box_height) = RefCell::borrow(child).get_bounding_box();
+
+            cursor_y += bounding_box_height;
+            max_width = max_width.max(bounding_box_width);
+        }
+
+        let our_height = cursor_y - top_left_y;
+        node.update_css_box(CssBox { x: top_left_x, y: top_left_y, width: max_width, height: our_height });
+
     } else {
-        todo!(); //TODO: implement other directions
+        todo!(); //TODO: implement
     }
 }
 

@@ -788,7 +788,7 @@ fn access_property(object: JsValue, property: JsValue, js_interpreter: &mut JsIn
                 JsValue::Number(number) => {
                     match array.elements.get(number as usize) {
                         Some(value) => { return value.clone() },
-                        None => todo!(),  //TODO: this should be an error
+                        None => return JsValue::Undefined,
                     }
                 },
                 _ => {

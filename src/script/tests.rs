@@ -678,3 +678,8 @@ fn test_trailing_comma_in_call_arguments_and_array_literal() {
 fn test_getter_in_object_literal() {
     assert_js(r#"var o = {get x() { return 42; }}; tester.export(o.x);"#, JsValue::Number(42.0));
 }
+
+#[test]
+fn test_array_index_out_of_bounds_is_undefined() {
+    assert_js(r#"var a = [5]; tester.export(a[1] === undefined ? 7 : 0);"#, JsValue::Number(7.0));
+}

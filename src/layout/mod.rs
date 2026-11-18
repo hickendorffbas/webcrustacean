@@ -39,6 +39,14 @@ mod tables;
 #[cfg(debug_assertions)] pub fn get_next_layout_node_interal_id() -> usize { NEXT_LAYOUT_NODE_INTERNAL.fetch_add(1, Ordering::Relaxed) }
 
 
+//Because we often measure sizes from (0,0), the actual float values might change slightly when the element is in the final position
+//we need a bit of tolerance, so we don't wrap unnecessarily.
+const WIDTH_FIT_TOLERANCE: f32 = 0.01;
+fn fits_in_width(width: f32, available_width: f32) -> bool {
+    return width <= available_width + WIDTH_FIT_TOLERANCE;
+}
+
+
 pub struct FullLayout {
     pub root_node: Rc<RefCell<LayoutNode>>,
     pub content_nodes_in_selection_order: Vec<Rc<RefCell<LayoutNode>>>, //this list only contains nodes without children
@@ -897,7 +905,7 @@ fn apply_inline_layout(node: &mut LayoutNode, top_left_x: f32, top_left_y: f32, 
         let child_borrow = RefCell::borrow(child);
         let (_, _, child_width, child_height) = child_borrow.get_bounding_box();
 
-        if (cursor_x - top_left_x + child_width) > available_width {
+        if !fits_in_width(cursor_x - top_left_x + child_width, available_width) {
 
             if child_borrow.can_wrap() {
                 // in this case, we might be able to split the css boxes, and put part of the node on this line
@@ -925,7 +933,7 @@ fn apply_inline_layout(node: &mut LayoutNode, top_left_x: f32, top_left_y: f32, 
 
                             let (rect_width, rect_height) = font_context.get_text_dimension(&new_css_text_box.text, &text_layout_node.font);
 
-                            if cursor_x - top_left_x + rect_width > available_width {
+                            if !fits_in_width(cursor_x - top_left_x + rect_width, available_width) {
                                 if cursor_x != top_left_x {
                                     cursor_x = top_left_x;
                                     cursor_y += max_height_of_line;
@@ -1091,7 +1099,7 @@ fn wrap_text(css_text_box: &CssTextBox, non_breaking_space_positions: &Option<Ha
         undecided_buffer.push(character);
 
         let potential_line_length = char_positions[idx] - consumed_size;
-        if potential_line_length > width_to_check {
+        if !fits_in_width(potential_line_length, width_to_check) {
             lines.push(current_line_buffer);
             current_line_buffer = String::new();
             consumed_size = char_positions[last_decided_idx];
@@ -1108,7 +1116,7 @@ fn wrap_text(css_text_box: &CssTextBox, non_breaking_space_positions: &Option<Ha
     if !undecided_buffer.is_empty() {
         let potential_line_length = char_positions.last().unwrap() - consumed_size;
         let width_to_check = if lines.len() == 0 { width_remaining_on_current_line } else { max_width };
-        if potential_line_length > width_to_check {
+        if !fits_in_width(potential_line_length, width_to_check) {
             lines.push(current_line_buffer);
             current_line_buffer = String::new();
         }

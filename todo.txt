@@ -1,5 +1,6 @@
 goals for 0.9.0:
        - testing, and fixing crashes
+       - fix loading a website with only www , no http:// (I thought I already had that, might have broken)
 
 
 other things (later versions):

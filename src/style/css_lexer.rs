@@ -74,6 +74,7 @@ fn lex_css_block(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenW
                         if css_iterator.peek() == Some(&'/') {
                             css_iterator.next(); //eat the /
                             in_comment = false;
+                            continue 'main_loop
                         }
                     },
                     _ => {

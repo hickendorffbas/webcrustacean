@@ -198,7 +198,7 @@ fn parse_statement(style_rules: &mut Vec<ParsedStyleRule>, current_context: &mut
                         println!("Unknown css at-rule type: {}", rulename);
 
                         //we ignore rules behind unrecognized at-rules if a block follows (not all at rules have a block after it):
-                        if token_iterator.peek().unwrap().css_token == CssToken::OpenBrace {
+                        if token_iterator.peek().is_some() && token_iterator.peek().unwrap().css_token == CssToken::OpenBrace {
                             let mut open_braces = 0;
                             while token_iterator.peek().is_some() {
                                 match &token_iterator.peek().unwrap().css_token {
@@ -224,6 +224,10 @@ fn parse_statement(style_rules: &mut Vec<ParsedStyleRule>, current_context: &mut
                 current_at_rules.push(rule);
 
                 loop {
+                    if token_iterator.peek() == None {
+                        break;
+                    }
+
                     match &token_iterator.peek().unwrap().css_token {
                         CssToken::OpenBrace => {
                             token_iterator.next();
@@ -605,12 +609,16 @@ fn parse_sequence(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>, nes
             },
             CssToken::Hash => {
                 token_iterator.next();
-                match &token_iterator.peek().unwrap().css_token {
-                    CssToken::Identifier(ident) => {
-                        token_iterator.next();
-                        elements.push(CssParsedValue::Hash(ident.clone()));
-                    },
-                    _ => { return None; }
+                if token_iterator.peek() != None {
+                    match &token_iterator.peek().unwrap().css_token {
+                        CssToken::Identifier(ident) => {
+                            token_iterator.next();
+                            elements.push(CssParsedValue::Hash(ident.clone()));
+                        },
+                        _ => { return None; }
+                    }
+                } else {
+                    return None;
                 }
             },
             CssToken::Function(function_name) => {

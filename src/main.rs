@@ -211,7 +211,7 @@ fn main() -> Result<(), String> {
 
             compute_styles(&document.document_node, &document.all_nodes, &document.style_context);
 
-            document.document_node.borrow_mut().post_construct(&mut platform); //TODO: this is not idempotent, it creates new components!
+            document.document_node.borrow_mut().post_construct(&mut platform);
             document.update_all_dom_nodes(&mut cookie_store, &mut resource_loader);
 
             full_layout_tree.replace(layout::build_full_layout(&document, &platform.font_context));

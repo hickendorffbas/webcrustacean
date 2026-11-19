@@ -3,6 +3,12 @@ goals for 0.9.0:
        - fix loading a website with only www , no http:// (I thought I already had that, might have broken)
 
 
+goals for 0.10.0:
+       - binary release (on github probably)
+       - parallel download of stylesheets and script
+
+
+
 other things (later versions):
        - move to rust 2024 edition
        - exceptions in javascript (generating them, and catching them)

@@ -1,14 +1,5 @@
 goals for 0.9.0:
-       - check that we now have a frame loop like this:
-              - check for user input and process it
-              - check on running network requests (and put them in the right place when they are done)
-                     - for page, set them to be parsed
-                     - for script, set them to be runned
-                     - for images, load them in the DOM
-              - if any html parsing is in progress, run it forward
-              - if any script running should be done, run it
-              - do a layout pass (if needed)
-              - render
+       - testing, and fixing crashes
 
 
 other things (later versions):
@@ -21,3 +12,4 @@ other things (later versions):
        - make the timeings feature work again / better (i.e. averages etc.)
        - switch to winit?
        - figure out how do build standalone binaries
+              - at least use the "bundled" feature of sdl

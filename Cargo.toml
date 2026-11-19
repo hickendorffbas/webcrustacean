@@ -28,9 +28,7 @@ features = ["blocking"]
 version = "=0.9.3"
 
 [dependencies.sdl2]
-version = "=0.37.0"
-default-features = false
-features = ["image", "gfx", "mixer"]
+version = "=0.38.1"
 
 [dependencies.threadpool]
 version = "=1.8.1"

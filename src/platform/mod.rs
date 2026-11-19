@@ -3,7 +3,6 @@ pub mod fonts;
 use image::RgbaImage;
 use rusttype::{point, Scale};
 use sdl2::{
-    image::{self as SdlImage, Sdl2ImageContext},
     keyboard::Keycode as SdlKeycode,
     pixels::{Color as SdlColor, PixelFormatEnum},
     rect::{Point as SdlPoint, Rect as SdlRect},
@@ -45,9 +44,6 @@ pub struct Platform {
     #[cfg(not(test))] canvas: WindowCanvas,
 
     video_subsystem: VideoSubsystem,
-
-    //the image_context is not used by our code, but needs to be kept alive in order to work with images in SDL2:
-    _image_context: Sdl2ImageContext,
 }
 impl Platform {
     pub fn present(&mut self) {
@@ -177,8 +173,6 @@ pub fn init_platform(sdl_context: Sdl, screen_width: f32, screen_height: f32, he
     let video_subsystem = sdl_context.video()
         .expect("Could not get the video subsystem");
 
-    let image_context = SdlImage::init(SdlImage::InitFlag::PNG | SdlImage::InitFlag::JPG)?;
-
     let mut window_builder = video_subsystem.window("Webcrustacean", screen_width as u32, screen_height as u32);
     window_builder.position_centered().resizable();
 
@@ -196,6 +190,5 @@ pub fn init_platform(sdl_context: Sdl, screen_width: f32, screen_height: f32, he
         sdl_context,
         font_context: FontContext::new(),
         video_subsystem,
-        _image_context: image_context,
     });
 }

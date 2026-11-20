@@ -28,6 +28,7 @@ pub enum CssToken {
     Greater,
     Tilde,
     Semicolon,
+    And,
     Comma,
     Colon,
     Hash,
@@ -105,7 +106,7 @@ fn lex_css_block(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenW
 
         match css_iterator.next() {
 
-            char @ ('{' | '}' | '(' | ')' | '+' | '>' | ',' | ':' | ';' | '~'| '#' | '!') => {
+            char @ ('{' | '}' | '(' | ')' | '+' | '>' | ',' | ':' | ';' | '~'| '#' | '!' | '&') => {
                 last_token_was_whitespace = false;
 
                 if char == '(' && !buffer.is_empty() {
@@ -131,6 +132,7 @@ fn lex_css_block(css_iterator: &mut TrackingIterator, tokens: &mut Vec<CssTokenW
                     '~' => tokens.push(make_token(css_iterator, CssToken::Tilde)),
                     '#' => tokens.push(make_token(css_iterator, CssToken::Hash)),
                     '!' => tokens.push(make_token(css_iterator, CssToken::ExclamationMark)),
+                    '&' => tokens.push(make_token(css_iterator, CssToken::And)),
 
                     _ => {
                         panic!("invalid state");

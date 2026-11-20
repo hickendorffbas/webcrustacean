@@ -220,3 +220,26 @@ fn test_nested_rule_is_scoped_to_parent_selector() {
         (CssCombinator::None, SelectorType::Class, "outer".to_owned()),
     ]);
 }
+
+
+#[test]
+fn test_compound_selector_is_not_parsed_as_descendant() {
+    let result = parse_css("p div.a { color: red; }");
+    let color_rule = result.iter().find(|rule| rule.declaration.value.property() == CssProperty::Color).unwrap();
+    assert_eq!(color_rule.selector.elements, vec![
+        (CssCombinator::None, SelectorType::Class, "a".to_owned()),
+        (CssCombinator::Descendent, SelectorType::Name, "div".to_owned()),
+        (CssCombinator::None, SelectorType::Name, "p".to_owned()),
+    ]);
+}
+
+
+#[test]
+fn test_nesting_selector_compounds_with_parent() {
+    let result = parse_css(".a { &.b { color: red; } }");
+    let color_rule = result.iter().find(|rule| rule.declaration.value.property() == CssProperty::Color).unwrap();
+    assert_eq!(color_rule.selector.elements, vec![
+        (CssCombinator::None, SelectorType::Class, "b".to_owned()),
+        (CssCombinator::None, SelectorType::Class, "a".to_owned()),
+    ]);
+}

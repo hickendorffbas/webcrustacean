@@ -228,7 +228,7 @@ fn parse_statement(style_rules: &mut Vec<ParsedStyleRule>, token_iterator: &mut 
                 continue;
             }
             _ => {
-                let selectors = parse_selectors(token_iterator);
+                let selectors = parse_selectors(token_iterator, false);
                 parse_declaration_block(selectors, style_rules, token_iterator, current_at_rules);
                 break;
             },
@@ -237,7 +237,7 @@ fn parse_statement(style_rules: &mut Vec<ParsedStyleRule>, token_iterator: &mut 
 }
 
 
-fn parse_selectors(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>)-> Vec<Selector> {
+fn parse_selectors(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>, nested: bool)-> Vec<Selector> {
     let mut selectors = Vec::new();
     let mut selector_elements = Vec::new();
     let mut next_combinator = CssCombinator::None;
@@ -247,11 +247,14 @@ fn parse_selectors(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>)-> 
     let mut current_pseudoclasses = None;
     let mut current_pseudoelement = None;
     let mut current_selector_valid = true;
+    let mut whitespace_seen = false;
+    let mut nesting_selector_seen = false;
+
 
     while token_iterator.peek().is_some() {
         match &token_iterator.peek().unwrap().css_token {
             CssToken::OpenBrace => {
-                if !selector_elements.is_empty() {
+                if !selector_elements.is_empty() || nesting_selector_seen {
                     selector_elements.reverse();
                     if current_selector_valid {
                         selectors.push(Selector { elements: selector_elements, pseudoclasses: current_pseudoclasses, pseudoelement: current_pseudoelement });
@@ -261,11 +264,9 @@ fn parse_selectors(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>)-> 
                 return selectors;
             },
             CssToken::Comma => {
-                parsing_pseudoclass = false;
-                parsing_pseudoelement = false;
                 token_iterator.next();
 
-                if !selector_elements.is_empty() {
+                if !selector_elements.is_empty() || nesting_selector_seen {
                     selector_elements.reverse();
                     if current_selector_valid {
                         selectors.push(Selector { elements: selector_elements, pseudoclasses: current_pseudoclasses, pseudoelement: current_pseudoelement });
@@ -275,6 +276,10 @@ fn parse_selectors(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>)-> 
                     current_pseudoelement = None;
                 }
                 current_selector_valid = true;
+                parsing_pseudoclass = false;
+                parsing_pseudoelement = false;
+                whitespace_seen = false;
+                nesting_selector_seen = false;
             },
             CssToken::Identifier(ident) | CssToken::Function(ident) => {
                 token_iterator.next();
@@ -298,16 +303,33 @@ fn parse_selectors(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>)-> 
                     current_pseudoelement = elem;
                     parsing_pseudoelement = false;
                 } else {
-                    if selector_elements.len() > 0 && next_combinator == CssCombinator::None {
-                        next_combinator = CssCombinator::Descendent;
+
+                    if selector_elements.is_empty() {
+                        if nested {
+                            next_combinator = if next_combinator != CssCombinator::None {
+                                next_combinator
+                            } else if !nesting_selector_seen {
+                                CssCombinator::Descendent
+                            } else if whitespace_seen {
+                                CssCombinator::Descendent
+                            } else {
+                                CssCombinator::None
+                            };
+                        }
+                    } else {
+                        if next_combinator == CssCombinator::None && whitespace_seen {
+                            next_combinator = CssCombinator::Descendent;
+                        }
                     }
 
                     selector_elements.push( (next_combinator, next_selector_type, ident.clone()) );
                     next_combinator = CssCombinator::None;
                     next_selector_type = SelectorType::Name;
+                    whitespace_seen = false;
                 }
             },
             CssToken::Whitespace => {
+                whitespace_seen = true;
                 parsing_pseudoclass = false;
                 parsing_pseudoelement = false;
                 token_iterator.next();
@@ -324,6 +346,17 @@ fn parse_selectors(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>)-> 
                 token_iterator.next();
                 next_combinator = CssCombinator::GeneralSibling;
             },
+            CssToken::And => {
+                token_iterator.next();
+
+                if !nested || !selector_elements.is_empty() || nesting_selector_seen {
+                    //The nesting selector (&) can only be at the start of a nested selector
+                    current_selector_valid = false;
+                } else {
+                    nesting_selector_seen = true;
+                    whitespace_seen = false;
+                }
+            }
             CssToken::Colon => {
                 token_iterator.next();
 
@@ -387,11 +420,6 @@ fn parse_selectors(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>)-> 
 
 fn combine_nested_selector(parent: &Selector, relative: &Selector) -> Selector {
     let mut elements = relative.elements.clone();
-    if let Some(leftmost) = elements.last_mut() {
-        if leftmost.0 == CssCombinator::None {
-            leftmost.0 = CssCombinator::Descendent;
-        }
-    }
     elements.extend(parent.elements.iter().cloned());
 
     //TODO: this loses which element each pseudoclass belongs to, which needs fixing once pseudoclasses are used in matching
@@ -456,7 +484,7 @@ fn parse_declaration_block(selectors: Vec<Selector>, style_rules: &mut Vec<Parse
 
                 if is_nested_rule {
 
-                    let nested_selectors = parse_selectors(token_iterator);
+                    let nested_selectors = parse_selectors(token_iterator, true);
                     let mut combined = Vec::new();
                     for parent in &selectors {
                         for child in &nested_selectors {

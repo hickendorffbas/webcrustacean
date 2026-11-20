@@ -196,28 +196,7 @@ fn parse_statement(style_rules: &mut Vec<ParsedStyleRule>, current_context: &mut
                     rulename @ _ => {
                         //TODO: this should log though some utility, so they end up in some dev console, and can be filtered and tagged as css-parsing errors etc
                         println!("Unknown css at-rule type: {}", rulename);
-
-                        //we ignore rules behind unrecognized at-rules if a block follows (not all at rules have a block after it):
-                        if token_iterator.peek().is_some() && token_iterator.peek().unwrap().css_token == CssToken::OpenBrace {
-                            let mut open_braces = 0;
-                            while token_iterator.peek().is_some() {
-                                match &token_iterator.peek().unwrap().css_token {
-                                    CssToken::OpenBrace => {
-                                        token_iterator.next();
-                                        open_braces += 1;
-                                    },
-                                    CssToken::CloseBrace => {
-                                        token_iterator.next();
-                                        open_braces -= 1;
-                                        if open_braces == 0 {
-                                            break;
-                                        }
-                                    },
-                                    _ => { token_iterator.next(); }
-                                }
-                            }
-                        }
-
+                        skip_block(token_iterator);
                         break;
                     },
                 };
@@ -410,6 +389,29 @@ fn parse_selectors(current_selector_context: &mut Vec<(CssCombinator, SelectorTy
 }
 
 
+fn combine_nested_selector(parent: &Selector, relative: &Selector) -> Selector {
+    let mut elements = relative.elements.clone();
+    if let Some(leftmost) = elements.last_mut() {
+        if leftmost.0 == CssCombinator::None {
+            leftmost.0 = CssCombinator::Descendent;
+        }
+    }
+    elements.extend(parent.elements.iter().cloned());
+
+    //TODO: this loses which element each pseudoclass belongs to, which needs fixing once pseudoclasses are used in matching
+    let pseudoclasses = match (&parent.pseudoclasses, &relative.pseudoclasses) {
+        (None, None) => None,
+        (parent_pseudoclasses, relative_pseudoclasses) => {
+            let mut all_pseudoclasses = parent_pseudoclasses.clone().unwrap_or_default();
+            all_pseudoclasses.extend(relative_pseudoclasses.iter().flatten().cloned());
+            Some(all_pseudoclasses)
+        }
+    };
+
+    return Selector { elements, pseudoclasses, pseudoelement: relative.pseudoelement.clone() };
+}
+
+
 fn parse_declaration_block(selectors: Vec<Selector>, style_rules: &mut Vec<ParsedStyleRule>, token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>,
                            current_at_rules: &mut Vec<AtRule>) {
     while token_iterator.peek().is_some() {
@@ -430,12 +432,50 @@ fn parse_declaration_block(selectors: Vec<Selector>, style_rules: &mut Vec<Parse
                 token_iterator.next();
                 return
             },
+            CssToken::Whitespace => {
+                token_iterator.next();
+            },
+            CssToken::AtRule(_, _) => {
+                //TODO: nested at-rules are not supported yet, so we drop them, including known ones like @media
+                token_iterator.next();
+                skip_block(token_iterator);
+            },
             _ => {
-                let declaration = parse_declaration(token_iterator);
-                if declaration.is_some() {
-                    for selector in &selectors {
-                        let new_decl = declaration.as_ref().unwrap().clone();
-                        style_rules.push(ParsedStyleRule { selector: selector.clone(), declaration: new_decl, at_rules: clone_or_none(current_at_rules) });
+                let mut lookahead = token_iterator.clone();
+                let mut paren_depth: u32 = 0;
+                let mut is_nested_rule = false;
+                while let Some(token) = lookahead.next() {
+                    match token.css_token {
+                        CssToken::OpenParenthesis => paren_depth += 1,
+                        CssToken::CloseParenthesis => paren_depth = paren_depth.saturating_sub(1),
+                        CssToken::OpenBrace if paren_depth == 0 => {
+                            //if we have a brace outside any function, we have a rule, not a declaration
+                            is_nested_rule = true;
+                            break;
+                        },
+                        CssToken::Semicolon | CssToken::CloseBrace if paren_depth == 0 => break,
+                        _ => {},
+                    }
+                }
+
+                if is_nested_rule {
+
+                    let nested_selectors = parse_selectors(&mut Vec::new(), token_iterator);
+                    let mut combined = Vec::new();
+                    for parent in &selectors {
+                        for child in &nested_selectors {
+                            combined.push(combine_nested_selector(parent, child));
+                        }
+                    }
+                    parse_declaration_block(combined, style_rules, token_iterator, current_at_rules);
+
+                } else {
+                    let declaration = parse_declaration(token_iterator);
+                    if declaration.is_some() {
+                        for selector in &selectors {
+                            let new_decl = declaration.as_ref().unwrap().clone();
+                            style_rules.push(ParsedStyleRule { selector: selector.clone(), declaration: new_decl, at_rules: clone_or_none(current_at_rules) });
+                        }
                     }
                 }
             }
@@ -557,6 +597,31 @@ fn skip_to_end_of_declaration(token_iterator: &mut Peekable<Iter<CssTokenWithLoc
             _ => {
                 token_iterator.next();
             },
+        }
+    }
+}
+
+
+fn skip_block(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) {
+    if token_iterator.peek().is_none() || token_iterator.peek().unwrap().css_token != CssToken::OpenBrace {
+        return;
+    }
+
+    let mut open_braces = 0;
+    while token_iterator.peek().is_some() {
+        match &token_iterator.peek().unwrap().css_token {
+            CssToken::OpenBrace => {
+                token_iterator.next();
+                open_braces += 1;
+            },
+            CssToken::CloseBrace => {
+                token_iterator.next();
+                open_braces -= 1;
+                if open_braces == 0 {
+                    return;
+                }
+            },
+            _ => { token_iterator.next(); }
         }
     }
 }

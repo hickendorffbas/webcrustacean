@@ -209,3 +209,14 @@ fn test_negative_number_with_leading_dot() {
     let flex_grow_rule = result.iter().find(|rule| rule.declaration.value.property() == CssProperty::FlexGrow).unwrap();
     assert_eq!(flex_grow_rule.declaration.value, CssPropertyValue::FlexGrow(-0.5));
 }
+
+
+#[test]
+fn test_nested_rule_is_scoped_to_parent_selector() {
+    let result = parse_css(".outer { .inner { color: red; } }");
+    let color_rule = result.iter().find(|rule| rule.declaration.value.property() == CssProperty::Color).unwrap();
+    assert_eq!(color_rule.selector.elements, vec![
+        (CssCombinator::Descendent, SelectorType::Class, "inner".to_owned()),
+        (CssCombinator::None, SelectorType::Class, "outer".to_owned()),
+    ]);
+}

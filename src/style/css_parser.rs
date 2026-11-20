@@ -55,11 +55,10 @@ struct ParsedStyleRule {
 
 pub fn parse_css(css_tokens: &Vec<CssTokenWithLocation>) -> Vec<StyleRule> {
     let mut style_rules = Vec::new();
-    let mut current_selector_context = Vec::new();
     let mut token_iterator = css_tokens.iter().peekable();
     let mut current_at_rules = Vec::new();
 
-    parse_statements(&mut style_rules, &mut current_selector_context, &mut token_iterator, &mut current_at_rules);
+    parse_statements(&mut style_rules, &mut token_iterator, &mut current_at_rules);
 
     let style_rules = process_shorthands(style_rules);
 
@@ -164,8 +163,7 @@ fn expand_shorthand(declaration: ParsedDeclaration) -> Vec<ParsedDeclaration> {
 }
 
 
-fn parse_statements(style_rules: &mut Vec<ParsedStyleRule>, current_selector_context: &mut Vec<(CssCombinator, SelectorType, String)>,
-                    token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>, current_at_rules: &mut Vec<AtRule>) {
+fn parse_statements(style_rules: &mut Vec<ParsedStyleRule>, token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>, current_at_rules: &mut Vec<AtRule>) {
     while token_iterator.peek().is_some() {
 
         while token_iterator.peek().is_some() {
@@ -176,13 +174,12 @@ fn parse_statements(style_rules: &mut Vec<ParsedStyleRule>, current_selector_con
             };
         }
 
-        parse_statement(style_rules, current_selector_context, token_iterator, current_at_rules);
+        parse_statement(style_rules, token_iterator, current_at_rules);
     }
 }
 
 
-fn parse_statement(style_rules: &mut Vec<ParsedStyleRule>, current_context: &mut Vec<(CssCombinator, SelectorType, String)>,
-                   token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>, current_at_rules: &mut Vec<AtRule>) {
+fn parse_statement(style_rules: &mut Vec<ParsedStyleRule>, token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>, current_at_rules: &mut Vec<AtRule>) {
     while token_iterator.peek().is_some() {
         match &token_iterator.peek().unwrap().css_token {
             CssToken::AtRule(keyword, rule) => {
@@ -210,7 +207,7 @@ fn parse_statement(style_rules: &mut Vec<ParsedStyleRule>, current_context: &mut
                     match &token_iterator.peek().unwrap().css_token {
                         CssToken::OpenBrace => {
                             token_iterator.next();
-                            parse_statements(style_rules, current_context, token_iterator, current_at_rules);
+                            parse_statements(style_rules, token_iterator, current_at_rules);
                             token_iterator.next(); //consume the closing brace
                             break;
                         },
@@ -231,7 +228,7 @@ fn parse_statement(style_rules: &mut Vec<ParsedStyleRule>, current_context: &mut
                 continue;
             }
             _ => {
-                let selectors = parse_selectors(current_context, token_iterator);
+                let selectors = parse_selectors(token_iterator);
                 parse_declaration_block(selectors, style_rules, token_iterator, current_at_rules);
                 break;
             },
@@ -240,10 +237,9 @@ fn parse_statement(style_rules: &mut Vec<ParsedStyleRule>, current_context: &mut
 }
 
 
-fn parse_selectors(current_selector_context: &mut Vec<(CssCombinator, SelectorType, String)>,
-                   token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>)-> Vec<Selector> {
+fn parse_selectors(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>)-> Vec<Selector> {
     let mut selectors = Vec::new();
-    let mut selector_elements = current_selector_context.clone();
+    let mut selector_elements = Vec::new();
     let mut next_combinator = CssCombinator::None;
     let mut next_selector_type = SelectorType::Name;
     let mut parsing_pseudoclass = false;
@@ -274,7 +270,7 @@ fn parse_selectors(current_selector_context: &mut Vec<(CssCombinator, SelectorTy
                     if current_selector_valid {
                         selectors.push(Selector { elements: selector_elements, pseudoclasses: current_pseudoclasses, pseudoelement: current_pseudoelement });
                     }
-                    selector_elements = current_selector_context.clone();
+                    selector_elements = Vec::new();
                     current_pseudoclasses = None;
                     current_pseudoelement = None;
                 }
@@ -460,7 +456,7 @@ fn parse_declaration_block(selectors: Vec<Selector>, style_rules: &mut Vec<Parse
 
                 if is_nested_rule {
 
-                    let nested_selectors = parse_selectors(&mut Vec::new(), token_iterator);
+                    let nested_selectors = parse_selectors(token_iterator);
                     let mut combined = Vec::new();
                     for parent in &selectors {
                         for child in &nested_selectors {

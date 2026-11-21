@@ -683,3 +683,8 @@ fn test_getter_in_object_literal() {
 fn test_array_index_out_of_bounds_is_undefined() {
     assert_js(r#"var a = [5]; tester.export(a[1] === undefined ? 7 : 0);"#, JsValue::Number(7.0));
 }
+
+#[test]
+fn test_arrow_function_with_rest_parameter() {
+    assert_js(r#"var f = (...t) => t[0] + t[1] * t[2]; tester.export(f(1, 2, 3));"#, JsValue::Number(7.0));
+}

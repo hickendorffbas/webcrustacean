@@ -593,15 +593,35 @@ fn parse_expression_prefix(tokens: &Vec<JsTokenWithLocation>, parser_state: &mut
             return ParseResult::Ok(JsAstExpression::ObjectCreation(JsAstObjectCreation { constructor: JsAstFunctionCall { function_expression, arguments } }));
         }
         JsToken::OpenParenthesis => {
-            parser_state.next();
 
-            if tokens[parser_state.cursor].token == JsToken::CloseParenthesis {
-                //An empty pair of parentheses is not a valid expression, but it can be the parameter list of an arrow function
-                parser_state.next();
+            let is_arrow_function_parameter_list = 'scan: {
+                let mut lookahead_idx = parser_state.cursor;
+                let mut depth = 0;
+
+                while lookahead_idx < tokens.len() {
+                    match tokens[lookahead_idx].token {
+                        JsToken::OpenParenthesis | JsToken::OpenBracket | JsToken::OpenBrace => depth += 1,
+                        JsToken::CloseParenthesis | JsToken::CloseBracket | JsToken::CloseBrace => {
+                            depth -= 1;
+                            if depth == 0 {
+                                break 'scan lookahead_idx+1 < tokens.len() && tokens[lookahead_idx+1].token == JsToken::Arrow
+                            }
+                        },
+                        _ => {},
+                    }
+                    lookahead_idx += 1;
+                }
+                break 'scan false
+            };
+
+            if is_arrow_function_parameter_list {
+                let parameters = parse_function_parameters(tokens, parser_state)?;
                 expect(tokens, parser_state, JsToken::Arrow)?;
                 let (_, right_bp) = infix_binding_power(&JsToken::Arrow).unwrap();
-                return parse_arrow_function_body(tokens, parser_state, Vec::new(), right_bp);
+                return parse_arrow_function_body(tokens, parser_state, parameters, right_bp);
             }
+
+            parser_state.next();
 
             let expression = pratt_parse_expression(tokens, parser_state, 0, false)?;
             match &tokens[parser_state.cursor].token {
@@ -721,20 +741,6 @@ fn convert_left_side_of_arrow(tokens: &Vec<JsTokenWithLocation>, parser_state: &
         JsAstExpression::Identifier(identifier) => {
             let pattern = JsAstAssignmentPattern::Target(Rc::from(JsAstExpression::Identifier(identifier.clone())));
             ParseResult::Ok(vec![JsAstFunctionParameter { pattern: Rc::from(pattern), default: None, rest: false }])
-        },
-        JsAstExpression::BinOp(binop) if matches!(binop.op, JsBinOp::Comma) => {
-            let mut parameters = convert_left_side_of_arrow(tokens, parser_state, &binop.left)?;
-            parameters.extend(convert_left_side_of_arrow(tokens, parser_state, &binop.right)?);
-            ParseResult::Ok(parameters)
-        },
-        JsAstExpression::Assignment(assign) => {
-            if let JsAstAssignmentPattern::Target(target) = &assign.left {
-                if let JsAstExpression::Identifier(_) = target.as_ref() {
-                    let pattern = JsAstAssignmentPattern::Target(target.clone());
-                    return ParseResult::Ok(vec![JsAstFunctionParameter { pattern: Rc::from(pattern), default: Some(assign.right.clone()), rest: false }]);
-                }
-            }
-            ParseResult::Err(ParseError::error_for_token(ParseErrorType::IdentierExpected, tokens, parser_state))
         },
         _ => {
             ParseResult::Err(ParseError::error_for_token(ParseErrorType::IdentierExpected, tokens, parser_state))

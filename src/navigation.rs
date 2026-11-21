@@ -1,3 +1,4 @@
+use crate::debug::debug_log_info;
 use crate::dom::PostData;
 use crate::html_parser::{HtmlParser, ParserState};
 use crate::job_scheduler::{Task, TaskPayload};
@@ -54,6 +55,8 @@ pub fn start_navigate(navigation_action: &NavigationAction, platform: &Platform,
             panic!("Illegal state"); // we should not get in this method if we have nothing to navigate to...
         },
         NavigationActionType::Get(url) => {
+            debug_log_info(format!("starting navigate for {}", url.to_string()));
+
             ui_state.addressbar.set_text(platform, url.to_string());
 
             if !ui_state.history.currently_navigating_from_history {
@@ -67,6 +70,8 @@ pub fn start_navigate(navigation_action: &NavigationAction, platform: &Platform,
 
         },
         NavigationActionType::Post(post_data) => {
+            debug_log_info(format!("starting navigate with POST for {}", post_data.url.to_string()));
+
             ui_state.addressbar.set_text(platform, post_data.url.to_string());
 
             if !ui_state.history.currently_navigating_from_history {

@@ -63,6 +63,14 @@ pub fn debug_log_warn<S: AsRef<str>>(warning_text: S) {
 }
 
 
+#[cfg(not(debug_assertions))]
+pub fn debug_log_info<S: AsRef<str>>(_: S) {}
+#[cfg(debug_assertions)]
+pub fn debug_log_info<S: AsRef<str>>(info_text: S) {
+    println!("INFO: {}", info_text.as_ref());
+}
+
+
 #[allow(dead_code)]
 #[cfg(not(debug_assertions))]
 pub fn debug_print_layout_tree(_: &Rc<RefCell<LayoutNode>>) {}

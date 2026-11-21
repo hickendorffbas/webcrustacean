@@ -243,3 +243,12 @@ fn test_nesting_selector_compounds_with_parent() {
         (CssCombinator::None, SelectorType::Class, "a".to_owned()),
     ]);
 }
+
+
+#[test]
+fn test_declaration_in_nested_media_applies_to_parent_selector() {
+    let result = parse_css(".a { @media (max-width:500px) { color: red; } }");
+    let color_rule = result.iter().find(|rule| rule.declaration.value.property() == CssProperty::Color).unwrap();
+    assert_eq!(color_rule.selector.elements, vec![(CssCombinator::None, SelectorType::Class, "a".to_owned())]);
+    assert_eq!(color_rule.at_rules, Some(vec![AtRule::Media("(max-width:500px)".to_owned())]));
+}

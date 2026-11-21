@@ -185,14 +185,11 @@ fn parse_statement(style_rules: &mut Vec<ParsedStyleRule>, token_iterator: &mut 
             CssToken::AtRule(keyword, rule) => {
                 token_iterator.next();
 
-                let rule = match keyword.as_str() {
-                    "container" => { AtRule::Container(rule.clone()) },
-                    "media" => { AtRule::Media(rule.clone()) },
-                    "supports" => { AtRule::Supports(rule.clone()) },
-                    "keyframes" => { AtRule::Keyframes(rule.clone()) },
-                    rulename @ _ => {
+                let rule = match at_rule_from_keyword(keyword.clone(), rule.clone()) {
+                    Some(rule) => rule,
+                    None => {
                         //TODO: this should log though some utility, so they end up in some dev console, and can be filtered and tagged as css-parsing errors etc
-                        println!("Unknown css at-rule type: {}", rulename);
+                        println!("Unknown css at-rule type: {}", keyword);
                         skip_block(token_iterator);
                         break;
                     },
@@ -451,7 +448,7 @@ fn parse_declaration_block(selectors: Vec<Selector>, style_rules: &mut Vec<Parse
     }
 
     while token_iterator.peek().is_some() {
-        match token_iterator.peek().unwrap().css_token {
+        match &token_iterator.peek().unwrap().css_token {
             CssToken::CloseBrace => {
                 token_iterator.next();
                 return
@@ -459,10 +456,20 @@ fn parse_declaration_block(selectors: Vec<Selector>, style_rules: &mut Vec<Parse
             CssToken::Whitespace => {
                 token_iterator.next();
             },
-            CssToken::AtRule(_, _) => {
-                //TODO: nested at-rules are not supported yet, so we drop them, including known ones like @media
+            CssToken::AtRule(keyword, prelude) => {
                 token_iterator.next();
-                skip_block(token_iterator);
+
+                let has_block = token_iterator.peek().is_some_and(|token| token.css_token == CssToken::OpenBrace);
+                match at_rule_from_keyword(keyword.clone(), prelude.clone()) {
+                    Some(rule @ (AtRule::Media(_) | AtRule::Supports(_) | AtRule::Container(_))) if has_block => {
+                        current_at_rules.push(rule);
+                        parse_declaration_block(selectors.clone(), style_rules, token_iterator, current_at_rules);
+                        current_at_rules.pop();
+                    },
+                    _ => {
+                        skip_block(token_iterator);
+                    }
+                }
             },
             _ => {
                 let mut lookahead = token_iterator.clone();
@@ -605,6 +612,17 @@ fn parse_declaration(token_iterator: &mut Peekable<Iter<CssTokenWithLocation>>) 
         return Some(ParsedDeclaration { property: parsed_property.unwrap(), value: parsed_value.unwrap(), important });
     }
     return None;
+}
+
+
+fn at_rule_from_keyword(keyword: String, prelude: String) -> Option<AtRule> {
+    return match keyword.as_str() {
+        "container" => Some(AtRule::Container(prelude)),
+        "media" => Some(AtRule::Media(prelude)),
+        "supports" => Some(AtRule::Supports(prelude)),
+        "keyframes" => Some(AtRule::Keyframes(prelude)),
+        _ => None,
+    };
 }
 
 
